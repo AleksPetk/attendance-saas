@@ -16,7 +16,9 @@ The platform operates at three conceptual levels:
 | **Organization** | Customer tenant (isolated) | Groups, Members, participants, Events, kiosks, actions, notifications, history, reports, staff, settings, billing |
 | **Participants** | End users of an Organization's system | Students, employees, athletes, gym members, visitors, temporary event participants — usually without platform accounts |
 
-An **Organization** is an isolated customer tenant. Billing and subscription state are **separate** from Organization identity. An Organization may exist while trialing, subscribed, cancelled, suspended, or in another future billing state. Billing lifecycle behavior is not defined here.
+An **Organization** is the customer **workspace**, **tenant**, and **subscription owner**. It is an isolated customer tenant. The real-world legal form of the customer (company, school, gym, individual business, etc.) does not change the platform model.
+
+Billing and subscription state belong to the Organization workspace and are **separate** from Organization identity. An Organization may exist while trialing, subscribed, cancelled, suspended, or in another future billing state. Billing lifecycle behavior is not defined here.
 
 ---
 
@@ -46,17 +48,32 @@ Tenant isolation is a fundamental architectural and security requirement.
 
 ## Users and Organizations
 
-A platform **User** account is **not** the same as an **Organization**.
+A **User** is a **human login account** — not the same as an **Organization** workspace and not the same as a **Member**.
 
-- A User may belong to or manage **more than one** Organization.
-- Organizations may have multiple administrators/staff with different permissions (permissions model to be designed later).
-- **Participants** (employees, students, athletes, guests, etc.) generally do **not** require platform User accounts.
+### Organization workspace access
+
+- An **Organization** is the customer workspace. Each Organization has **exactly one primary owner** User and may have additional admin/staff Users.
+- Customer Users access an Organization workspace through **OrganizationMembership**, which carries an Organization role (**owner**, **admin**, or **staff**).
+- A **normal customer User belongs to only one Organization**. Customer Users do not switch between Organizations in one login.
+- If the same real person manages two separate customer businesses/workspaces, they use **separate SaaS User accounts** for those Organizations.
+- Staff Users may receive limited permissions such as launching a kiosk or adding Members; the exact capability matrix is to be designed later.
+
+### User vs Member (separate lifecycles)
+
+- **Members** and other **Participants** generally do **not** require User login accounts.
+- The same real-world person may be both a staff **User** and a **Member** in the same Organization — for example, a teacher who logs in to launch/manage a kiosk and separately has a **Member** record so their own attendance can be tracked.
+- User and Member remain **separate records and lifecycles**. Disabling or removing staff User access must **not** destroy that person’s Member attendance history.
+- Any explicit link between a User and a Member record, if ever needed, remains a later design decision.
+
+### Platform administration (separate)
+
+Platform operator SaaS admin/staff accounts are separate from customer Organization roles. Platform operators use platform-admin access on the User model (e.g. Django admin); Organization roles are modeled on **OrganizationMembership**.
 
 ---
 
 ## Members
 
-An Organization may create a reusable, canonical **Member** profile containing the Organization-level data configured for that person.
+An Organization may create a reusable, canonical **Member** profile for a **tracked person** inside the workspace. Members generally do **not** need a SaaS User login.
 
 Example Member profile fields (not necessarily mandatory):
 
@@ -347,7 +364,7 @@ The exact notification engine is **not yet designed**.
 
 ## Subscriptions and Plans
 
-Recurring subscription SaaS product.
+Recurring subscription SaaS product. **Subscriptions belong to the Organization workspace**, not to individual Members.
 
 **Potential plans:** Basic, Pro, Business — exact names, prices, and limits are **not finalized**.
 

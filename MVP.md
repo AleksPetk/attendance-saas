@@ -2,7 +2,7 @@
 
 Initial structure for MVP boundaries. **Do not treat candidate or example items as confirmed requirements.**
 
-For confirmed product decisions, see [DECISIONS.md](./DECISIONS.md). For full product definition, see [PRODUCT.md](./PRODUCT.md).
+For confirmed product decisions and architecture, see [DECISIONS.md](./DECISIONS.md) and [ARCHITECTURE.md](./ARCHITECTURE.md). For full product definition, see [PRODUCT.md](./PRODUCT.md).
 
 ---
 
@@ -28,6 +28,12 @@ These directions describe **approach and discipline**, not a finalized feature c
 | Mobile, native, and desktop apps are **out of MVP scope** | Confirmed |
 | Standalone Events with Event Entries are a **core product concept** | Confirmed |
 | Canonical Members with Group Memberships and Group-specific overrides | Confirmed |
+| OrganizationMembership linking User ↔ Organization with MVP roles owner, admin, staff | Confirmed |
+| Customer User belongs to at most one Organization; no org-switching in one login | Confirmed |
+| Organization as customer workspace / tenant / subscription owner | Confirmed |
+| User (login account) ≠ Member (tracked person); separate lifecycles even for same real person | Confirmed |
+| Subscriptions belong to Organization workspaces, not Members | Confirmed |
+| Platform operator admin access separate from Organization customer roles | Confirmed |
 | Group-only participants (without full Member profiles) | Confirmed |
 | Every performed Action creates an Action Record; historical integrity must be preserved | Confirmed |
 | Kiosks are separate participant-facing interfaces, not admin pages | Confirmed |
@@ -52,12 +58,13 @@ Features aligned with core product concepts that **likely** belong in MVP but ar
 
 - [ ] Organization creation and settings
 - [ ] Strict tenant data isolation
-- [ ] Organization admin/staff access (basic permissions — exact model undecided)
+- [ ] OrganizationMembership linking Users to Organizations
+- [ ] MVP Organization roles on OrganizationMembership: owner, admin, staff (capability matrix undecided)
 
 ### Users
 
 - [ ] Platform User accounts
-- [ ] User association with one or more Organizations
+- [ ] User association with exactly one Organization via OrganizationMembership (at most one active membership per customer User)
 
 ### Members & Groups
 
@@ -139,7 +146,7 @@ Features explicitly described as future or later-phase. **Not MVP.**
 - Advanced notification recipients and rules
 - Native/desktop applications (macOS, Windows)
 - Platform administration tooling (full scope)
-- Role-based permissions beyond basic admin/staff
+- Role-based permissions beyond basic owner/admin/staff capability matrix
 
 **Note:** Full Platform administration tooling is outside current MVP scope. That does **not** mean the launch product will have zero platform-operator controls. The minimum Platform administration capabilities required for launch remain an open design question.
 
@@ -169,13 +176,13 @@ Items requiring explicit design and approval before categorization.
 | Configurable field types and limits | What field types MVP supports |
 | Minimum Member data | Which Organization-level Member fields, if any, are universally required |
 | Kiosk security and session model | Device credentials, session management, authentication |
-| Permission/role model | Admin vs staff capabilities and granularity |
+| Permission/role capability matrix | Exact capabilities for owner, admin, and staff undecided |
 | Notification engine architecture | Templates, triggers, variables, delivery pipeline |
 | Plan names, pricing, and exact limits | Basic/Pro/Business examples are illustrative |
 | Free trial duration and behavior | ~7 days is direction only |
 | Action Record retention policy | Archival, deletion, and compliance requirements; separate from media storage quotas |
 | Action Record source/context | Whether every Action Record requires Kiosk/device/session reference vs admin/manual/API/other sources |
-| Database and API architecture | Not yet designed; no tables approved |
+| Database implementation and API design | Conceptual tenant/person entities approved in ARCHITECTURE.md; tables, fields, indexes, constraints, Django models, APIs, and tenant-enforcement mechanisms undecided |
 | MVP feature final checklist | Requires explicit approval session |
 | Stripe integration details | Subject to later design/research; not confirmed implementation |
 | Image optimization specifications | Dimensions, formats, variants |

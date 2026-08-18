@@ -38,8 +38,13 @@ build/
 *.sqlite3
 *.sqlite3-journal
 local_settings.py
+staticfiles/
 *.log
 media/
+
+# Docker local overrides (may contain secrets)
+docker-compose.override.yml
+docker-compose.*.local.yml
 
 # Node / React
 node_modules/

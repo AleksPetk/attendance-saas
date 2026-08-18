@@ -14,7 +14,31 @@ The SaaS system operated by the platform team. Encompasses all Organizations, in
 
 ### User **(confirmed)**
 
-A person with a platform account who can authenticate to the system. A User is **not** the same as an Organization. A User may belong to or manage multiple Organizations.
+A **human login account** for people who authenticate to the SaaS application. A **customer User** accesses **exactly one** Organization **workspace** through **OrganizationMembership**. A User is **not** the same as an Organization workspace, a Member, or a Participant.
+
+A customer User does not switch Organizations in one login. If the same real person manages two separate customer businesses/workspaces, they use separate User accounts. The same real-world person may also be a Member in an Organization, but User and Member remain separate records and lifecycles.
+
+Platform operator accounts also use the User model; `is_staff` / `is_superuser` are global platform-admin flags, separate from customer Organization membership. See [SECURITY.md](./SECURITY.md).
+
+### OrganizationMembership **(confirmed)**
+
+The relationship/role entity linking one **customer User** to one **Organization**. Expresses that a User belongs to or manages that Organization. Carries the User's **role** within that Organization.
+
+A customer User may have **at most one active OrganizationMembership**. Customer Users do not switch Organizations in one login.
+
+Architecture entity name: **OrganizationMembership**. See [ARCHITECTURE.md](./ARCHITECTURE.md).
+
+### Organization role **(confirmed names; capabilities provisional)**
+
+The role assigned on an OrganizationMembership within an Organization. Fixed MVP role names:
+
+- **owner**
+- **admin**
+- **staff**
+
+Exact capability and permission differences between these roles remain **undecided**. This glossary approves the role names, not a full permission matrix.
+
+People who manage an Organization through the administration dashboard do so as Users with an OrganizationMembership in that Organization.
 
 ### Plan **(confirmed concept, details provisional)**
 
@@ -22,7 +46,7 @@ A subscription tier (e.g., Basic, Pro, Business) defining feature access and usa
 
 ### Subscription **(confirmed concept, details provisional)**
 
-An Organization's billing relationship with the Platform. Tied to a Plan. Implementation details undecided. Subscription/billing status is separate from Organization identity.
+An Organization workspace's billing relationship with the Platform. Tied to a Plan. Belongs to the **Organization**, not to Members. Implementation details undecided. Subscription/billing status is separate from Organization identity.
 
 ---
 
@@ -30,19 +54,19 @@ An Organization's billing relationship with the Platform. Tied to a Plan. Implem
 
 ### Organization **(confirmed)**
 
-An isolated customer tenant on the Platform. An Organization configures and operates its own check-in/attendance system.
+The customer **workspace**, **tenant**, and **subscription owner** on the Platform. An Organization configures and operates its own check-in/attendance system.
+
+The real-world legal form of the customer (company, school, gym, individual business, etc.) does not change the platform model. Each Organization has **exactly one primary owner** User and may have additional admin/staff Users via OrganizationMembership.
 
 An Organization may be in trial, actively subscribed, cancelled, suspended, or another billing state. Billing/subscription status is **separate** from the identity of the Organization itself. An Organization is not defined by currently paying.
 
 Tenant isolation remains fundamental: all Organization data is strictly separated from other Organizations.
 
-### Organization Admin / Staff **(confirmed concept, permissions provisional)**
-
-People who manage an Organization through the administration dashboard. May include owners, administrators, and staff with varying permissions. Exact role model is **undecided**.
-
 ### Member **(confirmed)**
 
-A reusable canonical person profile belonging to an Organization. It contains the Organization-level data configured for that person. A Member may be attached to multiple Groups without duplicating the canonical Member record.
+A reusable canonical **tracked person** profile belonging to an Organization workspace. It contains the Organization-level data configured for that person. A Member generally does **not** require a User login and may be attached to multiple Groups without duplicating the canonical Member record.
+
+The same real-world person may also be a staff User in the same Organization, but Member and User remain separate records and lifecycles. Disabling staff User access must not destroy Member attendance history.
 
 Possible data may include name, email, phone, photo, member code, and other Organization-configured fields. These examples are **not** necessarily mandatory fields.
 
@@ -56,11 +80,15 @@ An Organization-defined collection/context for participants with its own configu
 
 The relationship attaching a Member to a Group. Holds group-specific context and may override canonical Member field values without modifying the Member's canonical data.
 
+Architecture entity name: **GroupMembership**. See [ARCHITECTURE.md](./ARCHITECTURE.md).
+
 **Example:** Canonical email `abc@gmail.com` vs Employee Group email `john@company.com`.
 
 ### Group-only Participant **(confirmed)**
 
 A participant added directly to a Group without a full reusable Organization Member profile. Useful for temporary or lightweight participation. May be linkable to a canonical Member in the future.
+
+Product-facing term: **Group-only Participant**. Architecture entity name: **GroupOnlyParticipant**. See [ARCHITECTURE.md](./ARCHITECTURE.md).
 
 ### Participant **(confirmed, informal)**
 
@@ -153,19 +181,23 @@ A configured trigger that sends a notification when a specific Action occurs (e.
 
 ---
 
-## Data Concepts (Internal, Not Final)
+## Data Concepts (Approved Conceptual Architecture)
 
-These describe intended internal relationships. **Not approved database design.**
+Conceptual relationships approved in [ARCHITECTURE.md](./ARCHITECTURE.md). **Not** Django models, database tables, fields, or API design.
 
 ```
+User
+  └── at most one active customer OrganizationMembership
+        └── role: owner | admin | staff
+
 Organization
   ├── Member
-  │     └── Group Membership (per Group)
-  │           └── Group-specific field values
+  │     └── GroupMembership (per Group)
+  │           └── (future) group-specific field values
   ├── Group
-  │     ├── Group-only Participants
-  │     └── Group Memberships (linked Members)
-  └── Event
+  │     ├── GroupMembership (linked Members)
+  │     └── GroupOnlyParticipant
+  └── (future) Event
         └── Event Entry
 
 Action (performed)
@@ -183,6 +215,9 @@ Action (performed)
 | Reservation / Attendee as one generic canonical term | Event Entry | Reservation and Attendee must not be forced to mean the same thing unless a future architecture explicitly separates them |
 | Industry-specific product modes | Generic Groups and configuration | Platform is multi-industry |
 | "Attendance app" as product identity | Configurable check-in / attendance platform | Product is broader than simple attendance |
+| Django `is_staff` / platform admin flags as Organization staff roles | OrganizationMembership roles (owner, admin, staff) | Platform operator access ≠ customer workspace roles |
+| Merging User and Member because they represent the same person | Separate User and Member records with separate lifecycles | Login access and tracked participation are different concerns |
+| One customer User managing multiple Organizations | Separate User accounts per Organization workspace | Customer Users belong to one Organization; no org-switching in one login |
 
 ---
 
@@ -191,6 +226,7 @@ Action (performed)
 | Term | Options / Notes |
 |------|-----------------|
 | Kiosk Session | May need refinement once security model is designed |
-| Group Membership | Internal name may change during architecture design |
+| Organization role capabilities | Role names owner/admin/staff approved; permission matrix undecided |
+| User ↔ Member explicit linking | Same real person may be both; any explicit link/deduplication mechanism undecided |
 | Plan tier names | Basic / Pro / Business are examples only |
 | Event sub-concepts | Whether some Events later need separate Reservation and Attendee structures remains undecided |

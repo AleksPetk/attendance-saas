@@ -42,9 +42,10 @@ Only log decisions supported by approved product planning. Do not invent decisio
 | Field | Value |
 |-------|-------|
 | **Date** | 2026-08-18 |
-| **Decision** | Platform User accounts are separate from Organizations. A User may belong to or manage multiple Organizations. |
+| **Decision** | Platform User accounts are separate from Organizations. A User may belong to or manage multiple Organizations via OrganizationMembership. |
 | **Reason** | Supports consultants, multi-org administrators, and users who operate several independent tenants. |
-| **Status** | confirmed |
+| **Status** | superseded |
+| **Superseded by** | [DEC-033](#dec-033--one-customer-user-belongs-to-one-organization) |
 
 ### DEC-005 — Participants generally lack platform accounts
 
@@ -226,6 +227,88 @@ Only log decisions supported by approved product planning. Do not invent decisio
 | **Reason** | Scope control; configurable fields will be designed with defined limits, not unlimited custom forms. |
 | **Status** | confirmed |
 
+### DEC-025 — OrganizationMembership entity
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-08-18 |
+| **Decision** | OrganizationMembership is an approved conceptual entity linking a customer User ↔ Organization. A customer User accesses and manages Organization data through OrganizationMembership. Operational customer data belongs to Organizations, not directly to Users. |
+| **Reason** | Separates authenticated login accounts from tenant-scoped operational data and carries Organization role. Multi-Organization customer Users are no longer assumed; see DEC-033. |
+| **Status** | confirmed |
+
+### DEC-026 — MVP Organization role names
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-08-18 |
+| **Decision** | Fixed MVP Organization role names on OrganizationMembership: **owner**, **admin**, **staff**. Exact capability and permission differences between roles remain undecided. |
+| **Reason** | Establishes a stable role vocabulary for MVP authorization design without prematurely defining a full permission matrix. |
+| **Status** | confirmed |
+
+### DEC-027 — Tenant/person conceptual architecture foundation
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-08-18 |
+| **Decision** | Approved conceptual architecture foundation: User, Organization, OrganizationMembership, Member, Group, GroupMembership, GroupOnlyParticipant. User ≠ Member. No generic Person model. Cross-Organization relationships forbidden. Tenant isolation enforced at application level and database level where practical. |
+| **Reason** | Provides an implementation-ready tenant and person model before Django/API design. Documented in ARCHITECTURE.md. |
+| **Status** | confirmed |
+
+### DEC-028 — Custom Django User model (email-based)
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-08-18 |
+| **Decision** | Implement a project-owned custom Django `User` model in the `accounts` app before domain models. The model extends `AbstractUser`, uses **email** as `USERNAME_FIELD` (no username field), and represents global SaaS account holders/staff — not Organization Members or other operational participants. `AUTH_USER_MODEL = "accounts.User"`. |
+| **Reason** | Establishes the authentication identity early while the project is still at initial migrations, avoiding a later swap away from Django’s default User. Keeps the model minimal and compatible with Django admin/auth while leaving room for future SaaS account fields and email-based login flows. |
+| **Status** | confirmed |
+
+### DEC-029 — Platform Django admin access is separate from Organization roles
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-08-18 |
+| **Decision** | Django `is_staff` and `is_superuser` on `accounts.User` represent **platform operator / SaaS management** access to the Django admin site. They are **not** Organization customer roles. Organization roles (owner, admin, staff) will be modeled on OrganizationMembership. The first local platform superuser is created manually; no hardcoded admin credentials in the repository. |
+| **Reason** | Prevents conflating platform-operator tooling access with tenant-scoped customer administration and keeps local admin setup explicit and secure. |
+| **Status** | confirmed |
+
+### DEC-030 — 2FA requirements for platform admin and customer Users
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-08-18 |
+| **Decision** | **Platform admin/staff 2FA is mandatory before production.** **Customer User 2FA is optional** but should be prominently recommended for account safety. 2FA is not implemented at the current foundation stage. |
+| **Reason** | Platform operators have elevated access; customer Users benefit from optional hardening without blocking MVP onboarding friction. Documented in [SECURITY.md](./SECURITY.md). |
+| **Status** | confirmed |
+
+### DEC-031 — Email addresses stored in normalized lowercase form
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-08-18 |
+| **Decision** | Platform User email addresses are normalized to lowercase (full address, not domain-only) before storage via the User manager and model `save()`. Combined with the unique email constraint, duplicate accounts differing only by email case are prevented. |
+| **Reason** | Email is the authentication identifier; case-insensitive uniqueness avoids duplicate accounts and login confusion. |
+| **Status** | confirmed |
+
+### DEC-032 — Clarified workspace, User, and Member model
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-08-18 |
+| **Decision** | **Organization** is the customer workspace, tenant boundary, and subscription owner; real-world legal customer type is irrelevant to the platform model. **User** is a human login account accessing an Organization workspace via **OrganizationMembership**; each Organization has one primary **owner** User and may have additional staff Users with roles/permissions defined later. **Member** is a tracked person inside the Organization and generally does not need a login. The same real-world person may be both a staff User and a Member, but those remain **separate records and lifecycles** with **no required link**. Disabling staff User access must **not** destroy Member attendance history. **Subscriptions** belong to the Organization workspace, not to Members. Platform operator admin/staff access remains separate from Organization customer roles. Customer User ↔ Organization cardinality is defined in DEC-033. |
+| **Reason** | Makes the distinction between login accounts, customer workspaces, and tracked participants explicit before Organization models are implemented. Preserves tenant isolation and historical integrity. |
+| **Status** | confirmed |
+
+### DEC-033 — One customer User belongs to one Organization
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-08-18 |
+| **Decision** | A **normal customer User may belong to only one Organization**. **OrganizationMembership** remains the relationship/role entity, with **at most one active customer Organization membership per User**. Customer Users do **not** switch Organizations in one login. If the same real person manages two separate customer businesses/workspaces, they use **separate User accounts**. Each Organization has **exactly one primary owner** User and may have additional admin/staff Users. Platform `is_staff` / `is_superuser` operator accounts remain global and separate from customer Organization membership. |
+| **Reason** | Simplifies login, tenant context, billing, and permissions. Avoids org-switching UX and accidental cross-tenant access. Consultants/multi-business operators use separate accounts rather than one User spanning tenants. |
+| **Status** | confirmed |
+| **Supersedes** | DEC-004 (multi-Organization customer User assumption) |
+
 ---
 
 ## Open Decisions
@@ -237,12 +320,12 @@ Unresolved questions requiring explicit approval before implementation.
 | OPEN-002 | Action/state model | How actions relate to participant current state |
 | OPEN-003 | Configurable field types and MVP scope | Which field types and how many per Group |
 | OPEN-004 | Kiosk security and session model | Device credentials, session management, authentication |
-| OPEN-005 | Permission and role model | Admin vs staff capabilities and granularity |
+| OPEN-005 | Organization role capability matrix | MVP role names owner/admin/staff approved on OrganizationMembership; exact capabilities and permission differences per role undecided |
 | OPEN-006 | Notification engine architecture | Templates, triggers, variables, delivery pipeline |
 | OPEN-007 | Plan names, pricing, and exact limits | Basic/Pro/Business and all quota numbers |
 | OPEN-008 | Free trial behavior | Duration (~7 days is direction only), feature access during trial |
 | OPEN-009 | Historical record retention policy | Archival, deletion, and compliance requirements |
-| OPEN-010 | Database schema and API design | Not yet designed; no tables approved |
+| OPEN-010 | Database implementation and API design | Conceptual entities for the tenant/person foundation are approved in ARCHITECTURE.md. Django models, database tables, fields, indexes, constraints, migrations, REST/API design, and tenant-enforcement mechanisms (e.g. RLS) remain undecided |
 | OPEN-011 | Stripe integration design | Checkout, webhooks, plan sync, billing portal |
 | OPEN-012 | Image optimization specifications | Max dimensions, formats, thumbnail strategy |
 | OPEN-013 | MVP feature final checklist | Which candidate features are in vs out |
@@ -257,6 +340,8 @@ Unresolved questions requiring explicit approval before implementation.
 | OPEN-022 | Event Entry future structure | Whether future architecture will split generic Event Entries into separate concepts such as Reservation → Attendees, and under what circumstances. |
 | OPEN-023 | Action Record source/context | Whether every Action Record must include a Kiosk/device/session reference or whether Actions may also originate from admin/manual/API/other sources. Exact source/context model undecided. |
 | OPEN-024 | Organization billing lifecycle | How Organization states (trial, subscribed, cancelled, suspended, other) relate to the Subscription model and access rules. Do not design the billing state machine yet. |
+| OPEN-025 | User ↔ Member explicit linking | Same real-world person may be both User and Member; any explicit link, deduplication, or conversion mechanism remains undecided. Do not invent a required link during foundation implementation. |
+| OPEN-026 | Customer User email uniqueness vs separate Organization accounts | `accounts.User.email` is currently globally unique. DEC-033 requires separate User accounts when one real person manages two Organizations. That person cannot reuse the same email for both accounts unless email uniqueness is later relaxed (e.g. unique per Organization). Keep globally unique email unless explicitly approved otherwise. |
 
 ---
 

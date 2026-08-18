@@ -23,9 +23,9 @@ Native/desktop applications (macOS, Windows) and mobile app store billing are **
 
 ## Development Order
 
-1. Product and architecture design ← current stage
-2. Django / DRF backend
-3. React web frontend
+1. Product and architecture design
+2. Django / DRF backend ← foundation in progress
+3. React web frontend ← foundation in progress
 4. Complete, test, and polish backend + web
 5. Mobile frontend later
 6. macOS / Windows desktop applications later
@@ -38,7 +38,7 @@ Repository documentation is the **durable source of truth** for approved project
 
 ChatGPT and project discussions are used to design, challenge, review, and approve decisions. Important approved decisions should then be recorded in the relevant repository files.
 
-This file is the short project entry point. Detailed product definition, scope, terminology, and decisions live in the files listed below.
+This file is the short project entry point. Detailed product definition, scope, terminology, architecture, and decisions live in the files listed below.
 
 ## Fundamental Principles
 
@@ -83,7 +83,7 @@ Future code should favor long-term human readability and maintainability.
 - Reuse logic appropriately, but do not introduce abstractions merely for the sake of abstraction.
 - Follow established project conventions once those conventions exist.
 
-Do not add detailed Django, React, database, or API structure here until that architecture is designed and approved.
+Do not add detailed Django, React, database, or API implementation structure here. Approved conceptual architecture for the tenant/person foundation lives in [ARCHITECTURE.md](./ARCHITECTURE.md). Further architecture requires separate approval.
 
 ### Development Workflow
 
@@ -101,10 +101,12 @@ When implementation begins:
 
 | File | Purpose |
 |------|---------|
+| [ARCHITECTURE.md](./ARCHITECTURE.md) | Technical architecture source of truth |
 | [PRODUCT.md](./PRODUCT.md) | Detailed product definition |
 | [MVP.md](./MVP.md) | MVP scope boundaries and feature categorization |
 | [TERMINOLOGY.md](./TERMINOLOGY.md) | Canonical and provisional product terms |
 | [DECISIONS.md](./DECISIONS.md) | Architecture and product decision log |
+| [SECURITY.md](./SECURITY.md) | Security requirements and 2FA direction |
 
 ## Cursor Rules
 

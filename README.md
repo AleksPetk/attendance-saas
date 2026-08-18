@@ -10,19 +10,17 @@ Possible customers include schools, companies, gyms, clubs, childcare and traini
 
 ## Project Status
 
-**The project is in the product and architecture design stage.**
+**Technical foundation is in progress.**
 
-Foundation product documentation is in place. Backend implementation has **not** started. The React web frontend has **not** been started. Mobile and desktop applications come later, after the web product is mature.
-
-There is currently **no implemented application**, API, or deployed demo in this repository.
+Product and architecture documentation is in place. A Django + DRF backend, React web frontend, PostgreSQL, and Docker Compose local stack are implemented at foundation level (health check, custom User model). Domain models (Organization, Member, Group, etc.) are **not** yet implemented. Mobile and desktop applications come later.
 
 ## Core Product Concepts
 
 Approved product concepts currently include:
 
-- **Organizations** — isolated customer tenants (billing state is separate from tenant identity)
-- **Users / admins** — platform accounts that can belong to more than one Organization
-- **Members** — reusable Organization-level person profiles
+- **Organizations** — customer workspaces / tenants / subscription owners (legal customer type is irrelevant to the model)
+- **Users** — human login accounts; a customer User belongs to one Organization via OrganizationMembership
+- **Members** — tracked people inside an Organization; generally no SaaS login (separate from User even when the same real person)
 - **Groups** — Organization-defined participation contexts
 - **Group Memberships** — Member-to-Group attachments, including group-specific data overrides
 - **Group-only Participants** — people added to a Group without a full Member profile
@@ -32,13 +30,13 @@ Approved product concepts currently include:
 - **Action Records** — historical records created when an Action is performed
 - **Kiosks** — participant-facing check-in interfaces, separate from Organization administration
 - **Notifications** — action-triggered messages (initial direction: transactional email)
-- **Subscriptions / Plans** — recurring SaaS billing with plan-based limits (details not finalized)
+- **Subscriptions / Plans** — recurring SaaS billing tied to Organization workspaces (details not finalized)
 
-Participants generally do not need platform User accounts.
+Participants (Members, Group-only participants, Event Entries) generally do not need User login accounts. Platform operator admin accounts are separate from Organization customer roles.
 
 ## Planned Technology Direction
 
-This is the **planned** stack. None of it is implemented in this repository yet.
+This is the **planned** stack. Foundation pieces are partially implemented locally via Docker Compose.
 
 | Layer | Direction |
 |-------|-----------|
@@ -56,9 +54,9 @@ Web billing is likely to use Stripe; that design is not finalized. Native app st
 
 ## Development Order
 
-1. Product and architecture design ← **current stage**
-2. Django / DRF backend
-3. React web frontend
+1. Product and architecture design
+2. Django / DRF backend ← **in progress (foundation)**
+3. React web frontend ← **in progress (foundation)**
 4. Complete, test, and polish backend + web
 5. Mobile frontend later
 6. macOS / Windows desktop applications later
@@ -80,10 +78,12 @@ Repository documentation is the source of truth for approved decisions.
 | Document | Contents |
 |----------|----------|
 | [PROJECT.md](./PROJECT.md) | Short project overview, principles, and development order |
+| [ARCHITECTURE.md](./ARCHITECTURE.md) | Technical architecture source of truth |
 | [PRODUCT.md](./PRODUCT.md) | Detailed product definition |
 | [MVP.md](./MVP.md) | MVP scope boundaries and feature categorization |
 | [TERMINOLOGY.md](./TERMINOLOGY.md) | Canonical and provisional product terms |
 | [DECISIONS.md](./DECISIONS.md) | Confirmed decisions and open questions |
+| [SECURITY.md](./SECURITY.md) | Security requirements and 2FA direction |
 
 Cursor project rules live in [`.cursor/rules/project.mdc`](./.cursor/rules/project.mdc).
 

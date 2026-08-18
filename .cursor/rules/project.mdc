@@ -10,10 +10,12 @@ alwaysApply: true
 Before substantial work, read:
 
 - `PROJECT.md` — overview, principles, development order
+- `ARCHITECTURE.md` — technical architecture source of truth
 - `PRODUCT.md` — detailed product definition
 - `MVP.md` — scope boundaries (Confirmed vs Candidate vs Post-MVP)
 - `TERMINOLOGY.md` — canonical and provisional terms
 - `DECISIONS.md` — confirmed decisions and open questions
+- `SECURITY.md` — security requirements and 2FA direction
 
 Use normal engineering judgment for implementation details and choose clean compatible approaches when appropriate. Do **not** silently redefine approved product behavior, tenant/security boundaries, major architecture, billing behavior, data ownership, or historical integrity. Surface review-worthy changes instead of deciding them silently.
 
@@ -76,4 +78,7 @@ Favor long-term human readability and maintainability:
 
 - **Event** = temporary or one-time check-in/attendance context belonging to an Organization; may contain **Event Entries**; can operate without persistent Members or Groups. Reservation-based check-in is one possible workflow, not the definition.
 - **Action Record** = historical record of a performed Action. Never use **Event** for an Action Record.
+- **User** = human login account. A customer User belongs to at most one Organization via OrganizationMembership. Not a Member.
+- **Member** = tracked person inside an Organization workspace; generally no login. Separate lifecycle from User even when the same real person.
+- **Organization** = customer workspace / tenant / subscription owner.
 - See `TERMINOLOGY.md` for full glossary.
