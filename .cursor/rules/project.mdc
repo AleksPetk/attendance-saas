@@ -1,0 +1,79 @@
+---
+description: Core project rules for the Configurable Check-In / Attendance SaaS Platform
+alwaysApply: true
+---
+
+# Project Rules
+
+## Read Authoritative Docs First
+
+Before substantial work, read:
+
+- `PROJECT.md` — overview, principles, development order
+- `PRODUCT.md` — detailed product definition
+- `MVP.md` — scope boundaries (Confirmed vs Candidate vs Post-MVP)
+- `TERMINOLOGY.md` — canonical and provisional terms
+- `DECISIONS.md` — confirmed decisions and open questions
+
+Use normal engineering judgment for implementation details and choose clean compatible approaches when appropriate. Do **not** silently redefine approved product behavior, tenant/security boundaries, major architecture, billing behavior, data ownership, or historical integrity. Surface review-worthy changes instead of deciding them silently.
+
+## Product Identity
+
+This is a **multi-tenant, industry-agnostic SaaS platform** — not a single-company attendance app, school-only product, or employee time clock. Design and terminology must remain generic.
+
+## Non-Negotiables
+
+- **Strict multi-tenancy:** Organization A must never access Organization B's data.
+- **Design before code:** Important product behavior and major architecture are approved before implementation.
+- **Historical integrity:** Every performed Action creates an **Action Record**; do not store only current state; preserve history; do not silently overwrite or manipulate records in a way that destroys history. Manual correction/audit mechanics are designed separately.
+- **Kiosk separation:** Kiosk Mode must never expose the Organization admin dashboard.
+
+## Scope Discipline
+
+- Distinguish **confirmed decisions** from **candidate**, **post-MVP**, and **undecided** items (see `MVP.md`, `DECISIONS.md`).
+- Do not silently expand MVP scope or treat examples as requirements.
+- MVP must not become a general-purpose workflow engine, form-builder, or page-builder.
+- Do not introduce or redesign major architecture unless the current task explicitly includes architecture work and the relevant decisions are approved. During implementation, follow the approved architecture and surface necessary deviations for review.
+
+## Implementation Stages
+
+Approved order:
+
+1. Design / product architecture
+2. Django + DRF backend
+3. React web frontend
+4. Complete, test, and polish backend + web
+5. Mobile later
+6. macOS / Windows desktop later
+
+Do not begin mobile or desktop work unless explicitly instructed. Docker, deployment, and billing should only be worked on when explicitly in scope for the current approved stage or task; their detailed architecture remains undecided where applicable.
+
+Current stack direction: Django + DRF, PostgreSQL, React web frontend. Do not install packages or begin implementation during design-only tasks.
+
+## Code Readability
+
+Favor long-term human readability and maintainability:
+
+- Prefer descriptive names and clear control flow over clever or excessively compact code.
+- Avoid excessively long lines; use normal readable formatting.
+- Keep functions, classes, components, and modules focused on clear responsibilities.
+- Avoid giant multi-purpose or multi-thousand-line files; split when a file becomes hard to understand, navigate, test, or maintain, or handles unrelated responsibilities.
+- Do not enforce arbitrary tiny file-size limits.
+- Use comments mainly to explain why or clarify non-obvious behavior; avoid comments that repeat obvious code.
+- Reuse logic appropriately without unnecessary abstractions.
+- Follow established project conventions once they exist.
+
+## When Making Changes
+
+1. Inspect existing authoritative files before planning.
+2. Avoid unrelated changes.
+3. Preserve tenant isolation in all designs and code.
+4. Explain architecture-affecting assumptions.
+5. Surface review-worthy changes instead of silently deciding them.
+6. Update relevant docs only when a change affects documented product behavior, architecture, scope, terminology, or confirmed decisions.
+
+## Terminology
+
+- **Event** = temporary or one-time check-in/attendance context belonging to an Organization; may contain **Event Entries**; can operate without persistent Members or Groups. Reservation-based check-in is one possible workflow, not the definition.
+- **Action Record** = historical record of a performed Action. Never use **Event** for an Action Record.
+- See `TERMINOLOGY.md` for full glossary.
