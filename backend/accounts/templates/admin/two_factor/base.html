@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ title }} · Check Station</title>
+  <style>
+    :root {
+      --navy: #071426;
+      --blue: #2563eb;
+      --text: #0f172a;
+      --muted: #64748b;
+      --border: #e2e8f0;
+      --danger: #dc2626;
+      --surface: #ffffff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      background: #f6f9fc;
+      color: var(--text);
+    }
+    .wrap {
+      max-width: 32rem;
+      margin: 3rem auto;
+      padding: 0 1.25rem 3rem;
+    }
+    .brand {
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: var(--navy);
+      margin-bottom: 1.5rem;
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 1.5rem;
+      box-shadow: 0 8px 24px rgba(7, 20, 38, 0.08);
+    }
+    h1 {
+      font-size: 1.35rem;
+      margin: 0 0 0.5rem;
+    }
+    p, li { color: var(--muted); line-height: 1.5; }
+    .error {
+      background: #fef2f2;
+      color: var(--danger);
+      border: 1px solid #fecaca;
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      margin: 0 0 1rem;
+    }
+    label {
+      display: block;
+      font-weight: 600;
+      margin-bottom: 0.35rem;
+    }
+    input[type="text"], input[type="password"] {
+      width: 100%;
+      padding: 0.7rem 0.8rem;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 1.05rem;
+    }
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      margin-top: 1.25rem;
+    }
+    button, .button {
+      appearance: none;
+      border: 0;
+      background: var(--blue);
+      color: #fff;
+      font-weight: 600;
+      padding: 0.7rem 1rem;
+      border-radius: 8px;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-block;
+    }
+    button.secondary, a.secondary {
+      background: transparent;
+      color: var(--blue);
+      border: 1px solid var(--border);
+    }
+    .setup-key {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 1.05rem;
+      letter-spacing: 0.08em;
+      background: #f8fafc;
+      border: 1px dashed var(--border);
+      border-radius: 8px;
+      padding: 0.75rem;
+      word-break: break-all;
+    }
+    .qr {
+      display: block;
+      margin: 1rem auto;
+      width: 180px;
+      height: 180px;
+    }
+    .codes {
+      list-style: none;
+      padding: 0;
+      margin: 1rem 0;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.5rem;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    .codes li {
+      background: #f8fafc;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.5rem 0.65rem;
+      color: var(--text);
+      text-align: center;
+    }
+    .check {
+      display: flex;
+      gap: 0.6rem;
+      align-items: flex-start;
+      margin: 1rem 0;
+      color: var(--text);
+    }
+    .muted { color: var(--muted); font-size: 0.95rem; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="brand">Check Station</div>
+    <div class="card">
+      {% if error %}<p class="error">{{ error }}</p>{% endif %}
+      {% block content %}{% endblock %}
+    </div>
+  </div>
+  {% block extra_js %}{% endblock %}
+</body>
+</html>

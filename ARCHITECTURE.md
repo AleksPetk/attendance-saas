@@ -14,10 +14,9 @@ This document describes **approved conceptual architecture** only. It does **not
 
 The **tenant and person foundation**:
 
-- global **User**
-- **Organization** as the tenant boundary
-- **OrganizationMembership** linking User ↔ Organization
-- fixed MVP Organization roles: **owner**, **admin**, **staff**
+- global **User** (platform operators and paying customer owners only)
+- **Organization** as the tenant boundary, with a required one-to-one **owner** User
+- **WorkspaceStaffAccount** for customer-created workspace admin/staff logins
 - **Member** owned by one Organization
 - **Group** owned by one Organization
 - **GroupMembership** linking Member ↔ Group
@@ -25,18 +24,20 @@ The **tenant and person foundation**:
 
 Cross-cutting rules for tenant isolation, data ownership, and historical integrity that apply to this foundation.
 
+**Product relationship rules recorded here (models not designed):** Group vs Event lifecycle; each Group and each Event owns its kiosk configuration; no global workspace kiosk.
+
 ### Explicitly not designed here
 
 Do not infer implementation from this document for:
 
 - Django models, fields, or migrations
 - REST/API design
-- Events and Event Entries
+- Event / Event Entry **database schema** (lifecycle and kiosk-ownership rules are recorded above)
 - Actions and Action Records
-- Kiosks
-- subscriptions and billing
-- configurable fields and group-specific overrides (structure only noted as future)
-- notification engine
+- Kiosk **database fields**, launch flow, or session/security model (ownership rules are recorded above)
+- subscriptions and billing (including exact plan limits)
+- configurable fields and group-specific overrides (this slice implements explicit GroupMembership override fields for name, email, photo, member identifier, and PIN — not a generic field engine)
+- notification engine (this slice stores Group after-action email toggles/templates only; sending is not implemented)
 - platform-operator administration tooling
 
 Those areas require separate architecture work and approval.
@@ -47,33 +48,49 @@ Those areas require separate architecture work and approval.
 
 The platform separates three concerns:
 
-1. **Who can log in and manage** — **User** (human login account)
-2. **Which customer workspace they access** — **Organization** via **OrganizationMembership**
+1. **Who pays and who operates the SaaS** — **User** (platform operators and the paying customer owner)
+2. **Which customer workspace they own or staff** — **Organization** owned by one User; additional workspace logins are **WorkspaceStaffAccount**
 3. **Who is tracked operationally inside a workspace** — **Member**, **GroupOnlyParticipant**, and later **Event Entry**
 
-**Organization** is the customer **workspace**, **tenant boundary**, and **subscription owner**. The real-world legal form of the customer (company, school, gym, sole proprietor, etc.) does not change the platform model.
+**Organization** is the customer **workspace**, **tenant boundary**, and **subscription boundary**. The real-world legal form of the customer (company, school, gym, sole proprietor, etc.) does not change the platform model.
 
-**User** is a human login account. A **customer User** accesses **exactly one** Organization workspace through **OrganizationMembership**. Customer Users do not switch Organizations in one login. If the same real person manages two separate customer businesses/workspaces, they use **separate User accounts**. Platform operators may use the same `accounts.User` model with platform-admin access flags (`is_staff` / `is_superuser`) for Django admin and future platform tooling — this is global, separate from customer Organization membership, and is **not** Organization customer roles.
+**User** is a **platform-level** login account with **one globally unique normalized email**. It is used for:
 
-**Member** is a tracked person inside an Organization and generally does **not** need a User login. The same real-world person may simultaneously be a staff **User** and a **Member**, but those remain **separate records and lifecycles** with no required link between them (explicit linking, if any, remains a later decision).
+- platform superusers / SaaS staff (`is_staff` / `is_superuser`)
+- the **paying customer** who owns exactly one Organization
+
+A paying customer User does not switch Organizations. If the same real person operates two separate Organization **workspaces**, they use **separate User accounts** (and therefore separate emails). One workspace may mix many real-world activities as Groups and Events.
+
+Customer-created workspace **admin** and **staff** logins are **not** Users. They are **WorkspaceStaffAccount** records scoped to exactly one Organization. Staff **username** is unique **per workspace only**; the same username may exist in other workspaces. Staff login uses **Workspace ID + username + password**. The paying owner does **not** use Workspace ID.
+
+**Member** is a tracked person inside an Organization. Members **do not access the Organization workspace** and generally do **not** need a User or WorkspaceStaffAccount login. The same real-world person may later be both a WorkspaceStaffAccount and a Member; those remain **separate records and lifecycles** with no required link.
 
 ```
 Platform
-  └── User (global human login account)
+  └── User (platform-level login)
         ├── (optional) platform operator access via is_staff / is_superuser
-        └── at most one active customer OrganizationMembership
-              └── role: owner | admin | staff
+        └── at most one owned Organization (paying customer owner)
 
-  └── Organization (customer workspace / tenant / subscription owner)
-        ├── Member (tracked person profile; no login required)
+  └── Organization (customer workspace / tenant / subscription boundary)
+        ├── owner → exactly one paying User
+        ├── Workspace ID (immutable; staff login identifier)
+        ├── WorkspaceStaffAccount (admin | staff; username unique per Organization)
+        ├── Member (tracked person; no workspace access)
         │     └── GroupMembership (per Group)
-        ├── Group
+        ├── Group (persistent / reusable participation context)
         │     ├── GroupMembership (linked Members)
-        │     └── GroupOnlyParticipant
-        └── (future) Event → Event Entry
+        │     ├── GroupOnlyParticipant
+        │     └── owned kiosk configuration (product rule; fields not designed)
+        └── Event (temporary / one-time participation context; models not designed)
+              ├── Event Entry
+              └── owned kiosk configuration (product rule; fields not designed)
 ```
 
-Operational customer data belongs to **Organizations**, not directly to Users. Customer Users access and manage Organization data only through their **OrganizationMembership**. **Subscriptions** belong to the Organization workspace, not to Members.
+Operational customer data belongs to **Organizations**, not directly to Users. The paying customer accesses the workspace as the Organization **owner**. Additional workspace operators use **WorkspaceStaffAccount**. **Subscriptions** belong to the Organization workspace, not to Members. A workspace may begin in trial or unsubscribed state; billing implementation is not designed here.
+
+**Members do not access the Organization workspace.** They are tracked operationally; participant check-in happens through **Kiosks** owned by a Group or an Event (kiosk fields and session model are not designed in this document).
+
+One Organization workspace may contain **any mix** of Groups and Events (for example a school Group, a hobby Group, and a reservation Event). That mix does not require separate paying User accounts. Separate User accounts remain required only for separate Organization workspaces (DEC-033, DEC-047).
 
 ---
 
@@ -81,76 +98,90 @@ Operational customer data belongs to **Organizations**, not directly to Users. C
 
 ### User
 
-A **User** is a global **human login account** for people who authenticate to the SaaS application.
+A **User** is a **platform-level login account**.
 
 - Exists at platform scope as a login identity
-- A **customer User** has **at most one active customer OrganizationMembership** and therefore belongs to **at most one Organization**
-- Customer Users do **not** switch between Organizations in one login
-- If the same real person manages two separate customer businesses/workspaces, they use **separate User accounts** for those Organizations
-- Is **not** a Member, GroupOnlyParticipant, or Event Entry person
-- The same real-world person may also have a **Member** record in an Organization, but User and Member remain separate entities with separate lifecycles
+- Used for **platform operators** (`is_staff` / `is_superuser`) and the **paying customer owner**
+- The paying customer User owns **exactly one** Organization (one-to-one)
+- Each User account has **one globally unique, normalized (lowercase) email**
+- Paying customers must verify email before using the workspace (`email_verified`). This is separate from `is_active`. Platform operators are exempt from that customer gate.
+- Paying customers do **not** switch between Organizations in one login
+- If the same real person operates two separate Organization **workspaces**, they use **separate User accounts**
+- Is **not** a WorkspaceStaffAccount, Member, GroupOnlyParticipant, or Event Entry person
+- Customer-created workspace admin/staff must **not** be stored as Users
 
-**Platform operator accounts** use the same User model. Django `is_staff` / `is_superuser` are global platform-operator flags. They remain separate from customer Organization membership and are **not** Organization customer roles. Platform operators do not access customer workspaces through OrganizationMembership.
+**Platform operator accounts** use the same User model. Django `is_staff` / `is_superuser` are global platform-operator flags. They remain separate from workspace owner/staff roles.
 
 ### Organization
 
-An **Organization** is the customer **workspace**, **tenant boundary**, and **subscription owner**.
+An **Organization** is the internal **workspace**, **tenant boundary**, and **subscription boundary**. It is **not** a customer-facing legal/business entity or required display name.
 
 - Owns all operational customer data within that tenant
-- Is an isolated customer tenant; the real-world legal form of the customer (company, school, gym, individual business, etc.) does not change the platform model
+- Has a required one-to-one **owner** FK to the paying `accounts.User`
+- Receives a system-generated immutable **Workspace ID** used for staff/admin login and internal identification
+- Does **not** require a customer-facing workspace name. An optional internal admin/support label may exist
+- May have additional **WorkspaceStaffAccount** rows with roles **admin** or **staff**
 - Billing and **Subscription** belong to the Organization workspace, separate from Member identity
-- All Members, Groups, GroupMemberships, and GroupOnlyParticipants belong to exactly one Organization
+- A workspace may begin in trial or unsubscribed state and later activate through subscription (billing state machine undesigned)
+- All Members, Groups, GroupMemberships, GroupOnlyParticipants, and WorkspaceStaffAccounts belong to exactly one Organization
 - Cross-Organization relationships are **forbidden**
-- Has **exactly one primary owner** User (via OrganizationMembership with role **owner**); may also have additional Users with **admin** or **staff** roles
+- The customer may use one workspace for any mix of real-world activities; the platform does not verify legal/business structure
 
-### OrganizationMembership
+### WorkspaceStaffAccount
 
-An **OrganizationMembership** is the relationship/role entity linking one **customer User** to one **Organization** workspace.
+A **WorkspaceStaffAccount** is a customer-created workspace **admin** or **staff** login.
 
-- Expresses that a customer User can log in and access/manage that Organization
-- Carries the User’s **role** within that Organization (**owner**, **admin**, or **staff**)
-- A customer User may have **at most one active OrganizationMembership**
-- Customer Users do not switch Organizations in one login
-- Each Organization has **exactly one primary owner** User; additional admin/staff Users may be added with roles and permissions defined later (e.g. launch kiosk, add Members)
-- Platform operator accounts (`is_staff` / `is_superuser`) are **not** customer OrganizationMemberships
+- Belongs to **exactly one** Organization and cannot move between Organizations
+- Cannot be a global `accounts.User` and is **not** a Member
+- Roles are **admin** or **staff** only. **owner** is not a staff-account role
+- **Username is unique per Organization only.** The same username (for example `natsumi`) may exist in different workspaces
+- Optional email uniqueness remains per Organization when set
+- Login uses **Workspace ID + username + password**. The Workspace ID selects the Organization; username is looked up only inside that workspace
+- The paying owner does **not** use Workspace ID; owner login is global User email + password
+- Do **not** make staff usernames globally unique, and do **not** use the numeric Organization primary key as the staff login identifier
+- Deactivating a staff account must **not** destroy Member records or future Action Records
+- Platform `is_staff` / `is_superuser` are not used on this model
 
-#### MVP Organization roles
+#### Workspace access roles
 
-Fixed MVP roles on OrganizationMembership:
+| Role | Who holds it |
+|------|----------------|
+| **owner** | The paying customer `accounts.User` on `Organization.owner` |
+| **admin** | A `WorkspaceStaffAccount` in that Organization |
+| **staff** | A `WorkspaceStaffAccount` in that Organization |
 
-| Role | Purpose (high level) |
-|------|----------------------|
-| **owner** | Primary Organization owner; highest-level Organization control |
-| **admin** | Organization administration |
-| **staff** | Organization staff access with more limited management scope (exact capabilities undecided) |
+Exact capability differences remain to be defined. This document does **not** approve a permission matrix.
 
-Exact capability differences between roles remain to be defined. This document approves the **role names and the OrganizationMembership model**, not a full permission matrix.
+Do **not** use **OrganizationMembership** to attach global Users as workspace admin/staff. That model is retired.
 
 ### Member
 
 A **Member** is a reusable canonical person profile **owned by exactly one Organization**.
 
 - Represents a **tracked person** inside the Organization workspace
+- **Does not access** the Organization workspace
 - Generally does **not** require a User login
-- Contains Organization-level data configured for that person
+- Contains Organization-level data configured for that person. This slice requires **name**; email, photo, date of birth, phone, check-in identifier, notes, and PIN are optional. An automatically generated immutable **internal Member code** is distinct from the optional customer-entered check-in identifier.
 - Is **not** a User and must not be merged into the User model
 - May belong to **multiple Groups** within the same Organization via GroupMembership
 - Must not be shared across Organizations
 - Must not be duplicated per Group
 
-The same real-world person may also be a staff **User** (e.g. a teacher who launches a kiosk and has their own attendance tracked). User and Member records remain **separate**. Disabling or removing staff **User** access must **not** destroy that person’s **Member** attendance history.
+The same real-world person may also have a **WorkspaceStaffAccount** (e.g. a teacher who launches a kiosk) and a **Member** record so their attendance can be tracked. Those remain **separate**. Disabling or removing a WorkspaceStaffAccount must **not** destroy that person’s **Member** attendance history.
 
-Which Member fields are required is not defined here (see open questions in [DECISIONS.md](./DECISIONS.md)).
+Which Member fields are required is **not** a global schema question. If a Group or Event workflow requires email, PIN, photo, reservation code, or similar, that requirement is validated **for that context**. Whether any Organization-level fields are universally required remains open (see [DECISIONS.md](./DECISIONS.md)).
 
 ### Group
 
-A **Group** is an Organization-defined participation context **owned by exactly one Organization**.
+A **Group** is an Organization-defined **long-lived, reusable participation and check-in context** **owned by exactly one Organization**. It is not merely a folder of people, and it is not a temporary Event.
 
 - Examples: Employees, Students, Morning Class
 - Contains GroupMemberships and GroupOnlyParticipants
 - Must not span Organizations
+- **Owns its own kiosk configuration** (product rule). Kiosk presentation and behavior belong to the Group, not to a global Organization kiosk
+- Product behavior (undesigned as models here): a Group may select predefined identification methods and Actions; those belong with the Group’s owned kiosk configuration
 
-Group-specific configuration (fields, actions, kiosks, notifications) is product-defined but not architecturally designed in this document.
+Group-specific configuration (fields, actions, kiosk, notifications) is product-defined in [PRODUCT.md](./PRODUCT.md) but **not architecturally designed** in this document. Do not implement Action, Kiosk, Event, notification, or configurable-field models from this section.
 
 ### GroupMembership
 
@@ -158,8 +189,7 @@ A **GroupMembership** links one **Member** to one **Group**.
 
 - Both Member and Group must belong to the **same Organization**
 - Is a real domain entity, not an implicit join table only
-- May later hold group-specific data overrides that do not modify the Member’s canonical Organization-level data
-- Override structure and configurable fields are **not designed here**
+- Holds optional group-specific overrides for display name, email, photo, check-in identifier, and PIN. These do not modify the Member’s canonical data. Effective value = override if present, otherwise the Member value. A generic configurable-field engine is **not** designed here
 
 A Member may have multiple GroupMembership records within one Organization.
 
@@ -177,25 +207,53 @@ Future linking or conversion to a Member is a product decision, not defined here
 
 ---
 
+## Group / Event / Kiosk ownership (product rules; models not designed)
+
+These rules are **confirmed product architecture** and must be followed when Event and Kiosk models are later designed. This section does **not** approve Django models, kiosk fields, or Event schema.
+
+| Rule | Requirement |
+|------|-------------|
+| Group lifecycle | Long-lived, reusable participation context |
+| Event lifecycle | Temporary / one-time participation context |
+| Same role, different lifecycle | Group and Event are similar as participation contexts (identification, Actions, owned kiosk, outcomes) but must not be collapsed into one entity |
+| Group kiosk ownership | Each Group owns its own kiosk configuration |
+| Event kiosk ownership | Each Event owns its own kiosk configuration |
+| No global workspace kiosk | Kiosk configuration is **not** an Organization-level resource attached to, or switched between, arbitrary Groups and Events |
+| Initial cardinality | One owned kiosk configuration per Group and per Event. Multiple variants per Group/Event are a future decision, not an MVP requirement |
+| Event Entries | May represent temporary people without creating reusable Members; Action Records for those people still remain |
+| Plan-limit direction | Plans may later limit persistent Groups and Events on different axes. Exact numbers are not decided. Do not count independently assigned workspace kiosks as the primary limit |
+
+Do **not** implement Kiosk or Event models from this section.
+
+---
+
 ## Relationship Rules
 
 | Rule | Requirement |
 |------|-------------|
 | User ≠ Member | Login accounts and tracked person profiles are separate concepts, even for the same real-world person |
 | No required User ↔ Member link | The same person may exist as both User and Member without an explicit link; any linking mechanism remains undecided |
-| Staff login lifecycle ≠ Member lifecycle | Disabling or removing a staff User must not destroy that person’s Member attendance history |
+| Staff login lifecycle ≠ Member lifecycle | Disabling a WorkspaceStaffAccount must not destroy that person’s Member attendance history |
 | Operational data ownership | Customer operational data belongs to Organizations, not directly to Users |
 | Subscription ownership | Subscriptions belong to the Organization workspace, not to Members |
-| Customer User ↔ Organization | At most one active OrganizationMembership per customer User |
-| Organization primary owner | Each Organization has exactly one primary owner User; additional admin/staff Users may exist |
-| No customer org switching | Customer Users do not switch Organizations in one login |
-| Separate businesses, separate User accounts | The same real person managing two Organizations uses two User accounts |
-| Member ↔ Organization | Many-to-one; one Member, exactly one Organization |
+| Customer User email | One globally unique normalized (lowercase) email per User account |
+| Paying User ↔ Organization | One-to-one: the paying User is `Organization.owner` |
+| Workspace staff ↔ Organization | Many-to-one WorkspaceStaffAccount; cannot move between Organizations |
+| Workspace staff identity | Username unique per Organization only; optional email unique per Organization when set; identical usernames in different workspaces are valid |
+| Workspace ID | System-generated, globally unique, immutable; used for staff/admin login and internal identification; not used by the paying owner; not the numeric Organization PK |
+| Workspace display name | Not required; not used for authentication; optional internal admin label only |
+| Organization owner role | Held only by the paying User; not a WorkspaceStaffAccount role |
+| No customer org switching | Paying Users do not switch Organizations in one login |
+| Separate workspaces, separate User accounts | The same real person operating two Organization **workspaces** uses two paying User accounts. One workspace may mix many real-world activities as Groups and Events |
+| Member does not access workspace | Members are tracked people; workspace access is the owner User or a WorkspaceStaffAccount |
 | Group ↔ Organization | Many-to-one; one Group, exactly one Organization |
+| Group owns kiosk configuration | Product rule; kiosk fields not designed here |
 | Member ↔ Group | Many-to-many via GroupMembership, within one Organization |
 | GroupOnlyParticipant ↔ Group | Many-to-one; scoped to one Group (and therefore one Organization) |
+| Event ↔ Organization | Many-to-one (product rule; Event models not designed here) |
+| Event owns kiosk configuration | Product rule; kiosk fields not designed here |
 | Cross-Organization links | Forbidden across all entity types in this foundation |
-| Platform admin ≠ Organization roles | Django `is_staff` / `is_superuser` are platform-operator flags, not OrganizationMembership roles |
+| Platform admin ≠ workspace roles | Django `is_staff` / `is_superuser` are platform-operator flags, not owner/admin/staff workspace roles |
 
 ---
 
@@ -203,14 +261,14 @@ Future linking or conversion to a Member is a product decision, not defined here
 
 Tenant isolation is **non-negotiable**.
 
-Organization A must never access Organization B’s data, including Members, Groups, GroupMemberships, GroupOnlyParticipants, and all future Organization-scoped entities.
+Organization A must never access Organization B’s data, including Members, Groups, GroupMemberships, GroupOnlyParticipants, WorkspaceStaffAccounts, Events, Event Entries, Group/Event-owned kiosk configurations, and all future Organization-scoped entities.
 
 Enforcement must occur at:
 
 1. **Application level** — authorization, query scoping, and service boundaries always constrain access by Organization
 2. **Database level where practical** — schema design, constraints, and query patterns should make cross-tenant access difficult or impossible, not merely discouraged
 
-Tenant isolation applies to customer Users through OrganizationMembership: a customer User may only access the Organization they currently belong to, and only when they have a valid active membership in that Organization.
+Tenant isolation applies to the paying owner through `Organization.owner` and to workspace operators through WorkspaceStaffAccount: they may only access the Organization they own or belong to, and only when that Organization is active.
 
 Implementation mechanisms (row-level security, tenant ID columns, middleware, etc.) are not decided here.
 
@@ -232,9 +290,21 @@ A Member in Organization A must not be linked to Organization B. The same real-w
 
 Do **not** require or assume a database link between a User and a Member, even when they represent the same real-world person. Any explicit linking or deduplication mechanism remains a separate design decision.
 
-### No multi-Organization customer User
+### No global User for workspace admin/staff
 
-Do **not** design customer login, session, or dashboard around switching Organizations. A customer User belongs to at most one Organization. Multi-workspace operators use separate User accounts.
+Do **not** create `accounts.User` records for customer-created workspace admin/staff. Those logins are **WorkspaceStaffAccount** rows scoped to one Organization.
+
+### No multi-Organization paying User
+
+Do **not** design paying-customer login, session, or dashboard around switching Organizations. A paying User owns at most one Organization. Multi-workspace operators use separate paying User accounts.
+
+### No global workspace kiosk
+
+Do **not** design a Kiosk as an Organization-level resource that is assigned to multiple Groups and Events, or that switches between them. Kiosk configuration is owned by the Group or Event it serves.
+
+### No collapsing Group and Event
+
+Do **not** merge Group and Event into one entity because they both own kiosk configuration. Lifecycle differs: Group is persistent/reusable; Event is temporary/one-time.
 
 ---
 
@@ -242,11 +312,19 @@ Do **not** design customer login, session, or dashboard around switching Organiz
 
 This foundation participates in the platform’s historical integrity rules:
 
-- Once operational records have dependent history (for example, future Action Records), prefer **archive** or **deactivate** over destructive deletion where appropriate
+- Once operational records have dependent history (for example, Action Records), prefer **archive** or **deactivate** over destructive deletion where appropriate
 - Do not silently overwrite or manipulate records in a way that destroys historical integrity
-- Action Record creation, correction, and audit mechanics are **not designed here**
+- Future Action Records must remain historically accurate when later Group, Kiosk, or Action configuration changes
+- Action Record creation, correction, source-field design, and audit mechanics are **not designed here**
+- **Permanent customer account deletion** is a separate, explicit exception: after the paying owner or a platform superuser confirms destruction of that tenant, that workspace's operational data including Action Records is removed. Archive/deactivate remains the reversible path. See DEC-052.
 
-Exact deletion, archival, and deactivation behavior for Members, Groups, GroupMemberships, and GroupOnlyParticipants will be defined when Actions and Action Records are architected.
+Exact archival and deactivation behavior for Members, Groups, GroupMemberships, and GroupOnlyParticipants is implemented as reversible archive/deactivate. Permanent tenant destruction uses a dedicated service rather than globally weakening `PROTECT` foreign keys.
+
+## Authentication sessions
+
+Check Station customer/workspace browser sessions (paying owner and WorkspaceStaffAccount) are isolated from Django `/admin/` platform-operator sessions. They use separate cookie names so the same browser can hold both. See DEC-051 and SECURITY.md.
+
+Platform operators (`accounts.User` with `is_staff` or `is_superuser`) must complete TOTP (or a one-time recovery code) inside that admin session before `/admin/` pages are available. Password success stores a pending-2FA admin session and does not grant a full admin login. Customer owner and WorkspaceStaffAccount authentication do not use this flow. See DEC-030 and SECURITY.md.
 
 ---
 
@@ -256,13 +334,13 @@ The following are confirmed **product concepts** but intentionally **excluded fr
 
 | Area | Status |
 |------|--------|
-| Event / Event Entry | Product concept approved; architecture not started |
+| Event / Event Entry schema | Product concept and lifecycle/kiosk-ownership rules approved; database/API architecture not started |
 | Action / Action Record | Product concept approved; architecture not started |
-| Kiosk / Kiosk Session | Product concept approved; architecture not started |
-| Subscriptions / Plans | Product direction approved; architecture not started |
+| Kiosk fields / Kiosk Session | Ownership by Group/Event approved; database fields, launch, and session/security not started |
+| Subscriptions / Plans | Product direction approved; architecture not started. Groups and Events may later be limited on different axes; exact numbers undecided |
 | Configurable fields | Product direction approved; structure not started |
-| GroupMembership overrides | Entity approved; override implementation not started |
-| Organization role permissions | Role names approved; capability matrix not started |
+| GroupMembership overrides | Explicit name/email/photo/identifier/PIN overrides implemented in the Member/Group slice; generic field engine still not started |
+| Organization role permissions | Owner is the paying User; admin/staff are WorkspaceStaffAccount; capability matrix not started |
 
 ---
 
@@ -283,6 +361,6 @@ When this document and another authoritative file conflict, **stop and resolve t
 
 | Field | Value |
 |-------|-------|
-| **Status** | Approved foundation (tenant/person layer only) |
-| **Last updated** | 2026-08-18 |
-| **Next architecture work** | Organization + OrganizationMembership database/API design, then Member/Group foundation |
+| **Status** | Tenant/person foundation; Organization owner + WorkspaceStaffAccount + Member/Group slice implemented |
+| **Last updated** | 2026-08-19 |
+| **Next architecture work** | Events / Action Records / Kiosks |

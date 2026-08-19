@@ -2,7 +2,7 @@
 
 Detailed product definition for the Configurable Check-In / Attendance SaaS Platform.
 
-For canonical terms, see [TERMINOLOGY.md](./TERMINOLOGY.md). For scope boundaries, see [MVP.md](./MVP.md). For confirmed decisions, see [DECISIONS.md](./DECISIONS.md).
+For canonical terms, see [TERMINOLOGY.md](./TERMINOLOGY.md). For scope boundaries, see [MVP.md](./MVP.md). For confirmed decisions, see [DECISIONS.md](./DECISIONS.md). For conceptual architecture, see [ARCHITECTURE.md](./ARCHITECTURE.md).
 
 ---
 
@@ -13,12 +13,14 @@ The platform operates at three conceptual levels:
 | Level | Operator | Scope |
 |-------|----------|-------|
 | **Platform** | Us (platform operators) | Organizations, plans, subscriptions, usage, support, abuse management, suspension, analytics, system management |
-| **Organization** | Customer tenant (isolated) | Groups, Members, participants, Events, kiosks, actions, notifications, history, reports, staff, settings, billing |
+| **Organization** | Customer tenant (isolated) | Groups, Members, participants, Events, Group/Event-owned kiosk configurations, actions, notifications, history, reports, staff, settings, billing |
 | **Participants** | End users of an Organization's system | Students, employees, athletes, gym members, visitors, temporary event participants — usually without platform accounts |
 
-An **Organization** is the customer **workspace**, **tenant**, and **subscription owner**. It is an isolated customer tenant. The real-world legal form of the customer (company, school, gym, individual business, etc.) does not change the platform model.
+An **Organization** is the customer **workspace**, **tenant**, and **subscription boundary**. It is an isolated customer tenant. The real-world legal form of the customer (company, school, gym, individual business, etc.) does not change the platform model.
 
-Billing and subscription state belong to the Organization workspace and are **separate** from Organization identity. An Organization may exist while trialing, subscribed, cancelled, suspended, or in another future billing state. Billing lifecycle behavior is not defined here.
+One paying customer User owns **one** workspace and may use that workspace for **any mix** of real-world activities — businesses, schools, hobbies, teams, one-time Events, and so on — as **Groups** and **Events** inside that same Organization. Separate User accounts are required only when the same person operates **separate workspaces** (separate tenants / subscriptions), not for each activity type inside one workspace.
+
+Billing and subscription state belong to the Organization workspace and are **separate** from Organization identity. A workspace may **begin in a trial or unsubscribed state** and later activate through subscription. An Organization may exist while trialing, subscribed, cancelled, suspended, or in another future billing state. The billing state machine is not defined here.
 
 ---
 
@@ -34,7 +36,7 @@ Organization A must **never** access Organization B's:
 - Events
 - Event Entries
 - Action Records
-- Kiosks
+- Group-owned and Event-owned kiosk configurations
 - Notifications
 - Reports
 - Staff/admins
@@ -46,34 +48,57 @@ Tenant isolation is a fundamental architectural and security requirement.
 
 ---
 
+## Public Website and Customer Journey
+
+The public browser website is part of the product. It is **not** the Organization workspace.
+
+**Public site (unauthenticated) may include:**
+
+- Promotional and SEO pages
+- Homepage
+- Product explanation
+- Pricing
+- Registration and login
+- Sitemap
+- `robots.txt`
+
+After a customer **registers, verifies their email, and authenticates**, they access **their Organization workspace**. Members do **not** use this workspace. Participants use Kiosks (and similar participant-facing interfaces), not the Organization dashboard.
+
+Exact public-page content, SEO implementation, and registration/login UX remain later design work. The surfaces listed above are confirmed product direction.
+
+---
+
 ## Users and Organizations
 
-A **User** is a **human login account** — not the same as an **Organization** workspace and not the same as a **Member**.
+A **User** is a **platform-level login account** — not a WorkspaceStaffAccount and not a **Member**.
+
+Each User account has **one globally unique, normalized (lowercase) email**. That email identifies the paying customer or platform operator. If the same real person needs two Organization workspaces, they use two paying User accounts with two different emails.
 
 ### Organization workspace access
 
-- An **Organization** is the customer workspace. Each Organization has **exactly one primary owner** User and may have additional admin/staff Users.
-- Customer Users access an Organization workspace through **OrganizationMembership**, which carries an Organization role (**owner**, **admin**, or **staff**).
-- A **normal customer User belongs to only one Organization**. Customer Users do not switch between Organizations in one login.
-- If the same real person manages two separate customer businesses/workspaces, they use **separate SaaS User accounts** for those Organizations.
-- Staff Users may receive limited permissions such as launching a kiosk or adding Members; the exact capability matrix is to be designed later.
+- An **Organization** is the internal customer workspace and subscription boundary. It is **not** a required customer-facing business name. Each Organization has **exactly one paying owner User** (`Organization.owner`), a system-generated immutable **Workspace ID**, and may have additional **WorkspaceStaffAccount** admin/staff logins.
+- After registration/authentication, the paying customer accesses that Organization as its **owner**. They do not enter a Workspace ID and do not switch Organizations.
+- Customer-created workspace admin/staff are **not** `accounts.User` records. They belong to exactly one Organization and cannot move between workspaces. They log in with **Workspace ID + username + password**. Usernames are unique **per workspace only**.
+- If the same real person operates **two separate Organization workspaces** (two tenants / subscriptions), they use **separate paying User accounts**. They do **not** need separate paying accounts merely because one workspace contains a school Group, a hobby Group, and a one-time Event.
+- Workspace admin/staff may later receive limited permissions such as launching a kiosk or adding Members; the exact capability matrix is to be designed later.
 
 ### User vs Member (separate lifecycles)
 
-- **Members** and other **Participants** generally do **not** require User login accounts.
-- The same real-world person may be both a staff **User** and a **Member** in the same Organization — for example, a teacher who logs in to launch/manage a kiosk and separately has a **Member** record so their own attendance can be tracked.
-- User and Member remain **separate records and lifecycles**. Disabling or removing staff User access must **not** destroy that person’s Member attendance history.
-- Any explicit link between a User and a Member record, if ever needed, remains a later design decision.
+- **Members** are tracked people inside the Organization. They **do not access the Organization workspace**.
+- **Members** and other **Participants** generally do **not** require User or WorkspaceStaffAccount logins.
+- The same real-world person may later be both a **WorkspaceStaffAccount** and a **Member** — for example, a teacher who logs in to launch a kiosk and separately has a Member record so their attendance can be tracked.
+- Those remain **separate records and lifecycles**. Disabling a WorkspaceStaffAccount must **not** destroy that person’s Member attendance history.
+- Any explicit link between a staff account and a Member record, if ever needed, remains a later design decision.
 
 ### Platform administration (separate)
 
-Platform operator SaaS admin/staff accounts are separate from customer Organization roles. Platform operators use platform-admin access on the User model (e.g. Django admin); Organization roles are modeled on **OrganizationMembership**.
+Platform operator SaaS admin/staff accounts are `accounts.User` records with Django `is_staff` / `is_superuser`. They are **not** workspace owner/admin/staff roles. Workspace admin/staff are **WorkspaceStaffAccount**.
 
 ---
 
 ## Members
 
-An Organization may create a reusable, canonical **Member** profile for a **tracked person** inside the workspace. Members generally do **not** need a SaaS User login.
+An Organization may create a reusable, canonical **Member** profile for a **tracked person** inside the workspace. Members **do not access the Organization workspace**. They generally do **not** need a SaaS User login.
 
 Example Member profile fields (not necessarily mandatory):
 
@@ -84,7 +109,7 @@ Example Member profile fields (not necessarily mandatory):
 - Member code
 - Other configurable data (implementation undecided)
 
-Which Organization-level Member fields, if any, are universally required remains an open question.
+Do **not** treat email, phone, photo, PIN, member code, reservation code, or similar fields as globally mandatory on all Members. If a Group or Event workflow needs a field, that requirement is validated **for that participation context**. Whether any Organization-level Member fields are universally required remains an open question.
 
 A Member belongs to the Organization and may be attached to **multiple Groups** without duplicating the canonical record.
 
@@ -146,6 +171,8 @@ Sarah can initially exist only in that Group. This supports temporary or lightwe
 
 ## Groups
 
+A **Group** is a **long-lived, reusable participation and check-in context** belonging to an Organization. It is **not** just a folder of people, and it is **not** a temporary Event.
+
 Organizations create **Groups** such as:
 
 - Students
@@ -156,15 +183,20 @@ Organizations create **Groups** such as:
 - Members
 - Warehouse Staff
 
-Groups remain **generic** rather than industry-specific.
+Groups remain **generic** rather than industry-specific. One workspace may contain many Groups that represent completely different real-world activities.
+
+A Group defines **participation and check-in behavior** for its Members (and Group-only Participants). It **owns its own kiosk configuration**. Different Groups in the same Organization may operate completely differently, including kiosk presentation and behavior.
 
 Different Groups may have different:
 
 - Participants (Members and/or Group-only participants)
 - Configurable fields
-- Allowed attendance actions
-- Kiosk behavior
-- Notification rules
+- Identification methods (examples: PIN only; Member ID + PIN; Member ID only; visible member selection)
+- Allowed predefined Actions (examples: Check In, Check Out, Break Start, Break End)
+- Owned kiosk configuration (presentation and behavior)
+- Notification / post-action outcomes
+
+Identification methods and Actions are **predefined building blocks** the Organization selects per Group. Exact field types, which methods ship in MVP, and the Action/state implementation remain undesigned.
 
 ---
 
@@ -178,17 +210,23 @@ Different Groups may require different information.
 | Employees | Name, Employee ID, Department, Email |
 | Simple club | Name only |
 
-The platform should eventually support **configurable/custom fields**. Exact implementation and supported field types are **not decided**. Do not design a full arbitrary form-builder during this stage.
+The platform should eventually support **configurable/custom fields**. Exact implementation and supported field types are **not decided**. Do not design a full arbitrary form-builder during this stage. Field requirements are **contextual** to the Group (or Event): a Students Group may require photo and name; a simple club Group may require name only. Do not make those fields globally mandatory on every Member.
 
 ---
 
 ## Events and Event Entries
 
-The platform must support **Events** — temporary or one-time check-in/attendance contexts belonging to an Organization.
+The platform must support **Events** — **temporary or one-time** check-in/attendance contexts belonging to an Organization.
+
+**Group** and **Event** are similar as participation contexts (identification, Actions, owned kiosk configuration, outcomes). Their **lifecycle** differs:
+
+- **Group** = persistent / reusable
+- **Event** = temporary / one-time
 
 An Event:
 
 - Can operate without persistent Members or Groups
+- **Owns its own kiosk configuration** (not a workspace-level kiosk reused from a Group)
 - May contain **Event Entries**
 - Supports reservation-based check-in as **one possible workflow**, not as the definition of Event itself
 
@@ -204,7 +242,9 @@ It does **not** require:
 - An Organization Member profile
 - A Group
 
-Possible Event Entry data may include reservation/reference number, name, contact information, and other Event-specific fields. Event Entries are **not** necessarily reservations.
+Event Entries may represent **temporary people** without creating reusable Members. **Action Records** for those people still remain (historical integrity). Creating an Event Entry must not force Member creation.
+
+Possible Event Entry data may include reservation/reference number, name, contact information, and other Event-specific fields. Event Entries are **not** necessarily reservations. Required fields are **contextual** to that Event’s workflow (for example a reservation number), not globally mandatory Member fields.
 
 Do **not** design separate Reservation and Attendee database concepts yet. Whether future architecture will split Event Entries into structures such as Reservation → Attendees remains an open question.
 
@@ -218,7 +258,7 @@ Event Entry:
 - Name: John Smith
 - Optional contact information
 
-A participant may identify using a reservation number in this configuration. Other future identification methods may include ticket/reference code, name lookup, QR, or another appropriate method. Which identification methods belong in MVP remains undecided.
+A participant may identify using a **configured identification field** such as a reservation number. Reservation-number identification is **one possible Event workflow**, not the definition of Event itself. Other future identification methods may include ticket/reference code, name lookup, QR, or another appropriate method. Which identification methods belong in MVP remains undecided.
 
 Events can define actions such as **Arrived** or **Confirm Attendance**, and notification behavior (e.g., notify the Organization when an Event Entry arrives).
 
@@ -226,11 +266,13 @@ Events can define actions such as **Arrived** or **Confirm Attendance**, and not
 
 ### Event Limits (Subscription)
 
-One-time Events may be naturally limited by plan (example only, not finalized):
+Plan limits may later treat **persistent Groups** and **Events** differently — for example allowing a certain number of Groups and a smaller number of active Events. **Do not treat example numbers as requirements.** Exact names, prices, and limits are not decided.
 
-- Basic: up to 2 stored Events
+Illustrative only, not finalized:
 
-When at limit, the product may require deleting an old Event or upgrading.
+- A plan might allow several persistent Groups and fewer concurrent/stored Events
+
+When at an Event limit, the product may require deleting an old Event or upgrading.
 
 Before deleting an Event:
 
@@ -243,7 +285,7 @@ Do **not** automatically delete old Events merely because they are old. The prod
 
 ## Actions
 
-Different Groups and Events may use different **Actions**.
+Different Groups and Events may use different **predefined Actions**.
 
 | Context (example) | Actions |
 |-------------------|---------|
@@ -253,7 +295,14 @@ Different Groups and Events may use different **Actions**.
 | Simple attendance | Present |
 | Event | Arrived |
 
-Organizations should be able to configure actions, but the MVP must **not** become a general-purpose workflow engine. Arbitrary conditional programming and unlimited automation logic are **not approved**. The action/state model remains to be designed.
+**Confirmed product behavior:**
+
+- Organizations configure which predefined Actions a Group or Event allows.
+- Repeated Actions must be possible — for example multiple Break Start / Break End cycles in one day.
+- Simple **preset / automatic** attendance behavior may exist — for example automatic 08:00 Check In, with the Member only recording Check Out at a kiosk.
+- Configurability uses **predefined building blocks and controlled options**. The product must **not** become a generic no-code workflow engine. Arbitrary conditional programming and unlimited automation logic are **not approved**.
+
+The Action/state implementation, preset engine, and which presets belong in MVP remain to be designed.
 
 ---
 
@@ -267,8 +316,14 @@ Every performed **Action** creates an **Action Record**. Conceptually: **Action 
 - Action: Check In
 - Time: 2026-08-17 08:42
 - Kiosk: Front Entrance
+- Created via: kiosk (example)
 
 Historical integrity is important. The system must **not** merely store a participant's current status. Action history must be preserved. Historical records must not be silently overwritten or manipulated in a way that destroys historical integrity. Manual correction and audit behavior remain to be designed.
+
+**Confirmed product behavior:**
+
+- Action Records must preserve **how** they were created. Sources include at least: **kiosk**, **staff/admin**, and **automatic/preset**. Exact source/context fields are undesigned.
+- History must remain **historically accurate** when later Group, Kiosk, or Action **configuration changes**. Changing a Group’s allowed Actions or a Kiosk’s identification method must not rewrite or falsify existing Action Records.
 
 **Future requirements include:**
 
@@ -288,61 +343,98 @@ Word/DOCX export is **not** currently a priority. Exact historical and audit arc
 
 ## Kiosks
 
-A **Kiosk** is a saved/configurable check-in interface — **not** simply an admin page.
+A **Kiosk** is the participant-facing **browser** check-in interface for a **Group** or an **Event**. It is **not** the Organization workspace, not an admin page, and **not** a global workspace resource that is assigned to — or switched between — arbitrary Groups and Events.
 
-Participants must **never** see the Organization administration dashboard when using Kiosk Mode.
+### Ownership and lifecycle
 
-Kiosks may run on iPad, iPhone, Android tablet/phone, desktop computer, or browser.
+- Each **Group** owns its own kiosk configuration.
+- Each **Event** owns its own kiosk configuration.
+- Different Groups and Events in the same workspace may have **completely different** kiosk presentation and behavior.
+- For the simple **initial product direction**, each Group and each Event has **one** owned kiosk configuration. Multiple kiosk variants per Group or Event remain a **future decision**, not an MVP requirement.
+- Kiosk Mode is the operational, participant-facing state of that owned configuration. It must **never** expose the Organization administration dashboard.
+
+Do **not** design a workspace-level kiosk multiplexer that randomly (or even manually) points one saved kiosk at different Groups or Events.
+
+**Examples** (not an MVP feature checklist):
+
+| Participation context | Example kiosk |
+|-----------------------|---------------|
+| Students Group | Kids-friendly; visible names/photos; simple check-in |
+| Staff Group | Minimal; ID + PIN; check-in / break / check-out |
+| Training Group | Sport-style kiosk with its own identification and Actions |
+| Reservation Event | Temporary kiosk asking for a reservation number |
+
+Kiosks may run in a browser on iPad, iPhone, Android tablet/phone, or desktop computer.
+
+Kiosk **database fields**, how Kiosk Mode is launched, and the device/session security model are **not designed here**.
 
 ### Identification Patterns (Examples)
 
-| Kiosk type | Input | Actions |
-|------------|-------|---------|
-| Employee | Username / employee ID + PIN | Check In, Break Start, Break End, Check Out |
-| Event | Reservation number (one possible Event identification pattern) | Confirm arrival, notify organization |
-| Children's | Large visible names/buttons | Tap name → confirmation dialog → action recorded |
+These are **example flows**, not a confirmed MVP checklist. Each flow belongs to a Group’s or Event’s **owned** kiosk configuration:
 
-**Potential identification methods over time:** visible name selection/search, PIN, QR code, Member code, reservation/reference number, ticket/reference code, name lookup, and others. For Events, reservation number is one possible pattern, not the definition of all Events.
+| Example flow | Input | Actions |
+|--------------|-------|---------|
+| Visible-name selection | Large visible names/buttons; confirm | Action recorded |
+| Secure PIN only | PIN with **no names shown** | Allowed Group Actions |
+| Member ID + PIN | Member ID then PIN | Check In, Break Start, Break End, Check Out |
+| Member ID only | Member identifier | Allowed Group Actions |
+| Event / reservation | Reservation/reference number (one possible Event identification pattern) | Confirm arrival; optional notify |
 
-A Kiosk should eventually have its own secure device/session credentials rather than requiring a full administrator session to remain logged in. Security design is **still undecided**.
+**Potential identification methods over time:** visible name selection/search, PIN, Member ID, Member ID + PIN, QR code, Member code, reservation/reference number, ticket/reference code, name lookup, and others. For Events, reservation number is one possible pattern, not the definition of all Events. Which methods belong in MVP remains undecided.
+
+A Group or Event kiosk should eventually be operable with secure device/session credentials rather than requiring a full administrator session to remain logged in. Security design is **still undecided**.
 
 ### Kiosk Branding
 
-Organizations should have **limited** branding control:
+Kiosks may allow **more customer-facing branding** than the Organization workspace, still using **controlled options**, not arbitrary CSS or a page-builder:
 
-- Primary/accent color
 - Optional organization or kiosk logo
+- Selected colors (for example primary/accent)
+- Prepared presentation options
 - Kiosk title
 - Basic background/theme choices
 - Light/dark choices (later)
 
-Do **not** design arbitrary CSS customization or a page-builder. The product controls structural UX.
+The product still controls structural UX.
 
 ### Kiosk Limits (Subscription)
 
-Distinguish:
+Do **not** count independently assigned workspace-level kiosk definitions as the primary plan axis. Kiosk configuration is owned by Groups and Events.
 
-- **Configured/saved Kiosk definitions**
-- **Simultaneously active kiosk/device sessions**
+Plan design may later distinguish, among other things:
 
-A subscription may allow several configured kiosks but limit simultaneous active sessions (example only: Basic = 3 active sessions). Example numbers are **not** confirmed pricing.
+- Number of **persistent Groups** (each with its owned kiosk configuration)
+- Number of **Events** (each with its owned kiosk configuration; possibly a smaller active-Event allowance)
+- **Simultaneously active kiosk/device sessions** (how many devices are running Kiosk Mode at once)
+
+Exact limit numbers and which of these axes ship are **not decided**. Example numbers are **not** confirmed pricing.
+
+Multiple kiosk variants per Group or Event are **not** an MVP requirement and must not be assumed in limit design yet.
 
 ---
 
-## Organization Administration UI
+## Organization Workspace UI
 
-The Organization admin dashboard is the SaaS application's own designed interface. Organizations should **not** freely redesign its structure.
+The Organization workspace (admin dashboard) is the SaaS application’s own designed interface. It uses the **platform design system and prepared themes**.
 
-**Possible later customization:**
+Customers may choose **controlled appearance options**. They **cannot** arbitrarily redesign the dashboard structure, navigation, or layout.
+
+**Possible later customization (controlled):**
 
 - Light/dark/system mode
-- A small number of visual themes/templates
+- A small number of visual themes/templates from the prepared design system
 
-Navigation and layout remain controlled by the platform for documentation, support, accessibility, QA, and maintenance consistency.
+Navigation and layout remain controlled by the platform for documentation, support, accessibility, QA, and maintenance consistency. This is stricter than Kiosk branding: kiosks may show more customer-facing logo/color/presentation options, still within prepared choices.
 
 ---
 
 ## Notifications
+
+After an Action is performed, configured **outcomes** may include:
+
+- Success message only
+- Email / notification to relevant recipients
+- Other **predefined** notification behavior
 
 Organizations should eventually configure **notification rules** triggered by actions.
 
@@ -354,17 +446,19 @@ Student Check In → `"{student_name} arrived at school at {time}."`
 
 **Initial channel:** transactional email.
 
-Normal customers must not need DNS configuration. The platform sends transactional email on their behalf.
+**Default platform email delivery** must work **without customer DNS setup**. The platform sends transactional email on the customer’s behalf.
 
-Verified customer sending domains may be considered later and could belong to a higher subscription tier. Exact plan placement remains undecided.
+**Future:** advanced/custom sending-domain configuration may allow a customer to verify their own email domain. Do **not** design that implementation yet. Plan placement remains undecided.
 
-The exact notification engine is **not yet designed**.
+The exact notification engine, templates, and MVP outcome set are **not yet designed**. Outcomes must remain **predefined building blocks**, not arbitrary workflow scripting.
 
 ---
 
 ## Subscriptions and Plans
 
-Recurring subscription SaaS product. **Subscriptions belong to the Organization workspace**, not to individual Members.
+Recurring subscription SaaS product. **Subscriptions belong to the Organization workspace**, not to individual Members. The Organization is the **subscription boundary**.
+
+A workspace may **begin in trial or unsubscribed state** and later activate through subscription. Exact trial duration, feature access during trial, and the billing state machine remain undecided.
 
 **Potential plans:** Basic, Pro, Business — exact names, prices, and limits are **not finalized**.
 
@@ -372,17 +466,17 @@ A free trial around **7 days** is currently only a direction.
 
 **Natural SaaS limits may include:**
 
-- Number of Groups
+- Number of persistent Groups
+- Number of Events (possibly a smaller active-Event allowance than Groups)
 - Organization Members
 - Participants per Group
 - Simultaneously active kiosk sessions/devices
-- Stored one-time Events
 - Notification volume
 - Storage/media usage
 - Number of admins/staff
 - Advanced features
 
-Do **not** artificially disable essential functionality only to create pricing tiers.
+Do **not** treat kiosks as a separately assigned workspace resource for plan limits. Exact names, prices, and numbers are **not finalized**. Do **not** artificially disable essential functionality only to create pricing tiers.
 
 ---
 
@@ -425,4 +519,4 @@ Operated by platform team. Future capabilities include managing Organizations, p
 
 Possible customers include schools, after-school programs, companies, offices, gyms, sports clubs, childcare organizations, training centers, events, community organizations, and any organization needing configurable check-in or attendance workflows.
 
-These examples illustrate flexibility — they are **not** separate product modes or industry-specific modules.
+These examples illustrate flexibility — they are **not** separate product modes or industry-specific modules. One Organization workspace may contain any mix of them at once.

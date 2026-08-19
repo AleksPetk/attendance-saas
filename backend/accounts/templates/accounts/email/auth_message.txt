@@ -1,0 +1,12 @@
+{{ product_name }}
+
+{{ heading }}
+
+{{ intro }}
+
+{{ action_label }}:
+{{ action_url }}
+
+This link expires in {{ expiry_hours }} hours.
+
+{{ security_note }}

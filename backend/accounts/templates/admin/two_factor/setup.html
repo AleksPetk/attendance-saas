@@ -1,0 +1,35 @@
+{% extends "admin/two_factor/base.html" %}
+{% block content %}
+  <h1>Secure your Check Station admin account</h1>
+  <p>Two-factor authentication is required for Check Station platform administrators and staff.</p>
+  <p>Scan the QR code with Google Authenticator or another TOTP-compatible authenticator app.</p>
+  <img class="qr" src="{{ qr_data_uri }}" alt="Authenticator QR code for {{ label }}">
+  <p class="muted">Account label: {{ label }}</p>
+  <p>If you cannot scan, enter this setup key manually:</p>
+  <p class="setup-key" id="totp-setup-key">{{ setup_key }}</p>
+  <form method="post">
+    {% csrf_token %}
+    <label for="code">6-digit authenticator code</label>
+    <input
+      id="code"
+      name="code"
+      type="text"
+      inputmode="numeric"
+      autocomplete="one-time-code"
+      pattern="[0-9 ]*"
+      maxlength="8"
+      {% if locked %}disabled{% endif %}
+      required
+    >
+    <div class="actions">
+      <button type="submit" {% if locked %}disabled{% endif %}>Verify and continue</button>
+    </div>
+  </form>
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="rotate">
+    <div class="actions">
+      <button class="secondary" type="submit">Generate a new setup key</button>
+    </div>
+  </form>
+{% endblock %}

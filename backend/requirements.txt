@@ -4,3 +4,7 @@ django-cors-headers>=4.7,<5
 psycopg[binary]>=3.2,<4
 django-environ>=0.12,<1
 gunicorn>=23.0,<24
+Pillow>=11.0,<12
+pyotp>=2.9,<3
+qrcode>=8.0,<9
+cryptography>=44.0,<47

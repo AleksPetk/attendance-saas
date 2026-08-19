@@ -27,8 +27,8 @@ This is a **multi-tenant, industry-agnostic SaaS platform** — not a single-com
 
 - **Strict multi-tenancy:** Organization A must never access Organization B's data.
 - **Design before code:** Important product behavior and major architecture are approved before implementation.
-- **Historical integrity:** Every performed Action creates an **Action Record**; do not store only current state; preserve history; do not silently overwrite or manipulate records in a way that destroys history. Manual correction/audit mechanics are designed separately.
-- **Kiosk separation:** Kiosk Mode must never expose the Organization admin dashboard.
+- **Historical integrity:** Every performed Action creates an **Action Record**; do not store only current state; preserve history including how the record was created; do not silently overwrite or manipulate records in a way that destroys history. Manual correction/audit mechanics are designed separately.
+- **Kiosk separation:** Kiosk Mode must never expose the Organization admin dashboard / workspace.
 
 ## Scope Discipline
 
@@ -76,9 +76,12 @@ Favor long-term human readability and maintainability:
 
 ## Terminology
 
-- **Event** = temporary or one-time check-in/attendance context belonging to an Organization; may contain **Event Entries**; can operate without persistent Members or Groups. Reservation-based check-in is one possible workflow, not the definition.
+- **Event** = temporary or one-time check-in/attendance context belonging to an Organization; may contain **Event Entries**; can operate without persistent Members or Groups. Owns its own kiosk configuration. Reservation-based check-in is one possible workflow, not the definition.
 - **Action Record** = historical record of a performed Action. Never use **Event** for an Action Record.
-- **User** = human login account. A customer User belongs to at most one Organization via OrganizationMembership. Not a Member.
-- **Member** = tracked person inside an Organization workspace; generally no login. Separate lifecycle from User even when the same real person.
-- **Organization** = customer workspace / tenant / subscription owner.
+- **User** = platform-level login (platform operators and the paying customer who owns exactly one Organization). Not a WorkspaceStaffAccount and not a Member. Separate paying accounts are for separate workspaces. The owner does not use Workspace ID to enter their workspace.
+- **WorkspaceStaffAccount** = customer-created workspace admin/staff login scoped to one Organization. Not a User and not a Member. Username is unique per workspace only. Staff login uses Workspace ID + username + password.
+- **Member** = tracked person inside an Organization workspace; does not access the workspace; generally no login. Separate lifecycle from User even when the same real person. Field requirements are contextual to Group/Event, not globally mandatory.
+- **Organization** = customer workspace / tenant / subscription boundary.
+- **Group** = long-lived reusable participation/check-in context, not merely a folder of people. Owns its own kiosk configuration.
+- **Kiosk** = participant-facing interface owned by a Group or an Event; not a global workspace resource assigned to arbitrary Groups/Events.
 - See `TERMINOLOGY.md` for full glossary.

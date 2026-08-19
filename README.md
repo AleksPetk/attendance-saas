@@ -12,27 +12,28 @@ Possible customers include schools, companies, gyms, clubs, childcare and traini
 
 **Technical foundation is in progress.**
 
-Product and architecture documentation is in place. A Django + DRF backend, React web frontend, PostgreSQL, and Docker Compose local stack are implemented at foundation level (health check, custom User model). Domain models (Organization, Member, Group, etc.) are **not** yet implemented. Mobile and desktop applications come later.
+Product and architecture documentation is in place. A Django + DRF backend, React web frontend, PostgreSQL, and Docker Compose local stack are implemented at foundation level (health check, custom User model, Organization owner + WorkspaceStaffAccount, Members, Groups, GroupMemberships, and Group-only Participants). Event and Kiosk models are **not** yet implemented. Mobile and desktop applications come later.
 
 ## Core Product Concepts
 
 Approved product concepts currently include:
 
-- **Organizations** — customer workspaces / tenants / subscription owners (legal customer type is irrelevant to the model)
-- **Users** — human login accounts; a customer User belongs to one Organization via OrganizationMembership
-- **Members** — tracked people inside an Organization; generally no SaaS login (separate from User even when the same real person)
-- **Groups** — Organization-defined participation contexts
+- **Organizations** — internal tenant/workspace boundary (not a customer-facing business name); one paying User; system-generated immutable Workspace ID
+- **Users** — platform-level logins (platform operators and the paying owner); one globally unique email; a paying User owns exactly one Organization
+- **WorkspaceStaffAccounts** — customer-created admin/staff logins scoped to one Organization; username unique per workspace only; not Users
+- **Members** — tracked people inside an Organization; they do not access the workspace
+- **Groups** — long-lived reusable participation/check-in contexts (not just folders); each owns its kiosk configuration
 - **Group Memberships** — Member-to-Group attachments, including group-specific data overrides
 - **Group-only Participants** — people added to a Group without a full Member profile
-- **Events** — temporary or one-time check-in/attendance contexts that can operate without Members or Groups
-- **Event Entries** — temporary records belonging to an Event
+- **Events** — temporary or one-time participation contexts; each owns its kiosk configuration; can operate without Members or Groups
+- **Event Entries** — temporary records belonging to an Event (may exist without creating reusable Members; Action Records still remain)
 - **Actions** — configurable operations such as Check In, Check Out, or Arrived
 - **Action Records** — historical records created when an Action is performed
-- **Kiosks** — participant-facing check-in interfaces, separate from Organization administration
+- **Kiosks** — participant-facing check-in interfaces owned by a Group or Event, not a global workspace resource
 - **Notifications** — action-triggered messages (initial direction: transactional email)
-- **Subscriptions / Plans** — recurring SaaS billing tied to Organization workspaces (details not finalized)
+- **Subscriptions / Plans** — recurring SaaS billing tied to Organization workspaces (details not finalized; Groups and Events may later be limited on different axes)
 
-Participants (Members, Group-only participants, Event Entries) generally do not need User login accounts. Platform operator admin accounts are separate from Organization customer roles.
+Participants (Members, Group-only participants, Event Entries) generally do not need User or WorkspaceStaffAccount logins. Platform operator admin accounts are separate from workspace owner/admin/staff.
 
 ## Planned Technology Direction
 

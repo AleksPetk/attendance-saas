@@ -1,0 +1,105 @@
+{% extends "admin/index.html" %}
+
+{% block extrastyle %}
+{{ block.super }}
+<style>
+  .platform-security-card {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 100%;
+    margin: 0 0 1.5rem;
+    padding: 1rem 1.25rem 1.2rem;
+    background: var(--body-bg, #fff);
+    border: 1px solid var(--hairline-color, #e0e0e0);
+    border-radius: 8px;
+  }
+  .platform-security-card h2 {
+    margin: 0 0 0.85rem;
+    padding: 0;
+    font-size: 1.05rem;
+    font-weight: 700;
+    background: none;
+    color: var(--body-fg, #333);
+  }
+  .platform-security-card dl {
+    margin: 0;
+  }
+  .platform-security-card .item {
+    display: block;
+    margin: 0 0 0.95rem;
+  }
+  .platform-security-card dt {
+    display: block;
+    width: auto;
+    margin: 0 0 0.2rem;
+    font-weight: 700;
+    line-height: 1.35;
+    white-space: normal;
+    word-break: normal;
+    overflow-wrap: anywhere;
+  }
+  .platform-security-card dd {
+    display: block;
+    margin: 0;
+    line-height: 1.45;
+    white-space: normal;
+    word-break: normal;
+    overflow-wrap: anywhere;
+  }
+  .platform-security-card .actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    margin: 0.25rem 0 0;
+  }
+  .platform-security-card .actions a {
+    display: inline-block;
+    white-space: nowrap;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="content-main">
+  {% if platform_2fa_replace_url %}
+  <section class="platform-security-card" aria-labelledby="platform-security-heading">
+    <h2 id="platform-security-heading">Platform account security</h2>
+    <dl>
+      {% if platform_2fa_recovery_auth %}
+      <div class="item">
+        <dt>Recovery authorization</dt>
+        <dd>
+          Signed in with a recovery code. You can replace a lost authenticator
+          for the next {{ platform_2fa_recovery_auth_remaining_label }}.
+        </dd>
+      </div>
+      {% endif %}
+      {% if platform_2fa_replacement_in_progress %}
+      <div class="item">
+        <dt>Authenticator</dt>
+        <dd>Replacement is in progress. Finish enrolling the new authenticator app.</dd>
+      </div>
+      {% else %}
+      <div class="item">
+        <dt>Recovery codes</dt>
+        <dd>{{ platform_2fa_recovery_remaining }} codes remaining</dd>
+      </div>
+      <div class="item">
+        <dt>Authenticator</dt>
+        <dd>Google Authenticator / TOTP enabled</dd>
+      </div>
+      {% endif %}
+    </dl>
+    <p class="actions">
+      {% if platform_2fa_replacement_in_progress %}
+      <a class="button" href="{{ platform_2fa_replace_url }}">Finish enrolling authenticator</a>
+      {% else %}
+      <a class="button" href="{{ platform_2fa_replace_url }}">Replace authenticator</a>
+      <a class="button" href="{{ platform_2fa_regenerate_url }}">Regenerate recovery codes</a>
+      {% endif %}
+    </p>
+  </section>
+  {% endif %}
+  {% include "admin/app_list.html" with app_list=app_list show_changelinks=True %}
+</div>
+{% endblock %}

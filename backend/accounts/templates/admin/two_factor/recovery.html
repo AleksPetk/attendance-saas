@@ -1,0 +1,23 @@
+{% extends "admin/two_factor/base.html" %}
+{% block content %}
+  <h1>Use a recovery code</h1>
+  <p>Enter one unused recovery code. Each code works only once. This does not reveal any remaining codes.</p>
+  <form method="post">
+    {% csrf_token %}
+    <label for="recovery_code">Recovery code</label>
+    <input
+      id="recovery_code"
+      name="recovery_code"
+      type="text"
+      autocomplete="off"
+      autocapitalize="characters"
+      maxlength="20"
+      {% if locked %}disabled{% endif %}
+      required
+    >
+    <div class="actions">
+      <button type="submit" {% if locked %}disabled{% endif %}>Verify recovery code</button>
+      <a class="button secondary" href="{{ challenge_url }}">Back to authenticator code</a>
+    </div>
+  </form>
+{% endblock %}

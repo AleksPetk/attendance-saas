@@ -1,0 +1,68 @@
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError as DjangoValidationError
+from rest_framework import serializers
+
+
+class VerifyEmailSerializer(serializers.Serializer):
+    uid = serializers.CharField()
+    token = serializers.CharField()
+
+
+class ResendVerificationSerializer(serializers.Serializer):
+    email = serializers.EmailField(required=False, allow_blank=True)
+
+
+class ForgotPasswordSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+
+class ResetPasswordSerializer(serializers.Serializer):
+    uid = serializers.CharField()
+    token = serializers.CharField()
+    password = serializers.CharField(write_only=True)
+    password_confirm = serializers.CharField(write_only=True)
+
+    def validate(self, attrs):
+        if attrs.get("password") != attrs.get("password_confirm"):
+            raise serializers.ValidationError(
+                {"password_confirm": "Passwords do not match."}
+            )
+        return attrs
+
+
+class ChangePasswordSerializer(serializers.Serializer):
+    current_password = serializers.CharField(write_only=True)
+    new_password = serializers.CharField(write_only=True)
+    new_password_confirm = serializers.CharField(write_only=True)
+
+    def validate(self, attrs):
+        if attrs.get("new_password") != attrs.get("new_password_confirm"):
+            raise serializers.ValidationError(
+                {"new_password_confirm": "Passwords do not match."}
+            )
+        user = self.context.get("user")
+        try:
+            validate_password(password=attrs["new_password"], user=user)
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError({"new_password": exc.messages})
+        return attrs
+
+
+class AccountSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    email_verified = serializers.BooleanField()
+    email_verified_at = serializers.DateTimeField(allow_null=True)
+    two_factor_status = serializers.CharField()
+    two_factor_label = serializers.CharField()
+
+
+class DeleteAccountSerializer(serializers.Serializer):
+    current_password = serializers.CharField(write_only=True)
+    confirmation = serializers.CharField()
+
+    def validate_confirmation(self, value):
+        if (value or "").strip() != "DELETE":
+            raise serializers.ValidationError(
+                'Type DELETE to confirm permanent account deletion.'
+            )
+        return "DELETE"

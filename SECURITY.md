@@ -10,24 +10,34 @@ This document records **security requirements and direction**. It does not defin
 
 ## Authentication and Account Types
 
-### Customer User (`accounts.User` + OrganizationMembership)
+### Paying customer User (`accounts.User`)
 
-- **Human login account** for people who authenticate to the SaaS application.
-- Accesses **exactly one** Organization **workspace** through **OrganizationMembership** with an Organization role (**owner**, **admin**, or **staff**).
-- Does **not** switch Organizations in one login. Separate businesses require separate User accounts.
-- Distinct from Organization **Members** and other operational participant records, even when the same real-world person holds both a User login and a Member profile.
-- Disabling or removing staff User access must **not** destroy that person’s Member attendance history.
+- Platform-level login for the **paying customer** who owns exactly one Organization (`Organization.owner`).
+- That User is the workspace **owner**. They do **not** switch Organizations in one login. Separate **workspaces** require separate paying User accounts.
+- Each User account has **one globally unique, normalized (lowercase) email**.
+- Paying customers must **verify that email** before they can use the Organization workspace. `email_verified` is separate from Django `is_active`.
+- Distinct from **WorkspaceStaffAccount**, Organization **Members**, and other operational participant records.
+
+### Workspace staff account (`WorkspaceStaffAccount`)
+
+- Customer-created **admin** or **staff** login scoped to **exactly one** Organization.
+- **Not** an `accounts.User`. **Username is unique per workspace only**; the same username may exist in other workspaces. Optional email uniqueness remains per Organization.
+- Staff login uses **Workspace ID + username + password**. The Workspace ID is a system-generated immutable code, not the numeric Organization primary key.
+- Paying owners log in with global User email + password and do **not** enter a Workspace ID.
+- Login must not use an Organization database PK, workspace-name lookup, or organization switcher.
+- Cannot exist globally or move between workspaces.
+- Disabling or removing a WorkspaceStaffAccount must **not** destroy that person’s Member attendance history (Members remain unlinked).
 
 ### Platform operator User (`accounts.User` platform-admin flags)
 
-- Uses the same `accounts.User` model as customer Users.
+- Uses the same `accounts.User` model as paying customers.
 - Django `is_staff` / `is_superuser` are **global** platform-operator flags for the **Django admin site** and future platform-operator tooling.
-- Remain **separate from customer Organization membership**. They are **not** Organization customer roles.
+- Remain **separate from workspace owner/admin/staff**. They are **not** customer workspace roles.
 
 ### Member / Participant
 
-- Tracked people inside an Organization workspace. Generally **no** SaaS login required.
-- Must not be conflated with User accounts.
+- Tracked people inside an Organization workspace. **No workspace access.** Generally **no** SaaS login required.
+- Must not be conflated with User accounts or WorkspaceStaffAccounts.
 
 ### Local development admin
 
@@ -40,10 +50,36 @@ This document records **security requirements and direction**. It does not defin
 
 | Account type | Requirement | Status |
 |--------------|-------------|--------|
-| **Platform admin / staff** (Django admin and future platform-operator tooling) | **Mandatory before production** | Not implemented yet |
-| **Customer User accounts** (Organization workspace access via the SaaS application) | **Optional**, but should be **prominently recommended** for account safety | Not implemented yet |
+| **Platform admin / staff** (Django admin and future platform-operator tooling) | **Mandatory TOTP** for `is_staff` / `is_superuser` | Implemented for Django `/admin/` |
+| **Paying customer User accounts** (workspace owner login) | **Optional**, but should be **prominently recommended** for account safety | Not implemented yet |
+| **WorkspaceStaffAccount** (customer-created admin/staff) | Undecided; not designed yet | Not implemented yet |
 
-2FA is a confirmed security requirement direction, not an MVP implementation task at the current foundation stage.
+Platform-operator 2FA uses standard TOTP (Google Authenticator and other TOTP apps). After a correct admin password, the operator is held in a pending admin-session state until setup or a TOTP/recovery-code challenge succeeds. Existing authenticated admin sessions from before this slice may continue until logout; the next `/admin/` login must complete 2FA. Recovery codes are shown once and stored hashed. A successful recovery-code login grants a 10-minute admin-session recovery authorization that can replace a lost authenticator without the old TOTP; that authorization is not granted by an ordinary TOTP admin session. Replacing the authenticator immediately disables the old TOTP secret; old recovery codes are invalidated only after the new authenticator is verified. Break-glass CLI: `python manage.py reset_platform_2fa <email> --yes`. Customer owner login and WorkspaceStaffAccount login are unchanged and have no 2FA in this slice. TOTP secrets are encrypted at rest with `PLATFORM_2FA_ENCRYPTION_KEY`, or a key derived from `SECRET_KEY` in local DEBUG.
+
+## Paying customer email verification
+
+- New paying customer registrations create an unverified User plus exactly one Organization.
+- Workspace API access and owner login require `email_verified=True`.
+- Verification and password-reset tokens expire after **24 hours**.
+- Forgot-password always returns a neutral success message.
+- Transactional auth email is sent via the configured provider (currently Resend) using environment variables. Do not hardcode API keys.
+- **WorkspaceStaffAccount** is not part of this email-verification flow.
+- **Platform operators** (`is_staff` / `is_superuser`) are exempt from the customer verification gate so Django admin / local platform management remains usable. Django `/admin/` access for those accounts requires mandatory TOTP after password authentication.
+
+## Session isolation
+
+- Django `/admin/` uses a separate session cookie and CSRF cookie from the Check Station web app.
+- Platform-operator login at `/admin/` and customer owner / WorkspaceStaffAccount login in the app may exist in the same browser at the same time.
+- Customer register / login / logout, and workspace-staff login / logout, must not replace or flush the platform-admin session. Logging out of `/admin/` must not end the customer/workspace session.
+- Do not solve this in frontend state. Session cookies remain HttpOnly; CSRF protection remains enabled.
+
+## Archive versus permanent deletion
+
+- **Archive/deactivate** is reversible and preserves tenant data and history. It is the normal operational removal path.
+- **Subscription cancellation** is not account deletion. Billing is not implemented in this slice.
+- **Permanent account deletion** is owner-only (paying `accounts.User`) or platform-superuser in Django admin. It requires re-authentication (current password) and explicit confirmation on the customer path. Workspace staff cannot delete the paying customer's account. Platform staff who are not superusers cannot permanently delete tenants.
+- After permanent deletion, the customer email may be registered again. Stale verification or password-reset tokens for the deleted User are invalid.
+- Permanent deletion removes that tenant's workspace and customer-created operational data. Narrow legal/security retention may still apply per policy and is not implemented here.
 
 ---
 
@@ -57,5 +93,5 @@ Strict Organization tenant isolation remains a non-negotiable security requireme
 
 | Field | Value |
 |-------|-------|
-| **Status** | Initial security requirements (foundation stage) |
-| **Last updated** | 2026-08-18 |
+| **Status** | Security requirements plus paying-customer email verification, isolated admin sessions, permanent account deletion, and mandatory platform-admin TOTP |
+| **Last updated** | 2026-08-19 |

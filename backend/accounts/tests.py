@@ -3,6 +3,8 @@ from django.db import IntegrityError
 from django.test import Client, TestCase
 from django.urls import reverse
 
+from accounts.testing import force_platform_admin_login
+
 User = get_user_model()
 
 
@@ -16,6 +18,8 @@ class UserModelTests(TestCase):
         self.assertEqual(user.email, "owner@example.com")
         self.assertTrue(user.check_password("secure-password"))
         self.assertTrue(user.is_active)
+        self.assertFalse(user.email_verified)
+        self.assertIsNone(user.email_verified_at)
         self.assertFalse(user.is_staff)
         self.assertFalse(user.is_superuser)
 
@@ -27,6 +31,8 @@ class UserModelTests(TestCase):
 
         self.assertTrue(user.is_staff)
         self.assertTrue(user.is_superuser)
+        self.assertTrue(user.email_verified)
+        self.assertIsNotNone(user.email_verified_at)
 
     def test_email_is_authentication_identifier(self):
         field_names = {field.name for field in User._meta.get_fields()}
@@ -77,21 +83,21 @@ class UserAdminTests(TestCase):
             password="secure-password",
         )
         self.client = Client()
+        force_platform_admin_login(self.client, self.admin_user)
 
     def test_admin_user_changelist_loads(self):
-        self.client.force_login(self.admin_user)
         response = self.client.get(reverse("admin:accounts_user_changelist"))
 
         self.assertEqual(response.status_code, 200)
 
     def test_admin_user_add_form_loads(self):
-        self.client.force_login(self.admin_user)
         response = self.client.get(reverse("admin:accounts_user_add"))
 
         self.assertEqual(response.status_code, 200)
 
     def test_admin_login_page_loads(self):
-        response = self.client.get(reverse("admin:login"))
+        client = Client()
+        response = client.get(reverse("admin:login"))
 
         self.assertEqual(response.status_code, 200)
 
@@ -100,8 +106,9 @@ class UserAdminTests(TestCase):
             email="customer@example.com",
             password="secure-password",
         )
-        self.client.force_login(user)
-        response = self.client.get(reverse("admin:index"))
+        client = Client()
+        client.force_login(user)
+        response = client.get(reverse("admin:index"))
 
         self.assertEqual(response.status_code, 302)
         self.assertIn("/admin/login/", response.url)

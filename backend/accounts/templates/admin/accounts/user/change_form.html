@@ -1,0 +1,10 @@
+{% extends "admin/change_form.html" %}
+
+{% block object-tools-items %}
+  {{ block.super }}
+  {% if show_permanent_delete %}
+    <li>
+      <a href="{{ permanent_delete_url }}" class="deletelink">Permanently delete account…</a>
+    </li>
+  {% endif %}
+{% endblock %}

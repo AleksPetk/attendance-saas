@@ -1,0 +1,15 @@
+User-agent: *
+
+# Public marketing pages only.
+Allow: /
+
+# App pages (auth-protected) are not intended for indexing.
+Disallow: /dashboard/
+Disallow: /members/
+Disallow: /groups/
+Disallow: /history/
+Disallow: /staff/
+Disallow: /kiosk/
+
+Sitemap: /sitemap.xml
+

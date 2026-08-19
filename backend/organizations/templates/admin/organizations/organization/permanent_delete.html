@@ -1,0 +1,70 @@
+{% extends "admin/base_site.html" %}
+
+{% block extrahead %}
+{{ block.super }}
+<style>
+  .permanent-delete-warning {
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    color: #7f1d1d;
+    padding: 16px 18px;
+    border-radius: 8px;
+    max-width: 720px;
+  }
+  .permanent-delete-warning code {
+    background: #fff;
+    padding: 0 4px;
+  }
+  .permanent-delete-form {
+    margin-top: 24px;
+    max-width: 480px;
+  }
+  .permanent-delete-form label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+  .permanent-delete-form input[type="text"] {
+    width: 100%;
+    padding: 8px 10px;
+  }
+  .permanent-delete-submit {
+    background: #ba2121 !important;
+    border: none;
+    color: #fff;
+    padding: 10px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    margin-top: 16px;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="permanent-delete-warning">
+  <p><strong>This cannot be undone.</strong></p>
+  <p>
+    Permanent deletion removes the Check Station account, workspace
+    <code>{{ workspace_id }}</code>, and customer-created operational data
+    for <code>{{ email }}</code>. The email may then be registered again.
+  </p>
+  <p>
+    Account and workspace data will be permanently deleted, except information
+    we may be required to retain by law or for security/compliance purposes.
+  </p>
+  <p>This is not archive/deactivate, and it is not subscription cancellation.</p>
+</div>
+
+<form method="post" class="permanent-delete-form">
+  {% csrf_token %}
+  <label for="id_confirmation">Type DELETE to confirm</label>
+  <input id="id_confirmation" name="confirmation" type="text" autocomplete="off" required>
+  {% if error %}
+    <p class="errornote">{{ error }}</p>
+  {% endif %}
+  <div>
+    <button type="submit" class="permanent-delete-submit">Permanently delete this workspace</button>
+    <a href="{{ cancel_url }}" style="margin-left: 12px;">Cancel</a>
+  </div>
+</form>
+{% endblock %}

@@ -1,0 +1,105 @@
+from django.db import models
+from django.utils import timezone
+
+from groups.models import Group, GroupOnlyParticipant
+from members.models import Member
+from organizations.models import Organization
+
+
+class ActionType(models.TextChoices):
+    CHECK_IN = "check_in", "Check-in"
+    CHECK_OUT = "check_out", "Check-out"
+    BREAK_START = "break_start", "Break start"
+    BREAK_END = "break_end", "Break end"
+
+
+class ActionSource(models.TextChoices):
+    KIOSK = "kiosk", "Kiosk"
+    AUTOMATIC = "automatic", "Automatic / preset"
+    OWNER = "owner", "Owner / manual"
+
+
+class ActionRecord(models.Model):
+    """
+    Historical record created when an Attendance Action is performed.
+
+    This slice only implements what we need for kiosk-driven check-in/out and breaks.
+    It intentionally stores display snapshots so later Member/override edits don't rewrite history.
+    """
+
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.PROTECT,
+        related_name="action_records",
+    )
+    group = models.ForeignKey(
+        Group,
+        on_delete=models.PROTECT,
+        related_name="action_records",
+    )
+
+    participant_kind = models.CharField(
+        max_length=30,
+        choices=[
+            ("member", "Member"),
+            ("group_only_participant", "Group-only participant"),
+        ],
+    )
+    member = models.ForeignKey(
+        Member,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="action_records",
+    )
+    group_only_participant = models.ForeignKey(
+        GroupOnlyParticipant,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="action_records",
+    )
+
+    action_type = models.CharField(max_length=30, choices=ActionType.choices)
+    source = models.CharField(max_length=30, choices=ActionSource.choices, default=ActionSource.KIOSK)
+
+    performed_at = models.DateTimeField(default=timezone.now)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    # Snapshot fields (intentionally non-sensitive)
+    participant_name_snapshot = models.CharField(max_length=150)
+    participant_email_snapshot = models.EmailField(blank=True, default="")
+    participant_check_in_identifier_snapshot = models.CharField(
+        max_length=80, blank=True, default=""
+    )
+
+    # Optional extra info for debugging / future audits (not a workflow engine)
+    kiosk_note_snapshot = models.CharField(max_length=250, blank=True, default="")
+
+    class Meta:
+        ordering = ["-performed_at", "-id"]
+        indexes = [
+            models.Index(fields=["organization", "group", "performed_at"]),
+            models.Index(fields=["group", "participant_kind", "performed_at"]),
+        ]
+
+    def __str__(self):
+        return f"{self.group_id} {self.action_type} {self.participant_kind} @ {self.performed_at}"
+
+    def clean(self):
+        if self.participant_kind == "member":
+            if not self.member_id:
+                raise models.ValidationError("Member kind requires member.")
+            if self.group_only_participant_id:
+                raise models.ValidationError("Member kind cannot set group-only participant.")
+        elif self.participant_kind == "group_only_participant":
+            if not self.group_only_participant_id:
+                raise models.ValidationError("Group-only participant kind requires group_only_participant.")
+            if self.member_id:
+                raise models.ValidationError("Group-only participant kind cannot set member.")
+        else:
+            raise models.ValidationError("Invalid participant_kind.")
+
+        # Keep snapshot tenant ownership aligned
+        if self.group_id and self.organization_id and self.group.organization_id != self.organization_id:
+            raise models.ValidationError("ActionRecord organization must match Group organization.")

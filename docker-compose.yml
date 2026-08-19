@@ -29,6 +29,7 @@ services:
       - "8000:8000"
     volumes:
       - ./backend:/app
+      - media_data:/app/media
     depends_on:
       db:
         condition: service_healthy
@@ -50,3 +51,4 @@ services:
 
 volumes:
   postgres_data:
+  media_data:

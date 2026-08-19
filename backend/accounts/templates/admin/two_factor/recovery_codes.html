@@ -1,0 +1,36 @@
+{% extends "admin/two_factor/base.html" %}
+{% block content %}
+  <h1>Save your recovery codes</h1>
+  <p>These codes are shown once. Store them somewhere safe. They are not emailed, and Check Station cannot show them again.</p>
+  <ul class="codes" id="recovery-code-list">
+    {% for code in codes %}
+      <li>{{ code }}</li>
+    {% endfor %}
+  </ul>
+  <form method="post">
+    {% csrf_token %}
+    <label class="check">
+      <input type="checkbox" name="acknowledged" value="on" required>
+      <span>I have saved these recovery codes in a secure place.</span>
+    </label>
+    <div class="actions">
+      <button type="submit">{{ continue_label }}</button>
+      <button class="secondary" type="button" id="copy-codes">Copy codes</button>
+      <a class="button secondary" href="{{ download_url }}">Download</a>
+    </div>
+  </form>
+{% endblock %}
+{% block extra_js %}
+<script>
+  (function () {
+    var button = document.getElementById("copy-codes");
+    if (!button) return;
+    button.addEventListener("click", function () {
+      var text = "{{ codes_text|escapejs }}";
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text);
+      }
+    });
+  })();
+</script>
+{% endblock %}

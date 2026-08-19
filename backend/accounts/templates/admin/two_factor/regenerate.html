@@ -1,0 +1,36 @@
+{% extends "admin/two_factor/base.html" %}
+{% block content %}
+  <h1>Regenerate recovery codes</h1>
+  <p>This invalidates all unused recovery codes and creates a new set. You currently have {{ remaining }} unused recovery codes.</p>
+  {% if recovery_auth %}
+    <p>You signed in with a recovery code, so you can regenerate codes without the authenticator. This recovery authorization expires in {{ recovery_auth_seconds }} seconds.</p>
+    <form method="post">
+      {% csrf_token %}
+      <div class="actions">
+        <button type="submit">Regenerate codes</button>
+        <a class="button secondary" href="{% url 'admin:index' %}">Cancel</a>
+      </div>
+    </form>
+  {% else %}
+    <p>Enter a current authenticator code to continue.</p>
+    <form method="post">
+      {% csrf_token %}
+      <label for="code">6-digit authenticator code</label>
+      <input
+        id="code"
+        name="code"
+        type="text"
+        inputmode="numeric"
+        autocomplete="one-time-code"
+        pattern="[0-9 ]*"
+        maxlength="8"
+        {% if locked %}disabled{% endif %}
+        required
+      >
+      <div class="actions">
+        <button type="submit" {% if locked %}disabled{% endif %}>Regenerate codes</button>
+        <a class="button secondary" href="{% url 'admin:index' %}">Cancel</a>
+      </div>
+    </form>
+  {% endif %}
+{% endblock %}

@@ -8,6 +8,7 @@ See .env.example at the repository root for documented variables.
 from pathlib import Path
 
 import environ
+from corsheaders.defaults import default_headers
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 REPO_ROOT = BASE_DIR.parent
@@ -15,7 +16,16 @@ REPO_ROOT = BASE_DIR.parent
 env = environ.Env(
     DEBUG=(bool, False),
     ALLOWED_HOSTS=(list, ["localhost", "127.0.0.1"]),
-    CORS_ALLOWED_ORIGINS=(list, ["http://localhost:5173"]),
+    CORS_ALLOWED_ORIGINS=(
+        list,
+        ["http://localhost:5173", "http://127.0.0.1:5173"],
+    ),
+    EMAIL_VERIFICATION_TIMEOUT=(int, 60 * 60 * 24),
+    PASSWORD_RESET_TIMEOUT=(int, 60 * 60 * 24),
+    EMAIL_VERIFICATION_RESEND_COOLDOWN=(int, 60),
+    PASSWORD_RESET_RESEND_COOLDOWN=(int, 60),
+    RESEND_TIMEOUT_SECONDS=(int, 15),
+    PLATFORM_2FA_ENCRYPTION_KEY=(str, ""),
 )
 
 env_file = REPO_ROOT / ".env"
@@ -35,19 +45,33 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "corsheaders",
     "rest_framework",
-    "accounts",
+    "accounts.apps.AccountsConfig",
+    "organizations",
+    "members",
+    "groups",
     "core",
+    "attendance",
 ]
 
 AUTH_USER_MODEL = "accounts.User"
 
+# Enable session-based authentication for both:
+# - paying owners (accounts.User via ModelBackend)
+# - workspace staff/admin (WorkspaceStaffAccount via a custom backend)
+AUTHENTICATION_BACKENDS = [
+    "django.contrib.auth.backends.ModelBackend",
+    "organizations.authentication.WorkspaceStaffSessionAuthenticationBackend",
+]
+
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "corsheaders.middleware.CorsMiddleware",
+    "config.session_isolation.PlatformAdminSessionIsolationMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "accounts.two_factor_middleware.PlatformAdminTwoFactorMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
@@ -101,12 +125,77 @@ USE_TZ = True
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
+MEDIA_URL = "/media/"
+MEDIA_ROOT = BASE_DIR / "media"
+
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 CORS_ALLOWED_ORIGINS = env.list("CORS_ALLOWED_ORIGINS")
+# Required for the SPA fetch(..., { credentials: "include" }) cookie session.
+CORS_ALLOW_CREDENTIALS = True
+
+# SPA runs on a separate origin (Vite dev server). Trusted origins lets
+# Django enforce CSRF protection for cookie-based auth from the frontend.
+CSRF_TRUSTED_ORIGINS = list(CORS_ALLOWED_ORIGINS)
+
+# Cookie settings tuned for browser session auth.
+# Check Station app and Django admin use separate cookie names so the same
+# browser can hold a platform-admin session and a customer/workspace session.
+SESSION_COOKIE_NAME = "checkstation_sessionid"
+CSRF_COOKIE_NAME = "checkstation_csrftoken"
+SESSION_COOKIE_SAMESITE = "Lax"
+CSRF_COOKIE_SAMESITE = "Lax"
+SESSION_COOKIE_HTTPONLY = True
+CSRF_COOKIE_HTTPONLY = False
+
+ADMIN_SESSION_COOKIE_NAME = "checkstation_admin_sessionid"
+ADMIN_CSRF_COOKIE_NAME = "checkstation_admin_csrftoken"
+ADMIN_SESSION_COOKIE_PATH = "/admin"
+CORS_ALLOW_HEADERS = (
+    *default_headers,
+    "x-workspace-id",
+)
 
 REST_FRAMEWORK = {
     "DEFAULT_RENDERER_CLASSES": [
         "rest_framework.renderers.JSONRenderer",
     ],
+    "DEFAULT_PARSER_CLASSES": [
+        "rest_framework.parsers.JSONParser",
+        "rest_framework.parsers.FormParser",
+        "rest_framework.parsers.MultiPartParser",
+    ],
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "organizations.authentication.WorkspaceStaffBasicAuthentication",
+        "rest_framework.authentication.SessionAuthentication",
+        "rest_framework.authentication.BasicAuthentication",
+    ],
 }
+
+# Public product name used in transactional account emails.
+PRODUCT_NAME = "Check Station"
+
+# Browser origin used to build verification and password-reset links.
+# Never accept a user-supplied redirect target for these emails.
+FRONTEND_BASE_URL = env("FRONTEND_BASE_URL", default="http://localhost:5173").rstrip("/")
+
+# Paying-customer email verification tokens (Django HMAC, not stored raw).
+EMAIL_VERIFICATION_TIMEOUT = env("EMAIL_VERIFICATION_TIMEOUT")
+EMAIL_VERIFICATION_RESEND_COOLDOWN = env("EMAIL_VERIFICATION_RESEND_COOLDOWN")
+
+# Django password-reset tokens. Also used by PasswordResetTokenGenerator.
+PASSWORD_RESET_TIMEOUT = env("PASSWORD_RESET_TIMEOUT")
+PASSWORD_RESET_RESEND_COOLDOWN = env("PASSWORD_RESET_RESEND_COOLDOWN")
+
+# Transactional email (Resend). The API key must come from the environment.
+RESEND_API_KEY = env("RESEND_API_KEY", default="")
+RESEND_FROM_EMAIL = env(
+    "RESEND_FROM_EMAIL",
+    default="accounts@checkstation.alekspetk.com",
+)
+RESEND_FROM_NAME = env("RESEND_FROM_NAME", default=PRODUCT_NAME)
+RESEND_TIMEOUT_SECONDS = env("RESEND_TIMEOUT_SECONDS")
+
+# Optional Fernet key for encrypting platform-operator TOTP secrets at rest.
+# Local DEBUG may derive a key from SECRET_KEY when this is empty.
+PLATFORM_2FA_ENCRYPTION_KEY = env("PLATFORM_2FA_ENCRYPTION_KEY", default="")

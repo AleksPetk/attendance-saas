@@ -1,0 +1,24 @@
+{% extends "admin/two_factor/base.html" %}
+{% block content %}
+  <h1>Two-factor authentication</h1>
+  <p>Enter the 6-digit code from your authenticator app.</p>
+  <form method="post">
+    {% csrf_token %}
+    <label for="code">Authentication code</label>
+    <input
+      id="code"
+      name="code"
+      type="text"
+      inputmode="numeric"
+      autocomplete="one-time-code"
+      pattern="[0-9 ]*"
+      maxlength="8"
+      {% if locked %}disabled{% endif %}
+      required
+    >
+    <div class="actions">
+      <button type="submit" {% if locked %}disabled{% endif %}>Verify</button>
+      <a class="button secondary" href="{{ recovery_url }}">Use a recovery code</a>
+    </div>
+  </form>
+{% endblock %}

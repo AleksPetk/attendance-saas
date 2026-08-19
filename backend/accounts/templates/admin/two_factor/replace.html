@@ -1,0 +1,70 @@
+{% extends "admin/two_factor/base.html" %}
+{% block content %}
+  <h1>Replace authenticator</h1>
+  {% if enrolling %}
+    <p>Scan the new QR code with Google Authenticator or another TOTP-compatible authenticator app. The previous authenticator no longer works. Old recovery codes stay valid until this new authenticator is verified.</p>
+    <img class="qr" src="{{ qr_data_uri }}" alt="Authenticator QR code for {{ label }}">
+    <p class="muted">Account label: {{ label }}</p>
+    <p>If you cannot scan, enter this setup key manually:</p>
+    <p class="setup-key" id="totp-setup-key">{{ setup_key }}</p>
+    <form method="post">
+      {% csrf_token %}
+      <label for="code">New 6-digit authenticator code</label>
+      <input
+        id="code"
+        name="code"
+        type="text"
+        inputmode="numeric"
+        autocomplete="one-time-code"
+        pattern="[0-9 ]*"
+        maxlength="8"
+        {% if locked %}disabled{% endif %}
+        required
+      >
+      <div class="actions">
+        <button type="submit" {% if locked %}disabled{% endif %}>Verify new authenticator</button>
+      </div>
+    </form>
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="rotate">
+      <div class="actions">
+        <button class="secondary" type="submit">Generate a new setup key</button>
+      </div>
+    </form>
+  {% else %}
+    <p>Use this if you lost or replaced the phone that held your authenticator app.</p>
+    <p>Continuing will immediately disable the current authenticator. After you verify a new authenticator, every old recovery code is invalidated and a new set is shown once.</p>
+    {% if recovery_auth %}
+      <p>You signed in with a recovery code, so you can replace the authenticator without the old 6-digit code. This recovery authorization expires in {{ recovery_auth_seconds }} seconds.</p>
+      <form method="post">
+        {% csrf_token %}
+        <div class="actions">
+          <button type="submit">Replace authenticator</button>
+          <a class="button secondary" href="{% url 'admin:index' %}">Cancel</a>
+        </div>
+      </form>
+    {% else %}
+      <p>An ordinary admin session is not enough. Enter a current authenticator code, or sign in again with a recovery code.</p>
+      <form method="post">
+        {% csrf_token %}
+        <label for="code">Current 6-digit authenticator code</label>
+        <input
+          id="code"
+          name="code"
+          type="text"
+          inputmode="numeric"
+          autocomplete="one-time-code"
+          pattern="[0-9 ]*"
+          maxlength="8"
+          {% if locked %}disabled{% endif %}
+          required
+        >
+        <div class="actions">
+          <button type="submit" {% if locked %}disabled{% endif %}>Replace authenticator</button>
+          <a class="button secondary" href="{% url 'admin:index' %}">Cancel</a>
+        </div>
+      </form>
+    {% endif %}
+  {% endif %}
+{% endblock %}

@@ -85,3 +85,6 @@ temp/
 *.temp
 logs/
 *.pid
+
+# Local uploaded media (runtime files; never commit customer photos)
+backend/media/

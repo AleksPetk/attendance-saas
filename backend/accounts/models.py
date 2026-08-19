@@ -1,25 +1,33 @@
 from django.contrib.auth.models import AbstractUser
 from django.db import models
+from django.utils import timezone
 
 from accounts.managers import UserManager
 
 
 class User(AbstractUser):
     """
-    Human login account for the SaaS application.
+    Platform-level login account.
 
-    Customer Users access exactly one Organization workspace through
-    OrganizationMembership (roles: owner, admin, staff). They do not switch
-    Organizations in one login. Platform operators may use the same model with
-    Django is_staff / is_superuser for global platform-admin tooling.
+    Used for platform superusers, platform SaaS staff (Django is_staff /
+    is_superuser), and the paying customer who owns exactly one Organization.
+    Customer-created workspace admin/staff logins are WorkspaceStaffAccount,
+    not this model. This is not an Organization Member.
 
-    This is not an Organization Member or other operational participant record.
-    The same real-world person may also have a Member profile, but User and Member
-    remain separate records and lifecycles with no required link.
+    `is_active` means the account may authenticate and is not administratively
+    disabled. `email_verified` is separate: it means the paying customer has
+    confirmed ownership of the email address.
     """
 
     username = None
     email = models.EmailField("email address", unique=True)
+    email_verified = models.BooleanField(
+        default=False,
+        help_text="Whether the paying customer has confirmed this email address.",
+    )
+    email_verified_at = models.DateTimeField(null=True, blank=True)
+    email_verification_last_sent_at = models.DateTimeField(null=True, blank=True)
+    password_reset_last_sent_at = models.DateTimeField(null=True, blank=True)
 
     objects = UserManager()
 
@@ -37,3 +45,11 @@ class User(AbstractUser):
         if self.email:
             self.email = type(self).objects.normalize_email(self.email)
         super().save(*args, **kwargs)
+
+    def mark_email_verified(self, when=None):
+        self.email_verified = True
+        self.email_verified_at = when or timezone.now()
+        self.save(update_fields=["email_verified", "email_verified_at"])
+
+
+from accounts.two_factor_models import PlatformRecoveryCode, PlatformTOTPDevice  # noqa: E402,F401

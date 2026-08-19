@@ -45,7 +45,7 @@ This file is the short project entry point. Detailed product definition, scope, 
 ### Product
 
 - **Freedom** — Organizations configure systems matching real workflows.
-- **Simplicity** — Normal owners/staff should not need technical knowledge.
+- **Simplicity** — Normal owners/staff should not need technical knowledge. Configurability uses predefined building blocks, not a generic workflow engine.
 - **Power** — Advanced customers get meaningful configuration options.
 - **Safety** — Tenant isolation, permissions, billing, history, and sensitive data handled professionally.
 - **Scalability** — Never design around one particular customer type or industry.
