@@ -2,8 +2,13 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import IntegrityError, transaction
 from rest_framework import serializers
 
+from core.media_urls import absolute_file_url
+from groups.email_sender import (
+    email_sender_public_payload,
+    get_group_email_sender,
+    group_email_sender_is_ready,
+)
 from groups.models import (
-    EmailSenderMode,
     Group,
     GroupMembership,
     GroupMembershipStatus,
@@ -11,33 +16,25 @@ from groups.models import (
     KioskIdentifierField,
     KioskMode,
     KioskTheme,
+    MAX_BREAKS_CHOICES,
+    member_list_kiosk_mode_allowed,
 )
-from groups.requirements import (
-    MissingRequiredFields,
-    RequirementConflict,
-    find_requirement_conflicts,
-    member_profile_values,
-    membership_effective_values,
-    missing_required_fields,
-    participant_values,
-)
+from groups.readiness import group_setup_status_payload
 from groups.templates import validate_notification_template
+from kiosk_builder.models import ensure_group_kiosk_design, ensure_group_kiosk_settings
 from members.models import Member, MemberStatus, validate_member_pin
 
 
-def absolute_file_url(request, field_file):
-    if not field_file:
-        return None
-    url = field_file.url
-    if request is not None:
-        return request.build_absolute_uri(url)
-    return url
+class GroupParticipationSerializer(serializers.Serializer):
+    email_required = serializers.BooleanField(required=False, source="require_email")
+    pin_required = serializers.BooleanField(required=False, source="require_pin")
 
 
-class RequirementLevelField(serializers.ChoiceField):
-    def __init__(self, **kwargs):
-        kwargs.setdefault("choices", ["required", "optional"])
-        super().__init__(**kwargs)
+class GroupReadinessSerializer(serializers.Serializer):
+    setup_complete = serializers.BooleanField()
+    operational_ready = serializers.BooleanField()
+    missing_email_count = serializers.IntegerField()
+    missing_pin_count = serializers.IntegerField()
 
 
 class GroupActionsSerializer(serializers.Serializer):
@@ -48,20 +45,8 @@ class GroupActionsSerializer(serializers.Serializer):
         required=False,
         allow_null=True,
         min_value=1,
+        max_value=3,
     )
-
-
-class GroupRequirementsSerializer(serializers.Serializer):
-    name = RequirementLevelField(required=False)
-    email = RequirementLevelField(required=False)
-    photo = RequirementLevelField(required=False)
-    check_in_identifier = RequirementLevelField(required=False)
-    pin = RequirementLevelField(required=False)
-
-    def validate_name(self, value):
-        if value == "optional":
-            raise serializers.ValidationError("Name is always required.")
-        return "required"
 
 
 class NotificationSettingSerializer(serializers.Serializer):
@@ -90,17 +75,7 @@ class GroupNotificationsSerializer(serializers.Serializer):
         return super().to_internal_value(incoming)
 
 
-class GroupAdvancedSerializer(serializers.Serializer):
-    automatic_check_in_enabled = serializers.BooleanField(required=False)
-    automatic_check_in_time = serializers.TimeField(required=False, allow_null=True)
-    email_sender_mode = serializers.ChoiceField(
-        choices=EmailSenderMode.choices,
-        required=False,
-    )
-
-
 class GroupKioskSerializer(serializers.Serializer):
-    kiosk_enabled = serializers.BooleanField(required=False)
     kiosk_mode = serializers.ChoiceField(choices=KioskMode.choices, required=False)
     kiosk_theme = serializers.ChoiceField(choices=KioskTheme.choices, required=False)
     kiosk_title = serializers.CharField(required=False, allow_blank=True, max_length=150)
@@ -124,9 +99,8 @@ class GroupKioskSerializer(serializers.Serializer):
 
 class GroupSerializer(serializers.ModelSerializer):
     actions = GroupActionsSerializer(required=False, write_only=True)
-    requirements = GroupRequirementsSerializer(required=False, write_only=True)
+    participation = GroupParticipationSerializer(required=False, write_only=True)
     notifications = GroupNotificationsSerializer(required=False, write_only=True)
-    advanced = GroupAdvancedSerializer(required=False, write_only=True)
     kiosk = GroupKioskSerializer(required=False, write_only=True)
     member_count = serializers.IntegerField(read_only=True)
     group_only_participant_count = serializers.IntegerField(read_only=True)
@@ -138,9 +112,8 @@ class GroupSerializer(serializers.ModelSerializer):
             "name",
             "status",
             "actions",
-            "requirements",
+            "participation",
             "notifications",
-            "advanced",
             "kiosk",
             "member_count",
             "group_only_participant_count",
@@ -164,15 +137,11 @@ class GroupSerializer(serializers.ModelSerializer):
             "breaks_enabled": instance.breaks_enabled,
             "max_breaks": instance.max_breaks,
         }
-        data["requirements"] = {
-            "name": "required",
-            "email": "required" if instance.require_email else "optional",
-            "photo": "required" if instance.require_photo else "optional",
-            "check_in_identifier": (
-                "required" if instance.require_check_in_identifier else "optional"
-            ),
-            "pin": "required" if instance.require_pin else "optional",
+        data["participation"] = {
+            "email_required": instance.require_email,
+            "pin_required": instance.require_pin,
         }
+        data["readiness"] = group_setup_status_payload(instance)
         data["notifications"] = {
             "check_in": {
                 "send_email": instance.send_email_after_check_in,
@@ -187,17 +156,17 @@ class GroupSerializer(serializers.ModelSerializer):
                 "email_template": instance.break_email_template,
             },
         }
-        time_value = instance.automatic_check_in_time
+        sender = get_group_email_sender(instance)
         data["advanced"] = {
-            "automatic_check_in_enabled": instance.automatic_check_in_enabled,
-            "automatic_check_in_time": (
-                time_value.strftime("%H:%M") if time_value else None
-            ),
-            "email_sender_mode": instance.email_sender_mode,
+            "email_sender": email_sender_public_payload(sender),
+            "email_sender_ready": bool(sender and sender.is_ready),
         }
+        data["email_sender_ready"] = bool(sender and sender.is_ready)
+        data["require_email_enabled_for_after_action"] = bool(
+            getattr(instance, "_require_email_enabled_for_after_action", False)
+        )
 
         data["kiosk"] = {
-            "kiosk_enabled": instance.kiosk_enabled,
             "kiosk_mode": instance.kiosk_mode,
             "kiosk_theme": instance.kiosk_theme,
             "kiosk_title": instance.kiosk_title,
@@ -226,15 +195,80 @@ class GroupSerializer(serializers.ModelSerializer):
         data["group_only_participant_count"] = participant_count
         return data
 
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        actions = attrs.get("actions") or {}
+        kiosk = attrs.get("kiosk") or {}
+        instance = self.instance
+        check_in = actions.get(
+            "check_in_enabled",
+            instance.check_in_enabled if instance else True,
+        )
+        check_out = actions.get(
+            "check_out_enabled",
+            instance.check_out_enabled if instance else False,
+        )
+        breaks_enabled = actions.get(
+            "breaks_enabled",
+            instance.breaks_enabled if instance else False,
+        )
+        requested_mode = kiosk.get("kiosk_mode")
+        if requested_mode == KioskMode.MEMBER_LIST and not member_list_kiosk_mode_allowed(
+            check_in_enabled=check_in,
+            check_out_enabled=check_out,
+            breaks_enabled=breaks_enabled,
+        ):
+            raise serializers.ValidationError(
+                {
+                    "kiosk_mode": (
+                        "Member list mode is only available for Groups with exactly "
+                        "one manual action: either check-in only or check-out only."
+                    )
+                }
+            )
+
+        notifications = attrs.get("notifications") or {}
+        enabling_after_action = False
+        for key, flag_attr, action_on in (
+            ("check_in", "send_email_after_check_in", check_in),
+            ("check_out", "send_email_after_check_out", check_out),
+            ("after_break", "send_email_after_break", breaks_enabled),
+        ):
+            if not action_on:
+                continue
+            setting = notifications.get(key) or {}
+            if setting.get("send_email") is not True:
+                continue
+            already_on = bool(instance and getattr(instance, flag_attr, False))
+            if not already_on:
+                enabling_after_action = True
+                break
+        if enabling_after_action:
+            if instance is None or not group_email_sender_is_ready(instance):
+                raise serializers.ValidationError(
+                    {
+                        "notifications": (
+                            "Configure and verify an email sender in Advanced "
+                            "before enabling after-action emails."
+                        )
+                    }
+                )
+        return attrs
+
     def create(self, validated_data):
         mapped = self._mapped_fields(validated_data)
         organization = self.context["organization"]
+        auto_require = mapped.pop("_require_email_enabled_for_after_action", False)
         try:
             with transaction.atomic():
-                return Group.objects.create_group(
+                group = Group.objects.create_group(
                     organization=organization,
                     **mapped,
                 )
+                ensure_group_kiosk_design(group)
+                ensure_group_kiosk_settings(group)
+                group._require_email_enabled_for_after_action = auto_require
+                return group
         except DjangoValidationError as exc:
             raise serializers.ValidationError(
                 getattr(exc, "message_dict", exc.messages)
@@ -246,14 +280,15 @@ class GroupSerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
         mapped = self._mapped_fields(validated_data, instance=instance)
+        auto_require = mapped.pop("_require_email_enabled_for_after_action", False)
         for field, value in mapped.items():
             setattr(instance, field, value)
-        conflicts = find_requirement_conflicts(instance)
-        if conflicts:
-            raise RequirementConflict(conflicts)
         try:
             with transaction.atomic():
                 instance.save()
+                from kiosk_builder.kiosk_settings_validation import repair_kiosk_settings_for_group
+
+                repair_kiosk_settings_for_group(instance)
         except DjangoValidationError as exc:
             raise serializers.ValidationError(
                 getattr(exc, "message_dict", exc.messages)
@@ -262,6 +297,7 @@ class GroupSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 {"name": "A Group with this name already exists in this workspace."}
             ) from exc
+        instance._require_email_enabled_for_after_action = auto_require
         return instance
 
     def _mapped_fields(self, validated_data, instance=None):
@@ -279,42 +315,77 @@ class GroupSerializer(serializers.ModelSerializer):
         for source, dest in action_map.items():
             if source in actions:
                 mapped[dest] = actions[source]
+        if mapped.get("breaks_enabled") and "max_breaks" not in mapped:
+            if instance is None or instance.max_breaks not in MAX_BREAKS_CHOICES:
+                mapped["max_breaks"] = 1
 
-        requirements = validated_data.get("requirements") or {}
-        requirement_map = {
-            "email": "require_email",
-            "photo": "require_photo",
-            "check_in_identifier": "require_check_in_identifier",
-            "pin": "require_pin",
-        }
-        for source, dest in requirement_map.items():
-            if source in requirements:
-                mapped[dest] = requirements[source] == "required"
+        participation = validated_data.get("participation") or {}
+        if "require_email" in participation:
+            mapped["require_email"] = participation["require_email"]
+        if "require_pin" in participation:
+            mapped["require_pin"] = participation["require_pin"]
 
         notifications = validated_data.get("notifications") or {}
+        check_in_enabled = mapped.get(
+            "check_in_enabled",
+            instance.check_in_enabled if instance is not None else True,
+        )
+        check_out_enabled = mapped.get(
+            "check_out_enabled",
+            instance.check_out_enabled if instance is not None else False,
+        )
+        breaks_enabled = mapped.get(
+            "breaks_enabled",
+            instance.breaks_enabled if instance is not None else False,
+        )
         notification_map = {
             "check_in": ("send_email_after_check_in", "check_in_email_template"),
             "check_out": ("send_email_after_check_out", "check_out_email_template"),
             "after_break": ("send_email_after_break", "break_email_template"),
         }
+        enabled_notification_keys = {
+            "check_in": check_in_enabled,
+            "check_out": check_out_enabled,
+            "after_break": breaks_enabled,
+        }
         for key, (flag_field, template_field) in notification_map.items():
+            if not enabled_notification_keys[key]:
+                continue
             setting = notifications.get(key) or {}
             if "send_email" in setting:
                 mapped[flag_field] = setting["send_email"]
             if "email_template" in setting:
                 mapped[template_field] = setting["email_template"]
 
-        advanced = validated_data.get("advanced") or {}
-        if "automatic_check_in_enabled" in advanced:
-            mapped["automatic_check_in_enabled"] = advanced["automatic_check_in_enabled"]
-        if "automatic_check_in_time" in advanced:
-            mapped["automatic_check_in_time"] = advanced["automatic_check_in_time"]
-        if "email_sender_mode" in advanced:
-            mapped["email_sender_mode"] = advanced["email_sender_mode"]
+        # Enabling any after-action email forces require_email ON.
+        # Turning all after-actions OFF does not auto-disable require_email.
+        final_send_flags = [
+            mapped.get(
+                "send_email_after_check_in",
+                instance.send_email_after_check_in if instance is not None else False,
+            ),
+            mapped.get(
+                "send_email_after_check_out",
+                instance.send_email_after_check_out if instance is not None else False,
+            ),
+            mapped.get(
+                "send_email_after_break",
+                instance.send_email_after_break if instance is not None else False,
+            ),
+        ]
+        auto_require = False
+        if any(final_send_flags):
+            prior_require = mapped.get(
+                "require_email",
+                instance.require_email if instance is not None else False,
+            )
+            if not prior_require:
+                auto_require = True
+            mapped["require_email"] = True
+        mapped["_require_email_enabled_for_after_action"] = auto_require
 
         kiosk = validated_data.get("kiosk") or {}
         kiosk_map = {
-            "kiosk_enabled": "kiosk_enabled",
             "kiosk_mode": "kiosk_mode",
             "kiosk_theme": "kiosk_theme",
             "kiosk_title": "kiosk_title",
@@ -344,10 +415,21 @@ class GroupListQuerySerializer(serializers.Serializer):
         choices=["active", "archived", "all"],
         default="active",
     )
+    search = serializers.CharField(required=False, allow_blank=True)
 
 
 class GroupMembershipSerializer(serializers.ModelSerializer):
     member_id = serializers.IntegerField(write_only=True, required=False)
+    participation_pin = serializers.CharField(
+        write_only=True,
+        required=False,
+        allow_blank=True,
+    )
+    clear_participation_pin = serializers.BooleanField(
+        write_only=True,
+        required=False,
+        default=False,
+    )
     override_pin = serializers.CharField(
         write_only=True,
         required=False,
@@ -366,15 +448,21 @@ class GroupMembershipSerializer(serializers.ModelSerializer):
     member = serializers.SerializerMethodField()
     overrides = serializers.SerializerMethodField()
     effective = serializers.SerializerMethodField()
+    participation = serializers.SerializerMethodField()
+    setup = serializers.SerializerMethodField()
 
     class Meta:
         model = GroupMembership
         fields = (
             "id",
+            "group_participant_code",
             "member_id",
             "member",
             "override_name",
             "override_email",
+            "participation_email",
+            "participation_pin",
+            "clear_participation_pin",
             "override_photo",
             "override_check_in_identifier",
             "override_pin",
@@ -382,6 +470,8 @@ class GroupMembershipSerializer(serializers.ModelSerializer):
             "clear_override_photo",
             "overrides",
             "effective",
+            "participation",
+            "setup",
             "status",
             "created_at",
             "updated_at",
@@ -389,6 +479,7 @@ class GroupMembershipSerializer(serializers.ModelSerializer):
         )
         read_only_fields = (
             "id",
+            "group_participant_code",
             "status",
             "created_at",
             "updated_at",
@@ -398,8 +489,17 @@ class GroupMembershipSerializer(serializers.ModelSerializer):
             "override_photo": {"write_only": True, "required": False},
             "override_name": {"required": False, "allow_blank": True},
             "override_email": {"required": False, "allow_blank": True},
+            "participation_email": {"required": False, "allow_blank": True},
             "override_check_in_identifier": {"required": False, "allow_blank": True},
         }
+
+    def validate_participation_pin(self, value):
+        if not value:
+            return value
+        try:
+            return validate_member_pin(value)
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(exc.messages) from exc
 
     def validate_override_pin(self, value):
         if not value:
@@ -409,13 +509,17 @@ class GroupMembershipSerializer(serializers.ModelSerializer):
         except DjangoValidationError as exc:
             raise serializers.ValidationError(exc.messages) from exc
 
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        data.pop("participation_pin", None)
+        return data
+
     def get_member(self, obj):
         member = obj.member
         request = self.context.get("request")
         return {
             "id": member.id,
             "name": member.name,
-            "internal_code": member.internal_code,
             "email": member.email,
             "check_in_identifier": member.check_in_identifier,
             "has_photo": member.has_photo,
@@ -423,6 +527,26 @@ class GroupMembershipSerializer(serializers.ModelSerializer):
             "photo_url": absolute_file_url(request, member.photo),
             "status": member.status,
         }
+
+    def get_participation(self, obj):
+        group = obj.group
+        email = (obj.participation_email or "").strip()
+        pin = (obj.participation_pin or "").strip()
+        missing = []
+        if group.require_email and not email:
+            missing.append("email")
+        if group.require_pin and not obj.has_participation_pin:
+            missing.append("pin")
+        return {
+            "email": email,
+            "pin": pin or None,
+            "has_pin": obj.has_participation_pin,
+            "missing_required_fields": missing,
+            "complete": not missing,
+        }
+
+    def get_setup(self, obj):
+        return self.get_participation(obj)
 
     def get_overrides(self, obj):
         request = self.context.get("request")
@@ -453,7 +577,10 @@ class GroupMembershipSerializer(serializers.ModelSerializer):
         group = self.context["group"]
         organization = self.context["organization"]
         member = self._resolve_member(validated_data.pop("member_id", None))
-        pin = validated_data.pop("override_pin", "")
+        pin = validated_data.pop("participation_pin", "") or validated_data.pop(
+            "override_pin", ""
+        )
+        validated_data.pop("clear_participation_pin", None)
         validated_data.pop("clear_override_pin", None)
         validated_data.pop("clear_override_photo", None)
 
@@ -466,25 +593,35 @@ class GroupMembershipSerializer(serializers.ModelSerializer):
         membership = existing or GroupMembership(group=group, member=member)
         membership.organization = organization
         membership.status = GroupMembershipStatus.ACTIVE
-        self._apply_overrides(membership, validated_data, pin=pin)
-        self._validate_against_group(group, membership, pin_provided=bool(pin))
+        if not validated_data.get("participation_email") and group.require_email:
+            member_email = (member.email or "").strip()
+            if member_email:
+                validated_data["participation_email"] = member_email
+        self._apply_fields(membership, validated_data, pin=pin)
         membership.save()
         return membership
 
     def update(self, instance, validated_data):
+        if instance.member.status != MemberStatus.ACTIVE:
+            raise serializers.ValidationError(
+                {
+                    "member_id": (
+                        "Archived Members cannot be edited in a Group until restored."
+                    )
+                }
+            )
         validated_data.pop("member_id", None)
-        pin = validated_data.pop("override_pin", None)
-        clear_pin = validated_data.pop("clear_override_pin", False)
+        pin = validated_data.pop("participation_pin", None)
+        if pin is None:
+            pin = validated_data.pop("override_pin", None)
+        clear_pin = validated_data.pop("clear_participation_pin", False) or validated_data.pop(
+            "clear_override_pin", False
+        )
         clear_photo = validated_data.pop("clear_override_photo", False)
         if clear_photo and not validated_data.get("override_photo"):
             instance.override_photo.delete(save=False)
             instance.override_photo = ""
-        self._apply_overrides(instance, validated_data, pin=pin, clear_pin=clear_pin)
-        self._validate_against_group(
-            instance.group,
-            instance,
-            pin_provided=bool(pin),
-        )
+        self._apply_fields(instance, validated_data, pin=pin, clear_pin=clear_pin)
         instance.save()
         return instance
 
@@ -506,48 +643,47 @@ class GroupMembershipSerializer(serializers.ModelSerializer):
             )
         return member
 
-    def _apply_overrides(self, membership, validated_data, *, pin=None, clear_pin=False):
+    def _apply_fields(self, membership, validated_data, *, pin=None, clear_pin=False):
         for field in (
             "override_name",
             "override_email",
+            "participation_email",
             "override_photo",
             "override_check_in_identifier",
         ):
             if field in validated_data:
                 setattr(membership, field, validated_data[field])
         if pin:
-            membership.set_override_pin(pin)
+            membership.set_participation_pin(pin)
         elif clear_pin:
-            membership.clear_override_pin()
-
-    def _validate_against_group(self, group, membership, *, pin_provided):
-        pending = {
-            "override_name": membership.override_name,
-            "override_email": membership.override_email,
-            "override_check_in_identifier": membership.override_check_in_identifier,
-            "has_override_photo": membership.has_override_photo,
-            "has_override_pin": membership.has_override_pin or pin_provided,
-        }
-        missing = missing_required_fields(
-            group,
-            membership_effective_values(membership, pending=pending),
-        )
-        if missing:
-            raise MissingRequiredFields(missing)
+            membership.clear_participation_pin()
 
 
 class GroupOnlyParticipantSerializer(serializers.ModelSerializer):
     pin = serializers.CharField(write_only=True, required=False, allow_blank=True)
+    participation_pin = serializers.CharField(
+        write_only=True,
+        required=False,
+        allow_blank=True,
+    )
     clear_pin = serializers.BooleanField(write_only=True, required=False, default=False)
+    clear_participation_pin = serializers.BooleanField(
+        write_only=True,
+        required=False,
+        default=False,
+    )
     clear_photo = serializers.BooleanField(write_only=True, required=False, default=False)
     has_pin = serializers.BooleanField(read_only=True)
     has_photo = serializers.BooleanField(read_only=True)
     photo_url = serializers.SerializerMethodField()
+    participation = serializers.SerializerMethodField()
+    setup = serializers.SerializerMethodField()
 
     class Meta:
         model = GroupOnlyParticipant
         fields = (
             "id",
+            "group_participant_code",
             "name",
             "email",
             "photo",
@@ -559,8 +695,12 @@ class GroupOnlyParticipantSerializer(serializers.ModelSerializer):
             "check_in_identifier",
             "notes",
             "pin",
+            "participation_pin",
             "clear_pin",
+            "clear_participation_pin",
             "has_pin",
+            "participation",
+            "setup",
             "status",
             "created_at",
             "updated_at",
@@ -568,6 +708,7 @@ class GroupOnlyParticipantSerializer(serializers.ModelSerializer):
         )
         read_only_fields = (
             "id",
+            "group_participant_code",
             "status",
             "created_at",
             "updated_at",
@@ -585,26 +726,53 @@ class GroupOnlyParticipantSerializer(serializers.ModelSerializer):
         except DjangoValidationError as exc:
             raise serializers.ValidationError(exc.messages) from exc
 
+    def validate_participation_pin(self, value):
+        return self.validate_pin(value)
+
     def get_photo_url(self, obj):
         return absolute_file_url(self.context.get("request"), obj.photo)
 
+    def get_participation(self, obj):
+        group = obj.group
+        email = (obj.email or "").strip()
+        pin = (obj.participation_pin or "").strip()
+        missing = []
+        if group.require_email and not email:
+            missing.append("email")
+        if group.require_pin and not obj.has_pin:
+            missing.append("pin")
+        return {
+            "email": email,
+            "pin": pin or None,
+            "has_pin": obj.has_pin,
+            "missing_required_fields": missing,
+            "complete": not missing,
+        }
+
+    def get_setup(self, obj):
+        return self.get_participation(obj)
+
     def create(self, validated_data):
         group = self.context["group"]
-        pin = validated_data.pop("pin", "")
+        pin = validated_data.pop("participation_pin", "") or validated_data.pop("pin", "")
+        validated_data.pop("clear_participation_pin", None)
         validated_data.pop("clear_pin", None)
         validated_data.pop("clear_photo", None)
         participant = GroupOnlyParticipant(group=group, organization=group.organization)
         for field, value in validated_data.items():
             setattr(participant, field, value)
         if pin:
-            participant.set_pin(pin)
-        self._validate_against_group(group, participant, pin_provided=bool(pin))
+            participant.set_participation_pin(pin)
         participant.save()
         return participant
 
     def update(self, instance, validated_data):
-        pin = validated_data.pop("pin", None)
-        clear_pin = validated_data.pop("clear_pin", False)
+        pin = validated_data.pop("participation_pin", None)
+        if pin is None:
+            pin = validated_data.pop("pin", None)
+        clear_pin = validated_data.pop("clear_participation_pin", False) or validated_data.pop(
+            "clear_pin", False
+        )
         clear_photo = validated_data.pop("clear_photo", False)
         if clear_photo and not validated_data.get("photo"):
             instance.photo.delete(save=False)
@@ -612,69 +780,44 @@ class GroupOnlyParticipantSerializer(serializers.ModelSerializer):
         for field, value in validated_data.items():
             setattr(instance, field, value)
         if pin:
-            instance.set_pin(pin)
+            instance.set_participation_pin(pin)
         elif clear_pin:
-            instance.clear_pin()
-        self._validate_against_group(
-            instance.group,
-            instance,
-            pin_provided=bool(pin),
-        )
+            instance.clear_participation_pin()
         instance.save()
         return instance
-
-    def _validate_against_group(self, group, participant, *, pin_provided):
-        pending = {
-            "name": participant.name,
-            "email": participant.email,
-            "check_in_identifier": participant.check_in_identifier,
-            "has_photo": participant.has_photo,
-            "has_pin": participant.has_pin or pin_provided,
-        }
-        missing = missing_required_fields(
-            group,
-            participant_values(participant, pending=pending),
-        )
-        if missing:
-            raise MissingRequiredFields(missing)
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
         data.pop("photo", None)
+        data.pop("pin", None)
+        data.pop("participation_pin", None)
         return data
 
 
 class AvailableMemberSerializer(serializers.Serializer):
     id = serializers.IntegerField()
     name = serializers.CharField()
-    internal_code = serializers.CharField()
     email = serializers.CharField()
     check_in_identifier = serializers.CharField()
     has_photo = serializers.BooleanField()
     has_pin = serializers.BooleanField()
     photo_url = serializers.CharField(allow_null=True)
+    suggested_participation_email = serializers.CharField(allow_blank=True)
     missing_required_fields = serializers.ListField(child=serializers.CharField())
     field_messages = serializers.DictField(child=serializers.CharField())
 
 
 def available_member_payload(member, group, request):
-    values = member_profile_values(member)
-    missing = missing_required_fields(group, values)
-    from groups.requirements import REQUIRED_FIELD_MESSAGES
-
+    suggested_email = (member.email or "").strip() if group.require_email else ""
     return {
         "id": member.id,
         "name": member.name,
-        "internal_code": member.internal_code,
         "email": member.email,
         "check_in_identifier": member.check_in_identifier,
         "has_photo": member.has_photo,
         "has_pin": member.has_pin,
         "photo_url": absolute_file_url(request, member.photo),
-        "missing_required_fields": missing,
-        "field_messages": {
-            field: REQUIRED_FIELD_MESSAGES[field]
-            for field in missing
-            if field in REQUIRED_FIELD_MESSAGES
-        },
+        "suggested_participation_email": suggested_email,
+        "missing_required_fields": [],
+        "field_messages": {},
     }

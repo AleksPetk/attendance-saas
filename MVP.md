@@ -145,10 +145,10 @@ Verified custom sending domains remain **Post-MVP / future**.
 
 ### Reporting & Export
 
-- [ ] Basic reporting/history views
-- [ ] CSV export
+- [x] Basic reporting/history views (Activity Log + Attendance Report by Group/date)
+- [x] CSV / Excel / PDF export of the visible Attendance Report
 
-Excel and PDF exports remain **Post-MVP** for now.
+Excel and PDF advanced layout variants remain refinable; basic production exports ship with Attendance Report.
 
 ### Subscriptions & Billing
 
@@ -213,7 +213,7 @@ Items requiring explicit design and approval before categorization.
 |-------|-------|
 | Action/state model | How actions relate to participant current state; repeated cycles and preset/automatic behavior are product-confirmed but undesigned |
 | Configurable field types and limits | What field types MVP supports |
-| Minimum Member data | Contextual Group/Event requirements are confirmed (DEC-046). Whether any Organization-level Member fields are universally required remains open. Do not assume email, phone, photo, member code, etc. are globally mandatory. |
+| Minimum Member data | **Resolved by DEC-053.** Name is required and not unique. Email, date of birth, phone, address, photo, and notes are optional. Member-level PIN/identifier are not profile fields. Contextual Group/Event requirements remain (DEC-046). |
 | Kiosk security and session model | Device credentials, session management, authentication. Distinct from Group/Event-owned kiosk configuration (DEC-044). |
 | Kiosk data model | Whether kiosk configuration is stored as fields on Group/Event or as a separate entity; exact fields. Ownership is confirmed; schema is not. |
 | Permission/role capability matrix | Exact capabilities for owner, admin, and staff undecided |

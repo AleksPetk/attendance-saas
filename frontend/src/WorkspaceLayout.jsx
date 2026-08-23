@@ -14,9 +14,13 @@ const PAGE_TITLES = {
   dashboard: "Dashboard",
   members: "Members",
   "member-editor": "Members",
+  "member-create": "Members",
+  "member-profile": "Members",
   groups: "Groups",
   "group-editor": "Groups",
   "group-detail": "Groups",
+  "kiosk-settings": "Kiosk Settings",
+  "kiosk-builder": "Kiosk Builder",
   history: "History",
   staff: "Staff management",
   account: "Account",
@@ -24,10 +28,15 @@ const PAGE_TITLES = {
 
 function isNavActive(routeName, itemName) {
   if (itemName === "members") {
-    return routeName === "members" || routeName === "member-editor";
+    return (
+      routeName === "members" ||
+      routeName === "member-editor" ||
+      routeName === "member-create" ||
+      routeName === "member-profile"
+    );
   }
   if (itemName === "groups") {
-    return routeName === "groups" || routeName === "group-editor" || routeName === "group-detail";
+    return routeName === "groups" || routeName === "group-editor" || routeName === "group-detail" || routeName === "kiosk-settings" || routeName === "kiosk-builder";
   }
   return routeName === itemName;
 }
@@ -113,16 +122,25 @@ export function EmptyState({ title, body, action }) {
   return <EmptyStateComponent title={title} body={body} action={action} />;
 }
 
-export function PersonRow({ person, subtitle, status, onOpen, actions }) {
+export function PersonRow({ person, subtitle, status, onOpen, actions, inactive = false }) {
+  const identity = (
+    <>
+      <PhotoThumb url={person.photo_url} name={person.name} />
+      <div className="person-copy">
+        <strong>{person.name}</strong>
+        <p className="person-subtitle">{subtitle}</p>
+      </div>
+    </>
+  );
   return (
-    <article className="person-row">
-      <button type="button" className="person-main" onClick={onOpen}>
-        <PhotoThumb url={person.photo_url} name={person.name} />
-        <div className="person-copy">
-          <strong>{person.name}</strong>
-          <p className="person-subtitle">{subtitle}</p>
-        </div>
-      </button>
+    <article className={`person-row${inactive ? " person-row-inactive" : ""}`}>
+      {onOpen ? (
+        <button type="button" className="person-main" onClick={onOpen}>
+          {identity}
+        </button>
+      ) : (
+        <div className="person-main static">{identity}</div>
+      )}
       <div className="person-meta">
         {status ? <StatusBadge status={status} /> : null}
         {actions}

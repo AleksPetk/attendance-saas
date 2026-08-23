@@ -13,7 +13,7 @@ const STEPS = [
   },
   {
     title: "Add Members",
-    body: "Add the people you want to track. Only a name is required; email, photo, and identifiers are optional.",
+    body: "Add the people you want to track. Only a name is required; email, phone, address, photo, date of birth, and notes are optional.",
   },
   {
     title: "Create and configure Groups",

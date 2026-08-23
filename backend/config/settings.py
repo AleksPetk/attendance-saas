@@ -26,6 +26,7 @@ env = environ.Env(
     PASSWORD_RESET_RESEND_COOLDOWN=(int, 60),
     RESEND_TIMEOUT_SECONDS=(int, 15),
     PLATFORM_2FA_ENCRYPTION_KEY=(str, ""),
+    APP_SECRETS_ENCRYPTION_KEY=(str, ""),
 )
 
 env_file = REPO_ROOT / ".env"
@@ -49,8 +50,9 @@ INSTALLED_APPS = [
     "organizations",
     "members",
     "groups",
-    "core",
+    "core.apps.CoreConfig",
     "attendance",
+    "kiosk_builder",
 ]
 
 AUTH_USER_MODEL = "accounts.User"
@@ -72,6 +74,7 @@ MIDDLEWARE = [
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "accounts.two_factor_middleware.PlatformAdminTwoFactorMiddleware",
+    "attendance.kiosk_lock_middleware.KioskLockMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
@@ -199,3 +202,7 @@ RESEND_TIMEOUT_SECONDS = env("RESEND_TIMEOUT_SECONDS")
 # Optional Fernet key for encrypting platform-operator TOTP secrets at rest.
 # Local DEBUG may derive a key from SECRET_KEY when this is empty.
 PLATFORM_2FA_ENCRYPTION_KEY = env("PLATFORM_2FA_ENCRYPTION_KEY", default="")
+
+# Optional Fernet key for reversible app secrets (Group SMTP passwords, etc.).
+# Local DEBUG may derive a key from SECRET_KEY when this is empty.
+APP_SECRETS_ENCRYPTION_KEY = env("APP_SECRETS_ENCRYPTION_KEY", default="")

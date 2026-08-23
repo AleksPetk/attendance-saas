@@ -78,14 +78,15 @@ class GroupAdmin(admin.ModelAdmin):
             },
         ),
         (
-            "Requirements",
+            "Deprecated kiosk compatibility",
             {
+                "classes": ("collapse",),
                 "fields": (
                     "require_email",
                     "require_photo",
                     "require_check_in_identifier",
                     "require_pin",
-                )
+                ),
             },
         ),
         (
@@ -98,17 +99,18 @@ class GroupAdmin(admin.ModelAdmin):
                     "check_out_email_template",
                     "send_email_after_break",
                     "break_email_template",
-                    "email_sender_mode",
                 )
             },
         ),
         (
-            "Advanced",
+            "Deprecated fields",
             {
+                "classes": ("collapse",),
                 "fields": (
+                    "email_sender_mode",
                     "automatic_check_in_enabled",
                     "automatic_check_in_time",
-                )
+                ),
             },
         ),
         (
@@ -152,7 +154,7 @@ class GroupMembershipAdmin(admin.ModelAdmin):
     list_filter = ("status", "organization")
     search_fields = (
         "member__name",
-        "member__internal_code",
+        "member__email",
         "group__name",
         "organization__workspace_id",
     )

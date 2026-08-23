@@ -12,6 +12,7 @@ urlpatterns = [
     path("api/", include("members.urls")),
     path("api/", include("groups.urls")),
     path("api/", include("attendance.urls")),
+    path("api/", include("kiosk_builder.urls")),
 ]
 
 if settings.DEBUG:

@@ -60,6 +60,42 @@ async function request(path, { method = "GET", json, formData } = {}) {
   return { ok: true, status: response.status, data: await response.json() };
 }
 
+function filenameFromContentDisposition(headerValue) {
+  if (!headerValue) return "";
+  const utfMatch = /filename\*=UTF-8''([^;]+)/i.exec(headerValue);
+  if (utfMatch) {
+    try {
+      return decodeURIComponent(utfMatch[1].trim().replace(/^"|"$/g, ""));
+    } catch {
+      return utfMatch[1].trim().replace(/^"|"$/g, "");
+    }
+  }
+  const plainMatch = /filename="?([^";]+)"?/i.exec(headerValue);
+  return plainMatch ? plainMatch[1].trim() : "";
+}
+
+async function requestBlob(path, { method = "GET" } = {}) {
+  const headers = {};
+  const m = method.toUpperCase();
+  if (shouldAttachCsrf(m)) {
+    const csrf = getCookie("checkstation_csrftoken");
+    if (csrf) {
+      headers["X-CSRFToken"] = csrf;
+    }
+  }
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method: m,
+    headers,
+    credentials: "include",
+  });
+  if (!response.ok) {
+    throw await parseError(response);
+  }
+  const blob = await response.blob();
+  const filename = filenameFromContentDisposition(response.headers.get("Content-Disposition"));
+  return { ok: true, status: response.status, blob, filename };
+}
+
 export const api = {
   baseUrl: API_BASE_URL,
 
@@ -70,6 +106,7 @@ export const api = {
   loginStaff: (payload) => request("/api/auth/staff-login/", { method: "POST", json: payload }),
   logout: () => request("/api/auth/logout/", { method: "POST" }),
   reauth: (payload) => request("/api/auth/reauth/", { method: "POST", json: payload }),
+  exitKiosk: (payload) => request("/api/kiosk/exit/", { method: "POST", json: payload }),
   verifyEmail: (payload) => request("/api/auth/verify-email/", { method: "POST", json: payload }),
   resendVerification: (payload = {}) =>
     request("/api/auth/resend-verification/", { method: "POST", json: payload }),
@@ -89,11 +126,23 @@ export const api = {
   updateMember: (_auth, id, formData) =>
     request(`/api/members/${id}/`, { method: "PATCH", formData }),
   archiveMember: (_auth, id) => request(`/api/members/${id}/archive/`, { method: "POST" }),
+  restoreMember: (_auth, id) => request(`/api/members/${id}/restore/`, { method: "POST" }),
+  permanentlyDeleteMember: (_auth, id) =>
+    request(`/api/members/${id}/permanently-delete/`, { method: "POST" }),
   listGroups: (_auth, params = "") => request(`/api/groups/${params}`),
   getGroup: (_auth, id) => request(`/api/groups/${id}/`),
   createGroup: (_auth, json) => request("/api/groups/", { method: "POST", json }),
   updateGroup: (_auth, id, json) => request(`/api/groups/${id}/`, { method: "PATCH", json }),
+  getGroupEmailSender: (_auth, groupId) =>
+    request(`/api/groups/${groupId}/email-sender/`),
+  updateGroupEmailSender: (_auth, groupId, json) =>
+    request(`/api/groups/${groupId}/email-sender/`, { method: "PUT", json }),
+  testGroupEmailSender: (_auth, groupId, json) =>
+    request(`/api/groups/${groupId}/email-sender/test/`, { method: "POST", json }),
   archiveGroup: (_auth, id) => request(`/api/groups/${id}/`, { method: "DELETE" }),
+  restoreGroup: (_auth, id) => request(`/api/groups/${id}/restore/`, { method: "POST" }),
+  permanentlyDeleteGroup: (_auth, id) =>
+    request(`/api/groups/${id}/permanently-delete/`, { method: "POST" }),
   listMemberships: (_auth, groupId) => request(`/api/groups/${groupId}/memberships/`),
   createMembership: (_auth, groupId, formData) =>
     request(`/api/groups/${groupId}/memberships/`, { method: "POST", formData }),
@@ -110,11 +159,27 @@ export const api = {
     request(`/api/groups/${groupId}/participants/${participantId}/`, { method: "DELETE" }),
   listAvailableMembers: (_auth, groupId) => request(`/api/groups/${groupId}/available-members/`),
   getGroupKioskStart: (_auth, groupId) => request(`/api/groups/${groupId}/kiosk/`),
+  getGroupKioskSettings: (_auth, groupId) => request(`/api/groups/${groupId}/kiosk-settings/`),
+  updateGroupKioskSettings: (_auth, groupId, json) =>
+    request(`/api/groups/${groupId}/kiosk-settings/`, { method: "PATCH", json }),
+  resetKioskAttendanceNow: (_auth, groupId) =>
+    request(`/api/groups/${groupId}/kiosk-settings/reset-now/`, { method: "POST" }),
+  getGroupKioskDesign: (_auth, groupId) => request(`/api/groups/${groupId}/kiosk-design/`),
+  updateGroupKioskDesign: (_auth, groupId, formData) =>
+    request(`/api/groups/${groupId}/kiosk-design/`, { method: "PUT", formData }),
+  listKioskPresets: (_auth) => request("/api/kiosk-presets/"),
+  enterKiosk: (_auth, groupId) =>
+    request(`/api/groups/${groupId}/kiosk/`, { method: "POST" }),
   identifyKiosk: (_auth, groupId, payload) =>
     request(`/api/groups/${groupId}/kiosk/identify/`, { method: "POST", json: payload }),
   performKioskAction: (_auth, groupId, payload) =>
     request(`/api/groups/${groupId}/kiosk/perform/`, { method: "POST", json: payload }),
   listHistory: (_auth, params = "") => request(`/api/history/${params}`),
+  listHistoryReportGroups: (_auth) => request("/api/history/report-groups/"),
+  getAttendanceReport: (_auth, params = "") =>
+    request(`/api/history/attendance-report/${params}`),
+  exportAttendanceReport: (_auth, params = "") =>
+    requestBlob(`/api/history/attendance-report/export/${params}`),
 
   /* Workspace staff/admin management (owner-only) */
   listWorkspaceStaff: (_auth) => request("/api/workspace-staff/"),

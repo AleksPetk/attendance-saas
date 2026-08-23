@@ -1,0 +1,512 @@
+/**
+ * Kiosk Settings page — calm workspace-aligned theme (scoped).
+ * Uses Check Station tokens: #f6f9fc page, --surface-muted rows, --blue selection.
+ */
+
+.kiosk-settings-page {
+  --ks-accent: var(--blue);
+  --ks-accent-soft: var(--blue-soft);
+  --ks-border: var(--border);
+  --ks-border-soft: color-mix(in srgb, var(--border) 65%, transparent);
+  --ks-shadow-card: var(--shadow-sm);
+  --ks-shadow-hover: var(--shadow-sm);
+  --ks-radius-card: var(--radius-md);
+  --ks-interactive-bg: var(--surface-muted);
+  --ks-interactive-hover: var(--surface-subtle);
+}
+
+/* Page header */
+.kiosk-settings-page .page-header-stable {
+  padding-bottom: var(--space-4);
+  margin-bottom: 0;
+  border-bottom: 1px solid var(--ks-border-soft);
+}
+
+.kiosk-settings-page .editor-title-row h2 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+
+.kiosk-settings-readiness-label {
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  background: var(--surface-subtle);
+  border: 1px solid var(--ks-border);
+  color: var(--text-muted);
+}
+
+.kiosk-settings-context {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.kiosk-settings-context strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* Header actions */
+.kiosk-settings-page .header-actions .btn-primary:focus-visible,
+.kiosk-settings-page .header-actions .btn-secondary:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+
+.kiosk-settings-page .header-actions .btn-primary:hover:not(:disabled) {
+  transform: none;
+  box-shadow: var(--shadow-sm);
+}
+
+.kiosk-settings-page .header-actions .btn-secondary:hover:not(:disabled) {
+  box-shadow: none;
+}
+
+/* Banners — match existing muted alert tone */
+.kiosk-settings-status-banner {
+  margin: 0 0 var(--space-4);
+  padding: 0.75rem 0.95rem;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(245, 158, 11, 0.28);
+  border-left-width: 3px;
+  border-left-color: #d97706;
+  background: rgba(245, 158, 11, 0.06);
+  box-shadow: none;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+}
+
+.kiosk-settings-status-banner strong {
+  font-size: 0.875rem;
+  color: var(--text);
+}
+
+.kiosk-settings-status-banner-ready {
+  border-color: rgba(34, 197, 94, 0.22);
+  border-left-color: #16a34a;
+  background: var(--success-soft);
+}
+
+.kiosk-settings-save-notice {
+  margin: 0 0 var(--space-4);
+  border-radius: var(--radius-md);
+  box-shadow: none;
+}
+
+/* Layout */
+.kiosk-settings-layout {
+  gap: var(--space-4);
+}
+
+.kiosk-settings-top-row {
+  gap: var(--space-4);
+}
+
+/* Major section cards */
+.kiosk-settings-page .kiosk-settings-card {
+  padding: var(--space-4) var(--space-5);
+  gap: var(--space-4);
+  border: 1px solid var(--ks-border);
+  border-radius: var(--ks-radius-card);
+  box-shadow: var(--ks-shadow-card);
+  background: var(--surface);
+}
+
+.kiosk-settings-card-head {
+  padding-bottom: var(--space-3);
+  margin-bottom: 0;
+  border-bottom: 1px solid var(--ks-border-soft);
+}
+
+.kiosk-settings-card-head h3 {
+  font-size: 0.98rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.kiosk-settings-card-head .hint {
+  margin-top: 0.25rem;
+  font-size: 0.84rem;
+  color: var(--text-muted);
+}
+
+.kiosk-settings-subsection h4 {
+  margin-bottom: var(--space-2);
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+/* Kiosk type tiles */
+.kiosk-type-picker {
+  gap: var(--space-3);
+}
+
+.kiosk-type-option {
+  padding: 0.9rem 0.95rem;
+  min-height: 4.75rem;
+  border: 1px solid var(--ks-border);
+  border-radius: var(--radius-md);
+  background: var(--ks-interactive-bg);
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.kiosk-type-option:hover {
+  border-color: var(--border-strong);
+  background: var(--ks-interactive-hover);
+  box-shadow: none;
+  transform: none;
+}
+
+.kiosk-type-option:focus-within {
+  outline: 2px solid color-mix(in srgb, var(--blue) 40%, transparent);
+  outline-offset: 2px;
+}
+
+.kiosk-type-option.active {
+  border-color: color-mix(in srgb, var(--blue) 45%, var(--border));
+  background: color-mix(in srgb, var(--blue-soft) 55%, var(--surface));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--blue) 12%, transparent);
+}
+
+.kiosk-type-option.active:hover {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--blue) 16%, transparent);
+}
+
+.kiosk-type-label {
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.kiosk-type-option .hint {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+
+/* Exit kiosk */
+.kiosk-exit-configured-panel {
+  padding: 0.8rem 0.95rem;
+  border: 1px solid color-mix(in srgb, var(--green) 22%, var(--border));
+  border-radius: var(--radius-md);
+  background: var(--success-soft);
+}
+
+.kiosk-exit-status-ok {
+  color: var(--success-text);
+}
+
+.kiosk-exit-change-btn:hover:not(:disabled) {
+  box-shadow: none;
+}
+
+.kiosk-exit-change-btn:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+
+.kiosk-field-select,
+.kiosk-message-textarea {
+  border-color: var(--ks-border);
+  background: var(--surface);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.kiosk-field-select:focus,
+.kiosk-message-textarea:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--blue) 35%, var(--border));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--blue) 10%, transparent);
+}
+
+/* Option rows */
+.ks-option-row {
+  padding: 0.7rem 0.85rem;
+  border: 1px solid var(--ks-border);
+  border-radius: var(--radius-md);
+  background: var(--ks-interactive-bg);
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.ks-option-row:hover:not(.disabled-option) {
+  border-color: var(--border-strong);
+  background: var(--ks-interactive-hover);
+  box-shadow: none;
+}
+
+.ks-option-row:focus-within:not(.disabled-option) {
+  outline: 2px solid color-mix(in srgb, var(--blue) 35%, transparent);
+  outline-offset: 2px;
+}
+
+.ks-option-row.locked {
+  border-color: color-mix(in srgb, var(--blue) 18%, var(--border));
+  background: color-mix(in srgb, var(--blue-soft) 35%, var(--surface-muted));
+}
+
+.ks-option-row.disabled-option {
+  opacity: 0.55;
+  background: var(--surface-subtle);
+}
+
+.ks-option-row input[type="checkbox"] {
+  accent-color: var(--blue);
+}
+
+/* Segment picker */
+.kiosk-segment-option {
+  padding: 0.62rem 0.8rem;
+  border: 1px solid var(--ks-border);
+  border-radius: var(--radius-md);
+  background: var(--ks-interactive-bg);
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.kiosk-segment-option:hover {
+  border-color: var(--border-strong);
+  background: var(--ks-interactive-hover);
+  box-shadow: none;
+}
+
+.kiosk-segment-option:focus-within {
+  outline: 2px solid color-mix(in srgb, var(--blue) 35%, transparent);
+  outline-offset: 2px;
+}
+
+.kiosk-segment-option.active {
+  border-color: color-mix(in srgb, var(--blue) 40%, var(--border));
+  background: color-mix(in srgb, var(--blue-soft) 50%, var(--surface));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--blue) 10%, transparent);
+  color: var(--blue);
+}
+
+/* Field config */
+.kiosk-field-config-row {
+  padding: 0.7rem 0.85rem;
+  border: 1px solid var(--ks-border);
+  border-radius: var(--radius-md);
+  background: var(--ks-interactive-bg);
+}
+
+.kiosk-field-config-row.locked {
+  background: var(--surface-subtle);
+}
+
+.kiosk-settings-ident-body {
+  gap: var(--space-4);
+}
+
+.kiosk-settings-helper {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+
+/* Confirmation accordion — calm overrides */
+.kiosk-settings-page .kc-accordion {
+  gap: var(--space-2);
+}
+
+.kiosk-settings-page .kc-accordion-section {
+  border: 1px solid var(--ks-border);
+  border-radius: var(--radius-md);
+  background: var(--surface-muted);
+  box-shadow: none;
+}
+
+.kiosk-settings-page .kc-accordion-section.is-open {
+  border-color: var(--border-strong);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.kiosk-settings-page .kc-accordion-trigger {
+  min-height: 2.85rem;
+  padding: 0.75rem 0.95rem;
+  background: var(--surface-muted);
+}
+
+.kiosk-settings-page .kc-accordion-trigger:hover {
+  background: var(--surface-subtle);
+  box-shadow: none;
+}
+
+.kiosk-settings-page .kc-accordion-section.is-open .kc-accordion-trigger {
+  background: var(--surface-subtle);
+  border-bottom: 1px solid var(--ks-border-soft);
+}
+
+.kiosk-settings-page .kc-accordion-trigger:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--blue) 40%, transparent);
+  outline-offset: -2px;
+}
+
+.kiosk-settings-page .kc-accordion-title {
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: var(--text);
+}
+
+.kiosk-settings-page .kc-accordion-summary {
+  padding: 0.15rem 0.55rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: var(--surface);
+  border: 1px solid var(--ks-border);
+}
+
+.kiosk-settings-page .kc-accordion-section.is-open .kc-accordion-summary {
+  color: var(--text-secondary);
+  border-color: color-mix(in srgb, var(--blue) 22%, var(--border));
+  background: color-mix(in srgb, var(--blue-soft) 40%, var(--surface));
+}
+
+.kiosk-settings-page .kc-accordion-chevron {
+  width: 1.5rem;
+  height: 1.5rem;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  background: var(--surface);
+  border: 1px solid var(--ks-border);
+}
+
+.kiosk-settings-page .kc-accordion-trigger:hover .kc-accordion-chevron {
+  color: var(--text-secondary);
+  border-color: var(--border-strong);
+}
+
+.kiosk-settings-page .kc-accordion-section.is-open .kc-accordion-chevron {
+  color: var(--blue);
+  background: color-mix(in srgb, var(--blue-soft) 45%, var(--surface));
+  border-color: color-mix(in srgb, var(--blue) 20%, var(--border));
+}
+
+.kiosk-settings-page .kc-accordion-panel {
+  padding: var(--space-4);
+  background: var(--surface);
+}
+
+.kiosk-settings-page .kc-template-option {
+  border: 1px solid var(--ks-border);
+  background: var(--surface-muted);
+  box-shadow: none;
+}
+
+.kiosk-settings-page .kc-template-option:hover {
+  border-color: var(--border-strong);
+  background: var(--surface-subtle);
+  box-shadow: none;
+  transform: none;
+}
+
+.kiosk-settings-page .kc-template-option:focus-within {
+  outline: 2px solid color-mix(in srgb, var(--blue) 35%, transparent);
+  outline-offset: 2px;
+}
+
+.kiosk-settings-page .kc-template-option.active {
+  border-color: color-mix(in srgb, var(--blue) 42%, var(--border));
+  background: color-mix(in srgb, var(--blue-soft) 48%, var(--surface));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--blue) 10%, transparent);
+}
+
+.kiosk-settings-page .kc-template-mini .kiosk-confirmation--preview {
+  background: var(--surface-subtle);
+}
+
+.kiosk-settings-page .kc-template-live-preview .kiosk-confirmation--preview {
+  background: var(--surface-subtle);
+  border: 1px solid var(--ks-border-soft);
+  border-radius: var(--radius-md);
+}
+
+.kiosk-settings-page .kc-var-helper {
+  padding: var(--space-3);
+  background: var(--surface-muted);
+  border: 1px solid var(--ks-border);
+}
+
+.ks-attendance-reset {
+  display: grid;
+  gap: var(--space-5);
+}
+
+.ks-reset-manual {
+  margin-top: var(--space-2);
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--ks-border-soft);
+  display: grid;
+  gap: var(--space-3);
+}
+
+.ks-reset-manual h4 {
+  margin: 0;
+}
+
+.ks-reset-custom-field {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  max-width: 14rem;
+}
+
+.ks-reset-duration-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 8rem));
+  gap: var(--space-4);
+  margin-top: var(--space-3);
+}
+
+.ks-reset-time-input,
+.ks-reset-number-input {
+  width: 100%;
+  font: inherit;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.ks-reset-time-input:focus-visible,
+.ks-reset-number-input:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--blue) 35%, transparent);
+  outline-offset: 1px;
+  border-color: color-mix(in srgb, var(--blue) 40%, var(--border));
+}
+
+.kiosk-settings-page .kc-var-chip {
+  background: var(--surface);
+  border-color: var(--ks-border);
+  color: var(--text-secondary);
+}
+
+.kiosk-settings-page .kc-message-field-block {
+  border-bottom-color: var(--ks-border-soft);
+}
+
+@media (max-width: 720px) {
+  .kiosk-settings-page .header-actions-stable {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .kiosk-settings-page .header-actions-stable .btn-primary,
+  .kiosk-settings-page .header-actions-stable .btn-secondary {
+    flex: 1 1 auto;
+  }
+
+  .kiosk-type-picker {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .kiosk-settings-page .editor-title-row h2 {
+    font-size: 1.125rem;
+  }
+
+  .kiosk-settings-page .kiosk-settings-card {
+    padding: var(--space-4);
+  }
+}

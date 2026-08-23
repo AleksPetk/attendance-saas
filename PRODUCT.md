@@ -98,18 +98,25 @@ Platform operator SaaS admin/staff accounts are `accounts.User` records with Dja
 
 ## Members
 
-An Organization may create a reusable, canonical **Member** profile for a **tracked person** inside the workspace. Members **do not access the Organization workspace**. They generally do **not** need a SaaS User login.
+An Organization may create a reusable **Member** profile for a **tracked person** inside the workspace. A Member is a person profile, **not** a kiosk login or security object. Members **do not access the Organization workspace**. They generally do **not** need a SaaS User login.
 
-Example Member profile fields (not necessarily mandatory):
+Confirmed Member profile fields:
 
-- Name
-- Main email
-- Phone
-- Photo
-- Member code
-- Other configurable data (implementation undecided)
+| Field | Requirement |
+|-------|-------------|
+| Name | Required. Not unique. Duplicate names are allowed. |
+| Email | Optional |
+| Date of birth | Optional |
+| Phone | Optional |
+| Address | Optional free-text |
+| Photo | Optional |
+| Notes | Optional |
 
-Do **not** treat email, phone, photo, PIN, member code, reservation code, or similar fields as globally mandatory on all Members. If a Group or Event workflow needs a field, that requirement is validated **for that participation context**. Whether any Organization-level Member fields are universally required remains an open question.
+The internal database primary key is the Member ID (`#1`, `#2`, `#3` …). It is assigned automatically, immutable, and visible in the workspace as a quiet reference. Do **not** give customers a generated `MBR-XXXXXX` code or another custom Member ID system. Do not use this ID as kiosk identification automatically. Member-level PIN and Member identifier / check-in identifier are **not** Member profile fields; identification and PIN belong to Group/Kiosk participation context (to be cleaned up in the Group slice).
+
+Active Members can be opened and edited. **Archive** is the normal removal path. An archived Member cannot be opened or edited, and is operationally inactive in Groups and kiosks even though existing GroupMembership rows remain. The workspace can **Restore** it (same ID, same profile, same Group attachments) or **Permanently delete** it. Permanent delete is not available on Active Members. After permanent delete, Action Record snapshots remain readable; the live Member link is cleared.
+
+If a Group or Event workflow needs extra information, that requirement is validated **for that participation context**. Do not make email, phone, photo, PIN, reservation code, or similar fields globally mandatory on all Members.
 
 A Member belongs to the Organization and may be attached to **multiple Groups** without duplicating the canonical record.
 
@@ -185,7 +192,24 @@ Organizations create **Groups** such as:
 
 Groups remain **generic** rather than industry-specific. One workspace may contain many Groups that represent completely different real-world activities.
 
-A Group defines **participation and check-in behavior** for its Members (and Group-only Participants). It **owns its own kiosk configuration**. Different Groups in the same Organization may operate completely differently, including kiosk presentation and behavior.
+A Group defines **participation and activity behavior** for its Members (and Group-only Participants). It **automatically owns its kiosk configuration** — there is no customer-facing “Kiosk enabled” setting. Different Groups in the same Organization may operate completely differently, including kiosk presentation and behavior.
+
+**Group basic settings (confirmed):**
+
+- Group name (visible **Group #ID** from Django PK is automatic, immutable secondary reference)
+- Check-in enabled
+- Check-out enabled
+- Breaks enabled
+- Maximum breaks when breaks are enabled (fixed choices 1, 2, or 3)
+- Group participation requirements: **Require email**, **Require PIN** (Group-specific participation data, not Member-profile requirements)
+- Relevant after-action behavior (only for enabled actions; requires a Ready Group email sender)
+- Advanced settings (Group outgoing email sender configuration; Custom SMTP, Gmail App Password, Outlook / Microsoft 365 SMTP, and Yahoo Mail App Password in this slice)
+
+**Group participation (confirmed):** Each operational participant gets an immutable **Group participant code** (`G1-5679`). Group participation email and PIN are stored on GroupMembership / Group-only participant records. Member profile email may prefill participation email on add; editing participation email does not change the Member profile. Participation PIN is visible to workspace managers and hidden from participant-facing kiosk lists. **Setup incomplete** is derived when requirements are ON but operational participants lack data; configuration save is still allowed; real kiosk/attendance operations are blocked until complete or requirements are turned off. Disabling requirements retains stored values.
+
+**Not part of Group basic settings:** photo/identifier Member-profile requirement matrix. **Kiosk Settings** (separate from Group and Kiosk Design) controls identification mode, card/input configuration, and kiosk exit code. Group `require_email` / `require_pin` define availability; kiosk chooses usage. The kiosk shell always has Header/Main/Footer; Builder owns visual appearance and builder-only fake density testing. Launch is blocked while Group setup or Kiosk Settings are incomplete/invalid; the Kiosk Builder remains available.
+
+**Group lifecycle (confirmed):** Active → Archive → Restore or Permanent Delete. Archived Groups are operationally inactive. Permanent delete preserves ActionRecord snapshots.
 
 Different Groups may have different:
 
@@ -324,13 +348,13 @@ Historical integrity is important. The system must **not** merely store a partic
 
 - Action Records must preserve **how** they were created. Sources include at least: **kiosk**, **staff/admin**, and **automatic/preset**. Exact source/context fields are undesigned.
 - History must remain **historically accurate** when later Group, Kiosk, or Action **configuration changes**. Changing a Group’s allowed Actions or a Kiosk’s identification method must not rewrite or falsify existing Action Records.
+- Workspace **History** includes an **Activity Log** (raw Action Records) and an **Attendance Report** (one Group at a time; participant × day; columns from historical Action Records; archived and deleted Groups remain selectable via immutable `source_group_id`). CSV export downloads the currently visible Attendance Report.
 
 **Future requirements include:**
 
-- Filtering, search, date ranges
-- Per-member, per-group, and Event history
-- Reports
-- CSV, Excel, and PDF human-readable exports
+- Broader filtering, search, and cross-Group report matrices
+- Per-member and Event history views
+- CSV, Excel, and PDF human-readable exports of the visible report
 - Attendance summaries
 - Hours calculations where appropriate
 - Manual corrections with audit history
@@ -367,6 +391,24 @@ Do **not** design a workspace-level kiosk multiplexer that randomly (or even man
 Kiosks may run in a browser on iPad, iPhone, Android tablet/phone, or desktop computer.
 
 Kiosk **database fields**, how Kiosk Mode is launched, and the device/session security model are **not designed here**.
+
+### Kiosk Settings (Group — confirmed implementation)
+
+Each Group has **Kiosk Settings** (behavioral) separate from **Kiosk Design** (visual). Responsibilities:
+
+| Layer | Owns |
+|-------|------|
+| Group | participation email/PIN availability, actions, after-action behavior, Advanced email sender |
+| Kiosk Settings | Card vs Input, display/input fields, **attendance reset** (Daily/Rolling cycle boundaries, manual Reset now), **confirmation screen** (preset template, per-action messages, return delay), hashed kiosk exit code |
+| Kiosk Design Editor | appearance of always-on Header/Main/Footer shell |
+
+**Card mode:** operational participants as selectable cards; optional name, group participant code, email display; optional PIN after card tap.
+
+**Input mode:** one field = group participant code only; two fields = code + name, email, or PIN (when Group supports them).
+
+**Launch:** blocked until Group setup complete, settings valid, exit code configured. **Exit:** group-specific exit code (not owner password). **Attendance reset:** controls when live kiosk state treats participants as starting a fresh operational cycle. Modes: **Daily** (Group-wide local-time boundary; default 00:00) or **Rolling** (participant-specific window from cycle-start check-in). **Reset now** creates an immediate Group-wide manual boundary without changing scheduled settings or deleting ActionRecords. Reset affects live action availability only — History and reports remain complete. **Confirmation screen:** after a successful action, participants see a preset-styled confirmation (not free-form Builder design) with action-specific message text, optional `{name}` / `{time}` (24-hour) / `{group}` variables, and a fixed return delay of 1, 3, or 5 seconds (default 3). The delay applies only to how long the confirmation stays visible — not API/action execution. Main/kiosk background remains behind a readable confirmation surface; accent may derive safely from kiosk design. **Builder canvas** is the design preview (fake participants for Card density testing only; Minimize for unobstructed inspection). There is no separate Preview page. **Launch Kiosk** is the only operational kiosk.
+
+Deprecated Group kiosk columns may remain in DB temporarily; new configuration uses `KioskSettings`.
 
 ### Identification Patterns (Examples)
 
@@ -446,11 +488,20 @@ Student Check In → `"{student_name} arrived at school at {time}."`
 
 **Initial channel:** transactional email.
 
-**Default platform email delivery** must work **without customer DNS setup**. The platform sends transactional email on the customer’s behalf.
+**Two separate email systems:**
 
-**Future:** advanced/custom sending-domain configuration may allow a customer to verify their own email domain. Do **not** design that implementation yet. Plan placement remains undecided.
+1. **Platform account email** (Resend) — Check Station account verification, password reset, and similar platform mail. Works without customer DNS.
+2. **Group attendance email** — after-action messages for a Group use that Group’s configured **email sender**. Supported providers: **Custom SMTP**, **Gmail (Google App Password)**, **Outlook / Microsoft 365** (SMTP authentication), and **Yahoo Mail** (Yahoo App Password). Sender credentials are encrypted at rest. Saving credentials alone is not enough; the workspace user must successfully send a test email before the sender is **Ready**. After-action toggles stay disabled until Ready. Enabling any after-action email automatically turns on Group **Require email**; turning after-action emails off later does **not** automatically turn Require email off. Attendance ActionRecords succeed even if email delivery fails.
 
-The exact notification engine, templates, and MVP outcome set are **not yet designed**. Outcomes must remain **predefined building blocks**, not arbitrary workflow scripting.
+**Gmail (App Password):** guided provider — Gmail address + App Password + optional From name. Technical SMTP host/port/security are applied internally (`smtp.gmail.com`, SSL/TLS port 465). Normal Google account passwords are never accepted. Google OAuth is **not** implemented yet.
+
+**Outlook / Microsoft 365:** guided SMTP AUTH provider — Microsoft email + password/app password + optional From name. Technical SMTP host/port/security are applied internally (`smtp.office365.com` or `smtp-mail.outlook.com` for consumer domains, STARTTLS port 587). Sender email equals the connected Microsoft mailbox (no free From alias). This path is mainly for **Microsoft 365 business/work** mailboxes where an administrator can enable Authenticated SMTP. Personal Outlook/Hotmail compatibility is **not** guaranteed; an app password alone does not restore SMTP AUTH when it is disabled. Microsoft OAuth / Graph API are **not** implemented yet.
+
+**Yahoo Mail:** guided App Password provider — Yahoo email + App Password + optional From name. Technical SMTP is applied internally (`smtp.mail.yahoo.com`, SSL/TLS port 465). Normal Yahoo account passwords are never accepted. Email addresses are validated generically (not restricted to `@yahoo.com`). Yahoo OAuth is **not** implemented.
+
+**MVP provider list (complete):** Custom SMTP, Gmail, Outlook / Microsoft 365, Yahoo Mail. No additional dedicated provider integrations are planned for the current MVP. OAuth-based variants remain undesigned. Plan placement / billing enforcement remain undecided.
+
+The exact broader notification engine (extra recipients, non-email channels) remains undesigned. Outcomes must remain **predefined building blocks**, not arbitrary workflow scripting.
 
 ---
 

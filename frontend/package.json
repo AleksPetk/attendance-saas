@@ -6,7 +6,11 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:history-csv": "node --test src/history/*.test.js",
+    "test:kiosk-settings": "node --test src/kiosk/kioskSettingsForm.test.js src/kiosk/kioskConfirmation.test.js",
+    "test:group-editor": "node --test src/groupEditorForm.test.js",
+    "test:participant-edit": "node --test src/groupParticipantEdit.test.js"
   },
   "dependencies": {
     "react": "^19.1.1",

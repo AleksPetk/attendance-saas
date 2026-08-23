@@ -8,3 +8,5 @@ Pillow>=11.0,<12
 pyotp>=2.9,<3
 qrcode>=8.0,<9
 cryptography>=44.0,<47
+reportlab>=4.2,<5
+openpyxl>=3.1,<4

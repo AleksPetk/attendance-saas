@@ -17,6 +17,9 @@ class CurrentWorkspaceSerializer(serializers.Serializer):
     identity = serializers.CharField()
     is_platform_operator = serializers.BooleanField()
     workspace_id = serializers.CharField(allow_null=True)
+    kiosk_locked = serializers.BooleanField(required=False, default=False)
+    kiosk_group_id = serializers.IntegerField(required=False, allow_null=True, default=None)
+    kiosk_available = serializers.BooleanField(required=False, default=False)
 
 
 class RegisterOwnerSerializer(serializers.Serializer):

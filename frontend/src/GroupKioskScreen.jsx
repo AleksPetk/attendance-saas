@@ -1,83 +1,387 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api, errorMessage } from "./api.js";
-import { ErrorBanner, Field, LoadingState, PasswordInput, PhotoThumb } from "./components.jsx";
+import { Field, LoadingState, PasswordInput, PhotoThumb } from "./components.jsx";
+import KioskRenderer from "./kiosk/KioskRenderer.jsx";
+import KioskConfirmationScreen from "./kiosk/KioskConfirmationScreen.jsx";
+import { confirmationAccentStyleFromDesign } from "./kiosk/kioskConfirmationAccent.js";
+import {
+  KioskInlineError,
+  KioskPinInput,
+  actionLabel,
+  kioskAutofillShield,
+  kioskErrorCopy,
+} from "./kiosk/kioskUi.jsx";
 
-function actionLabel(action) {
-  const map = {
-    check_in: "Check in",
-    check_out: "Check out",
-    break_start: "Start break",
-    break_end: "End break",
-  };
-  return map[action] || action;
+function PinDialog({ pin, onPinChange, error, verifying, onCancel, onConfirm }) {
+  return (
+    <div className="kiosk-modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="kiosk-pin-title">
+      <form
+        className="kiosk-modal"
+        onSubmit={(event) => {
+          event.preventDefault();
+          onConfirm();
+        }}
+      >
+        <h2 id="kiosk-pin-title">Enter PIN</h2>
+        <p className="hint">Enter your Group participation PIN to continue.</p>
+        <Field label="PIN">
+          <KioskPinInput
+            inputRef={null}
+            id="kiosk-card-pin"
+            value={pin}
+            onChange={onPinChange}
+          />
+        </Field>
+        <KioskInlineError error={error} />
+        <div className="kiosk-exit-actions">
+          <button type="button" className="btn-secondary" onClick={onCancel} disabled={verifying}>
+            Cancel
+          </button>
+          <button type="submit" className="btn-primary" disabled={verifying || !pin}>
+            {verifying ? "Verifying…" : "Continue"}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
 }
 
-export default function GroupKioskScreen({ session, groupId, onExit }) {
+function ParticipantActionPanel({
+  selected,
+  attendanceState,
+  automaticNote,
+  allowedActions,
+  error,
+  performing,
+  onBack,
+  onChooseAction,
+}) {
+  return (
+    <div className="kiosk-flow">
+      <h2>Choose action</h2>
+      {automaticNote ? <p className="hint">{automaticNote}</p> : null}
+      {selected?.name ? (
+        <div className="kiosk-selected-person">
+          <PhotoThumb url={null} name={selected.name} size="md" />
+          <div>
+            <strong>{selected.name}</strong>
+            {attendanceState?.is_checked_in ? (
+              <div className="hint">
+                Status: checked in{attendanceState.is_on_break ? ", on break" : ""}
+              </div>
+            ) : (
+              <div className="hint">Status: not checked in</div>
+            )}
+          </div>
+        </div>
+      ) : null}
+      <KioskInlineError error={error} />
+      {allowedActions.length === 0 ? <p className="hint">No actions available right now.</p> : null}
+      <div className="kiosk-actions">
+        {allowedActions.map((action) => (
+          <button
+            key={action}
+            type="button"
+            className="kiosk-action-choice"
+            disabled={performing}
+            onClick={() => onChooseAction(action)}
+          >
+            {actionLabel(action)}
+          </button>
+        ))}
+      </div>
+      <button type="button" className="btn-secondary kiosk-submit" onClick={onBack} disabled={performing}>
+        Back to participants
+      </button>
+    </div>
+  );
+}
+
+function ExitKioskDialog({
+  exitCode,
+  onExitCodeChange,
+  error,
+  verifying,
+  onCancel,
+  onConfirm,
+}) {
+  return (
+    <div className="kiosk-modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="kiosk-exit-title">
+      <form
+        className="kiosk-modal"
+        onSubmit={(event) => {
+          event.preventDefault();
+          onConfirm();
+        }}
+      >
+        <h2 id="kiosk-exit-title">Exit kiosk</h2>
+        <p className="hint">Enter this Group&apos;s kiosk exit code to unlock this browser session.</p>
+        <Field label="Exit code" error={error}>
+          <PasswordInput
+            value={exitCode}
+            onChange={(event) => onExitCodeChange(event.target.value)}
+            autoComplete="off"
+            name="kiosk-exit-code"
+            autoFocus
+          />
+        </Field>
+        <div className="kiosk-exit-actions">
+          <button type="button" className="btn-secondary" onClick={onCancel} disabled={verifying}>
+            Cancel
+          </button>
+          <button type="submit" className="btn-primary" disabled={verifying || !exitCode}>
+            {verifying ? "Verifying…" : "Exit kiosk"}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+export default function GroupKioskScreen({ session, groupId, onUnlocked, onKioskEntered }) {
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [unavailable, setUnavailable] = useState(false);
+  const [error, setError] = useState(null);
   const [kiosk, setKiosk] = useState(null);
-  const [primaryAction, setPrimaryAction] = useState(null);
+  const [visualDesign, setVisualDesign] = useState(null);
   const [people, setPeople] = useState([]);
+  const [formKey, setFormKey] = useState(0);
 
-  const [step, setStep] = useState("start"); // start | confirm | pin | input | success
-  const [selected, setSelected] = useState(null); // { participant_kind, membership_id, group_only_participant_id, display ... }
+  const [step, setStep] = useState("start");
+  const [selected, setSelected] = useState(null);
   const [pin, setPin] = useState("");
-  const [successMessage, setSuccessMessage] = useState("");
+  const [confirmation, setConfirmation] = useState(null);
 
-  // Input mode identification
   const [inputValues, setInputValues] = useState({});
   const [allowedActions, setAllowedActions] = useState([]);
   const [attendanceState, setAttendanceState] = useState(null);
   const [automaticNote, setAutomaticNote] = useState("");
 
   const [exitOpen, setExitOpen] = useState(false);
-  const [exitPassword, setExitPassword] = useState("");
+  const [exitCode, setExitCode] = useState("");
   const [exitError, setExitError] = useState("");
   const [verifyingExit, setVerifyingExit] = useState(false);
+  const [identifying, setIdentifying] = useState(false);
+  const [performing, setPerforming] = useState(false);
 
-  const requiresPin = kiosk?.requires_pin;
+  const pinInputRef = useRef(null);
+  const firstFieldRef = useRef(null);
+  const returnTimerRef = useRef(null);
+
+  const usePin = Boolean(kiosk?.use_pin);
   const kioskMode = kiosk?.kiosk_mode;
+  const kioskLocked = Boolean(session?.workspace?.kiosk_locked);
+
+  function clearParticipantFields() {
+    setInputValues({});
+    setPin("");
+    setSelected(null);
+    setAllowedActions([]);
+    setAttendanceState(null);
+    setAutomaticNote("");
+    setFormKey((value) => value + 1);
+  }
 
   async function load() {
+    if (!groupId) {
+      setLoading(false);
+      setUnavailable(true);
+      return;
+    }
     setLoading(true);
-    setError("");
+    setError(null);
     try {
+      if (typeof window !== "undefined" && window.__kioskExitGuardUntil && Date.now() < window.__kioskExitGuardUntil) {
+        setLoading(false);
+        return;
+      }
+      if (!session?.workspace?.kiosk_locked) {
+        const lockResult = await api.enterKiosk(session, groupId);
+        onKioskEntered?.(groupId, lockResult.data);
+      }
       const result = await api.getGroupKioskStart(session, groupId);
-      setKiosk(result.data.kiosk || result.data.kiosk || null);
-      setPrimaryAction(result.data.primary_action || null);
+      setKiosk(result.data.kiosk || null);
+      setVisualDesign(result.data.visual_design || null);
       setPeople(result.data.people || []);
-      setAllowedActions([]);
-      setAttendanceState(null);
-      setAutomaticNote("");
-      setSelected(null);
-      setPin("");
-      setInputValues({});
-      setSuccessMessage("");
+      setUnavailable(false);
+      clearParticipantFields();
+      setConfirmation(null);
       setStep("start");
     } catch (err) {
-      setError(errorMessage(err));
+      const locked = Boolean(err?.data?.kiosk_locked) || kioskLocked;
+      if (err?.status === 404 || (locked && err?.status === 403)) {
+        setUnavailable(true);
+        setKiosk(null);
+        setVisualDesign(null);
+      } else {
+        setError(kioskErrorCopy(err) || { title: "Could not load this kiosk." });
+      }
     } finally {
       setLoading(false);
     }
   }
 
   useEffect(() => {
+    if (!groupId) {
+      setLoading(false);
+      setUnavailable(true);
+      return undefined;
+    }
     load();
+    return () => {
+      if (returnTimerRef.current) {
+        window.clearTimeout(returnTimerRef.current);
+      }
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [groupId]);
 
-  const title = kiosk?.title || "";
+  useEffect(() => {
+    if (step !== "pin" && !(step === "start" && (kiosk?.input_fields || []).includes("pin"))) {
+      return;
+    }
+    pinInputRef.current?.focus();
+  }, [step, formKey, kiosk]);
+
+  const title = kiosk?.title || (unavailable ? "Kiosk unavailable" : "Kiosk");
   const welcomeText = kiosk?.welcome_text || "";
-  const confirmationMessage = kiosk?.confirmation_message || "";
-  const successText = kiosk?.success_message || "";
+
+  const confirmationAccentStyle = useMemo(
+    () => confirmationAccentStyleFromDesign(visualDesign?.config),
+    [visualDesign],
+  );
 
   const themeClass = useMemo(() => {
     if (!kiosk?.theme) return "kiosk-theme-classic";
     return `kiosk-theme-${kiosk.theme}`;
   }, [kiosk]);
 
+  async function verifyExit() {
+    setExitError("");
+    setVerifyingExit(true);
+    try {
+      const exitResult = await api.exitKiosk({ exit_code: exitCode });
+      setExitOpen(false);
+      setExitCode("");
+      onUnlocked?.({
+        groupAvailable: !unavailable && Boolean(groupId),
+        lockPayload: exitResult.data,
+      });
+    } catch (err) {
+      setExitError(errorMessage(err) || "Exit code verification failed.");
+    } finally {
+      setVerifyingExit(false);
+    }
+  }
+
+  function scheduleReturnToStart(delaySeconds) {
+    if (returnTimerRef.current) {
+      window.clearTimeout(returnTimerRef.current);
+    }
+    returnTimerRef.current = window.setTimeout(() => {
+      setStep("start");
+      setConfirmation(null);
+      setError(null);
+      clearParticipantFields();
+      if (kioskMode === "card") {
+        load();
+      }
+    }, Math.max(1, delaySeconds || 3) * 1000);
+  }
+
+  function successPanel() {
+    if (!confirmation) return null;
+    return (
+      <KioskConfirmationScreen
+        template={confirmation.template}
+        message={confirmation.message}
+        accentStyle={confirmationAccentStyle}
+      />
+    );
+  }
+
+  async function applyIdentifyResult(result) {
+    setSelected({
+      participant_kind: result.data.participant.participant_kind,
+      membership_id: result.data.participant.membership_id,
+      group_only_participant_id: result.data.participant.group_only_participant_id,
+      name: result.data.participant.name,
+    });
+    setAllowedActions(result.data.allowed_actions || []);
+    setAttendanceState(result.data.attendance_state);
+    setAutomaticNote("");
+    setStep("confirm");
+  }
+
+  async function identifyCardParticipant(participant, pinValue = "") {
+    setError(null);
+    setIdentifying(true);
+    try {
+      const payload = {
+        participant_kind: participant.participant_kind,
+      };
+      if (participant.participant_kind === "member") {
+        payload.membership_id = participant.membership_id;
+      } else {
+        payload.group_only_participant_id = participant.group_only_participant_id;
+      }
+      if (usePin && pinValue) {
+        payload.pin = pinValue;
+      }
+      const result = await api.identifyKiosk(session, groupId, payload);
+      if (result.data.code !== "ok") {
+        setError(kioskErrorCopy({ data: result.data }) || { title: "Could not identify participant." });
+        return false;
+      }
+      await applyIdentifyResult(result);
+      return true;
+    } catch (err) {
+      setError(kioskErrorCopy(err) || { title: "Could not identify participant." });
+      if (usePin) {
+        setPin("");
+      }
+      return false;
+    } finally {
+      setIdentifying(false);
+    }
+  }
+
+  async function handleCardTap(participant) {
+    setError(null);
+    setSelected(participant);
+    if (usePin) {
+      setPin("");
+      setStep("pin");
+      return;
+    }
+    await identifyCardParticipant(participant);
+  }
+
+  async function submitCardPin() {
+    if (!selected) return;
+    const ok = await identifyCardParticipant(selected, pin);
+    if (ok) {
+      setStep("confirm");
+    }
+  }
+
+  function cancelCardPin() {
+    setStep("start");
+    setPin("");
+    setError(null);
+    setSelected(null);
+  }
+
+  function backToParticipants() {
+    setStep("start");
+    setError(null);
+    clearParticipantFields();
+  }
+
   async function performAction(action) {
-    setError("");
+    if (!selected) return;
+    setPerforming(true);
+    setError(null);
     try {
       const payload = {
         participant_kind: selected.participant_kind,
@@ -88,158 +392,141 @@ export default function GroupKioskScreen({ session, groupId, onExit }) {
       } else {
         payload.group_only_participant_id = selected.group_only_participant_id;
       }
-      if (requiresPin) {
-        payload.pin = pin;
+      if (usePin) {
+        payload.pin = pin || inputValues.pin || "";
       }
       const result = await api.performKioskAction(session, groupId, payload);
-      const msg = result.data.success_message || successText || "Done.";
-      setSuccessMessage(msg);
+      const conf = result.data.confirmation || {
+        template: kiosk?.confirmation?.template || "clean",
+        message: result.data.success_message || "",
+        return_delay_seconds: result.data.return_delay_seconds || kiosk?.return_delay_seconds || 3,
+        action,
+      };
+      setConfirmation(conf);
       setStep("success");
-
-      const delayMs = (result.data.return_delay_seconds || kiosk?.return_delay_seconds || 5) * 1000;
-      window.setTimeout(() => {
-        setStep("start");
-        setSelected(null);
-        setPin("");
-        setAllowedActions([]);
-        setAttendanceState(null);
-        setAutomaticNote("");
-        setError("");
-        load();
-      }, delayMs);
+      setError(null);
+      setInputValues({});
+      setPin("");
+      setFormKey((value) => value + 1);
+      scheduleReturnToStart(conf.return_delay_seconds);
     } catch (err) {
-      setError(errorMessage(err));
+      const copy = kioskErrorCopy(err);
+      setError(copy);
+      if (err?.data?.code === "invalid_pin" || usePin) {
+        setPin("");
+        setInputValues((current) => ({ ...current, pin: "" }));
+        window.setTimeout(() => pinInputRef.current?.focus(), 0);
+      }
+    } finally {
+      setPerforming(false);
     }
   }
 
   async function handleInputSubmit(event) {
     event.preventDefault();
-    setError("");
+    setError(null);
     try {
       const payload = {};
       for (const field of kiosk.input_fields || []) {
+        if (field === "participant_code") {
+          payload.participant_code = inputValues.participant_code || "";
+        }
         if (field === "name") payload.name = inputValues.name || "";
         if (field === "email") payload.email = inputValues.email || "";
-        if (field === "identifier") payload.identifier = inputValues.identifier || "";
         if (field === "pin") payload.pin = inputValues.pin || "";
       }
       const result = await api.identifyKiosk(session, groupId, payload);
       if (result.data.code !== "ok") {
-        setError(result.data.detail || "Could not identify participant.");
+        setError(kioskErrorCopy({ data: result.data }) || { title: "Could not identify participant." });
+        setInputValues((current) => ({ ...current, pin: "" }));
         return;
       }
-      setSelected({
-        participant_kind: result.data.participant.participant_kind,
-        membership_id: result.data.participant.membership_id,
-        group_only_participant_id: result.data.participant.group_only_participant_id,
-      });
-      if (kiosk?.requires_pin) {
-        setPin(inputValues.pin || "");
-      }
-      setAllowedActions(result.data.allowed_actions || []);
-      setAttendanceState(result.data.attendance_state);
-      if (result.data.automatic_check_in?.created) {
-        setAutomaticNote(
-          `Automatic check-in recorded${result.data.automatic_check_in.performed_at ? "." : "."}`
-        );
-      } else if (result.data.automatic_check_in?.due) {
-        setAutomaticNote("Automatic check-in is configured for this time.");
-      } else {
-        setAutomaticNote("");
-      }
-      setStep("confirm");
+      await applyIdentifyResult(result);
+      setInputValues((current) => ({ ...current, pin: "" }));
     } catch (err) {
-      // identifyKiosk returns {status, data}; errorMessage extracts detail.
-      setError(errorMessage(err) || "Could not identify participant.");
+      setError(kioskErrorCopy(err) || { title: "Could not identify participant." });
+      setInputValues((current) => ({ ...current, pin: "" }));
+      const fields = kiosk?.input_fields || [];
+      window.setTimeout(() => {
+        if (err?.data?.code === "invalid_pin" || fields.includes("pin")) {
+          pinInputRef.current?.focus();
+        } else {
+          firstFieldRef.current?.focus();
+        }
+      }, 0);
     }
   }
 
-  async function startPinOrConfirm(participant) {
-    setSelected(participant);
-    if (requiresPin) {
-      setStep("pin");
-    } else {
-      setStep("confirm");
-    }
-  }
+  const showExit = kioskLocked || Boolean(onUnlocked);
+  const useVisualRenderer = Boolean(visualDesign?.config);
 
-  if (loading) {
-    return (
-      <div className={`kiosk-shell ${themeClass}`}>
-        <LoadingState label="Loading kiosk…" />
-      </div>
-    );
-  }
+  const exitDialog = exitOpen ? (
+    <ExitKioskDialog
+      exitCode={exitCode}
+      onExitCodeChange={setExitCode}
+      error={exitError}
+      verifying={verifyingExit}
+      onCancel={() => {
+        setExitOpen(false);
+        setExitCode("");
+        setExitError("");
+      }}
+      onConfirm={verifyExit}
+    />
+  ) : null;
 
-  return (
-    <div className={`kiosk-shell ${themeClass}`}>
-      <header className="kiosk-topbar">
-        <div className="kiosk-topbar-copy">
-          <div className="kiosk-eyebrow">Kiosk</div>
-          <h1 className="kiosk-title">{title}</h1>
-          {welcomeText ? <p className="kiosk-welcome">{welcomeText}</p> : null}
-        </div>
-        <button type="button" className="kiosk-exit" onClick={() => setExitOpen(true)}>
-          Exit
-        </button>
-      </header>
+  const pinDialog =
+    kioskMode === "card" && step === "pin" ? (
+      <PinDialog
+        pin={pin}
+        onPinChange={setPin}
+        error={error}
+        verifying={identifying}
+        onCancel={cancelCardPin}
+        onConfirm={submitCardPin}
+      />
+    ) : null;
 
-      <ErrorBanner message={error} />
-      {exitOpen ? (
-        <div className="kiosk-modal-backdrop" role="dialog" aria-modal="true">
-          <div className="kiosk-modal">
-            <h2>Exit kiosk</h2>
+  const operationalBody = (
+    <>
+      {unavailable ? (
+        <div className="kiosk-body kiosk-body-input">
+          <div className="kiosk-flow">
+            <h2>This kiosk is no longer available</h2>
             <p className="hint">
-              Re-enter your password to return to the workspace.
+              The Group may have been archived or the kiosk turned off. Enter the kiosk
+              exit code to unlock this browser session.
             </p>
-            <Field label="Password">
-              <PasswordInput
-                value={exitPassword}
-                onChange={(e) => setExitPassword(e.target.value)}
-                autoComplete="current-password"
-              />
-            </Field>
-            <div className="form-actions">
-              <button
-                type="button"
-                className="btn-primary"
-                disabled={verifyingExit}
-                onClick={async () => {
-                  setExitError("");
-                  setVerifyingExit(true);
-                  try {
-                    await api.reauth({ password: exitPassword });
-                    setExitOpen(false);
-                    setExitPassword("");
-                    setExitError("");
-                    onExit();
-                  } finally {
-                    setVerifyingExit(false);
-                  }
-                }}
-              >
-                Return
+            <form
+              className="kiosk-recovery-form"
+              onSubmit={(event) => {
+                event.preventDefault();
+                setExitOpen(false);
+                verifyExit();
+              }}
+            >
+              <Field label="Exit code" error={exitError}>
+                <PasswordInput
+                  value={exitCode}
+                  onChange={(event) => setExitCode(event.target.value)}
+                  autoComplete="off"
+                  name="kiosk-exit-code-recovery"
+                />
+              </Field>
+              <button type="submit" className="btn-primary kiosk-submit" disabled={verifyingExit || !exitCode}>
+                {verifyingExit ? "Verifying…" : "Unlock session"}
               </button>
-              <button
-                type="button"
-                className="btn-secondary"
-                onClick={() => {
-                  setExitOpen(false);
-                  setExitPassword("");
-                  setExitError("");
-                }}
-              >
-                Cancel
-              </button>
-            </div>
-            <ErrorBanner message={exitError} />
+            </form>
           </div>
         </div>
       ) : null}
 
-      {kioskMode === "member_list" ? (
+      {kioskMode === "card" && !unavailable ? (
         <div className="kiosk-body">
-          {people.length === 0 ? (
+          {useVisualRenderer && welcomeText && step === "start" ? (
+            <p className="kiosk-welcome">{welcomeText}</p>
+          ) : null}
+          {people.length === 0 && step === "start" ? (
             <div className="empty-state">
               <h2>No participants available</h2>
               <p>Add Members or Group-only Participants to this Group.</p>
@@ -255,172 +542,145 @@ export default function GroupKioskScreen({ session, groupId, onExit }) {
                     key={p.participant_kind + (p.membership_id || p.group_only_participant_id)}
                     type="button"
                     className="kiosk-person-card"
+                    disabled={identifying}
                     onClick={() =>
-                      startPinOrConfirm({
+                      handleCardTap({
                         participant_kind: p.participant_kind,
                         membership_id: p.membership_id,
                         group_only_participant_id: p.group_only_participant_id,
+                        name: p.name,
                       })
                     }
                   >
-                    {p.photo_url ? (
-                      <PhotoThumb url={p.photo_url} name={p.name || ""} size="lg" />
-                    ) : (
-                      <PhotoThumb url={null} name={p.name || ""} size="lg" />
-                    )}
-                    <div className="kiosk-person-name">{p.name || "Unknown"}</div>
-                    {p.identifier ? <div className="kiosk-person-sub">{p.identifier}</div> : null}
+                    <div className="kiosk-person-name">{p.name || "Participant"}</div>
+                    {p.participant_code ? (
+                      <div className="kiosk-person-sub">{p.participant_code}</div>
+                    ) : null}
+                    {p.email ? <div className="kiosk-person-sub">{p.email}</div> : null}
                   </button>
                 ))}
               </div>
+              {identifying ? <p className="hint">Loading…</p> : null}
             </>
           ) : null}
 
-          {step === "pin" ? (
-            <div className="kiosk-flow">
-              <h2>Enter PIN</h2>
-              <p className="hint">
-                PIN is required to confirm your {primaryAction === "check_in" ? "check-in" : "check-out"}.
-              </p>
-              <Field label="PIN">
-                <input
-                  type="password"
-                  value={pin}
-                  onChange={(e) => setPin(e.target.value)}
-                  placeholder="••••"
-                />
-              </Field>
-              <div className="form-actions">
-                <button
-                  type="button"
-                  className="btn-primary kiosk-big-button"
-                  disabled={!pin}
-                  onClick={() => performAction(primaryAction)}
-                >
-                  Confirm {primaryAction === "check_in" ? "Check-in" : "Check-out"}
-                </button>
-              </div>
-            </div>
-          ) : null}
-
           {step === "confirm" ? (
-            <div className="kiosk-flow">
-              <h2>Confirm</h2>
-              {automaticNote ? <p className="hint">{automaticNote}</p> : null}
-              <p className="hint">{confirmationMessage || "Ready when you are."}</p>
-              <div className="kiosk-selected-person">
-                <PhotoThumb
-                  url={null}
-                  name={selected?.participant_kind === "member" ? "Member" : "Participant"}
-                  size="md"
-                />
-                <div>
-                  <strong>{selected?.participant_kind === "member" ? "Participant" : "Participant"}</strong>
-                  {attendanceState?.is_checked_in ? (
-                    <div className="hint">
-                      Status: checked in{attendanceState.is_on_break ? ", on break" : ""}
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-
-              {kioskMode === "member_list" ? (
-                <div className="form-actions">
-                  <button
-                    type="button"
-                    className="btn-primary kiosk-big-button"
-                    onClick={() => performAction(primaryAction)}
-                  >
-                    Confirm {actionLabel(primaryAction)}
-                  </button>
-                </div>
-              ) : null}
-
-              {kioskMode === "input" ? (
-                <div className="kiosk-actions">
-                  {allowedActions.map((a) => (
-                    <button
-                      key={a}
-                      type="button"
-                      className={`btn-primary kiosk-action-button`}
-                      onClick={() => performAction(a)}
-                    >
-                      {actionLabel(a)}
-                    </button>
-                  ))}
-                </div>
-              ) : null}
-            </div>
+            <ParticipantActionPanel
+              selected={selected}
+              attendanceState={attendanceState}
+              automaticNote={automaticNote}
+              allowedActions={allowedActions}
+              error={error}
+              performing={performing}
+              onBack={backToParticipants}
+              onChooseAction={performAction}
+            />
           ) : null}
 
-          {step === "success" ? (
-            <div className="kiosk-flow kiosk-success">
-              <div className="kiosk-success-icon" aria-hidden="true">✓</div>
-              <h2>Success</h2>
-              <p className="kiosk-success-message">{successMessage}</p>
-              <p className="hint">Returning in a moment…</p>
-            </div>
-          ) : null}
+          {step === "success" ? successPanel() : null}
         </div>
       ) : null}
 
-      {kioskMode === "input" ? (
-        <div className="kiosk-body">
+      {kioskMode === "input" && !unavailable ? (
+        <div className="kiosk-body kiosk-body-input">
+          {useVisualRenderer && welcomeText && step === "start" ? (
+            <p className="kiosk-welcome">{welcomeText}</p>
+          ) : null}
           {step === "start" ? (
-            <form className="kiosk-flow" onSubmit={handleInputSubmit}>
+            <form
+              key={formKey}
+              className="kiosk-flow kiosk-identify-form"
+              autoComplete="off"
+              autoCapitalize="off"
+              autoCorrect="off"
+              spellCheck={false}
+              data-lpignore="true"
+              data-1p-ignore="true"
+              data-form-type="other"
+              onSubmit={handleInputSubmit}
+            >
               <h2>Check in</h2>
               {kiosk?.input_fields?.length ? (
                 <p className="hint">
                   Enter your details.
-                  {kiosk?.requires_pin ? " PIN verification will be required." : ""}
+                  {usePin ? " PIN verification will be required." : ""}
                 </p>
               ) : null}
 
               {(kiosk.input_fields || []).includes("name") ? (
                 <Field label="Name">
                   <input
-                    value={inputValues.name || ""}
-                    onChange={(e) => setInputValues((c) => ({ ...c, name: e.target.value }))}
-                    autoFocus
+                    {...kioskAutofillShield({
+                      ref: firstFieldRef,
+                      name: `kiosk-participant-name-${groupId}`,
+                      autoComplete: "off",
+                      value: inputValues.name || "",
+                      onChange: (event) =>
+                        setInputValues((current) => ({ ...current, name: event.target.value })),
+                      autoFocus: true,
+                    })}
                   />
                 </Field>
               ) : null}
               {(kiosk.input_fields || []).includes("email") ? (
                 <Field label="Email">
                   <input
-                    type="email"
-                    value={inputValues.email || ""}
-                    onChange={(e) => setInputValues((c) => ({ ...c, email: e.target.value }))}
+                    {...kioskAutofillShield({
+                      type: "text",
+                      inputMode: "email",
+                      name: `kiosk-participant-email-${groupId}`,
+                      autoComplete: "off",
+                      value: inputValues.email || "",
+                      onChange: (event) =>
+                        setInputValues((current) => ({ ...current, email: event.target.value })),
+                    })}
                   />
                 </Field>
               ) : null}
-              {(kiosk.input_fields || []).includes("identifier") ? (
-                <Field label="Member / identifier">
+              {(kiosk.input_fields || []).includes("participant_code") ? (
+                <Field label="Group Participant Code">
                   <input
-                    value={inputValues.identifier || ""}
-                    onChange={(e) => setInputValues((c) => ({ ...c, identifier: e.target.value }))}
+                    {...kioskAutofillShield({
+                      ref: firstFieldRef,
+                      name: `kiosk-participant-code-${groupId}`,
+                      autoComplete: "off",
+                      value: inputValues.participant_code || "",
+                      onChange: (event) =>
+                        setInputValues((current) => ({
+                          ...current,
+                          participant_code: event.target.value,
+                        })),
+                      autoFocus: true,
+                    })}
                   />
                 </Field>
               ) : null}
               {(kiosk.input_fields || []).includes("pin") ? (
                 <Field label="PIN">
-                  <input
-                    type="password"
+                  <KioskPinInput
+                    inputRef={pinInputRef}
+                    id={`kiosk-participant-pin-${groupId}`}
                     value={inputValues.pin || ""}
-                    onChange={(e) => setInputValues((c) => ({ ...c, pin: e.target.value }))}
-                    placeholder="••••"
+                    onChange={(value) => setInputValues((current) => ({ ...current, pin: value }))}
                   />
                 </Field>
               ) : null}
 
-              <button type="submit" className="btn-primary kiosk-big-button" disabled={requiresPin ? !(inputValues.pin || "").trim() : false}>
+              <KioskInlineError error={error} />
+              <button
+                type="submit"
+                className="btn-primary kiosk-submit"
+                disabled={
+                  (kiosk.input_fields || []).includes("pin") && !(inputValues.pin || "").trim()
+                }
+              >
                 Continue
               </button>
               {kiosk.warnings?.length ? (
-                <div className="missing-box" style={{ marginTop: "1rem" }}>
-                  {kiosk.warnings.map((w, idx) => (
-                    <p key={idx} className="hint" style={{ margin: 0 }}>
-                      {w}
+                <div className="kiosk-warnings">
+                  {kiosk.warnings.map((warning) => (
+                    <p key={warning} className="hint">
+                      {warning}
                     </p>
                   ))}
                 </div>
@@ -429,39 +689,66 @@ export default function GroupKioskScreen({ session, groupId, onExit }) {
           ) : null}
 
           {step === "confirm" ? (
-            <div className="kiosk-flow">
-              <h2>Choose action</h2>
-              {automaticNote ? <p className="hint">{automaticNote}</p> : null}
-              {allowedActions.length === 0 ? <p className="hint">No actions available.</p> : null}
-              <div className="kiosk-actions">
-                {allowedActions.map((a) => (
-                  <button
-                    key={a}
-                    type="button"
-                    className="btn-primary kiosk-action-button"
-                    onClick={() =>
-                      performAction(a)
-                    }
-                  >
-                    {actionLabel(a)}
-                  </button>
-                ))}
-              </div>
-              <ErrorBanner message={error} />
-            </div>
+            <ParticipantActionPanel
+              selected={selected}
+              attendanceState={attendanceState}
+              automaticNote={automaticNote}
+              allowedActions={allowedActions}
+              error={error}
+              performing={performing}
+              onBack={backToParticipants}
+              onChooseAction={performAction}
+            />
           ) : null}
 
-          {step === "success" ? (
-            <div className="kiosk-flow kiosk-success">
-              <div className="kiosk-success-icon" aria-hidden="true">✓</div>
-              <h2>Success</h2>
-              <p className="kiosk-success-message">{successMessage}</p>
-              <p className="hint">Returning in a moment…</p>
-            </div>
-          ) : null}
+          {step === "success" ? successPanel() : null}
         </div>
       ) : null}
+    </>
+  );
+
+  if (loading) {
+    return (
+      <div className={`kiosk-shell ${themeClass}`}>
+        <LoadingState label="Loading kiosk…" />
+      </div>
+    );
+  }
+
+  if (useVisualRenderer) {
+    return (
+      <>
+        <KioskRenderer
+          design={visualDesign}
+          mode="live"
+          showExit={showExit && !unavailable}
+          onExit={() => setExitOpen(true)}
+        >
+          {operationalBody}
+        </KioskRenderer>
+        {exitDialog}
+        {pinDialog}
+      </>
+    );
+  }
+
+  return (
+    <div className={`kiosk-shell ${themeClass}`}>
+      <header className="kiosk-topbar">
+        <div className="kiosk-topbar-copy">
+          <div className="kiosk-eyebrow">Kiosk</div>
+          <h1 className="kiosk-title">{title}</h1>
+          {welcomeText && !unavailable ? <p className="kiosk-welcome">{welcomeText}</p> : null}
+        </div>
+        {showExit && !unavailable ? (
+          <button type="button" className="kiosk-exit" onClick={() => setExitOpen(true)}>
+            Exit
+          </button>
+        ) : null}
+      </header>
+      {exitDialog}
+      {pinDialog}
+      {operationalBody}
     </div>
   );
 }
-

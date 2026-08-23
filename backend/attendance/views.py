@@ -9,43 +9,81 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from accounts.exceptions import EmailNotVerified
+from accounts.verification import customer_must_verify_email
+from django.http import HttpResponse
+
+from attendance.attendance_report import (
+    build_attendance_report,
+    list_report_groups,
+)
+from attendance.report_export import render_attendance_report_export
+from attendance.kiosk_lock import (
+    attach_kiosk_status,
+    clear_kiosk_lock,
+    kiosk_status_payload,
+    lock_kiosk_session,
+)
 from attendance.models import ActionRecord, ActionSource, ActionType
 from attendance.serializers import (
     ActionRecordSerializer,
+    AttendanceReportExportQuerySerializer,
+    AttendanceReportQuerySerializer,
     HistoryQuerySerializer,
     KioskIdentifyRequestSerializer,
     KioskPerformRequestSerializer,
 )
 from attendance.services import (
+    build_kiosk_identify_payload,
     compute_current_attendance_state,
-    ensure_automatic_check_in_action_record_for_membership,
-    ensure_automatic_check_in_action_record_for_participant,
     get_valid_actions_for_state,
     perform_action_record_from_kiosk,
 )
-from groups.models import (
-    Group,
-    GroupMembership,
-    GroupMembershipStatus,
-    GroupOnlyParticipant,
-    GroupOnlyParticipantStatus,
-    GroupStatus,
-    KioskIdentifierField,
-    KioskMode,
+from core.media_urls import absolute_file_url
+from groups.operations import ensure_group_operationally_ready, ensure_kiosk_launch_ready
+from kiosk_builder.kiosk_identification import (
+    find_by_participant_code,
+    normalize_participant_code,
+    verify_second_field,
 )
+from kiosk_builder.kiosk_confirmation import confirmation_payload_for_perform
+from kiosk_builder.kiosk_runtime import (
+    build_card_people,
+    get_kiosk_settings_for_group,
+    kiosk_settings_payload,
+)
+from kiosk_builder.kiosk_settings_constants import KioskInputSecondField, KioskType
+from kiosk_builder.models import ensure_group_kiosk_design, ensure_group_kiosk_settings
 from organizations.permissions import (
     CanUseKioskAndViewHistory,
     get_active_workspace_organization,
 )
+from groups.models import (
+    Group,
+    GroupMembership,
+    GroupOnlyParticipant,
+    GroupOnlyParticipantStatus,
+    GroupStatus,
+)
 
 
-def absolute_file_url(request, field_file):
-    if not field_file:
-        return None
-    if not getattr(field_file, "url", None):
-        return None
-    url = field_file.url
-    return request.build_absolute_uri(url) if request is not None else url
+def _kiosk_start_payload(request, group, payload):
+    payload["group_id"] = group.pk
+    payload["group_name"] = group.name
+    attach_kiosk_status(request, payload)
+
+    settings_obj = get_kiosk_settings_for_group(group)
+    design = ensure_group_kiosk_design(group)
+    payload["kiosk_settings"] = kiosk_settings_payload(group, settings_obj)
+    payload["visual_design"] = {
+        "config": design.config,
+        "header_logo_url": absolute_file_url(request, design.header_logo),
+        "footer_logo_url": absolute_file_url(request, design.footer_logo),
+        "main_background_image_url": absolute_file_url(
+            request, design.main_background_image
+        ),
+    }
+    return payload
 
 
 class OwnedWorkspaceMixin:
@@ -66,63 +104,43 @@ class GroupKioskStartView(OwnedWorkspaceMixin, APIView):
     def get_object(self, group_pk):
         group = (
             Group.objects.filter(pk=group_pk, organization=self.organization)
+            .select_related("kiosk_design", "kiosk_settings")
             .exclude(status=GroupStatus.ARCHIVED)
             .first()
         )
         if group is None:
             raise NotFound("Group not found in this workspace.")
-        if not group.kiosk_enabled:
-            raise NotFound("Kiosk is not enabled for this Group.")
         return group
+
+    def post(self, request, group_pk):
+        """Lock this Check Station app session to the Group kiosk."""
+        group = self.get_object(group_pk)
+        blocked = ensure_kiosk_launch_ready(group)
+        if blocked:
+            return Response(blocked, status=status.HTTP_409_CONFLICT)
+        lock_kiosk_session(request, group.pk)
+        payload = {"ok": True, "group_id": group.pk, "group_name": group.name}
+        attach_kiosk_status(request, payload)
+        return Response(payload)
 
     def get(self, request, group_pk):
         group = self.get_object(group_pk)
+        blocked = ensure_kiosk_launch_ready(group)
+        if blocked:
+            return Response(blocked, status=status.HTTP_409_CONFLICT)
 
-        if group.kiosk_mode == KioskMode.MEMBER_LIST:
-            memberships = GroupMembership.objects.filter(
-                organization=self.organization,
+        settings_obj = get_kiosk_settings_for_group(group)
+        kiosk_payload = kiosk_settings_payload(group, settings_obj)
+
+        if settings_obj.mode == KioskType.CARD:
+            people = build_card_people(
+                request=request,
                 group=group,
-                status=GroupMembershipStatus.ACTIVE,
-            ).select_related("member")
-            participants = GroupOnlyParticipant.objects.filter(
                 organization=self.organization,
-                group=group,
-                status=GroupOnlyParticipantStatus.ACTIVE,
+                settings=settings_obj,
+                absolute_file_url=absolute_file_url,
             )
 
-            people = []
-            for m in memberships:
-                people.append(
-                    {
-                        "participant_kind": "member",
-                        "membership_id": m.id,
-                        "member_id": m.member_id,
-                        "name": m.effective_name if group.kiosk_list_show_name else None,
-                        "photo_url": absolute_file_url(request, m.override_photo or m.member.photo)
-                        if group.kiosk_list_show_photo and m.has_effective_photo
-                        else None,
-                        "identifier": m.effective_check_in_identifier if group.kiosk_list_show_identifier else None,
-                        "email": m.effective_email if group.kiosk_list_show_email else None,
-                        "has_pin": m.has_effective_pin,
-                    }
-                )
-
-            for p in participants:
-                people.append(
-                    {
-                        "participant_kind": "group_only_participant",
-                        "group_only_participant_id": p.id,
-                        "name": p.name if group.kiosk_list_show_name else None,
-                        "photo_url": absolute_file_url(request, p.photo)
-                        if group.kiosk_list_show_photo and p.has_photo
-                        else None,
-                        "identifier": p.check_in_identifier if group.kiosk_list_show_identifier else None,
-                        "email": p.email if group.kiosk_list_show_email else None,
-                        "has_pin": p.has_pin,
-                    }
-                )
-
-            # List mode is validated at Group-save time.
             if group.check_in_enabled and not group.check_out_enabled:
                 primary_action = ActionType.CHECK_IN
             elif group.check_out_enabled and not group.check_in_enabled:
@@ -131,88 +149,85 @@ class GroupKioskStartView(OwnedWorkspaceMixin, APIView):
                 primary_action = None
 
             return Response(
-                {
-                    "kiosk": {
-                        "kiosk_mode": group.kiosk_mode,
-                        "theme": group.kiosk_theme,
-                        "title": group.kiosk_title or group.name,
-                        "welcome_text": group.kiosk_welcome_text,
-                        "success_message": group.kiosk_success_message,
-                        "confirmation_message": group.kiosk_confirmation_message,
-                        "return_delay_seconds": group.kiosk_return_delay_seconds,
-                        "requires_pin": group.require_pin,
-                        "list_display": {
-                            "show_name": group.kiosk_list_show_name,
-                            "show_photo": group.kiosk_list_show_photo,
-                            "show_identifier": group.kiosk_list_show_identifier,
-                            "show_email": group.kiosk_list_show_email,
-                        },
+                _kiosk_start_payload(
+                    request,
+                    group,
+                    {
+                        "kiosk": kiosk_payload,
+                        "primary_action": primary_action,
+                        "people": people,
                     },
-                    "primary_action": primary_action,
-                    "people": people,
-                }
-            )
-
-        if group.kiosk_mode == KioskMode.INPUT:
-            field_1 = group.kiosk_input_field_1
-            field_2 = group.kiosk_input_field_2
-            fields = [field_1]
-            if field_2:
-                fields.append(field_2)
-
-            warnings = []
-            if group.require_email is False and KioskIdentifierField.EMAIL in fields:
-                # Warn if some participants lack email.
-                missing = 0
-                total = 0
-                memberships = GroupMembership.objects.filter(
-                    organization=self.organization,
-                    group=group,
-                    status=GroupMembershipStatus.ACTIVE,
-                ).select_related("member")
-                for m in memberships:
-                    total += 1
-                    if not m.effective_email:
-                        missing += 1
-                participants = GroupOnlyParticipant.objects.filter(
-                    organization=self.organization,
-                    group=group,
-                    status=GroupOnlyParticipantStatus.ACTIVE,
                 )
-                for p in participants:
-                    total += 1
-                    if not (p.email or "").strip():
-                        missing += 1
-                if missing > 0:
-                    warnings.append(
-                        "Some participants don't have email; they can't be identified using email in this kiosk mode."
-                    )
-
-            return Response(
-                {
-                    "kiosk": {
-                        "kiosk_mode": group.kiosk_mode,
-                        "theme": group.kiosk_theme,
-                        "title": group.kiosk_title or group.name,
-                        "welcome_text": group.kiosk_welcome_text,
-                        "success_message": group.kiosk_success_message,
-                        "confirmation_message": group.kiosk_confirmation_message,
-                        "return_delay_seconds": group.kiosk_return_delay_seconds,
-                        "requires_pin": group.require_pin,
-                        "input_fields": fields,
-                        "warnings": warnings,
-                    }
-                }
             )
 
-        raise ValidationError({"kiosk_mode": "Unknown kiosk mode."})
+        if settings_obj.mode == KioskType.INPUT:
+            return Response(
+                _kiosk_start_payload(
+                    request,
+                    group,
+                    {"kiosk": kiosk_payload},
+                )
+            )
+
+        raise ValidationError({"mode": "Unknown kiosk type."})
 
 
 class GroupKioskIdentifyView(OwnedWorkspaceMixin, APIView):
     """
-    Input-mode identification: match participant(s) using the configured identification fields,
-    verify PIN if selected/required, and return the participant snapshot + allowed actions.
+    Identify a participant for kiosk action selection.
+
+    Input mode: Group Participant Code (+ optional second field).
+    Card mode: selected participant card (+ optional PIN when kiosk use_pin is on).
     """
+
+    def _resolve_card_participant(self, *, group, data):
+        participant_kind = data.get("participant_kind")
+        if participant_kind == "member":
+            membership_id = data.get("membership_id")
+            if not membership_id:
+                raise ValidationError({"membership_id": "membership_id is required."})
+            membership = (
+                GroupMembership.objects.filter(
+                    organization=self.organization,
+                    group=group,
+                    pk=membership_id,
+                )
+                .operational()
+                .select_related("member")
+                .first()
+            )
+            if membership is None:
+                return None, None
+            return "member", membership
+
+        if participant_kind == "group_only_participant":
+            participant_id = data.get("group_only_participant_id")
+            if not participant_id:
+                raise ValidationError(
+                    {"group_only_participant_id": "group_only_participant_id is required."}
+                )
+            participant = GroupOnlyParticipant.objects.filter(
+                organization=self.organization,
+                group=group,
+                status=GroupOnlyParticipantStatus.ACTIVE,
+                pk=participant_id,
+            ).first()
+            if participant is None:
+                return None, None
+            return "group_only_participant", participant
+
+        raise ValidationError({"participant_kind": "participant_kind is required for card mode."})
+
+    def _verify_card_pin(self, *, settings_obj, participant_kind, obj, pin):
+        if not settings_obj.use_pin:
+            return True
+        if not pin:
+            raise ValidationError({"pin": "PIN is required for this kiosk."})
+        if participant_kind == "member" and not obj.check_effective_pin(pin):
+            return False
+        if participant_kind == "group_only_participant" and not obj.check_pin(pin):
+            return False
+        return True
 
     def post(self, request, group_pk):
         group = (
@@ -222,181 +237,87 @@ class GroupKioskIdentifyView(OwnedWorkspaceMixin, APIView):
         )
         if group is None:
             raise NotFound("Group not found in this workspace.")
-        if not group.kiosk_enabled or group.kiosk_mode != KioskMode.INPUT:
-            raise ValidationError({"kiosk": "This Group kiosk is not in input mode."})
+        blocked = ensure_kiosk_launch_ready(group)
+        if blocked:
+            return Response(blocked, status=status.HTTP_409_CONFLICT)
 
+        settings_obj = get_kiosk_settings_for_group(group)
         req_ser = KioskIdentifyRequestSerializer(data=request.data)
         req_ser.is_valid(raise_exception=True)
         data = req_ser.validated_data
 
-        configured_fields = [group.kiosk_input_field_1]
-        if group.kiosk_input_field_2:
-            configured_fields.append(group.kiosk_input_field_2)
-
-        # Require non-pin fields present for matching.
-        if KioskIdentifierField.PIN not in configured_fields and group.require_pin:
-            # Model validation should prevent this.
-            raise ValidationError({"pin": "PIN is required for this Group."})
-
-        match_fields = []
-        for f in configured_fields:
-            if f == KioskIdentifierField.PIN:
-                continue
-            match_fields.append(f)
-
-        if not match_fields:
-            raise ValidationError({"kiosk": "Invalid input field configuration."})
-
-        # Validate required request inputs for configured fields.
-        if KioskIdentifierField.NAME in configured_fields and not data.get("name"):
-            raise ValidationError({"name": "Name is required for this kiosk configuration."})
-        if KioskIdentifierField.EMAIL in configured_fields and not data.get("email"):
-            raise ValidationError({"email": "Email is required for this kiosk configuration."})
-        if KioskIdentifierField.IDENTIFIER in configured_fields and not data.get("identifier"):
-            raise ValidationError({"identifier": "Identifier is required for this kiosk configuration."})
-
-        pin = data.get("pin") or ""
-        needs_pin = KioskIdentifierField.PIN in configured_fields
-
-        # Build candidates from both Members (via active membership) and Group-only Participants.
-        memberships = GroupMembership.objects.filter(
-            organization=self.organization,
-            group=group,
-            status=GroupMembershipStatus.ACTIVE,
-        ).select_related("member")
-        group_only = GroupOnlyParticipant.objects.filter(
-            organization=self.organization,
-            group=group,
-            status=GroupOnlyParticipantStatus.ACTIVE,
-        )
-
-        def _match_membership(m):
-            for f in match_fields:
-                if f == KioskIdentifierField.NAME:
-                    if (m.effective_name or "").strip().lower() != data["name"].strip().lower():
-                        return False
-                if f == KioskIdentifierField.EMAIL:
-                    if (m.effective_email or "").strip().lower() != data["email"].strip().lower():
-                        return False
-                if f == KioskIdentifierField.IDENTIFIER:
-                    if (m.effective_check_in_identifier or "").strip() != data["identifier"].strip():
-                        return False
-            return True
-
-        def _match_participant(p):
-            for f in match_fields:
-                if f == KioskIdentifierField.NAME:
-                    if (p.name or "").strip().lower() != data["name"].strip().lower():
-                        return False
-                if f == KioskIdentifierField.EMAIL:
-                    if (p.email or "").strip().lower() != data["email"].strip().lower():
-                        return False
-                if f == KioskIdentifierField.IDENTIFIER:
-                    if (p.check_in_identifier or "").strip() != data["identifier"].strip():
-                        return False
-            return True
-
-        candidate_memberships = [m for m in memberships if _match_membership(m)]
-        candidate_participants = [p for p in group_only if _match_participant(p)]
-
-        total_candidates = len(candidate_memberships) + len(candidate_participants)
-        if total_candidates == 0:
-            return Response({"code": "not_found", "detail": "No participant matches the provided inputs."}, status=status.HTTP_404_NOT_FOUND)
-
-        if not needs_pin:
-            if total_candidates != 1:
-                matches = []
-                for m in candidate_memberships:
-                    matches.append({"participant_kind": "member", "name": m.effective_name})
-                for p in candidate_participants:
-                    matches.append({"participant_kind": "group_only_participant", "name": p.name})
+        if settings_obj.mode == KioskType.CARD:
+            participant_kind, obj = self._resolve_card_participant(group=group, data=data)
+            if obj is None:
                 return Response(
-                    {"code": "ambiguous", "detail": "Multiple participants match; configure the kiosk inputs to be more specific.", "matches": matches},
+                    {"code": "not_found", "detail": "Selected participant is not available."},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+            pin = data.get("pin") or ""
+            if not self._verify_card_pin(
+                settings_obj=settings_obj,
+                participant_kind=participant_kind,
+                obj=obj,
+                pin=pin,
+            ):
+                return Response(
+                    {"code": "invalid_pin", "detail": "PIN verification failed."},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
-            # Exactly one match without PIN.
-            if candidate_memberships:
-                membership = candidate_memberships[0]
-                participant_kind = "member"
-                participant_obj = membership
-            else:
-                participant_kind = "group_only_participant"
-                participant_obj = candidate_participants[0]
-        else:
-            # Verify PIN among candidates.
-            pin_matches = []
-            for m in candidate_memberships:
-                if m.check_effective_pin(pin):
-                    pin_matches.append(("member", m))
-            for p in candidate_participants:
-                if p.check_pin(pin):
-                    pin_matches.append(("group_only_participant", p))
-
-            if len(pin_matches) == 0:
-                return Response({"code": "invalid_pin", "detail": "PIN verification failed."}, status=status.HTTP_400_BAD_REQUEST)
-            if len(pin_matches) != 1:
-                matches = []
-                for kind, obj in pin_matches:
-                    if kind == "member":
-                        matches.append({"participant_kind": kind, "name": obj.effective_name})
-                    else:
-                        matches.append({"participant_kind": kind, "name": obj.name})
-                return Response(
-                    {
-                        "code": "ambiguous",
-                        "detail": "PIN matched multiple participants; configure inputs to be more specific.",
-                        "matches": matches,
-                    },
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-            participant_kind, participant_obj = pin_matches[0]
-
-        # Automatic check-in may create a check-in record on demand.
-        if participant_kind == "member":
-            membership = participant_obj
-            auto_result = ensure_automatic_check_in_action_record_for_membership(group=group, membership=membership, now=timezone.now())
-            state = compute_current_attendance_state(group=group, participant_kind="member", member_id=membership.member_id)
-            allowed_actions = get_valid_actions_for_state(group=group, state=state)
-            return Response(
-                {
-                    "code": "ok",
-                    "participant": {
-                        "participant_kind": "member",
-                        "membership_id": membership.id,
-                        "name": membership.effective_name,
-                        "email": membership.effective_email,
-                        "identifier": membership.effective_check_in_identifier,
-                    },
-                    "automatic_check_in": auto_result,
-                    "attendance_state": state,
-                    "allowed_actions": allowed_actions,
-                }
-            )
-        else:
-            participant = participant_obj
-            auto_result = ensure_automatic_check_in_action_record_for_participant(group=group, participant=participant, now=timezone.now())
-            state = compute_current_attendance_state(
+            payload = build_kiosk_identify_payload(
                 group=group,
-                participant_kind="group_only_participant",
-                participant_id=participant.id,
+                participant_kind=participant_kind,
+                membership=obj if participant_kind == "member" else None,
+                group_only_participant=obj if participant_kind == "group_only_participant" else None,
             )
-            allowed_actions = get_valid_actions_for_state(group=group, state=state)
+            return Response(payload)
+
+        if settings_obj.mode != KioskType.INPUT:
+            raise ValidationError({"kiosk": "Unknown kiosk type."})
+
+        code = normalize_participant_code(
+            data.get("participant_code") or data.get("identifier")
+        )
+        if not code:
+            raise ValidationError(
+                {"participant_code": "Group Participant Code is required."}
+            )
+
+        kind, obj = find_by_participant_code(
+            group=group,
+            organization=self.organization,
+            code=code,
+        )
+        if obj is None:
             return Response(
-                {
-                    "code": "ok",
-                    "participant": {
-                        "participant_kind": "group_only_participant",
-                        "group_only_participant_id": participant.id,
-                        "name": participant.name,
-                        "email": participant.email,
-                        "identifier": participant.check_in_identifier,
-                    },
-                    "automatic_check_in": auto_result,
-                    "attendance_state": state,
-                    "allowed_actions": allowed_actions,
-                }
+                {"code": "not_found", "detail": "No participant matches the provided code."},
+                status=status.HTTP_404_NOT_FOUND,
             )
+
+        if settings_obj.input_field_count == 2:
+            if not verify_second_field(
+                settings=settings_obj,
+                membership=obj if kind == "member" else None,
+                participant=obj if kind == "group_only_participant" else None,
+                data=data,
+            ):
+                if settings_obj.input_second_field == KioskInputSecondField.PIN:
+                    return Response(
+                        {"code": "invalid_pin", "detail": "PIN verification failed."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+                return Response(
+                    {"code": "not_found", "detail": "Verification failed."},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
+        payload = build_kiosk_identify_payload(
+            group=group,
+            participant_kind=kind,
+            membership=obj if kind == "member" else None,
+            group_only_participant=obj if kind == "group_only_participant" else None,
+        )
+        return Response(payload)
 
 
 class GroupKioskPerformView(OwnedWorkspaceMixin, APIView):
@@ -412,9 +333,11 @@ class GroupKioskPerformView(OwnedWorkspaceMixin, APIView):
         )
         if group is None:
             raise NotFound("Group not found in this workspace.")
-        if not group.kiosk_enabled:
-            raise NotFound("Kiosk is not enabled for this Group.")
+        blocked = ensure_kiosk_launch_ready(group)
+        if blocked:
+            return Response(blocked, status=status.HTTP_409_CONFLICT)
 
+        settings_obj = get_kiosk_settings_for_group(group)
         req_ser = KioskPerformRequestSerializer(data=request.data)
         req_ser.is_valid(raise_exception=True)
         data = req_ser.validated_data
@@ -433,9 +356,8 @@ class GroupKioskPerformView(OwnedWorkspaceMixin, APIView):
             membership = GroupMembership.objects.filter(
                 organization=self.organization,
                 group=group,
-                status=GroupMembershipStatus.ACTIVE,
                 pk=membership_id,
-            ).select_related("member").first()
+            ).operational().select_related("member").first()
             if membership is None:
                 raise ValidationError({"participant": "Selected member is not part of this Group."})
         elif participant_kind == "group_only_participant":
@@ -453,38 +375,36 @@ class GroupKioskPerformView(OwnedWorkspaceMixin, APIView):
         else:
             raise ValidationError({"participant_kind": "Invalid participant kind."})
 
-        # Verify PIN if Group requires it.
-        if group.require_pin:
+        # Card mode: verify PIN when kiosk settings require it after card selection.
+        # Input mode with PIN as second field is verified during identify.
+        needs_pin = (
+            settings_obj.mode == KioskType.CARD
+            and settings_obj.use_pin
+        )
+        if needs_pin:
             if not pin:
-                raise ValidationError({"pin": "PIN is required for this Group."})
+                raise ValidationError({"pin": "PIN is required for this kiosk."})
             if participant_kind == "member" and not membership.check_effective_pin(pin):
                 raise ValidationError({"pin": "PIN verification failed."})
-            if participant_kind == "group_only_participant" and not group_only_participant.check_pin(pin):
+            if (
+                participant_kind == "group_only_participant"
+                and not group_only_participant.check_pin(pin)
+            ):
                 raise ValidationError({"pin": "PIN verification failed."})
-
-        # Automatic check-in (preset) on-demand (no scheduler).
-        if group.automatic_check_in_enabled:
-            if participant_kind == "member":
-                ensure_automatic_check_in_action_record_for_membership(
-                    group=group, membership=membership, now=timezone.now()
-                )
-            else:
-                ensure_automatic_check_in_action_record_for_participant(
-                    group=group, participant=group_only_participant, now=timezone.now()
-                )
 
         # Snapshot identity for history.
         if participant_kind == "member":
             snapshot = {
                 "participant_name_snapshot": membership.effective_name,
-                "participant_email_snapshot": membership.effective_email,
-                "participant_check_in_identifier_snapshot": membership.effective_check_in_identifier,
+                "participant_email_snapshot": membership.participation_email
+                or membership.effective_email,
+                "participant_check_in_identifier_snapshot": membership.group_participant_code,
             }
         else:
             snapshot = {
                 "participant_name_snapshot": group_only_participant.name,
                 "participant_email_snapshot": group_only_participant.email,
-                "participant_check_in_identifier_snapshot": group_only_participant.check_in_identifier,
+                "participant_check_in_identifier_snapshot": group_only_participant.group_participant_code,
             }
 
         ar = perform_action_record_from_kiosk(
@@ -507,12 +427,23 @@ class GroupKioskPerformView(OwnedWorkspaceMixin, APIView):
         )
         allowed_actions = get_valid_actions_for_state(group=group, state=state)
 
+        settings_obj = get_kiosk_settings_for_group(group)
+        participant_name = snapshot["participant_name_snapshot"]
+        confirmation = confirmation_payload_for_perform(
+            settings_obj,
+            group=group,
+            action_type=action_type,
+            participant_name=participant_name,
+            performed_at=ar.performed_at,
+        )
+
         return Response(
             {
                 "code": "ok",
                 "action_record": ActionRecordSerializer(ar).data,
-                "success_message": group.kiosk_success_message or "Done.",
-                "return_delay_seconds": group.kiosk_return_delay_seconds,
+                "confirmation": confirmation,
+                "success_message": confirmation["message"],
+                "return_delay_seconds": confirmation["return_delay_seconds"],
                 "attendance_state": state,
                 "allowed_actions": allowed_actions,
             }
@@ -555,4 +486,165 @@ class WorkspaceHistoryListView(OwnedWorkspaceMixin, APIView):
 
         serializer = ActionRecordSerializer(qs, many=True)
         return Response({"items": serializer.data})
+
+
+class WorkspaceHistoryReportGroupsView(OwnedWorkspaceMixin, APIView):
+    """
+    Groups available for Attendance Report selection (active, archived, deleted).
+    """
+
+    def get(self, request):
+        return Response({"items": list_report_groups(organization=self.organization)})
+
+
+class WorkspaceAttendanceReportView(OwnedWorkspaceMixin, APIView):
+    """
+    Aggregated attendance report for one Group over a date range.
+
+    Response shape is export-ready: group meta, date range, columns, and rows.
+    """
+
+    def get(self, request):
+        query = AttendanceReportQuerySerializer(data=request.query_params)
+        query.is_valid(raise_exception=True)
+        data = query.validated_data
+
+        try:
+            report = build_attendance_report(
+                organization=self.organization,
+                source_group_id=data["source_group_id"],
+                preset=data["preset"],
+                date_from=data.get("date_from"),
+                date_to=data.get("date_to"),
+                timezone_name=data.get("timezone"),
+            )
+        except ValueError as exc:
+            raise ValidationError({"detail": str(exc)}) from exc
+
+        if report is None:
+            raise NotFound("Group not found for attendance report in this workspace.")
+
+        return Response(report)
+
+
+class WorkspaceAttendanceReportExportView(OwnedWorkspaceMixin, APIView):
+    """
+    Export the Attendance Report for the same filters as the report view.
+
+    Uses build_attendance_report() — not a separate attendance calculation.
+    """
+
+    def get(self, request):
+        query = AttendanceReportExportQuerySerializer(data=request.query_params)
+        query.is_valid(raise_exception=True)
+        data = query.validated_data
+
+        try:
+            report = build_attendance_report(
+                organization=self.organization,
+                source_group_id=data["source_group_id"],
+                preset=data["preset"],
+                date_from=data.get("date_from"),
+                date_to=data.get("date_to"),
+                timezone_name=data.get("timezone"),
+            )
+        except ValueError as exc:
+            raise ValidationError({"detail": str(exc)}) from exc
+
+        if report is None:
+            raise NotFound("Group not found for attendance report in this workspace.")
+
+        if not report.get("sections"):
+            raise ValidationError(
+                {"detail": "No attendance rows available to export for this selection."}
+            )
+
+        try:
+            rendered = render_attendance_report_export(
+                report=report,
+                export_format=data["export_format"],
+                organization=self.organization,
+            )
+        except ValueError as exc:
+            raise ValidationError({"detail": str(exc)}) from exc
+        except FileNotFoundError as exc:
+            raise ValidationError({"detail": str(exc)}) from exc
+
+        response = HttpResponse(
+            rendered["content"],
+            content_type=rendered["content_type"],
+        )
+        response["Content-Disposition"] = f'attachment; filename="{rendered["filename"]}"'
+        return response
+
+
+class GroupKioskExitView(APIView):
+    """
+    Clear the app-session kiosk lock after the Group kiosk exit code is verified.
+
+    Wrong codes leave the lock in place. Verification is server-side against the
+    locked Group's KioskSettings exit code hash.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    SESSION_EXIT_ATTEMPTS = "kiosk_exit_attempt_timestamps"
+
+    def _rate_limited(self, request):
+        import time
+
+        now = time.time()
+        window = 60
+        max_attempts = 15
+        stamps = [t for t in request.session.get(self.SESSION_EXIT_ATTEMPTS, []) if now - t < window]
+        if len(stamps) >= max_attempts:
+            return True
+        stamps.append(now)
+        request.session[self.SESSION_EXIT_ATTEMPTS] = stamps
+        request.session.modified = True
+        return False
+
+    def post(self, request):
+        from attendance.kiosk_lock import locked_group_id
+        from organizations.permissions import get_active_workspace_organization
+
+        actor = request.user
+        if customer_must_verify_email(actor):
+            raise EmailNotVerified()
+
+        exit_code = str(request.data.get("exit_code") or "").strip()
+        if not exit_code:
+            return Response({"detail": "Exit code is required."}, status=400)
+
+        if self._rate_limited(request):
+            return Response(
+                {"detail": "Too many attempts. Wait a moment and try again."},
+                status=429,
+            )
+
+        group_id = locked_group_id(request)
+        if not group_id:
+            clear_kiosk_lock(request)
+            payload = {"ok": True}
+            payload.update(kiosk_status_payload(request))
+            return Response(payload)
+
+        organization = get_active_workspace_organization(actor)
+        if organization is None:
+            return Response({"detail": "Workspace not found."}, status=403)
+
+        group = Group.objects.filter(pk=group_id, organization=organization).first()
+        if group is None:
+            return Response({"detail": "Kiosk Group is not available."}, status=403)
+
+        settings_obj = ensure_group_kiosk_settings(group)
+        if not settings_obj.check_exit_code(exit_code):
+            return Response({"detail": "Exit code verification failed."}, status=403)
+
+        clear_kiosk_lock(request)
+        request.session.pop(self.SESSION_EXIT_ATTEMPTS, None)
+        request.session.modified = True
+        payload = {"ok": True}
+        payload.update(kiosk_status_payload(request))
+        return Response(payload)
 

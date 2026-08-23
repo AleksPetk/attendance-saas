@@ -397,7 +397,8 @@ Only log decisions supported by approved product planning. Do not invent decisio
 | **Date** | 2026-08-18 |
 | **Decision** | After an Action, configured outcomes may include **success message only**, **email/notification** to relevant recipients, or other **predefined** notification behavior. Default platform email delivery must work **without customer DNS**. Future custom/verified sending-domain configuration may allow customers to verify their own email domain; that implementation is not designed and plan placement is undecided. |
 | **Reason** | Common check-in outcomes stay selectable building blocks. Lowest-friction email onboarding; custom domains stay a later capability. |
-| **Status** | confirmed |
+| **Status** | clarified |
+| **Clarified by** | [DEC-059](#dec-059--group-custom-smtp-email-sender) |
 
 ### DEC-043 — One User account, one globally unique normalized email
 
@@ -435,10 +436,11 @@ Only log decisions supported by approved product planning. Do not invent decisio
 | Field | Value |
 |-------|-------|
 | **Date** | 2026-08-18 |
-| **Decision** | Do **not** make email, phone, photo, PIN, member code, reservation code, or similar fields globally mandatory on all Members. If a Group or Event workflow requires a field, that requirement is validated **for that participation context**. Whether any Organization-level Member fields are universally required (if any) remains OPEN-021. |
+| **Decision** | Do **not** make email, phone, photo, PIN, member code, reservation code, or similar fields globally mandatory on all Members. If a Group or Event workflow requires a field, that requirement is validated **for that participation context**. Organization-level required Member data is settled by DEC-053: **Name** is required; other profile fields remain optional. |
 | **Reason** | A reservation Event may need only a reservation number; a staff Group may need ID + PIN; a students Group may need visible name/photo. A single mandatory Member schema would block those workflows. |
 | **Status** | confirmed |
 | **Clarifies** | OPEN-021 |
+| **Clarified by** | [DEC-053](#dec-053--member-is-a-reusable-person-profile) |
 
 ### DEC-047 — Paying User owns workspace staff are workspace-scoped accounts
 
@@ -504,6 +506,139 @@ Only log decisions supported by approved product planning. Do not invent decisio
 | **Status** | confirmed |
 | **Clarifies** | DEC-010, DEC-029, DEC-043, DEC-047 |
 
+### DEC-053 — Member is a reusable person profile
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-08-20 |
+| **Decision** | A **Member** is a reusable person profile inside a workspace, not a kiosk login or security object. Confirmed profile fields: **Name** (required, not unique), plus optional **email**, **date of birth**, **phone**, **address** (free-text), **photo**, and **notes**. Duplicate names are allowed. The Django primary key is the internal Member ID; do not build a customer-facing `MBR-XXXXXX` or other custom Member ID system. Member-level PIN and Member identifier / check-in identifier are **not** Member profile fields. Until Group/Kiosk participation identification is redesigned, existing Member `pin_hash` and `check_in_identifier` columns may remain as deprecated compatibility fallbacks for GroupMembership and kiosk checks. New Member create/edit UI and Member APIs must not collect those fields. |
+| **Reason** | Separates the person profile from Group/Kiosk identification so later Group cleanup can own PIN and identifier behavior without treating Members as login objects. |
+| **Status** | confirmed |
+| **Clarifies** | DEC-006, DEC-046, OPEN-021 |
+
+### DEC-054 — Member archive, restore, and permanent delete
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-08-20 |
+| **Decision** | The Django Member primary key is the visible Member ID (`#1`, `#2` …): automatic, immutable, not a kiosk identifier. **Archive** is the normal removal path; archived Members cannot be opened or edited, and they are **operationally inactive**: they must not appear in Group participant lists, kiosk member lists, kiosk identify/perform, or automatic attendance, even if their GroupMembership row remains. **Restore** reactivates the same Member ID, profile, and existing GroupMemberships without creating new memberships. **Permanent delete** is allowed only after archive. Permanent delete removes the Member and related GroupMembership rows, deletes Member media best-effort, and leaves ActionRecord snapshot fields readable by setting `ActionRecord.member` to null (`SET_NULL`). Active Members cannot be permanently deleted directly. |
+| **Reason** | Archive must be a real lifecycle state, not a label on an otherwise editable profile. History must survive Member deletion without inventing a second ID system. |
+| **Status** | confirmed |
+| **Clarifies** | DEC-052, DEC-053 |
+
+### DEC-055 — Group product cleanup
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-08-20 |
+| **Decision** | A **Group** is a reusable participation/activity configuration. Group basic settings are name, check-in, check-out, breaks, maximum breaks (1–3 when enabled), relevant after-action behavior, and Advanced (outgoing email sender; see DEC-059). Group basic settings are **not** Member-profile requirements. Every Group automatically has kiosk capability; there is no customer-facing `kiosk_enabled` setting. **Archive** retains configuration, memberships, and kiosk design but makes the Group operationally inactive. **Restore** reactivates the same Group PK. **Permanent delete** is archive-only, removes GroupMemberships and Group-only participants for that Group, deletes KioskDesign/media and Group email sender credentials, and preserves ActionRecord snapshots (`ActionRecord.group` SET_NULL, `group_name_snapshot`). Deprecated Group `require_*` columns may remain temporarily for kiosk identification compatibility until the next Kiosk cleanup. Automatic check-in is removed from the customer product. |
+| **Reason** | Separates Group product configuration from Member profile requirements and from the upcoming Kiosk identification redesign while preserving history and kiosk runtime compatibility. |
+| **Status** | confirmed |
+| **Clarifies** | DEC-038, DEC-044, DEC-046, DEC-053, DEC-054 |
+
+### DEC-056 — Group participation setup slice
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-08-20 |
+| **Decision** | Every Group shows a visible immutable **Group #ID** from the Django Group PK. Every operational Group participation record (GroupMembership or Group-only participant) gets an immutable **Group participant code** (`G{group_id}-{4-digit suffix}`). Group participation **email** and **PIN** are stored on the participation record, separate from reusable Member profile fields. Member profile email may prefill Group participation email on add but never sync back on edit. Group participation PIN is a low-security attendance check-in code stored reversibly (plaintext field) so workspace managers can view assigned PINs; it is hidden from participant-facing kiosk list payloads. Group `require_email` / `require_pin` are the participation requirement toggles. **Setup incomplete** is a derived active state when requirements are ON but operational participants lack data; Group configuration save is allowed. While incomplete, real kiosk launch/start/identify/perform and automatic attendance are blocked; Kiosk Builder (design edit) remains available. Disabling a requirement does not delete stored participation values. |
+| **Reason** | Separates Group participation setup from Member profile requirements and kiosk identification redesign while giving workspace users stable IDs/codes and clear readiness gating. |
+| **Status** | confirmed |
+| **Clarifies** | DEC-055 |
+
+### DEC-057 — Dedicated Kiosk Settings behavioral layer
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-08-20 |
+| **Decision** | Each Group has a `KioskSettings` record (OneToOne) separate from `KioskDesign`. Kiosk Settings owns identification mode (Card/Input), card display fields, input field count/second field, and a hashed per-Group kiosk exit code. Group `require_email` / `require_pin` define participation availability only; kiosk settings choose whether/how the kiosk uses them. **Group participant code** is the canonical kiosk identifier. Launch requires valid Group setup + valid Kiosk Settings + configured exit code; Kiosk Builder remains available while invalid. There is no separate Preview route — Builder canvas + Minimize is the design inspection path. Kiosk exit uses the Group exit code, not owner account password. |
+| **Reason** | Clean separation between Group participation, kiosk behavior, and visual design; eliminates ambiguous name-only input identification. |
+| **Status** | confirmed |
+| **Clarifies** | DEC-055, DEC-056 |
+
+### DEC-060 — Kiosk confirmation screen in Kiosk Settings
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-08-22 |
+| **Decision** | Post-action confirmation belongs to **Kiosk Settings**, not Kiosk Builder. Fixed preset templates (`clean`, `business`, `friendly`, `kids`, `fitness`, `event`, `celebration`, `minimal`); editable per-enabled-action messages with safe `{name}`, `{time}` (24-hour), `{group}` variables; return delay fixed to 1, 3, or 5 seconds (default 3). Confirmation inherits kiosk Main background with its own readable surface/overlay. Legacy Group `kiosk_success_message` / `kiosk_confirmation_message` / `kiosk_return_delay_seconds` migrated to `KioskSettings` and are no longer runtime source of truth. |
+| **Reason** | Intentional touch-friendly success UX without turning confirmation into a free-form design editor; single canonical behavioral configuration. |
+| **Status** | confirmed |
+| **Clarifies** | DEC-057 |
+
+### DEC-058 — Always-on Header / Main / Footer shell
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-08-20 |
+| **Decision** | Every Group kiosk always renders Header, Main, and Footer. There are no Header/Footer on/off settings. Section heights are automatic/responsive (Header `clamp(72px, 13vh, 130px)`, Footer `clamp(48px, 8vh, 82px)`, Main fills remaining). Header content (title/logo) and Footer content (one-line text + independent image) are optional. Customers who want an unobtrusive Header/Footer match backgrounds and leave content empty — sections never collapse. Legacy `config.header.enabled` / `config.footer.enabled` are normalized to `true` and ignored for rendering. Footer text is at most one line; Footer image is a separate `KioskDesign.footer_logo` field from Header logo. |
+| **Reason** | Stable Main vertical layout for Card/Input UI; simpler product model without structural sync between Settings and Design. |
+| **Status** | confirmed |
+| **Clarifies** | DEC-057 |
+
+### DEC-059 — Group Custom SMTP email sender
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-08-21 |
+| **Decision** | Group **Advanced** owns outgoing email sender configuration for that Group. Automatic check-in is removed from the customer-facing Group product. Phase 1 provider is **Custom SMTP** only (Gmail/Microsoft/Yahoo provider flows later). Each Group may have one `GroupEmailSender`. SMTP passwords are encrypted at rest and never returned by API. **Draft credentials are tested before they become active:** a successful **Send test email** on the draft unlocks **Save sender**, which persists and marks **Ready**. Failed draft tests do not replace an existing Ready sender. After-action email toggles require Ready. Enabling any after-action email automatically sets Group `require_email=true` (with UI notice); disabling all after-action emails does **not** auto-disable require email. After-action messages send through the Group sender to Group participation email, not platform Resend and not Member profile email as the canonical recipient. Attendance ActionRecords persist even when email delivery fails; delivery attempts are audited without secrets. Platform Resend remains only for Check Station account emails. |
+| **Reason** | Separates platform auth mail from customer attendance mail, makes sender readiness explicit, protects working senders from unverified drafts, and keeps attendance history independent of SMTP reliability. |
+| **Status** | confirmed |
+| **Clarifies** | DEC-021, DEC-042, DEC-055, DEC-056 |
+| **Clarified by** | [DEC-060](#dec-060--group-gmail-app-password-email-sender), [DEC-061](#dec-061--group-outlook--microsoft-365-smtp-email-sender), [DEC-062](#dec-062--group-yahoo-mail-app-password-email-sender) |
+
+### DEC-060 — Group Gmail App Password email sender
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-08-21 |
+| **Decision** | **Gmail** is Group email sender provider #2. First Gmail integration uses **Google App Passwords** (not normal Google account passwords, not OAuth). UI collects Gmail address, App Password, and optional From name only; technical SMTP host/port/security are applied internally (`smtp.gmail.com`, SSL/TLS on port 465). Sender email equals the connected Gmail address (no free From alias in this version). App Passwords are encrypted at rest in the shared `GroupEmailSender` secret field and never returned by API. Spaces in pasted App Passwords are stripped before storage/auth. Provider switch clears the previous provider’s encrypted secret and obsolete transport fields. Custom SMTP remains fully available. Google OAuth is not implemented. |
+| **Reason** | Gives a guided Gmail path without exposing SMTP details, while reusing the existing sender readiness, test-email, after-action, and audit model. |
+| **Status** | confirmed |
+| **Clarifies** | DEC-059 |
+| **Clarified by** | [DEC-061](#dec-061--group-outlook--microsoft-365-smtp-email-sender), [DEC-062](#dec-062--group-yahoo-mail-app-password-email-sender) |
+
+### DEC-061 — Group Outlook / Microsoft 365 SMTP email sender
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-08-21 |
+| **Decision** | **Outlook / Microsoft 365** is Group email sender provider #3 (`provider=microsoft`). First Microsoft integration uses **SMTP AUTH** only (not Microsoft OAuth, not Graph API). UI collects Microsoft email, password/app password, and optional From name; technical transport is STARTTLS port **587** on **`smtp.office365.com`** (Microsoft 365 / custom domains) or **`smtp-mail.outlook.com`** (known consumer Outlook/Hotmail/Live domains). Sender email equals the connected mailbox. Secrets use the shared encrypted field. Provider switch clears the previous secret. **Audience clarity:** this path is primarily for Microsoft 365 business/work mailboxes where an administrator can enable Authenticated SMTP; personal Outlook/Hotmail compatibility is not guaranteed, and an app password does not overcome disabled SMTP AUTH. Safe errors distinguish auth failure from SMTP AUTH disabled where recognizable. Custom SMTP and Gmail remain available. Microsoft OAuth is not implemented. |
+| **Reason** | Adds a guided Microsoft SMTP path for tenants that still allow Authenticated SMTP, while making personal-account limitations explicit before credentials are entered. |
+| **Status** | confirmed |
+| **Clarifies** | DEC-059, DEC-060 |
+| **Clarified by** | [DEC-062](#dec-062--group-yahoo-mail-app-password-email-sender) |
+
+### DEC-062 — Group Yahoo Mail App Password email sender
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-08-21 |
+| **Decision** | **Yahoo Mail** is Group email sender provider #4 (`provider=yahoo`). Integration uses **Yahoo App Passwords** only (not the normal Yahoo account password, not Yahoo OAuth). UI collects Yahoo email, App Password, and optional From name; technical SMTP is applied internally (`smtp.mail.yahoo.com`, SSL/TLS port **465**). Email validation is generic (not hardcoded to `@yahoo.com`). Spaces in pasted App Passwords are stripped. Secrets use the shared encrypted field and are never returned by API. Provider switch clears the previous secret. After-action delivery remains provider-independent once the sender is Ready. **MVP provider list is complete:** (1) Custom SMTP, (2) Gmail, (3) Outlook / Microsoft 365, (4) Yahoo Mail. No additional dedicated provider integrations are planned for the current MVP. |
+| **Reason** | Completes the guided consumer/mailbox provider set with Yahoo’s documented SMTP + App Password path, reusing shared transport, readiness, test-email, and audit behavior. |
+| **Status** | confirmed |
+| **Clarifies** | DEC-059, DEC-060, DEC-061 |
+
+### DEC-063 — History Activity Log and Attendance Report
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-08-21 |
+| **Decision** | Workspace **History** has two views: **Activity Log** (existing raw Action Records) and **Attendance Report** (aggregated). Attendance Report requires selecting **one** Group (active, archived, or permanently deleted). Date filters: Today, This week, This month, or Custom range. Grain is **participant × local calendar day**. Columns are derived from ActionRecord action types present in the selected range (not current Group settings): first check-in; break_start times joined when multiple; last check-out when multiple. `break_end` is not a report column. `ActionRecord.source_group_id` is an immutable Group PK snapshot that survives permanent Group deletion so deleted Groups remain selectable. Report API responses include group name/status, date range, columns, and rows. Exports (**PDF**, **Excel/.xlsx**, **CSV**) are generated from the same `build_attendance_report()` payload (not a second calculation). Hours/late/percentage analytics remain out of scope. |
+| **Reason** | Organizations need historically accurate attendance views after Group config changes and after archive/delete, without inventing analytics or rewriting Action Records. |
+| **Status** | confirmed |
+| **Clarifies** | DEC-010, DEC-040, DEC-055 |
+
+### DEC-064 — Kiosk Attendance Reset
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-08-22 |
+| **Decision** | Each Group's **Kiosk Settings** include **Attendance Reset**: **Daily** (Group-wide local-time boundary; default 00:00; presets 00:00, 12:00, custom 24-hour time) or **Rolling** (participant-specific window from cycle-start check-in; presets 8h, 12h, custom hours+minutes up to 7 days). **Reset now** persists `manual_reset_at` for an immediate Group-wide fresh cycle without changing scheduled settings or deleting Action Records. Live kiosk state ignores Action Records before the effective boundary; History and Attendance Report remain unchanged. Timezone source: `get_report_timezone()` (project/workspace TZ until Organization timezone exists). |
+| **Reason** | Participants need predictable fresh cycles without mutating historical attendance data or overloading Group action configuration. |
+| **Status** | confirmed |
+| **Clarifies** | DEC-057, DEC-039, DEC-010 |
+
 ---
 
 ## Open Decisions
@@ -514,9 +649,9 @@ Unresolved questions requiring explicit approval before implementation.
 |----|-------|-------|
 | OPEN-002 | Action/state model | How actions relate to participant current state. Repeated Actions and simple presets are product-confirmed (DEC-039); implementation remains open |
 | OPEN-003 | Configurable field types and MVP scope | Which field types and how many per Group |
-| OPEN-004 | Kiosk security and session model | Device credentials, session management, authentication. Distinct from Group/Event-owned kiosk configuration (DEC-044). |
+| OPEN-004 | Kiosk security and session model | Device credentials remain open. Group-owned **kiosk exit code** (hashed, 4–10 alphanumeric) replaces owner-password exit for real launch (DEC-057). Interim app-session kiosk lock remains until device credentials are designed. |
 | OPEN-005 | Organization role capability matrix | Role names remain owner (paying User), admin/staff (WorkspaceStaffAccount); exact capabilities and permission differences per role undecided |
-| OPEN-006 | Notification engine architecture | Templates, triggers, variables, delivery pipeline |
+| OPEN-006 | Notification engine architecture | Group after-action senders implemented for Custom SMTP, Gmail App Password, Outlook/Microsoft 365 SMTP, and Yahoo Mail App Password (DEC-059–062). Broader templates/triggers/recipients/channels and Gmail/Microsoft/Yahoo OAuth remain open. No further dedicated MVP mailbox providers planned. |
 | OPEN-007 | Plan names, pricing, and exact limits | Basic/Pro/Business and all quota numbers. Plans may later limit persistent Groups and Events on different axes (DEC-045); do not decide numbers yet. Independent workspace-level kiosk-definition counts are not the product model (DEC-044). |
 | OPEN-008 | Free trial behavior | Workspace may begin trial/unsubscribed (DEC-035). Duration (~7 days is direction only), feature access during trial, and billing state machine remain open |
 | OPEN-009 | Historical record retention policy | Archival, deletion, and compliance requirements. Event Entries may exist without Members while Action Records remain (DEC-045); how those records survive Event archival vs deletion (DEC-023) is part of this design. |
@@ -527,16 +662,16 @@ Unresolved questions requiring explicit approval before implementation.
 | OPEN-014 | Group-only participant to Member linking | Conversion workflow and duplicate detection |
 | OPEN-015 | App store billing for mobile | Apple/Google requirements research needed |
 | OPEN-016 | Platform administration tooling scope | What platform operators need at launch vs later |
-| OPEN-017 | Export formats for MVP | CSV confirmed as future need; which formats in MVP |
+| OPEN-017 | Export formats for MVP | Attendance Report exports PDF, Excel (.xlsx), and CSV from the shared report payload (DEC-063). |
 | OPEN-018 | Manual correction and audit workflow | How corrections interact with historical integrity |
 | OPEN-019 | Event integration with Members/Groups | Advanced optional linking behavior |
 | OPEN-020 | Kiosk/Group/Event identification methods for MVP | Product allows different predefined methods per Group/Event owned kiosk (DEC-038, DEC-044). Which methods belong in MVP is still open. DEC-041 (workspace kiosk assigned to Groups/Events) is superseded. |
-| OPEN-021 | Minimum Member data | Contextual Group/Event requirements are confirmed (DEC-046). Whether any Organization-level Member fields are universally required remains open. Do not assume email, phone, photo, member code, etc. are globally mandatory. |
+| OPEN-021 | Minimum Member data | **Resolved by DEC-053.** Name is the only universally required Organization-level Member field. Email, date of birth, phone, address, photo, and notes are optional. Member-level PIN/identifier are not profile fields. Contextual Group/Event requirements remain (DEC-046). |
 | OPEN-022 | Event Entry future structure | Whether future architecture will split generic Event Entries into separate concepts such as Reservation → Attendees, and under what circumstances. |
 | OPEN-023 | Action Record source/context implementation | Product-level sources confirmed: kiosk, staff/admin, automatic/preset (DEC-040). Exact fields, whether a kiosk reference is always stored, and other sources remain undesigned |
 | OPEN-024 | Organization billing lifecycle | Workspace-before-paid-subscription is confirmed (DEC-035). How trial, subscribed, cancelled, suspended, and other states relate to Subscription and access remains undesigned |
 | OPEN-025 | User/staff ↔ Member explicit linking | Same real-world person may later be both a WorkspaceStaffAccount and a Member (or a paying User and a Member). Any explicit link, deduplication, or conversion mechanism remains undecided. Do not invent a required link during foundation implementation. |
-| OPEN-027 | Kiosk data model | Ownership by Group/Event is confirmed (DEC-044). Whether configuration is stored as fields on Group/Event or as a separate entity, exact fields, and how Kiosk Mode is launched remain undesigned. Do not implement from product examples. |
+| OPEN-027 | Kiosk data model | **Partially resolved (2026-08-20).** Group behavioral kiosk settings live in `KioskSettings` (OneToOne Group). Visual design stays in `KioskDesign`. See DEC-057. Event kiosk storage and device credentials remain future work. |
 | OPEN-028 | Multiple kiosk variants per Group or Event | Explicitly **not** an MVP requirement. Future decision. Initial product direction is one owned configuration per Group and per Event (DEC-044). |
 
 ---

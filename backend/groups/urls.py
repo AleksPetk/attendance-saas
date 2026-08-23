@@ -9,6 +9,7 @@ from groups.views import (
     GroupOnlyParticipantListCreateView,
     GroupViewSet,
 )
+from groups.email_sender_views import GroupEmailSenderTestView, GroupEmailSenderView
 
 router = DefaultRouter()
 router.register("groups", GroupViewSet, basename="group")
@@ -38,6 +39,16 @@ urlpatterns = [
         "groups/<int:group_pk>/available-members/",
         GroupAvailableMembersView.as_view(),
         name="group-available-members",
+    ),
+    path(
+        "groups/<int:group_pk>/email-sender/",
+        GroupEmailSenderView.as_view(),
+        name="group-email-sender",
+    ),
+    path(
+        "groups/<int:group_pk>/email-sender/test/",
+        GroupEmailSenderTestView.as_view(),
+        name="group-email-sender-test",
     ),
 ]
 urlpatterns += router.urls

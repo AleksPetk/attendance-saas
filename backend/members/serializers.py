@@ -1,22 +1,18 @@
-from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 
-from members.models import Member, validate_member_pin
+from members.models import MEMBER_ADDRESS_MAX_LENGTH, Member, MemberStatus
 
 
 class MemberSerializer(serializers.ModelSerializer):
-    pin = serializers.CharField(write_only=True, required=False, allow_blank=True)
-    clear_pin = serializers.BooleanField(write_only=True, required=False, default=False)
     clear_photo = serializers.BooleanField(write_only=True, required=False, default=False)
-    has_pin = serializers.BooleanField(read_only=True)
     has_photo = serializers.BooleanField(read_only=True)
     photo_url = serializers.SerializerMethodField()
+    date_of_birth = serializers.DateField(required=False, allow_null=True)
 
     class Meta:
         model = Member
         fields = (
             "id",
-            "internal_code",
             "name",
             "email",
             "photo",
@@ -25,11 +21,8 @@ class MemberSerializer(serializers.ModelSerializer):
             "clear_photo",
             "date_of_birth",
             "phone",
-            "check_in_identifier",
+            "address",
             "notes",
-            "pin",
-            "clear_pin",
-            "has_pin",
             "status",
             "created_at",
             "updated_at",
@@ -37,7 +30,6 @@ class MemberSerializer(serializers.ModelSerializer):
         )
         read_only_fields = (
             "id",
-            "internal_code",
             "status",
             "created_at",
             "updated_at",
@@ -45,6 +37,11 @@ class MemberSerializer(serializers.ModelSerializer):
         )
         extra_kwargs = {
             "photo": {"write_only": True, "required": False},
+            "address": {
+                "required": False,
+                "allow_blank": True,
+                "max_length": MEMBER_ADDRESS_MAX_LENGTH,
+            },
         }
 
     def get_photo_url(self, obj):
@@ -56,34 +53,41 @@ class MemberSerializer(serializers.ModelSerializer):
             return request.build_absolute_uri(url)
         return url
 
+    def to_internal_value(self, data):
+        if hasattr(data, "copy"):
+            data = data.copy()
+            if data.get("date_of_birth") == "":
+                data["date_of_birth"] = None
+        elif isinstance(data, dict) and data.get("date_of_birth") == "":
+            data = {**data, "date_of_birth": None}
+        return super().to_internal_value(data)
+
     def validate_name(self, value):
         name = (value or "").strip()
         if not name:
             raise serializers.ValidationError("Name is required.")
         return name
 
-    def validate_pin(self, value):
-        if not value:
-            return value
-        try:
-            return validate_member_pin(value)
-        except DjangoValidationError as exc:
-            raise serializers.ValidationError(exc.messages) from exc
+    def validate_address(self, value):
+        return (value or "").strip()
 
     def create(self, validated_data):
-        pin = validated_data.pop("pin", "")
-        validated_data.pop("clear_pin", None)
         validated_data.pop("clear_photo", None)
         organization = self.context["organization"]
         return Member.objects.create_member(
             organization=organization,
-            pin=pin,
             **validated_data,
         )
 
     def update(self, instance, validated_data):
-        pin = validated_data.pop("pin", None)
-        clear_pin = validated_data.pop("clear_pin", False)
+        if instance.status == MemberStatus.ARCHIVED:
+            raise serializers.ValidationError(
+                {
+                    "status": (
+                        "Archived Members cannot be edited. Restore the Member first."
+                    )
+                }
+            )
         clear_photo = validated_data.pop("clear_photo", False)
 
         for field, value in validated_data.items():
@@ -92,18 +96,12 @@ class MemberSerializer(serializers.ModelSerializer):
         if clear_photo and not validated_data.get("photo"):
             instance.photo.delete(save=False)
             instance.photo = ""
-        if pin:
-            instance.set_pin(pin)
-        elif clear_pin:
-            instance.clear_pin()
         instance.save()
         return instance
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
         data.pop("photo", None)
-        data.pop("pin", None)
-        data.pop("pin_hash", None)
         return data
 
 

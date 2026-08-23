@@ -18,7 +18,9 @@ from django.db import models, transaction
 
 from accounts.sessions import invalidate_owner_sessions
 from attendance.models import ActionRecord
+from groups.email_sender_models import GroupEmailDelivery, GroupEmailSender
 from groups.models import Group, GroupMembership, GroupOnlyParticipant
+from kiosk_builder.models import KioskDesign, KioskSettings
 from members.models import Member
 from organizations.models import Organization, WorkspaceStaffAccount
 
@@ -96,7 +98,7 @@ def _delete_tenant_media_directories(organization_id):
         media_root = media_root.resolve()
     except OSError:
         return
-    for relative in (f"members/{organization_id}", f"groups/{organization_id}"):
+    for relative in (f"members/{organization_id}", f"groups/{organization_id}", f"kiosks/{organization_id}"):
         directory = media_root / relative
         try:
             resolved = directory.resolve()
@@ -128,13 +130,20 @@ def permanently_delete_customer_account(user):
     member_photos = []
     membership_photos = []
     participant_photos = []
+    kiosk_logos = []
+    kiosk_footer_logos = []
+    kiosk_backgrounds = []
     if organization_id is not None:
         members = Member.objects.filter(organization_id=organization_id)
         memberships = GroupMembership.objects.filter(organization_id=organization_id)
         participants = GroupOnlyParticipant.objects.filter(organization_id=organization_id)
+        kiosk_designs = KioskDesign.objects.filter(organization_id=organization_id)
         member_photos = _collect_file_names(members, "photo")
         membership_photos = _collect_file_names(memberships, "override_photo")
         participant_photos = _collect_file_names(participants, "photo")
+        kiosk_logos = _collect_file_names(kiosk_designs, "header_logo")
+        kiosk_footer_logos = _collect_file_names(kiosk_designs, "footer_logo")
+        kiosk_backgrounds = _collect_file_names(kiosk_designs, "main_background_image")
 
     with transaction.atomic():
         invalidate_owner_sessions(user)
@@ -144,11 +153,19 @@ def permanently_delete_customer_account(user):
                 ActionRecord.objects.filter(organization_id=organization_id)
             )
             hard_delete_queryset(
+                GroupEmailDelivery.objects.filter(organization_id=organization_id)
+            )
+            hard_delete_queryset(
+                GroupEmailSender.objects.filter(organization_id=organization_id)
+            )
+            hard_delete_queryset(
                 GroupMembership.objects.filter(organization_id=organization_id)
             )
             hard_delete_queryset(
                 GroupOnlyParticipant.objects.filter(organization_id=organization_id)
             )
+            hard_delete_queryset(KioskDesign.objects.filter(organization_id=organization_id))
+            hard_delete_queryset(KioskSettings.objects.filter(organization_id=organization_id))
             hard_delete_queryset(Group.objects.filter(organization_id=organization_id))
             hard_delete_queryset(Member.objects.filter(organization_id=organization_id))
             hard_delete_queryset(
@@ -157,7 +174,14 @@ def permanently_delete_customer_account(user):
             hard_delete_queryset(Organization.objects.filter(pk=organization_id))
         user.delete()
 
-    _delete_storage_files(member_photos + membership_photos + participant_photos)
+    _delete_storage_files(
+        member_photos
+        + membership_photos
+        + participant_photos
+        + kiosk_logos
+        + kiosk_footer_logos
+        + kiosk_backgrounds
+    )
     if organization_id is not None:
         _delete_tenant_media_directories(organization_id)
 

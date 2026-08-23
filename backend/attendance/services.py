@@ -1,15 +1,21 @@
-import datetime
-
-from django.core.exceptions import ValidationError
-from django.utils import timezone
-
 from attendance.exceptions import AttendanceValidationError
 from attendance.models import ActionRecord, ActionSource, ActionType
 from groups.models import (
     Group,
-    GroupOnlyParticipant,
     GroupMembership,
+    GroupMembershipStatus,
+    GroupOnlyParticipant,
+    group_is_operationally_active,
 )
+from groups.readiness import group_is_operationally_ready
+from groups.operations import maybe_run_after_action
+from members.models import member_is_operationally_active
+from kiosk_builder.attendance_reset import compute_effective_reset_boundary
+from kiosk_builder.kiosk_settings_constants import AttendanceResetMode
+from kiosk_builder.models import ensure_group_kiosk_settings
+
+from django.core.exceptions import ValidationError
+from django.utils import timezone
 
 
 def _participant_filter(*, group: Group, participant_kind: str, member_id=None, participant_id=None):
@@ -26,7 +32,14 @@ def _participant_filter(*, group: Group, participant_kind: str, member_id=None, 
     return base
 
 
-def compute_current_attendance_state(*, group: Group, participant_kind: str, member_id=None, participant_id=None):
+def compute_current_attendance_state(
+    *,
+    group: Group,
+    participant_kind: str,
+    member_id=None,
+    participant_id=None,
+    now=None,
+):
     """
     Compute the current attendance state strictly from ActionRecords.
 
@@ -45,6 +58,28 @@ def compute_current_attendance_state(*, group: Group, participant_kind: str, mem
             participant_id=participant_id,
         )
     ).order_by("performed_at", "id")
+
+    if now is None:
+        now = timezone.now()
+
+    kiosk_settings = ensure_group_kiosk_settings(group)
+    if kiosk_settings.attendance_reset_mode == AttendanceResetMode.ROLLING:
+        participant_records = list(qs)
+        boundary = compute_effective_reset_boundary(
+            kiosk_settings=kiosk_settings,
+            organization=group.organization,
+            participant_records=participant_records,
+            now=now,
+        )
+    else:
+        boundary = compute_effective_reset_boundary(
+            kiosk_settings=kiosk_settings,
+            organization=group.organization,
+            participant_records=[],
+            now=now,
+        )
+    if boundary is not None:
+        qs = qs.filter(performed_at__gte=boundary)
 
     last_check_in = None
     last_check_out = None
@@ -91,89 +126,48 @@ def compute_current_attendance_state(*, group: Group, participant_kind: str, mem
     }
 
 def ensure_automatic_check_in_action_record_for_membership(*, group: Group, membership: GroupMembership, now=None):
-    if not group.automatic_check_in_enabled:
-        return {"created": False, "due": False, "performed_at": None}
-    if now is None:
-        now = timezone.now()
-    if group.automatic_check_in_time is None:
-        return {"created": False, "due": False, "performed_at": None}
-
-    scheduled_dt = timezone.make_aware(
-        datetime.datetime.combine(now.date(), group.automatic_check_in_time),
-        timezone.get_current_timezone(),
-    )
-    due = now >= scheduled_dt
-    if not due:
-        return {"created": False, "due": False, "performed_at": scheduled_dt}
-
-    existing = ActionRecord.objects.filter(
-        group=group,
-        participant_kind="member",
-        member_id=membership.member_id,
-        action_type=ActionType.CHECK_IN,
-        source=ActionSource.AUTOMATIC,
-        performed_at__date=now.date(),
-    ).first()
-    if existing:
-        return {"created": False, "due": True, "performed_at": existing.performed_at}
-
-    ar = ActionRecord.objects.create(
-        organization=group.organization,
-        group=group,
-        participant_kind="member",
-        member=membership.member,
-        action_type=ActionType.CHECK_IN,
-        source=ActionSource.AUTOMATIC,
-        performed_at=scheduled_dt,
-        participant_name_snapshot=membership.effective_name,
-        participant_email_snapshot=membership.effective_email,
-        participant_check_in_identifier_snapshot=membership.effective_check_in_identifier,
-        kiosk_note_snapshot="automatic_check_in",
-    )
-    return {"created": True, "due": True, "performed_at": ar.performed_at}
+    """Deprecated no-op. Automatic check-in was removed from the product."""
+    return {"created": False, "due": False, "performed_at": None}
 
 
 def ensure_automatic_check_in_action_record_for_participant(*, group: Group, participant: GroupOnlyParticipant, now=None):
-    if not group.automatic_check_in_enabled:
-        return {"created": False, "due": False, "performed_at": None}
-    if now is None:
-        now = timezone.now()
-    if group.automatic_check_in_time is None:
-        return {"created": False, "due": False, "performed_at": None}
+    """Deprecated no-op. Automatic check-in was removed from the product."""
+    return {"created": False, "due": False, "performed_at": None}
 
-    scheduled_dt = timezone.make_aware(
-        datetime.datetime.combine(now.date(), group.automatic_check_in_time),
-        timezone.get_current_timezone(),
-    )
-    due = now >= scheduled_dt
-    if not due:
-        return {"created": False, "due": False, "performed_at": scheduled_dt}
 
-    existing = ActionRecord.objects.filter(
-        group=group,
-        participant_kind="group_only_participant",
-        group_only_participant_id=participant.id,
-        action_type=ActionType.CHECK_IN,
-        source=ActionSource.AUTOMATIC,
-        performed_at__date=now.date(),
-    ).first()
-    if existing:
-        return {"created": False, "due": True, "performed_at": existing.performed_at}
+def build_kiosk_identify_payload(*, group: Group, participant_kind: str, membership=None, group_only_participant=None):
+    """Return identify response data after a participant is resolved."""
+    if participant_kind == "member":
+        state = compute_current_attendance_state(
+            group=group, participant_kind="member", member_id=membership.member_id
+        )
+        participant = {
+            "participant_kind": "member",
+            "membership_id": membership.id,
+            "name": membership.effective_name,
+            "participant_code": membership.group_participant_code,
+        }
+    elif participant_kind == "group_only_participant":
+        state = compute_current_attendance_state(
+            group=group,
+            participant_kind="group_only_participant",
+            participant_id=group_only_participant.id,
+        )
+        participant = {
+            "participant_kind": "group_only_participant",
+            "group_only_participant_id": group_only_participant.id,
+            "name": group_only_participant.name,
+            "participant_code": group_only_participant.group_participant_code,
+        }
+    else:
+        raise ValidationError("Invalid participant kind.")
 
-    ar = ActionRecord.objects.create(
-        organization=group.organization,
-        group=group,
-        participant_kind="group_only_participant",
-        group_only_participant=participant,
-        action_type=ActionType.CHECK_IN,
-        source=ActionSource.AUTOMATIC,
-        performed_at=scheduled_dt,
-        participant_name_snapshot=participant.name,
-        participant_email_snapshot=participant.email,
-        participant_check_in_identifier_snapshot=participant.check_in_identifier,
-        kiosk_note_snapshot="automatic_check_in",
-    )
-    return {"created": True, "due": True, "performed_at": ar.performed_at}
+    return {
+        "code": "ok",
+        "participant": participant,
+        "attendance_state": state,
+        "allowed_actions": get_valid_actions_for_state(group=group, state=state),
+    }
 
 
 def get_valid_actions_for_state(*, group: Group, state: dict):
@@ -209,9 +203,25 @@ def perform_action_record_from_kiosk(
     if now is None:
         now = timezone.now()
 
+    if not group_is_operationally_active(group):
+        raise AttendanceValidationError(
+            "group_archived",
+            "Archived Groups cannot perform attendance actions.",
+        )
+
     if participant_kind == "member":
         if membership is None:
             raise AttendanceValidationError("missing_membership", "Member actions require GroupMembership for effective values.")
+        if membership.status != GroupMembershipStatus.ACTIVE:
+            raise AttendanceValidationError(
+                "member_not_operational",
+                "This Member is not active in this Group.",
+            )
+        if not member_is_operationally_active(membership.member):
+            raise AttendanceValidationError(
+                "member_archived",
+                "Archived Members cannot perform attendance actions.",
+            )
         state = compute_current_attendance_state(group=group, participant_kind="member", member_id=membership.member_id)
     elif participant_kind == "group_only_participant":
         if group_only_participant is None:
@@ -231,7 +241,7 @@ def perform_action_record_from_kiosk(
         member_obj = membership.member
         snapshot = snapshot or {
             "participant_name_snapshot": membership.effective_name,
-            "participant_email_snapshot": membership.effective_email,
+            "participant_email_snapshot": (membership.participation_email or "").strip(),
             "participant_check_in_identifier_snapshot": membership.effective_check_in_identifier,
         }
     else:
@@ -244,6 +254,7 @@ def perform_action_record_from_kiosk(
     ar = ActionRecord.objects.create(
         organization=group.organization,
         group=group,
+        source_group_id=group.pk,
         participant_kind=participant_kind,
         member=member_obj if participant_kind == "member" else None,
         group_only_participant=group_only_participant if participant_kind == "group_only_participant" else None,
@@ -254,6 +265,16 @@ def perform_action_record_from_kiosk(
         participant_name_snapshot=snapshot["participant_name_snapshot"],
         participant_email_snapshot=snapshot.get("participant_email_snapshot", ""),
         participant_check_in_identifier_snapshot=snapshot.get("participant_check_in_identifier_snapshot", ""),
+        group_name_snapshot=group.name,
+    )
+    maybe_run_after_action(
+        group,
+        action_type,
+        action_record=ar,
+        membership=membership if participant_kind == "member" else None,
+        group_only_participant=(
+            group_only_participant if participant_kind == "group_only_participant" else None
+        ),
     )
     return ar
 

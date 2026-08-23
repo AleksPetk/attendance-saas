@@ -82,21 +82,55 @@ Architecture field: `Organization.workspace_id`. See [ARCHITECTURE.md](./ARCHITE
 
 ### Member **(confirmed)**
 
-A reusable canonical **tracked person** profile belonging to an Organization workspace. It contains the Organization-level data configured for that person. A Member **does not access the Organization workspace** and generally does **not** require a User login. A Member may be attached to multiple Groups without duplicating the canonical Member record.
+A reusable **person profile** belonging to an Organization workspace. It is **not** a kiosk login or security object. A Member **does not access the Organization workspace** and generally does **not** require a User login. A Member may be attached to multiple Groups without duplicating the canonical Member record.
 
 The same real-world person may also have a WorkspaceStaffAccount in the same Organization, but Member and staff login remain separate records and lifecycles. Disabling a WorkspaceStaffAccount must not destroy Member attendance history.
 
-Possible data may include name, email, phone, photo, an automatically generated internal Member code, an optional customer-entered check-in identifier, and other Organization-configured fields. These examples are **not** necessarily mandatory fields except **name** in the current Member/Group slice. If a Group or Event workflow requires a field, that requirement is validated **for that participation context**, not as a global Member mandate.
+Confirmed Member profile fields:
+
+- **Name** — required. Names are **not** unique; two Members may have exactly the same name.
+- **Email** — optional
+- **Date of birth** — optional
+- **Phone** — optional
+- **Address** — optional free-text field
+- **Photo** — optional
+- **Notes** — optional
+
+The database primary key is the visible Member ID (`#1`, `#2`, `#3` …). It is assigned automatically, immutable, and shown as a quiet reference. Do not invent a customer-facing Member code. Member-level PIN and check-in identifier are **not** part of the Member profile. If those values still exist on the backend, they are deprecated compatibility fields for current Group/Kiosk participation fallback until that slice is redesigned.
+
+**Archive** hides a Member from normal use. An archived Member cannot be opened or edited, and is not operational in Groups or kiosks. Existing GroupMembership rows remain so **Restore** reactivates the same Member ID, profile, and participation. **Permanent delete** is available only for archived Members.
+
+If a Group or Event workflow requires a field, that requirement is validated **for that participation context**, not as a global Member mandate.
 
 Group-specific overrides belong to **Group Membership**, not to the canonical Member record.
 
 ### Group **(confirmed)**
 
-A **long-lived, reusable** Organization-defined **participation and check-in context**, not merely a folder of people, and not a temporary Event. A Group has its own identification methods, allowed predefined Actions, **owned kiosk configuration**, configurable fields, and notification/outcome rules for its Members and Group-only Participants. Remains generic (e.g., Students, Employees, Morning Class). Different Groups in the same workspace may have completely different kiosk presentation and behavior.
+A **long-lived, reusable** Organization-defined **participation and activity configuration**, not merely a folder of people, and not a temporary Event. Basic settings: name, check-in, check-out, breaks, maximum breaks (1–3 when enabled), Group participation email/PIN requirements, relevant after-action behavior, and Advanced (Group outgoing email sender). Visible **Group #ID** uses the Django Group PK. Every Group automatically has kiosk capability and its own kiosk design foundation. **Setup incomplete** is an active derived state when participation requirements are unsatisfied. **Archive** hides a Group from normal use while retaining configuration, memberships, and kiosk design. **Restore** reactivates the same Group. **Permanent delete** is archive-only and preserves ActionRecord snapshots.
+
+### Group participant code **(confirmed)**
+
+Immutable Group-scoped code on each GroupMembership and Group-only participant (example `G1-5679`). Not the reusable Member ID. **Canonical kiosk participant identifier** for Card/Input identification (DEC-057).
+
+### Kiosk Settings **(confirmed)**
+
+Behavioral configuration for a Group-owned kiosk: Card vs Input mode, card display fields, input field layout, **attendance reset** (Daily or Rolling cycle boundaries plus manual Reset now), **confirmation screen settings** (preset template, per-enabled-action messages, 1/3/5-second return delay), and hashed kiosk exit code. Separate from Group participation requirements and from Kiosk Design visual editor. One record per Group, created automatically.
+
+### Attendance Reset **(confirmed)**
+
+Kiosk Settings control for when live kiosk state treats participants as starting a fresh operational attendance cycle. Modes: **Daily** (one Group-wide local-time boundary; default 00:00) or **Rolling** (participant-specific window from cycle-start check-in). **Reset now** applies an immediate Group-wide manual boundary without deleting Action Records or changing scheduled settings. Affects live action availability only — History and reports stay complete.
+
+### Kiosk Design **(confirmed)**
+
+Visual appearance of a Group-owned kiosk (colors, typography, images, section styling). The shell always includes Header, Main, and Footer; content may be empty. Header logo and Footer image are independent media fields.
+
+### Kiosk exit code **(confirmed)**
+
+4–10 letter/digit code configured per Group kiosk. Stored hashed; used only to exit real kiosk mode. Not owner account authentication.
 
 ### Group Membership **(confirmed)**
 
-The relationship attaching a Member to a Group. Holds group-specific context and may override canonical Member field values without modifying the Member's canonical data.
+The relationship attaching a Member to a Group. Holds Group participant code, Group participation email, Group participation PIN, and optional legacy overrides. Member profile values are separate; Member email may prefill participation email on add only.
 
 Architecture entity name: **GroupMembership**. See [ARCHITECTURE.md](./ARCHITECTURE.md).
 
@@ -196,9 +230,17 @@ An active device/session operating a Group’s or Event’s kiosk. Distinct from
 
 ## Notifications
 
-### Notification Rule **(confirmed concept, implementation provisional)**
+### Group Email Sender **(confirmed)**
 
-A configured trigger or **predefined outcome** after an Action (for example success message only, or email/notification to relevant recipients). Initial channel: transactional email delivered by the platform without customer DNS setup. Custom verified sending domains may be considered later; implementation is undesigned. Engine architecture undecided.
+Per-Group outgoing email configuration for attendance/after-action messages. Not a global platform sender. Not used for Check Station account emails. Providers: **Custom SMTP**, **Gmail (Google App Password)**, **Outlook / Microsoft 365** (SMTP AUTH; primarily Microsoft 365 business/work with Authenticated SMTP enabled), and **Yahoo Mail** (Yahoo App Password). Future OAuth/token fields may use provider-specific settings without forcing SMTP host/port into every UI. No additional dedicated mailbox providers are planned for the current MVP.
+
+### Notification Rule **(confirmed concept; Group after-action email implemented)**
+
+A configured trigger or **predefined outcome** after an Action (for example success message only, or email/notification to relevant recipients).
+
+**Platform account email** (verification, password reset) uses the platform Resend path and must work without customer DNS.
+
+**Group after-action attendance email** uses the Group’s configured **email sender** (Custom SMTP, Gmail App Password, Outlook / Microsoft 365 SMTP, or Yahoo Mail App Password). Sender must be verified (Ready) before after-action emails can be enabled. Recipient is the Group participation email. Attendance success does not depend on email delivery success. Broader notification-engine features (extra recipients, non-email channels, OAuth providers) remain undesigned.
 
 ---
 

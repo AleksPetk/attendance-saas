@@ -37,7 +37,7 @@ Do not infer implementation from this document for:
 - Kiosk **database fields**, launch flow, or session/security model (ownership rules are recorded above)
 - subscriptions and billing (including exact plan limits)
 - configurable fields and group-specific overrides (this slice implements explicit GroupMembership override fields for name, email, photo, member identifier, and PIN — not a generic field engine)
-- notification engine (this slice stores Group after-action email toggles/templates only; sending is not implemented)
+- notification engine (Group after-action email via per-Group Custom SMTP / Gmail / Microsoft / Yahoo senders is implemented in this slice; broader engine/recipients and OAuth providers remain undesigned)
 - platform-operator administration tooling
 
 Those areas require separate architecture work and approval.
@@ -161,7 +161,8 @@ A **Member** is a reusable canonical person profile **owned by exactly one Organ
 - Represents a **tracked person** inside the Organization workspace
 - **Does not access** the Organization workspace
 - Generally does **not** require a User login
-- Contains Organization-level data configured for that person. This slice requires **name**; email, photo, date of birth, phone, check-in identifier, notes, and PIN are optional. An automatically generated immutable **internal Member code** is distinct from the optional customer-entered check-in identifier.
+- Contains Organization-level person-profile data. **Name** is required and is **not** unique. Optional profile fields are email, date of birth, phone, address, photo, and notes. The database primary key is the visible Member ID (`#1`, `#2` …); there is no customer-facing `MBR-XXXXXX` code. Member-level PIN and check-in identifier are **not** product profile fields. Those columns may remain temporarily on the model as deprecated Group/Kiosk fallback until participation identification is redesigned.
+- **Archive** is the reversible removal path and blocks profile edit. An archived Member stays attached to existing GroupMembership rows so Restore can reuse them, but operational Group, kiosk, and attendance queries require `member.status == active`. **Restore** returns the same Member ID, profile, and participation. **Permanent delete** is allowed only after archive: related GroupMembership rows are removed; ActionRecord snapshot fields remain and the Member FK is set null.
 - Is **not** a User and must not be merged into the User model
 - May belong to **multiple Groups** within the same Organization via GroupMembership
 - Must not be shared across Organizations
@@ -169,19 +170,48 @@ A **Member** is a reusable canonical person profile **owned by exactly one Organ
 
 The same real-world person may also have a **WorkspaceStaffAccount** (e.g. a teacher who launches a kiosk) and a **Member** record so their attendance can be tracked. Those remain **separate**. Disabling or removing a WorkspaceStaffAccount must **not** destroy that person’s **Member** attendance history.
 
-Which Member fields are required is **not** a global schema question. If a Group or Event workflow requires email, PIN, photo, reservation code, or similar, that requirement is validated **for that context**. Whether any Organization-level fields are universally required remains open (see [DECISIONS.md](./DECISIONS.md)).
+Which extra fields a Group or Event workflow requires is **not** a global Member-schema question. Those requirements are validated **for that context**. Name is the only Organization-level Member field that is universally required (see [DECISIONS.md](./DECISIONS.md) DEC-053).
 
 ### Group
 
-A **Group** is an Organization-defined **long-lived, reusable participation and check-in context** **owned by exactly one Organization**. It is not merely a folder of people, and it is not a temporary Event.
+A **Group** is an Organization-defined **long-lived, reusable participation and activity configuration** **owned by exactly one Organization**. It is not merely a folder of people, and it is not a temporary Event.
 
 - Examples: Employees, Students, Morning Class
 - Contains GroupMemberships and GroupOnlyParticipants
 - Must not span Organizations
-- **Owns its own kiosk configuration** (product rule). Kiosk presentation and behavior belong to the Group, not to a global Organization kiosk
-- Product behavior (undesigned as models here): a Group may select predefined identification methods and Actions; those belong with the Group’s owned kiosk configuration
+- **Owns its own kiosk configuration automatically** (product rule). Creating a Group gives it kiosk capability and a `KioskDesign` foundation without a customer-facing “Kiosk enabled” toggle
+- Basic Group settings are: name, check-in, check-out, breaks, maximum breaks (1–3 when breaks are enabled), relevant after-action behavior, and Advanced settings (Group outgoing email sender)
+- **Group email sender:** each Group may own one `GroupEmailSender` (OneToOne). Providers: **Custom SMTP**, **Gmail (App Password)**, **Outlook / Microsoft 365** (SMTP AUTH), and **Yahoo Mail** (App Password). Credentials are encrypted at rest (`APP_SECRETS_ENCRYPTION_KEY`). Configuration is draft-tested before save: a successful draft test unlocks confirm-save, which persists credentials and marks **Ready**. Failed drafts do not replace an active Ready sender. Statuses: Not configured / Ready / Error (unverified drafts are not persisted as Needs verification). After-action emails require Ready and send through this sender, not platform Resend. Lightweight `GroupEmailDelivery` audit rows record sent/failed attempts without secrets. Gmail uses internal SMTP transport `smtp.gmail.com` SSL/TLS port 465. Microsoft uses STARTTLS port 587 on `smtp.office365.com` (Microsoft 365) or `smtp-mail.outlook.com` (consumer domains). Yahoo uses `smtp.mail.yahoo.com` SSL/TLS port 465. Host/port/security are not customer-facing for Gmail, Microsoft, or Yahoo. The Microsoft provider is primarily for Microsoft 365 business/work mailboxes with Authenticated SMTP enabled; personal Outlook/Hotmail compatibility is not guaranteed. Switching providers clears the previous provider’s encrypted secret only when a verified draft is confirmed and saved. Google/Microsoft/Yahoo OAuth are not implemented. Shared SMTP transport code is reused across providers. MVP dedicated mailbox providers stop at these four (Custom SMTP + Gmail + Microsoft + Yahoo). Automatic check-in was removed from the customer product; deprecated Group columns may remain for migration compatibility.
+- Group basic settings are **not** a Member-profile requirements form. Deprecated `require_*` columns may remain temporarily for kiosk identification compatibility until the next Kiosk cleanup
+- **Archive** is the normal removal path. Archived Groups are operationally inactive (no edit, no kiosk, no attendance actions) but retain configuration, memberships, and kiosk design. **Restore** reactivates the same Group PK. **Permanent delete** is archive-only and preserves ActionRecord snapshots (`ActionRecord.group` SET_NULL, `group_name_snapshot` retained, immutable `source_group_id` retained for attendance reports)
 
-Group-specific configuration (fields, actions, kiosk, notifications) is product-defined in [PRODUCT.md](./PRODUCT.md) but **not architecturally designed** in this document. Do not implement Action, Kiosk, Event, notification, or configurable-field models from this section.
+Group-specific kiosk identification and presentation fields remain on Group for now but belong to the later Kiosk product area, not Group basic settings.
+
+### KioskSettings (implemented)
+
+Each Group has exactly one **`KioskSettings`** record (OneToOne), created automatically with the Group. It owns behavioral kiosk configuration:
+
+| Area | Fields / behavior |
+|------|-------------------|
+| Mode | `card` or `input` |
+| Card display | show name, group participant code, email (when Group email enabled) |
+| Kiosk PIN usage | `use_pin` — requires Group PIN enabled; forces participant code visible on cards |
+| Input mode | 1 field (code only) or 2 fields (code + name/email/pin) |
+| Confirmation screen | preset template key; per-action message templates; return delay 1/3/5 sec (default 3) |
+| Attendance reset | `attendance_reset_mode` (`daily` \| `rolling`); Daily local-time boundary (`attendance_reset_daily_time`, default 00:00); Rolling duration (`attendance_reset_rolling_hours` + `attendance_reset_rolling_minutes`, default 8h); persisted manual boundary `manual_reset_at` (Reset now) |
+| Exit security | hashed `exit_code_hash`; never returned in API |
+
+**Attendance reset runtime:** `compute_current_attendance_state()` filters ActionRecords to those on or after the effective boundary from `kiosk_builder.attendance_reset`. Daily uses Group-wide local clock boundaries via `get_report_timezone()` (project/workspace TZ until Organization timezone exists). Rolling anchors to the participant's current cycle check-in; break/check-out do not extend the window. Manual Reset now sets `manual_reset_at` immediately for all participants without altering scheduled Daily/Rolling settings. Reset never deletes or edits ActionRecords — History and reports remain unchanged.
+
+**Reset now API:** `POST /api/groups/<id>/kiosk-settings/reset-now/` (`CanManageWorkspace`).
+
+**Confirmation runtime:** perform success returns resolved message (variables substituted server-side), template key, and return delay. Display delay does not delay ActionRecord creation. Main background remains visible behind a scrim + readable preset card; accent may derive from kiosk input template accent.
+
+**Readiness:** real kiosk launch blocked until Group setup complete, Kiosk Settings valid, and exit code configured. Kiosk Builder remains available while invalid (fake sample content only; no attendance mutations).
+
+**Kiosk shell:** Header, Main, and Footer always exist. Section sizes are automatic/responsive (not toggled in Settings). Visual blending (matching backgrounds, empty content) is how customers make Header/Footer unobtrusive. `KioskDesign` owns appearance; `header.enabled` / `footer.enabled` in stored JSON are normalized to `true` and ignored for rendering.
+
+**Deprecated Group columns** (retained for migration, not runtime source of truth): `kiosk_mode`, `kiosk_list_show_*`, `kiosk_input_field_*`, legacy identifier enums, `kiosk_success_message`, `kiosk_confirmation_message`, `kiosk_return_delay_seconds`.
 
 ### GroupMembership
 
@@ -189,9 +219,13 @@ A **GroupMembership** links one **Member** to one **Group**.
 
 - Both Member and Group must belong to the **same Organization**
 - Is a real domain entity, not an implicit join table only
-- Holds optional group-specific overrides for display name, email, photo, check-in identifier, and PIN. These do not modify the Member’s canonical data. Effective value = override if present, otherwise the Member value. A generic configurable-field engine is **not** designed here
+- Holds immutable **group_participant_code** (`G{group_id}-{suffix}`), Group participation **email**, and Group participation **PIN** (attendance check-in code, visible to workspace managers, hidden from participant-facing kiosk lists)
+- Optional legacy override fields (name, photo, identifier) remain for kiosk compatibility; Member profile email/PIN are not the canonical participation source for newly configured Groups
+- Archiving a Member does **not** delete or deactivate the GroupMembership. Operational lists, kiosk identification, and attendance actions ignore memberships whose Member is archived. Restore makes the same membership operational again.
 
-A Member may have multiple GroupMembership records within one Organization.
+A Member may have multiple GroupMembership records within one Organization. The same Member in two Groups receives two different participant codes.
+
+**Setup incomplete:** when Group participation requirements are enabled but operational participants lack required email/PIN, the Group remains editable but real kiosk/attendance operations are blocked until data is completed or the requirement is turned off. Stored participation values are retained when requirements are disabled.
 
 ### GroupOnlyParticipant
 
@@ -312,13 +346,13 @@ Do **not** merge Group and Event into one entity because they both own kiosk con
 
 This foundation participates in the platform’s historical integrity rules:
 
-- Once operational records have dependent history (for example, Action Records), prefer **archive** or **deactivate** over destructive deletion where appropriate
+- Once operational records have dependent history (for example, Action Records), prefer **archive** or **deactivate** over destructive deletion where appropriate. Confirmed permanent Member deletion after archive clears the live Member FK on Action Records (`SET_NULL`) and keeps snapshot fields readable.
+- Exact archival and deactivation behavior for Members, Groups, GroupMemberships, and GroupOnlyParticipants is implemented as reversible archive/deactivate. An archived Member remains structurally related via GroupMembership but is operationally inactive until restored, and may later be permanently deleted. Permanent tenant destruction uses a dedicated service rather than globally weakening `PROTECT` foreign keys.
 - Do not silently overwrite or manipulate records in a way that destroys historical integrity
 - Future Action Records must remain historically accurate when later Group, Kiosk, or Action configuration changes
 - Action Record creation, correction, source-field design, and audit mechanics are **not designed here**
+- Workspace History includes an **Activity Log** (raw Action Records) and an **Attendance Report** (participant × local day aggregation). Report calendar presets (`today` / week / month) and day bucketing use an explicit client `timezone` IANA name when provided (browser local); otherwise Django `TIME_ZONE`. Report columns follow ActionRecord data in range, not live Group action toggles. Immutable `ActionRecord.source_group_id` keeps permanently deleted Groups selectable for reports (DEC-063)
 - **Permanent customer account deletion** is a separate, explicit exception: after the paying owner or a platform superuser confirms destruction of that tenant, that workspace's operational data including Action Records is removed. Archive/deactivate remains the reversible path. See DEC-052.
-
-Exact archival and deactivation behavior for Members, Groups, GroupMemberships, and GroupOnlyParticipants is implemented as reversible archive/deactivate. Permanent tenant destruction uses a dedicated service rather than globally weakening `PROTECT` foreign keys.
 
 ## Authentication sessions
 
@@ -362,5 +396,5 @@ When this document and another authoritative file conflict, **stop and resolve t
 | Field | Value |
 |-------|-------|
 | **Status** | Tenant/person foundation; Organization owner + WorkspaceStaffAccount + Member/Group slice implemented |
-| **Last updated** | 2026-08-19 |
+| **Last updated** | 2026-08-20 |
 | **Next architecture work** | Events / Action Records / Kiosks |

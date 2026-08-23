@@ -1,0 +1,245 @@
+/* Application-defined visual presets. Structural, not final art direction. */
+
+.kr-shell[data-layout="centered"] .kr-main-content {
+  align-items: center;
+}
+
+.kr-shell[data-layout="centered"] .kr-main-copy {
+  width: 100%;
+  max-width: 40rem;
+}
+
+.kr-shell[data-layout="centered"] .kr-main-title {
+  max-width: none;
+}
+
+.kr-shell[data-layout="centered"] .kiosk-flow,
+.kr-shell[data-layout="centered"] .empty-state {
+  max-width: 36rem;
+  margin-inline: auto;
+}
+
+.kr-shell[data-layout="centered"] .kiosk-people-grid {
+  max-width: 58rem;
+  margin-inline: auto;
+}
+
+.kr-shell[data-layout="compact"] .kr-main-content {
+  align-items: center;
+  padding-inline: clamp(0.6rem, 4vw, 2.5rem);
+}
+
+.kr-shell[data-layout="compact"] .kr-main-copy {
+  width: 100%;
+}
+
+.kr-shell[data-layout="compact"] .kr-main-title {
+  font-size: clamp(0.85rem, calc(var(--kr-size-rem, 2) * 0.85rem), 2.2rem);
+}
+
+.kr-shell[data-layout="compact"] .kiosk-flow {
+  max-width: 24rem;
+  margin-inline: auto;
+  padding: 1rem;
+  gap: 0.85rem;
+}
+
+.kr-shell[data-layout="compact"] .kiosk-people-grid {
+  max-width: 42rem;
+  margin-inline: auto;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 0.75rem;
+}
+
+.kr-shell[data-layout="compact"] .kiosk-person-card {
+  padding: 0.7rem 0.55rem;
+  min-height: 0;
+}
+
+.kr-shell[data-layout="compact"] .kiosk-person-card .photo-thumb-lg,
+.kr-shell[data-layout="compact"] .kiosk-person-card .photo-fallback.photo-thumb-lg {
+  width: 2.4rem;
+  height: 2.4rem;
+  font-size: 0.85rem;
+}
+
+.kr-shell[data-layout="split"] .kr-main-content {
+  display: grid;
+  grid-template-columns: minmax(10rem, 0.9fr) minmax(16rem, 1.3fr);
+  gap: clamp(1rem, 3vw, 2.5rem);
+  align-items: start;
+}
+
+.kr-shell[data-layout="split"] .kr-main[data-has-title="off"] .kr-main-content {
+  grid-template-columns: 1fr;
+}
+
+.kr-shell[data-layout="split"] .kr-main-copy {
+  grid-column: 1;
+}
+
+.kr-shell[data-layout="split"] .kr-main-title {
+  margin-bottom: 0;
+}
+
+.kr-shell[data-layout="split"] .kr-main-slot {
+  grid-column: 2;
+  min-width: 0;
+}
+
+.kr-shell[data-layout="split"] .kr-main[data-has-title="off"] .kr-main-slot {
+  grid-column: 1;
+}
+
+.kr-shell[data-layout="split"] .kiosk-people-grid {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+@media (max-width: 800px) {
+  .kr-shell[data-layout="split"] .kr-main-content {
+    grid-template-columns: 1fr;
+  }
+
+  .kr-shell[data-layout="split"] .kr-main-title,
+  .kr-shell[data-layout="split"] .kr-main-slot {
+    grid-column: 1;
+  }
+}
+
+.kr-shell[data-layout="large_touch"] .kr-main-content {
+  padding: clamp(1rem, 3vw, 2.5rem);
+}
+
+.kr-shell[data-layout="large_touch"] .kiosk-flow {
+  max-width: 40rem;
+  margin-inline: auto;
+  gap: 1.35rem;
+  padding: 1.6rem;
+}
+
+.kr-shell[data-layout="large_touch"] .kiosk-submit,
+.kr-shell[data-layout="large_touch"] .kiosk-action-choice,
+.kr-shell[data-layout="large_touch"] .kiosk-person-card {
+  min-height: 4.5rem;
+  font-size: 1.28rem;
+}
+
+.kr-shell[data-layout="large_touch"] .kiosk-flow input,
+.kr-shell[data-layout="large_touch"] .kiosk-pin-input {
+  min-height: 3.75rem;
+  font-size: 1.25rem;
+}
+
+.kr-shell[data-layout="large_touch"] .kiosk-people-grid {
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1.25rem;
+}
+
+.kr-shell[data-layout="photo_cards"] .kr-main-content {
+  align-items: stretch;
+}
+
+.kr-shell[data-layout="photo_cards"] .kiosk-people-grid {
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1.15rem;
+}
+
+.kr-shell[data-layout="photo_cards"] .kiosk-person-card {
+  min-height: 14rem;
+  padding: 1.4rem 1rem;
+}
+
+.kr-shell[data-layout="photo_cards"] .kiosk-person-card .photo-thumb-lg,
+.kr-shell[data-layout="photo_cards"] .kiosk-person-card .photo-fallback.photo-thumb-lg {
+  width: 6.5rem;
+  height: 6.5rem;
+  font-size: 1.6rem;
+}
+
+.kr-shell[data-layout="photo_cards"] .kiosk-flow {
+  max-width: 36rem;
+  margin-inline: auto;
+}
+
+/* Buttons */
+.kr-shell[data-button="rounded"] .kiosk-submit,
+.kr-shell[data-button="rounded"] .kiosk-action-choice {
+  border-radius: 0.85rem;
+}
+
+.kr-shell[data-button="flat"] .kiosk-submit,
+.kr-shell[data-button="flat"] .kiosk-action-choice {
+  border-radius: 0;
+  box-shadow: none;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.kr-shell[data-button="pill"] .kiosk-submit,
+.kr-shell[data-button="pill"] .kiosk-action-choice {
+  border-radius: 999px;
+  padding-inline: 1.4rem;
+}
+
+.kr-shell .kiosk-submit:not(.btn-secondary),
+.kr-shell .kiosk-action-choice {
+  background: var(--kr-accent, #2563eb);
+  border-color: var(--kr-accent, #2563eb);
+  color: #fff;
+}
+
+.kr-shell .kiosk-action-choice {
+  background: #fff;
+  color: #111827;
+  border: 2px solid var(--kr-accent, #2563eb);
+}
+
+.kr-shell .kiosk-action-choice:hover {
+  background: color-mix(in srgb, var(--kr-accent, #2563eb) 14%, #fff);
+}
+
+/* Inputs */
+.kr-shell[data-input="outlined"] .kiosk-flow input,
+.kr-shell[data-input="outlined"] .kiosk-pin-input {
+  border: 2px solid #cbd5e1;
+  background: #fff;
+  border-radius: 0.65rem;
+}
+
+.kr-shell[data-input="filled"] .kiosk-flow input,
+.kr-shell[data-input="filled"] .kiosk-pin-input {
+  border: 0;
+  background: #e2e8f0;
+  border-radius: 0.65rem;
+  box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.12);
+}
+
+.kr-shell[data-input="minimal"] .kiosk-flow input,
+.kr-shell[data-input="minimal"] .kiosk-pin-input {
+  border: 0;
+  border-bottom: 3px solid #64748b;
+  border-radius: 0;
+  background: transparent;
+  padding-left: 0.15rem;
+  padding-right: 0.15rem;
+}
+
+/* Cards */
+.kr-shell[data-card="elevated"] .kiosk-person-card {
+  box-shadow: 0 14px 32px rgba(15, 23, 42, 0.16);
+  border: 0;
+  transform: translateY(-1px);
+}
+
+.kr-shell[data-card="flat"] .kiosk-person-card {
+  box-shadow: none;
+  border: 0;
+  background: #f8fafc;
+}
+
+.kr-shell[data-card="bordered"] .kiosk-person-card {
+  box-shadow: none;
+  border: 3px solid var(--kr-accent, #2563eb);
+  background: #fff;
+}

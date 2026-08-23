@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 
 /* ------------------------------------------------------------------ */
@@ -152,6 +152,39 @@ export function PageHeader({ title, description, actions, eyebrow }) {
   );
 }
 
+export function ConfirmDialog({
+  title,
+  body,
+  confirmLabel,
+  cancelLabel = "Cancel",
+  danger = false,
+  busy = false,
+  onCancel,
+  onConfirm,
+}) {
+  return (
+    <div className="confirm-modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+      <div className="confirm-modal">
+        <h2 id="confirm-title">{title}</h2>
+        <p>{body}</p>
+        <div className="confirm-modal-actions">
+          <button type="button" className="btn-secondary" onClick={onCancel} disabled={busy}>
+            {cancelLabel}
+          </button>
+          <button
+            type="button"
+            className={danger ? "btn-danger" : "btn-primary"}
+            onClick={onConfirm}
+            disabled={busy}
+          >
+            {busy ? "Working…" : confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function SectionHeader({ title, description }) {
   return (
     <header className="section-header-inline">
@@ -258,12 +291,14 @@ export function PlanHint({ plan, children }) {
   );
 }
 
-export function StatusBadge({ status }) {
-  const label = {
+export function StatusBadge({ status, children }) {
+  const label = children || {
     active: "Active",
     archived: "Archived",
+    deleted: "Deleted",
     inactive: "Inactive",
     "group-only": "Group-only",
+    setup_incomplete: "Setup incomplete",
   }[status] || status;
   return <span className={`status-badge ${status}`}>{label}</span>;
 }
@@ -272,8 +307,139 @@ export function PhotoThumb({ url, name, size = "md" }) {
   if (url) {
     return <img className={`photo-thumb photo-thumb-${size}`} src={url} alt="" />;
   }
-  const initial = (name || "?").trim().charAt(0).toUpperCase();
-  return <span className={`photo-fallback photo-thumb-${size}`}>{initial}</span>;
+  const parts = (name || "").trim().split(/\s+/).filter(Boolean);
+  let initials = "?";
+  if (parts.length === 1) {
+    initials = parts[0].slice(0, 2).toUpperCase();
+  } else if (parts.length > 1) {
+    initials = `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+  }
+  return (
+    <span className={`photo-fallback photo-thumb-${size}`} aria-hidden="true">
+      {initials}
+    </span>
+  );
+}
+
+function CameraBadge() {
+  return (
+    <span className="profile-photo-edit-badge" aria-hidden="true">
+      <svg viewBox="0 0 20 20" width="14" height="14" fill="none">
+        <path
+          d="M7.2 4.5h5.6l.9 1.4H16a1.5 1.5 0 0 1 1.5 1.5v7.1A1.5 1.5 0 0 1 16 16H4a1.5 1.5 0 0 1-1.5-1.5V7.4A1.5 1.5 0 0 1 4 5.9h2.3l.9-1.4Z"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinejoin="round"
+        />
+        <circle cx="10" cy="10.6" r="2.4" stroke="currentColor" strokeWidth="1.5" />
+      </svg>
+    </span>
+  );
+}
+
+export function EditableProfilePhoto({
+  url,
+  name,
+  size = "xl",
+  onSelectFile,
+  onRemove,
+  disabled = false,
+}) {
+  const rootRef = useRef(null);
+  const inputRef = useRef(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const hasPhoto = Boolean(url);
+  const label = hasPhoto ? "Edit profile photo" : "Add profile photo";
+
+  useEffect(() => {
+    if (!menuOpen) {
+      return undefined;
+    }
+    function onPointerDown(event) {
+      if (rootRef.current && !rootRef.current.contains(event.target)) {
+        setMenuOpen(false);
+      }
+    }
+    function onKeyDown(event) {
+      if (event.key === "Escape") {
+        setMenuOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [menuOpen]);
+
+  function openPicker() {
+    setMenuOpen(false);
+    inputRef.current?.click();
+  }
+
+  function handleButtonClick() {
+    if (disabled) {
+      return;
+    }
+    if (hasPhoto) {
+      setMenuOpen((open) => !open);
+      return;
+    }
+    openPicker();
+  }
+
+  function handleFileChange(event) {
+    const file = event.target.files?.[0] || null;
+    event.target.value = "";
+    if (file) {
+      onSelectFile(file);
+    }
+  }
+
+  return (
+    <div className="profile-photo-edit" ref={rootRef}>
+      <button
+        type="button"
+        className="profile-photo-edit-button"
+        aria-label={label}
+        aria-haspopup={hasPhoto ? "menu" : undefined}
+        aria-expanded={hasPhoto ? menuOpen : undefined}
+        onClick={handleButtonClick}
+        disabled={disabled}
+      >
+        <PhotoThumb url={url} name={name} size={size} />
+        <span className="profile-photo-edit-overlay">
+          <CameraBadge />
+        </span>
+      </button>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        className="visually-hidden"
+        tabIndex={-1}
+        onChange={handleFileChange}
+      />
+      {menuOpen ? (
+        <div className="profile-photo-edit-menu" role="menu">
+          <button type="button" role="menuitem" onClick={openPicker}>
+            Change photo
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              setMenuOpen(false);
+              onRemove();
+            }}
+          >
+            Remove photo
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 export function Field({ label, hint, children, className = "", error }) {
@@ -380,9 +546,9 @@ export function PasswordInput({
   );
 }
 
-export function SectionCard({ title, description, children, className = "" }) {
+export function SectionCard({ title, description, children, className = "", id }) {
   return (
-    <section className={`section-card ${className}`.trim()}>
+    <section className={`section-card ${className}`.trim()} id={id}>
       <header className="section-card-header">
         <h2>{title}</h2>
         {description ? <p>{description}</p> : null}

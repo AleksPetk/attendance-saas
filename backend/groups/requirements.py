@@ -62,19 +62,16 @@ def values_are_present(values, field):
 
 
 def missing_required_fields(requirements, values):
+    """
+    Name remains required for participants.
+
+    Group require_email/photo/identifier/pin are no longer product
+    requirements. They remain on the Group model for kiosk identification
+    compatibility and must not gate membership or Group-only create/edit.
+    """
     missing = []
     if not values_are_present(values, "name"):
         missing.append("name")
-    if requirements.require_email and not values_are_present(values, "email"):
-        missing.append("email")
-    if requirements.require_photo and not values_are_present(values, "photo"):
-        missing.append("photo")
-    if requirements.require_check_in_identifier and not values_are_present(
-        values, "check_in_identifier"
-    ):
-        missing.append("check_in_identifier")
-    if requirements.require_pin and not values_are_present(values, "pin"):
-        missing.append("pin")
     return missing
 
 
@@ -172,13 +169,11 @@ def conflict_item(*, kind, record, missing_fields):
 
 
 def find_requirement_conflicts(group, requirements=None):
-    from groups.models import GroupMembershipStatus, GroupOnlyParticipantStatus
+    from groups.models import GroupOnlyParticipantStatus
 
     spec = requirements or group
     conflicts = []
-    memberships = group.memberships.select_related("member").filter(
-        status=GroupMembershipStatus.ACTIVE
-    )
+    memberships = group.memberships.select_related("member").operational()
     for membership in memberships:
         missing = missing_required_fields(spec, membership_effective_values(membership))
         if missing:

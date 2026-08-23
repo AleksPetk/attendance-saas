@@ -34,8 +34,23 @@ class ActionRecord(models.Model):
     )
     group = models.ForeignKey(
         Group,
-        on_delete=models.PROTECT,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
         related_name="action_records",
+        help_text=(
+            "Live Group link. SET_NULL when a Group is permanently deleted "
+            "so snapshot fields remain the historical identity."
+        ),
+    )
+    source_group_id = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text=(
+            "Immutable Group primary key at record creation. Survives permanent "
+            "Group deletion so attendance reports can still select that Group."
+        ),
     )
 
     participant_kind = models.CharField(
@@ -47,17 +62,25 @@ class ActionRecord(models.Model):
     )
     member = models.ForeignKey(
         Member,
-        on_delete=models.PROTECT,
+        on_delete=models.SET_NULL,
         null=True,
         blank=True,
         related_name="action_records",
+        help_text=(
+            "Live Member link. SET_NULL when a Member is permanently deleted "
+            "so snapshot fields remain the historical identity."
+        ),
     )
     group_only_participant = models.ForeignKey(
         GroupOnlyParticipant,
-        on_delete=models.PROTECT,
+        on_delete=models.SET_NULL,
         null=True,
         blank=True,
         related_name="action_records",
+        help_text=(
+            "Live Group-only participant link. SET_NULL when that person is "
+            "removed with a permanently deleted Group."
+        ),
     )
 
     action_type = models.CharField(max_length=30, choices=ActionType.choices)
@@ -75,11 +98,13 @@ class ActionRecord(models.Model):
 
     # Optional extra info for debugging / future audits (not a workflow engine)
     kiosk_note_snapshot = models.CharField(max_length=250, blank=True, default="")
+    group_name_snapshot = models.CharField(max_length=150, blank=True, default="")
 
     class Meta:
         ordering = ["-performed_at", "-id"]
         indexes = [
             models.Index(fields=["organization", "group", "performed_at"]),
+            models.Index(fields=["organization", "source_group_id", "performed_at"]),
             models.Index(fields=["group", "participant_kind", "performed_at"]),
         ]
 
@@ -88,18 +113,31 @@ class ActionRecord(models.Model):
 
     def clean(self):
         if self.participant_kind == "member":
-            if not self.member_id:
-                raise models.ValidationError("Member kind requires member.")
             if self.group_only_participant_id:
                 raise models.ValidationError("Member kind cannot set group-only participant.")
+            if not self.member_id and not self.pk:
+                raise models.ValidationError("Member kind requires member.")
         elif self.participant_kind == "group_only_participant":
-            if not self.group_only_participant_id:
-                raise models.ValidationError("Group-only participant kind requires group_only_participant.")
+            if not self.group_only_participant_id and not self.pk:
+                raise models.ValidationError(
+                    "Group-only participant kind requires group_only_participant."
+                )
             if self.member_id:
                 raise models.ValidationError("Group-only participant kind cannot set member.")
         else:
             raise models.ValidationError("Invalid participant_kind.")
 
-        # Keep snapshot tenant ownership aligned
-        if self.group_id and self.organization_id and self.group.organization_id != self.organization_id:
+        if (
+            self.group_id
+            and self.organization_id
+            and self.group is not None
+            and self.group.organization_id != self.organization_id
+        ):
             raise models.ValidationError("ActionRecord organization must match Group organization.")
+
+    def save(self, *args, **kwargs):
+        if self.group_id and not self.source_group_id:
+            self.source_group_id = self.group_id
+        if self.group_id and not self.group_name_snapshot:
+            self.group_name_snapshot = self.group.name
+        super().save(*args, **kwargs)

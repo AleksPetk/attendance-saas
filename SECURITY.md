@@ -63,6 +63,7 @@ Platform-operator 2FA uses standard TOTP (Google Authenticator and other TOTP ap
 - Verification and password-reset tokens expire after **24 hours**.
 - Forgot-password always returns a neutral success message.
 - Transactional auth email is sent via the configured provider (currently Resend) using environment variables. Do not hardcode API keys.
+- **Group attendance email** is a separate system from platform Resend. Each Group may configure its own outgoing sender (**Custom SMTP**, **Gmail App Password**, **Outlook / Microsoft 365** SMTP AUTH, or **Yahoo Mail** App Password). SMTP/App passwords are encrypted at rest with `APP_SECRETS_ENCRYPTION_KEY` (or a key derived from `SECRET_KEY` in local DEBUG). APIs never return decrypted passwords; logs and client errors must not include secrets. Only owner/admin workspace roles may change sender credentials (`CanManageWorkspace`). Switching providers clears the previous provider’s encrypted secret. Normal Google or Yahoo account passwords are never accepted; Gmail and Yahoo use App Passwords only. The Microsoft provider is primarily for Microsoft 365 business/work mailboxes with Authenticated SMTP enabled; personal Outlook/Hotmail compatibility is not guaranteed, and an app password does not restore disabled SMTP AUTH. Google/Microsoft/Yahoo OAuth are not implemented in this slice.
 - **WorkspaceStaffAccount** is not part of this email-verification flow.
 - **Platform operators** (`is_staff` / `is_superuser`) are exempt from the customer verification gate so Django admin / local platform management remains usable. Django `/admin/` access for those accounts requires mandatory TOTP after password authentication.
 
@@ -73,9 +74,20 @@ Platform-operator 2FA uses standard TOTP (Google Authenticator and other TOTP ap
 - Customer register / login / logout, and workspace-staff login / logout, must not replace or flush the platform-admin session. Logging out of `/admin/` must not end the customer/workspace session.
 - Do not solve this in frontend state. Session cookies remain HttpOnly; CSRF protection remains enabled.
 
+## Group kiosk session lock
+
+- Starting a Group kiosk from the Check Station web app locks **that browser's Check Station app session**. Closing the kiosk tab does not unlock it.
+- While locked, normal workspace pages and workspace APIs are denied for that session. The session may still load kiosk state, operate the active Group kiosk, exit with password reauthentication, or log out.
+- Reopening Check Station in the same browser/session returns to the active kiosk. `/login` must not restore the workspace dashboard while the lock is set.
+- Only the explicit Exit kiosk flow (current owner or workspace-staff password) clears the lock on the server. Wrong passwords leave the lock in place.
+- The lock is stored on the Check Station app session (`kiosk_locked`, `kiosk_group_id`). It does **not** use the isolated Django `/admin/` session and does not automatically lock other browsers or devices for the same owner.
+- This is an interim control for the current owner/staff browser kiosk. Dedicated kiosk device credentials remain open (OPEN-004).
+- Participant Name/PIN fields are not website login credentials and must not be presented as account password fields.
+
 ## Archive versus permanent deletion
 
 - **Archive/deactivate** is reversible and preserves tenant data and history. It is the normal operational removal path.
+- An archived **Member** cannot be edited and is operationally inactive in Group and kiosk flows. Restore returns the same Member and reactivates existing GroupMemberships. Permanent Member delete is allowed only after archive; Action Record snapshots remain, and the live Member link is cleared.
 - **Subscription cancellation** is not account deletion. Billing is not implemented in this slice.
 - **Permanent account deletion** is owner-only (paying `accounts.User`) or platform-superuser in Django admin. It requires re-authentication (current password) and explicit confirmation on the customer path. Workspace staff cannot delete the paying customer's account. Platform staff who are not superusers cannot permanently delete tenants.
 - After permanent deletion, the customer email may be registered again. Stale verification or password-reset tokens for the deleted User are invalid.
@@ -93,5 +105,5 @@ Strict Organization tenant isolation remains a non-negotiable security requireme
 
 | Field | Value |
 |-------|-------|
-| **Status** | Security requirements plus paying-customer email verification, isolated admin sessions, permanent account deletion, and mandatory platform-admin TOTP |
-| **Last updated** | 2026-08-19 |
+| **Status** | Security requirements plus paying-customer email verification, isolated admin sessions, permanent account deletion, mandatory platform-admin TOTP, Check Station app-session kiosk lock, and encrypted Group email-sender credentials (Custom SMTP / Gmail App Password / Outlook Microsoft 365 SMTP / Yahoo Mail App Password) |
+| **Last updated** | 2026-08-21 |

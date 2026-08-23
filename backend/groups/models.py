@@ -6,7 +6,7 @@ from django.utils import timezone
 
 from core.images import is_uncommitted_file, optimize_uploaded_image
 from groups.templates import validate_notification_template
-from members.models import validate_member_pin
+from members.models import MemberStatus, member_is_operationally_active, validate_member_pin
 
 
 def group_membership_photo_upload_to(instance, filename):
@@ -19,9 +19,25 @@ def group_only_participant_photo_upload_to(instance, filename):
     return f"groups/{organization_id}/participants/{instance.pk or 'new'}.jpg"
 
 
+MAX_BREAKS_CHOICES = (1, 2, 3)
+
+
 class GroupStatus(models.TextChoices):
     ACTIVE = "active", "Active"
     ARCHIVED = "archived", "Archived"
+
+
+def group_is_operationally_active(group):
+    """True when the Group may be used in kiosk and attendance flows."""
+    return bool(group) and group.status == GroupStatus.ACTIVE
+
+
+def member_list_kiosk_mode_allowed(*, check_in_enabled, check_out_enabled, breaks_enabled):
+    if breaks_enabled:
+        return False
+    return (check_in_enabled and not check_out_enabled) or (
+        check_out_enabled and not check_in_enabled
+    )
 
 
 class GroupMembershipStatus(models.TextChoices):
@@ -57,6 +73,9 @@ class KioskIdentifierField(models.TextChoices):
 
 
 class GroupQuerySet(models.QuerySet):
+    def operational(self):
+        return self.filter(status=GroupStatus.ACTIVE)
+
     def delete(self):
         now = timezone.now()
         updated = self.exclude(status=GroupStatus.ARCHIVED).update(
@@ -75,10 +94,10 @@ class GroupManager(models.Manager.from_queryset(GroupQuerySet)):
 
 class Group(models.Model):
     """
-    Long-lived reusable participation and check-in context.
+    Reusable participation and activity configuration.
 
-    A Group is not a folder of people. It stores the configuration later
-    Action Records and Kiosks will use. This slice does not create those.
+    A Group is not a folder of people and not a Member-profile requirements
+    form. Creating a Group automatically gives it kiosk capability.
     """
 
     organization = models.ForeignKey(
@@ -98,13 +117,47 @@ class Group(models.Model):
     breaks_enabled = models.BooleanField(default=False)
     max_breaks = models.PositiveSmallIntegerField(null=True, blank=True)
 
-    automatic_check_in_enabled = models.BooleanField(default=False)
-    automatic_check_in_time = models.TimeField(null=True, blank=True)
+    automatic_check_in_enabled = models.BooleanField(
+        default=False,
+        help_text=(
+            "Deprecated. Automatic check-in was removed from the customer "
+            "product. Column retained for migration compatibility only."
+        ),
+    )
+    automatic_check_in_time = models.TimeField(
+        null=True,
+        blank=True,
+        help_text="Deprecated with automatic_check_in_enabled.",
+    )
 
-    require_email = models.BooleanField(default=False)
-    require_photo = models.BooleanField(default=False)
-    require_check_in_identifier = models.BooleanField(default=False)
-    require_pin = models.BooleanField(default=False)
+    require_email = models.BooleanField(
+        default=False,
+        help_text=(
+            "When enabled, every operational Group participant must have a "
+            "Group-specific participation email."
+        ),
+    )
+    require_photo = models.BooleanField(
+        default=False,
+        help_text=(
+            "Deprecated compatibility field. Not a Group basic setting. "
+            "Kept until kiosk/participation identification is redesigned."
+        ),
+    )
+    require_check_in_identifier = models.BooleanField(
+        default=False,
+        help_text=(
+            "Deprecated compatibility field. Not a Group basic setting. "
+            "Kept until kiosk/participation identification is redesigned."
+        ),
+    )
+    require_pin = models.BooleanField(
+        default=False,
+        help_text=(
+            "When enabled, every operational Group participant must have a "
+            "Group-specific participation PIN (attendance check-in code)."
+        ),
+    )
 
     send_email_after_check_in = models.BooleanField(default=False)
     check_in_email_template = models.TextField(blank=True, default="")
@@ -116,10 +169,14 @@ class Group(models.Model):
         max_length=20,
         choices=EmailSenderMode.choices,
         default=EmailSenderMode.PLATFORM,
+        help_text=(
+            "Deprecated. Group outgoing email uses GroupEmailSender. "
+            "Platform Resend remains for account emails only."
+        ),
     )
 
-    # Kiosk configuration (Group-owned, one configuration per Group for this slice)
-    kiosk_enabled = models.BooleanField(default=False)
+    # Kiosk behavior fields remain here until the Kiosk product cleanup.
+    # Every Group is kiosk-capable; there is no customer-facing enable toggle.
     kiosk_mode = models.CharField(
         max_length=30,
         choices=KioskMode.choices,
@@ -174,7 +231,8 @@ class Group(models.Model):
                 name="groups_email_sender_mode_valid",
             ),
             models.CheckConstraint(
-                condition=models.Q(breaks_enabled=False) | models.Q(max_breaks__gte=1),
+                condition=models.Q(breaks_enabled=False)
+                | models.Q(max_breaks__in=list(MAX_BREAKS_CHOICES)),
                 name="groups_max_breaks_required_when_enabled",
             ),
             models.CheckConstraint(
@@ -198,10 +256,7 @@ class Group(models.Model):
                 name="unique_active_group_name_per_organization",
             ),
             models.CheckConstraint(
-                condition=(
-                    models.Q(kiosk_enabled=False)
-                    | models.Q(kiosk_mode__in=KioskMode.values)
-                ),
+                condition=models.Q(kiosk_mode__in=KioskMode.values),
                 name="groups_kiosk_mode_valid",
             ),
         ]
@@ -216,6 +271,12 @@ class Group(models.Model):
         if self.status == GroupStatus.ARCHIVED:
             return
         self.status = GroupStatus.ARCHIVED
+        self.save(update_fields=["status", "archived_at", "updated_at"])
+
+    def restore(self):
+        if self.status != GroupStatus.ARCHIVED:
+            return
+        self.status = GroupStatus.ACTIVE
         self.save(update_fields=["status", "archived_at", "updated_at"])
 
     def delete(self, using=None, keep_parents=False):
@@ -253,47 +314,51 @@ class Group(models.Model):
         )
         if not self.email_sender_mode:
             self.email_sender_mode = EmailSenderMode.PLATFORM
+        # Automatic check-in removed from the product; keep columns inert.
+        self.automatic_check_in_enabled = False
+        self.automatic_check_in_time = None
+        if self.kiosk_mode == KioskMode.MEMBER_LIST and not member_list_kiosk_mode_allowed(
+            check_in_enabled=self.check_in_enabled,
+            check_out_enabled=self.check_out_enabled,
+            breaks_enabled=self.breaks_enabled,
+        ):
+            # Creating/editing Group actions must not require a kiosk-mode
+            # picker. Invalid member-list configs become input mode.
+            self.kiosk_mode = KioskMode.INPUT
 
     def _validate_configuration(self):
         errors = {}
-        if self.breaks_enabled and (self.max_breaks is None or self.max_breaks < 1):
-            errors["max_breaks"] = "Maximum breaks must be at least 1 when breaks are enabled."
-        if self.automatic_check_in_enabled:
-            if self.check_in_enabled:
-                errors["automatic_check_in_enabled"] = (
-                    "Automatic check-in can only be enabled when manual check-in is off."
+        if self.breaks_enabled and self.max_breaks not in MAX_BREAKS_CHOICES:
+            errors["max_breaks"] = (
+                "Maximum breaks must be 1, 2, or 3 when breaks are enabled."
+            )
+        # Kiosk input-field shape validation stays until the Kiosk cleanup.
+        # Group participation require_email/require_pin are independent and
+        # must not be coupled to kiosk_input_field selection here.
+        if self.kiosk_mode == KioskMode.MEMBER_LIST:
+            if not member_list_kiosk_mode_allowed(
+                check_in_enabled=self.check_in_enabled,
+                check_out_enabled=self.check_out_enabled,
+                breaks_enabled=self.breaks_enabled,
+            ):
+                errors["kiosk_mode"] = (
+                    "Member list mode is only available for Groups with exactly "
+                    "one manual action: either check-in only or check-out only, "
+                    "and with breaks off."
                 )
-            if self.automatic_check_in_time is None:
-                errors["automatic_check_in_time"] = (
-                    "Automatic check-in time is required when automatic check-in is enabled."
+        elif self.kiosk_mode == KioskMode.INPUT:
+            non_pin_fields = {self.kiosk_input_field_1, self.kiosk_input_field_2} - {
+                "",
+                KioskIdentifierField.PIN,
+            }
+            if not non_pin_fields:
+                errors["kiosk_input_field_1"] = (
+                    "PIN cannot be the only kiosk identification field."
                 )
-
-        # Kiosk validation
-        if self.kiosk_enabled:
-            if self.kiosk_mode == KioskMode.MEMBER_LIST:
-                if self.breaks_enabled:
-                    errors["kiosk_mode"] = "Member list mode is not available when breaks are enabled."
-                if not ((self.check_in_enabled and not self.check_out_enabled) or (self.check_out_enabled and not self.check_in_enabled)):
-                    errors["kiosk_mode"] = (
-                        "Member list mode is only available for Groups with exactly one manual action: either check-in only or check-out only."
-                    )
-            elif self.kiosk_mode == KioskMode.INPUT:
-                # Ensure at least one non-pin field is present so PIN is never the sole identifier.
-                non_pin_fields = {self.kiosk_input_field_1, self.kiosk_input_field_2} - {"" , KioskIdentifierField.PIN}
-                if not non_pin_fields:
-                    errors["kiosk_input_field_1"] = "PIN cannot be the only kiosk identification field."
-
-                # If PIN is required for the Group participation context, it must be included.
-                if self.require_pin and KioskIdentifierField.PIN not in {self.kiosk_input_field_1, self.kiosk_input_field_2}:
-                    errors["kiosk_input_field_1"] = "This Group requires a PIN for kiosk identification, but PIN is not selected."
-
-                # Field 2 is optional but must not duplicate field 1.
-                if self.kiosk_input_field_2 and self.kiosk_input_field_1 == self.kiosk_input_field_2:
-                    errors["kiosk_input_field_2"] = "Select two different identification fields."
-
-                # Sanity: field 1 must be set.
-                if not self.kiosk_input_field_1:
-                    errors["kiosk_input_field_1"] = "Select at least one identification field."
+            if self.kiosk_input_field_2 and self.kiosk_input_field_1 == self.kiosk_input_field_2:
+                errors["kiosk_input_field_2"] = "Select two different identification fields."
+            if not self.kiosk_input_field_1:
+                errors["kiosk_input_field_1"] = "Select at least one identification field."
 
         if errors:
             raise ValidationError(errors)
@@ -311,6 +376,20 @@ class Group(models.Model):
 
 
 class GroupMembershipQuerySet(models.QuerySet):
+    def operational(self):
+        """
+        Memberships that may be used in Group, kiosk, and attendance flows.
+
+        The GroupMembership row can remain after a Member is archived so
+        Restore reactivates the same relationship. Operational queries must
+        still require an active Member.
+        """
+        return self.filter(
+            status=GroupMembershipStatus.ACTIVE,
+            member__status=MemberStatus.ACTIVE,
+            group__status=GroupStatus.ACTIVE,
+        )
+
     def delete(self):
         count = 0
         for membership in self:
@@ -353,6 +432,9 @@ class GroupMembership(models.Model):
         blank=True,
         default="",
     )
+    group_participant_code = models.CharField(max_length=20, blank=True, default="")
+    participation_email = models.EmailField(blank=True, default="")
+    participation_pin = models.CharField(max_length=12, blank=True, default="")
     override_pin_hash = models.CharField(max_length=128, blank=True, default="")
     status = models.CharField(
         max_length=20,
@@ -376,6 +458,11 @@ class GroupMembership(models.Model):
                 condition=models.Q(status__in=GroupMembershipStatus.values),
                 name="groups_membership_status_valid",
             ),
+            models.UniqueConstraint(
+                fields=["group", "group_participant_code"],
+                condition=~models.Q(group_participant_code=""),
+                name="unique_group_membership_participant_code",
+            ),
         ]
         indexes = [
             models.Index(fields=["organization", "status"]),
@@ -395,6 +482,9 @@ class GroupMembership(models.Model):
 
     @property
     def effective_email(self):
+        participation = (self.participation_email or "").strip()
+        if participation:
+            return participation
         return (self.override_email or "").strip() or self.member.email
 
     @property
@@ -413,23 +503,49 @@ class GroupMembership(models.Model):
         return bool(self.override_pin_hash)
 
     @property
+    def has_participation_pin(self):
+        return bool((self.participation_pin or "").strip()) or self.has_override_pin
+
+    @property
     def has_effective_photo(self):
         return self.has_override_photo or self.member.has_photo
 
     @property
     def has_effective_pin(self):
-        return self.has_override_pin or self.member.has_pin
+        return self.has_participation_pin or self.member.has_pin
 
-    def set_override_pin(self, raw_pin):
+    @property
+    def is_operational(self):
+        return (
+            self.status == GroupMembershipStatus.ACTIVE
+            and member_is_operationally_active(self.member)
+            and group_is_operationally_active(self.group)
+        )
+
+    def set_participation_pin(self, raw_pin):
         pin = validate_member_pin(raw_pin)
-        self.override_pin_hash = make_password(pin)
-
-    def clear_override_pin(self):
+        self.participation_pin = pin
         self.override_pin_hash = ""
 
+    def clear_participation_pin(self):
+        self.participation_pin = ""
+        self.override_pin_hash = ""
+
+    def set_override_pin(self, raw_pin):
+        """Legacy hash storage; prefer set_participation_pin for new data."""
+        pin = validate_member_pin(raw_pin)
+        self.participation_pin = pin
+        self.override_pin_hash = ""
+
+    def clear_override_pin(self):
+        self.clear_participation_pin()
+
     def check_effective_pin(self, raw_pin):
+        entered = str(raw_pin or "")
+        if self.participation_pin:
+            return entered == self.participation_pin
         if self.override_pin_hash:
-            return check_password(str(raw_pin or ""), self.override_pin_hash)
+            return check_password(entered, self.override_pin_hash)
         return self.member.check_pin(raw_pin)
 
     def deactivate(self):
@@ -442,8 +558,12 @@ class GroupMembership(models.Model):
         self.deactivate()
 
     def save(self, *args, **kwargs):
+        from groups.participant_codes import assign_group_participant_code
+
         self.override_name = (self.override_name or "").strip()
         self.override_email = self._normalized_email(self.override_email)
+        self.participation_email = self._normalized_email(self.participation_email)
+        self.participation_pin = (self.participation_pin or "").strip()
         self.override_check_in_identifier = (
             self.override_check_in_identifier or ""
         ).strip()
@@ -461,7 +581,11 @@ class GroupMembership(models.Model):
                 self.override_photo,
                 stem=stem,
             )
+        is_create = self.pk is None
         super().save(*args, **kwargs)
+        if is_create or not self.group_participant_code:
+            assign_group_participant_code(self, model_class=GroupMembership)
+            super().save(update_fields=["group_participant_code", "updated_at"])
 
     def clean(self):
         super().clean()
@@ -527,6 +651,8 @@ class GroupOnlyParticipant(models.Model):
     phone = models.CharField(max_length=32, blank=True, default="")
     check_in_identifier = models.CharField(max_length=80, blank=True, default="")
     notes = models.TextField(blank=True, default="")
+    group_participant_code = models.CharField(max_length=20, blank=True, default="")
+    participation_pin = models.CharField(max_length=12, blank=True, default="")
     pin_hash = models.CharField(max_length=128, blank=True, default="")
     status = models.CharField(
         max_length=20,
@@ -546,6 +672,11 @@ class GroupOnlyParticipant(models.Model):
                 condition=models.Q(status__in=GroupOnlyParticipantStatus.values),
                 name="groups_only_participant_status_valid",
             ),
+            models.UniqueConstraint(
+                fields=["group", "group_participant_code"],
+                condition=~models.Q(group_participant_code=""),
+                name="unique_group_only_participant_code",
+            ),
         ]
         indexes = [
             models.Index(fields=["organization", "status"]),
@@ -561,23 +692,34 @@ class GroupOnlyParticipant(models.Model):
 
     @property
     def has_pin(self):
-        return bool(self.pin_hash)
+        return bool((self.participation_pin or "").strip()) or bool(self.pin_hash)
 
     @property
     def has_photo(self):
         return bool(self.photo)
 
-    def set_pin(self, raw_pin):
+    def set_participation_pin(self, raw_pin):
         pin = validate_member_pin(raw_pin)
-        self.pin_hash = make_password(pin)
-
-    def clear_pin(self):
+        self.participation_pin = pin
         self.pin_hash = ""
 
+    def clear_participation_pin(self):
+        self.participation_pin = ""
+        self.pin_hash = ""
+
+    def set_pin(self, raw_pin):
+        self.set_participation_pin(raw_pin)
+
+    def clear_pin(self):
+        self.clear_participation_pin()
+
     def check_pin(self, raw_pin):
+        entered = str(raw_pin or "")
+        if self.participation_pin:
+            return entered == self.participation_pin
         if not self.pin_hash:
             return False
-        return check_password(str(raw_pin or ""), self.pin_hash)
+        return check_password(entered, self.pin_hash)
 
     def archive(self):
         if self.status == GroupOnlyParticipantStatus.ARCHIVED:
@@ -589,8 +731,11 @@ class GroupOnlyParticipant(models.Model):
         self.archive()
 
     def save(self, *args, **kwargs):
+        from groups.participant_codes import assign_group_participant_code
+
         self.name = (self.name or "").strip()
         self.email = self._normalized_email(self.email)
+        self.participation_pin = (self.participation_pin or "").strip()
         self.phone = (self.phone or "").strip()
         self.check_in_identifier = (self.check_in_identifier or "").strip()
         self.notes = (self.notes or "").strip()
@@ -607,7 +752,11 @@ class GroupOnlyParticipant(models.Model):
         if is_uncommitted_file(self.photo):
             stem = f"participant-{self.group_id}-{self.name}"
             self.photo = optimize_uploaded_image(self.photo, stem=stem)
+        is_create = self.pk is None
         super().save(*args, **kwargs)
+        if is_create or not self.group_participant_code:
+            assign_group_participant_code(self, model_class=GroupOnlyParticipant)
+            super().save(update_fields=["group_participant_code", "updated_at"])
 
     def clean(self):
         super().clean()
@@ -629,3 +778,7 @@ class GroupOnlyParticipant(models.Model):
         if not email:
             return ""
         return email.strip().lower()
+
+
+# Register email-sender models with the groups app for migrations/admin.
+from groups.email_sender_models import GroupEmailDelivery, GroupEmailSender  # noqa: E402,F401

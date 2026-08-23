@@ -32,6 +32,7 @@ from organizations.serializers import (
     WorkspaceStaffAccountListSerializer,
     WorkspaceStaffAccountUpdateSerializer,
 )
+from attendance.kiosk_lock import attach_kiosk_status
 from organizations.permissions import IsWorkspaceOwner, get_owned_organization
 
 from attendance.models import ActionRecord
@@ -65,7 +66,7 @@ class CurrentWorkspaceView(APIView):
                 "is_platform_operator": False,
                 "workspace_id": actor.organization.workspace_id,
             }
-            return Response(CurrentWorkspaceSerializer(payload).data)
+            return Response(CurrentWorkspaceSerializer(attach_kiosk_status(request, payload)).data)
 
         if customer_must_verify_email(actor):
             raise EmailNotVerified()
@@ -84,7 +85,7 @@ class CurrentWorkspaceView(APIView):
                 "is_platform_operator": is_platform_operator,
                 "workspace_id": organization.workspace_id,
             }
-            return Response(CurrentWorkspaceSerializer(payload).data)
+            return Response(CurrentWorkspaceSerializer(attach_kiosk_status(request, payload)).data)
 
         if is_platform_operator:
             payload = {
@@ -94,7 +95,7 @@ class CurrentWorkspaceView(APIView):
                 "is_platform_operator": True,
                 "workspace_id": None,
             }
-            return Response(CurrentWorkspaceSerializer(payload).data)
+            return Response(CurrentWorkspaceSerializer(attach_kiosk_status(request, payload)).data)
 
         raise NotFound("No active customer workspace.")
 
@@ -199,7 +200,7 @@ class OwnerLoginView(APIView):
             "is_platform_operator": bool(user.is_staff or user.is_superuser),
             "workspace_id": organization.workspace_id,
         }
-        return Response(CurrentWorkspaceSerializer(payload).data)
+        return Response(CurrentWorkspaceSerializer(attach_kiosk_status(request, payload)).data)
 
 
 class StaffLoginView(APIView):
@@ -240,7 +241,7 @@ class StaffLoginView(APIView):
             "is_platform_operator": False,
             "workspace_id": staff.organization.workspace_id,
         }
-        return Response(CurrentWorkspaceSerializer(payload).data)
+        return Response(CurrentWorkspaceSerializer(attach_kiosk_status(request, payload)).data)
 
 
 class StaffLogoutView(APIView):
