@@ -194,6 +194,15 @@ Groups remain **generic** rather than industry-specific. One workspace may conta
 
 A Group defines **participation and activity behavior** for its Members (and Group-only Participants). It **automatically owns its kiosk configuration** — there is no customer-facing “Kiosk enabled” setting. Different Groups in the same Organization may operate completely differently, including kiosk presentation and behavior.
 
+**Group types (confirmed):**
+
+- **Standard Group** — participants belong directly to the Group (existing behavior).
+- **Structured Group** — participants belong to **Classes** (`GroupSection` in architecture) inside the Group. Example: School → Class A / Class B → participants.
+- Group type is chosen at create time and is **immutable** afterward.
+- Structured-only setting: **Require PIN for classes** (optional Class entry PIN; Class PIN stored per Class when used).
+- **Structured kiosk** is Card-only: Class cards → (Class PIN if required) → participant cards for that Class → (participant PIN if required) → action → confirmation → **return to Class selection**. Standard Group Card/Input kiosk remains unchanged.
+- **Add Class** supports creating an empty Class or a **one-time snapshot import** from an active Standard Group in the same workspace (DEC-067). No live sync; kiosk/settings/history are never copied.
+
 **Group basic settings (confirmed):**
 
 - Group name (visible **Group #ID** from Django PK is automatic, immutable secondary reference)
@@ -205,7 +214,7 @@ A Group defines **participation and activity behavior** for its Members (and Gro
 - Relevant after-action behavior (only for enabled actions; requires a Ready Group email sender)
 - Advanced settings (Group outgoing email sender configuration; Custom SMTP, Gmail App Password, Outlook / Microsoft 365 SMTP, and Yahoo Mail App Password in this slice)
 
-**Group participation (confirmed):** Each operational participant gets an immutable **Group participant code** (`G1-5679`). Group participation email and PIN are stored on GroupMembership / Group-only participant records. Member profile email may prefill participation email on add; editing participation email does not change the Member profile. Participation PIN is visible to workspace managers and hidden from participant-facing kiosk lists. **Setup incomplete** is derived when requirements are ON but operational participants lack data; configuration save is still allowed; real kiosk/attendance operations are blocked until complete or requirements are turned off. Disabling requirements retains stored values.
+**Group participation (confirmed):** Each operational participant gets an immutable **Group participant code** (`G1-5679`). Group participation email and PIN are stored on GroupMembership / Group-only participant records. In Structured Groups, participation also references a Class (`section`); the participant code remains Group-scoped and should stay stable if the participant later moves between Classes. Member profile email may prefill participation email on add; editing participation email does not change the Member profile. Participation PIN is visible to workspace managers and hidden from participant-facing kiosk lists. **Setup incomplete** is derived when requirements are ON but operational participants lack data (Structured: across active Classes only); configuration save is still allowed; real kiosk/attendance operations are blocked until complete or requirements are turned off. Disabling requirements retains stored values.
 
 **Not part of Group basic settings:** photo/identifier Member-profile requirement matrix. **Kiosk Settings** (separate from Group and Kiosk Design) controls identification mode, card/input configuration, and kiosk exit code. Group `require_email` / `require_pin` define availability; kiosk chooses usage. The kiosk shell always has Header/Main/Footer; Builder owns visual appearance and builder-only fake density testing. Launch is blocked while Group setup or Kiosk Settings are incomplete/invalid; the Kiosk Builder remains available.
 
@@ -348,7 +357,7 @@ Historical integrity is important. The system must **not** merely store a partic
 
 - Action Records must preserve **how** they were created. Sources include at least: **kiosk**, **staff/admin**, and **automatic/preset**. Exact source/context fields are undesigned.
 - History must remain **historically accurate** when later Group, Kiosk, or Action **configuration changes**. Changing a Group’s allowed Actions or a Kiosk’s identification method must not rewrite or falsify existing Action Records.
-- Workspace **History** includes an **Activity Log** (raw Action Records) and an **Attendance Report** (one Group at a time; participant × day; columns from historical Action Records; archived and deleted Groups remain selectable via immutable `source_group_id`). CSV export downloads the currently visible Attendance Report.
+- Workspace **History** includes an **Activity Log** (raw Action Records) and an **Attendance Report** (one Group at a time; participant × day; Structured Groups also show historical Class and use participant × Class × day grain; columns from historical Action Records; archived and deleted Groups remain selectable via immutable `source_group_id`). CSV / Excel / PDF export downloads the currently visible Attendance Report.
 
 **Future requirements include:**
 
@@ -399,12 +408,12 @@ Each Group has **Kiosk Settings** (behavioral) separate from **Kiosk Design** (v
 | Layer | Owns |
 |-------|------|
 | Group | participation email/PIN availability, actions, after-action behavior, Advanced email sender |
-| Kiosk Settings | Card vs Input, display/input fields, **attendance reset** (Daily/Rolling cycle boundaries, manual Reset now), **confirmation screen** (preset template, per-action messages, return delay), hashed kiosk exit code |
+| Kiosk Settings | Standard: Card vs Input. Structured: fixed Class → Participant card flow (no Input). Display/input fields, **attendance reset** (Daily/Rolling cycle boundaries, manual Reset now), **confirmation screen** (preset template, per-action messages, return delay), hashed kiosk exit code. Class PINs are managed per Class, not in Kiosk Settings. |
 | Kiosk Design Editor | appearance of always-on Header/Main/Footer shell |
 
-**Card mode:** operational participants as selectable cards; optional name, group participant code, email display; optional PIN after card tap.
+**Card mode:** operational participants as selectable cards; optional name, group participant code, email display; optional PIN after card tap. **Structured Groups** prepend Class cards (and optional Class PIN) and scope participant cards to the selected Class; after confirmation they return to Class selection.
 
-**Input mode:** one field = group participant code only; two fields = code + name, email, or PIN (when Group supports them).
+**Input mode (Standard Groups only):** one field = group participant code only; two fields = code + name, email, or PIN (when Group supports them).
 
 **Launch:** blocked until Group setup complete, settings valid, exit code configured. **Exit:** group-specific exit code (not owner password). **Attendance reset:** controls when live kiosk state treats participants as starting a fresh operational cycle. Modes: **Daily** (Group-wide local-time boundary; default 00:00) or **Rolling** (participant-specific window from cycle-start check-in). **Reset now** creates an immediate Group-wide manual boundary without changing scheduled settings or deleting ActionRecords. Reset affects live action availability only — History and reports remain complete. **Confirmation screen:** after a successful action, participants see a preset-styled confirmation (not free-form Builder design) with action-specific message text, optional `{name}` / `{time}` (24-hour) / `{group}` variables, and a fixed return delay of 1, 3, or 5 seconds (default 3). The delay applies only to how long the confirmation stays visible — not API/action execution. Main/kiosk background remains behind a readable confirmation surface; accent may derive safely from kiosk design. **Builder canvas** is the design preview (fake participants for Card density testing only; Minimize for unobstructed inspection). There is no separate Preview page. **Launch Kiosk** is the only operational kiosk.
 

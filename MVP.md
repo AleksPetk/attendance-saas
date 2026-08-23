@@ -97,6 +97,7 @@ SEO/promotional page set is confirmed product direction; exact launch page inven
 
 - [ ] Canonical Organization Member profiles (Members do not access the workspace)
 - [ ] Group creation and management (Groups are persistent participation contexts, not just folders)
+- [ ] Standard Group and Structured Group types (Classes / GroupSection hierarchy; Structured live kiosk and Class Attendance Report history)
 - [ ] Member attachment to Groups via Group Membership
 - [ ] Group-specific field overrides (without changing canonical Member data)
 - [ ] Group-only participants

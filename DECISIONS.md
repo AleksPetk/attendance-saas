@@ -624,7 +624,7 @@ Only log decisions supported by approved product planning. Do not invent decisio
 | Field | Value |
 |-------|-------|
 | **Date** | 2026-08-21 |
-| **Decision** | Workspace **History** has two views: **Activity Log** (existing raw Action Records) and **Attendance Report** (aggregated). Attendance Report requires selecting **one** Group (active, archived, or permanently deleted). Date filters: Today, This week, This month, or Custom range. Grain is **participant × local calendar day**. Columns are derived from ActionRecord action types present in the selected range (not current Group settings): first check-in; break_start times joined when multiple; last check-out when multiple. `break_end` is not a report column. `ActionRecord.source_group_id` is an immutable Group PK snapshot that survives permanent Group deletion so deleted Groups remain selectable. Report API responses include group name/status, date range, columns, and rows. Exports (**PDF**, **Excel/.xlsx**, **CSV**) are generated from the same `build_attendance_report()` payload (not a second calculation). Hours/late/percentage analytics remain out of scope. |
+| **Decision** | Workspace **History** has two views: **Activity Log** (existing raw Action Records) and **Attendance Report** (aggregated). Attendance Report requires selecting **one** Group (active, archived, or permanently deleted). Date filters: Today, This week, This month, or Custom range. Grain is **participant × local calendar day** for Standard Groups; Structured Groups use **participant × historical Class × local calendar day** so the same person under two Classes on one day stays two rows. Columns are derived from ActionRecord action types present in the selected range (not current Group settings): first check-in; break_start times joined when multiple; last check-out when multiple. `break_end` is not a report column. Structured reports expose `group_type=structured` and a leading **Class** identity column from ActionRecord Class snapshots; Standard reports never show Class. `ActionRecord.source_group_id` is an immutable Group PK snapshot that survives permanent Group deletion so deleted Groups remain selectable. Report API responses include group name/status/type, date range, columns, and rows. Exports (**PDF**, **Excel/.xlsx**, **CSV**) are generated from the same `build_attendance_report()` payload (not a second calculation). Hours/late/percentage analytics remain out of scope. |
 | **Reason** | Organizations need historically accurate attendance views after Group config changes and after archive/delete, without inventing analytics or rewriting Action Records. |
 | **Status** | confirmed |
 | **Clarifies** | DEC-010, DEC-040, DEC-055 |
@@ -638,6 +638,36 @@ Only log decisions supported by approved product planning. Do not invent decisio
 | **Reason** | Participants need predictable fresh cycles without mutating historical attendance data or overloading Group action configuration. |
 | **Status** | confirmed |
 | **Clarifies** | DEC-057, DEC-039, DEC-010 |
+
+### DEC-065 — Standard and Structured Group types
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-08-23 |
+| **Decision** | Groups have an immutable **`group_type`**: **`standard`** (existing behavior; participants belong directly to the Group) or **`structured`** (participants belong to **Classes** inside the Group). Backend entity for Class is **`GroupSection`** (generic; product label is Class). Existing Groups migrate/default to `standard`. Structured Groups store **`require_class_pin`** (default OFF). Participation (`GroupMembership` / `GroupOnlyParticipant`) gains an optional `section` FK: null for Standard; required for Structured. Group participant codes remain Group-scoped and stable if a participant later moves between Classes. Class names are unique among active Classes in the same Group. Classes support archive → restore / permanent delete. ActionRecords remain Group-scoped. Structured kiosk actions store Class historical identity on ActionRecord (`section` SET_NULL, immutable `source_section_id`, `class_name_snapshot`, plus `group_type_snapshot`) so Attendance Report can show Class at action time without following later moves/renames/deletes. Structured live kiosk is defined in DEC-066; Standard kiosk remains unchanged. |
+| **Reason** | Schools and similar orgs need Class hierarchy without breaking Standard Groups or forcing premature kiosk redesign. |
+| **Status** | confirmed |
+| **Clarifies** | DEC-055, DEC-056 |
+
+### DEC-066 — Structured Group kiosk flow
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-08-23 |
+| **Decision** | Structured Group live kiosk is **Card-only** (no Input mode). Flow: **Class → (optional Class PIN) → Participant → (optional participant PIN) → Action → Confirmation → return to Class selection**. Class PIN is optional via parent Group **`require_class_pin`**; when ON, each **active** Class must have its own Class PIN stored on `GroupSection` (low-security attendance PIN philosophy; managers may view/edit; never serialized to participant-facing kiosk payloads). Turning `require_class_pin` OFF does not erase stored Class PINs. Empty active Classes are hidden from live Class cards; launch requires ≥1 Class with operational participants. Participant lists are scoped to the selected Class (lazy-loaded). Card code label in Structured UI: **Class Participant Code** (backend code remains Group-scoped). Participant PIN remains separate Group participation PIN behavior. Actions/reset/confirmation reuse Standard attendance semantics; after confirmation timeout Structured returns to Class list. Same Kiosk Builder/design system; Standard Card/Input kiosk unchanged. |
+| **Reason** | Structured participation is Class-first; next participant may belong to another Class, so confirmation must not return only to one Class’s participant list. |
+| **Status** | confirmed |
+| **Clarifies** | DEC-065, DEC-057, DEC-058 |
+
+### DEC-067 — Standard Group → Class snapshot import
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-08-23 |
+| **Decision** | Structured Groups may create a Class by **one-time snapshot import** from an **active Standard Group** in the same Organization (`POST …/classes/import-standard-group/`). Source picker lists active Standard Groups only (not Structured, not cross-tenant, not archived). Class name defaults to the source Group name and may be edited. Import copies current **operational** participants only: reusable Members become **new** destination `GroupMembership` rows (same Member FK; new participation email/PIN snapshot; new destination participant codes); Visitors become **new** `GroupOnlyParticipant` rows. Never copy kiosk settings/design, confirmation, Attendance Reset, exit code, email sender, actions, or ActionRecords. No ongoing sync or source pointer. Destination Group requirements/readiness apply after import. If a Member already participates in the destination Structured Group (`unique_member_per_group`), that Member is **skipped** with an explicit import message; Visitors are not deduplicated by name. Import is transactional for Class + copied rows. |
+| **Reason** | Schools often seed Classes from existing flat Groups without wanting live linkage or kiosk/config cloning. |
+| **Status** | confirmed |
+| **Clarifies** | DEC-065 |
 
 ---
 

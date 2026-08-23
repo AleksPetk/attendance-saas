@@ -1,7 +1,7 @@
 """Operational Group rules used by Group APIs, kiosk, and attendance."""
 
 from groups.email_sender import group_email_sender_is_ready, send_after_action_email
-from groups.models import group_is_operationally_active
+from groups.models import GroupType, group_is_operationally_active
 from groups.readiness import group_is_operationally_ready, group_setup_incomplete_error_payload
 from kiosk_builder.kiosk_settings_validation import compute_kiosk_readiness
 from kiosk_builder.models import ensure_group_kiosk_settings
@@ -98,6 +98,16 @@ def kiosk_settings_invalid_error_payload(group):
     }
 
 
+def structured_kiosk_deferred_error_payload():
+    return {
+        "code": "structured_kiosk_deferred",
+        "detail": (
+            "Structured Group kiosk setup is coming next. "
+            "Standard Group kiosks are unchanged."
+        ),
+    }
+
+
 def ensure_group_operationally_ready(group):
     """
     Return an error payload when real operations must be blocked.
@@ -119,11 +129,19 @@ def ensure_kiosk_launch_ready(group):
     Return an error payload when real kiosk launch/operation must be blocked.
 
     Group setup and kiosk settings must both be valid.
+    Structured Groups use Card-only Class → Participant flow.
     """
     blocked = ensure_group_operationally_ready(group)
     if blocked:
         return blocked
     settings = ensure_group_kiosk_settings(group)
+    if getattr(group, "group_type", None) == GroupType.STRUCTURED:
+        from kiosk_builder.kiosk_settings_validation import (
+            repair_kiosk_settings_for_group_capabilities,
+        )
+
+        repair_kiosk_settings_for_group_capabilities(settings, group=group, save=True)
+        settings.refresh_from_db()
     readiness = compute_kiosk_readiness(settings, group=group)
     if not readiness["ready"]:
         return kiosk_settings_invalid_error_payload(group)

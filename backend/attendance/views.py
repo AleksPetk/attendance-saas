@@ -49,6 +49,8 @@ from kiosk_builder.kiosk_identification import (
 from kiosk_builder.kiosk_confirmation import confirmation_payload_for_perform
 from kiosk_builder.kiosk_runtime import (
     build_card_people,
+    build_structured_class_cards,
+    get_active_kiosk_section,
     get_kiosk_settings_for_group,
     kiosk_settings_payload,
 )
@@ -64,6 +66,7 @@ from groups.models import (
     GroupOnlyParticipant,
     GroupOnlyParticipantStatus,
     GroupStatus,
+    GroupType,
 )
 
 
@@ -132,6 +135,31 @@ class GroupKioskStartView(OwnedWorkspaceMixin, APIView):
         settings_obj = get_kiosk_settings_for_group(group)
         kiosk_payload = kiosk_settings_payload(group, settings_obj)
 
+        if group.check_in_enabled and not group.check_out_enabled:
+            primary_action = ActionType.CHECK_IN
+        elif group.check_out_enabled and not group.check_in_enabled:
+            primary_action = ActionType.CHECK_OUT
+        else:
+            primary_action = None
+
+        if group.group_type == GroupType.STRUCTURED:
+            classes = build_structured_class_cards(
+                group=group,
+                organization=self.organization,
+            )
+            return Response(
+                _kiosk_start_payload(
+                    request,
+                    group,
+                    {
+                        "kiosk": kiosk_payload,
+                        "primary_action": primary_action,
+                        "classes": classes,
+                        "people": [],
+                    },
+                )
+            )
+
         if settings_obj.mode == KioskType.CARD:
             people = build_card_people(
                 request=request,
@@ -140,13 +168,6 @@ class GroupKioskStartView(OwnedWorkspaceMixin, APIView):
                 settings=settings_obj,
                 absolute_file_url=absolute_file_url,
             )
-
-            if group.check_in_enabled and not group.check_out_enabled:
-                primary_action = ActionType.CHECK_IN
-            elif group.check_out_enabled and not group.check_in_enabled:
-                primary_action = ActionType.CHECK_OUT
-            else:
-                primary_action = None
 
             return Response(
                 _kiosk_start_payload(
@@ -170,6 +191,113 @@ class GroupKioskStartView(OwnedWorkspaceMixin, APIView):
             )
 
         raise ValidationError({"mode": "Unknown kiosk type."})
+
+
+class GroupKioskClassPeopleView(OwnedWorkspaceMixin, APIView):
+    """Return participant cards for one active Class (Structured Groups)."""
+
+    def get(self, request, group_pk, section_pk):
+        group = (
+            Group.objects.filter(pk=group_pk, organization=self.organization)
+            .exclude(status=GroupStatus.ARCHIVED)
+            .first()
+        )
+        if group is None:
+            raise NotFound("Group not found in this workspace.")
+        blocked = ensure_kiosk_launch_ready(group)
+        if blocked:
+            return Response(blocked, status=status.HTTP_409_CONFLICT)
+        if group.group_type != GroupType.STRUCTURED:
+            raise ValidationError({"group": "Class kiosk lists require a Structured Group."})
+
+        section = get_active_kiosk_section(
+            group=group,
+            organization=self.organization,
+            section_id=section_pk,
+        )
+        if section is None:
+            raise NotFound("Class not found in this Group.")
+
+        if group.require_class_pin:
+            pin = request.query_params.get("pin", "")
+            if not section.check_class_pin(pin):
+                return Response(
+                    {
+                        "code": "invalid_class_pin",
+                        "detail": "Incorrect PIN. Try again.",
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        settings_obj = get_kiosk_settings_for_group(group)
+        people = build_card_people(
+            request=request,
+            group=group,
+            organization=self.organization,
+            settings=settings_obj,
+            absolute_file_url=absolute_file_url,
+            section=section,
+        )
+        return Response(
+            {
+                "section_id": section.id,
+                "section_name": section.name,
+                "requires_class_pin": bool(group.require_class_pin),
+                "people": people,
+            }
+        )
+
+
+class GroupKioskClassVerifyPinView(OwnedWorkspaceMixin, APIView):
+    """Verify Class PIN for Structured kiosk Class entry."""
+
+    def post(self, request, group_pk, section_pk):
+        group = (
+            Group.objects.filter(pk=group_pk, organization=self.organization)
+            .exclude(status=GroupStatus.ARCHIVED)
+            .first()
+        )
+        if group is None:
+            raise NotFound("Group not found in this workspace.")
+        blocked = ensure_kiosk_launch_ready(group)
+        if blocked:
+            return Response(blocked, status=status.HTTP_409_CONFLICT)
+        if group.group_type != GroupType.STRUCTURED:
+            raise ValidationError({"group": "Class PIN applies only to Structured Groups."})
+
+        section = get_active_kiosk_section(
+            group=group,
+            organization=self.organization,
+            section_id=section_pk,
+        )
+        if section is None:
+            raise NotFound("Class not found in this Group.")
+
+        if not group.require_class_pin:
+            return Response(
+                {
+                    "ok": True,
+                    "section_id": section.id,
+                    "section_name": section.name,
+                }
+            )
+
+        pin = request.data.get("pin", "")
+        if not section.check_class_pin(pin):
+            return Response(
+                {
+                    "code": "invalid_class_pin",
+                    "detail": "Incorrect PIN. Try again.",
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return Response(
+            {
+                "ok": True,
+                "section_id": section.id,
+                "section_name": section.name,
+            }
+        )
 
 
 class GroupKioskIdentifyView(OwnedWorkspaceMixin, APIView):

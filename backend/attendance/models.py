@@ -99,6 +99,49 @@ class ActionRecord(models.Model):
     # Optional extra info for debugging / future audits (not a workflow engine)
     kiosk_note_snapshot = models.CharField(max_length=250, blank=True, default="")
     group_name_snapshot = models.CharField(max_length=150, blank=True, default="")
+    group_type_snapshot = models.CharField(
+        max_length=20,
+        blank=True,
+        default="",
+        help_text=(
+            "Immutable Group type at record creation (standard/structured). "
+            "Survives permanent Group deletion so reports know whether Class "
+            "columns apply."
+        ),
+    )
+
+    # Structured Group Class (GroupSection) historical identity.
+    # Standard Group records leave these null/blank.
+    section = models.ForeignKey(
+        "groups.GroupSection",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="action_records",
+        help_text=(
+            "Live Class link for Structured Group actions. SET_NULL when a "
+            "Class is permanently deleted so snapshot fields remain."
+        ),
+    )
+    source_section_id = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text=(
+            "Immutable Class (GroupSection) primary key at record creation. "
+            "Survives permanent Class deletion so attendance reports can still "
+            "group by historical Class identity."
+        ),
+    )
+    class_name_snapshot = models.CharField(
+        max_length=150,
+        blank=True,
+        default="",
+        help_text=(
+            "Class display name at action time. Not rewritten on rename, "
+            "archive, or permanent delete."
+        ),
+    )
 
     class Meta:
         ordering = ["-performed_at", "-id"]
@@ -106,6 +149,7 @@ class ActionRecord(models.Model):
             models.Index(fields=["organization", "group", "performed_at"]),
             models.Index(fields=["organization", "source_group_id", "performed_at"]),
             models.Index(fields=["group", "participant_kind", "performed_at"]),
+            models.Index(fields=["organization", "source_section_id", "performed_at"]),
         ]
 
     def __str__(self):
@@ -140,4 +184,10 @@ class ActionRecord(models.Model):
             self.source_group_id = self.group_id
         if self.group_id and not self.group_name_snapshot:
             self.group_name_snapshot = self.group.name
+        if self.group_id and not self.group_type_snapshot:
+            self.group_type_snapshot = self.group.group_type
+        if self.section_id and not self.source_section_id:
+            self.source_section_id = self.section_id
+        if self.section_id and not self.class_name_snapshot:
+            self.class_name_snapshot = self.section.name
         super().save(*args, **kwargs)

@@ -20,6 +20,7 @@ export function normalizeGroupConfig(values) {
   }
 
   body.name = (body.name || "").trim();
+  body.group_type = body.group_type === "structured" ? "structured" : "standard";
 
   body.actions.check_in_enabled = Boolean(body.actions.check_in_enabled);
   body.actions.check_out_enabled = Boolean(body.actions.check_out_enabled);
@@ -33,6 +34,12 @@ export function normalizeGroupConfig(values) {
 
   body.participation.email_required = Boolean(body.participation.email_required);
   body.participation.pin_required = Boolean(body.participation.pin_required);
+
+  if (body.group_type === "structured") {
+    body.require_class_pin = Boolean(body.require_class_pin);
+  } else {
+    delete body.require_class_pin;
+  }
 
   if (!body.actions.check_in_enabled) {
     delete body.notifications.check_in;
@@ -57,6 +64,8 @@ export function isGroupConfigDirty(values, savedBaseline) {
 export function groupConfigFromApi(group, emptyGroup) {
   return {
     name: group.name || "",
+    group_type: group.group_type === "structured" ? "structured" : "standard",
+    require_class_pin: Boolean(group.require_class_pin),
     actions: { ...emptyGroup.actions, ...(group.actions || {}) },
     participation: { ...emptyGroup.participation, ...(group.participation || {}) },
     notifications: {

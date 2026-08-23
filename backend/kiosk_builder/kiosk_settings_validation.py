@@ -46,12 +46,26 @@ def normalize_kiosk_settings_for_group_capabilities(settings, *, group=None):
     Clear kiosk PIN/email dependencies when Group participation flags are OFF.
 
     Mutates settings in place and returns True when any stored field changed.
+    Structured Groups are forced to Card mode (no Input).
     """
     group = group or settings.group
     if group is None:
         return False
 
     changed = False
+
+    from groups.models import GroupType
+
+    if group.group_type == GroupType.STRUCTURED:
+        if settings.mode != KioskType.CARD:
+            settings.mode = KioskType.CARD
+            changed = True
+        if settings.input_field_count != 1:
+            settings.input_field_count = 1
+            changed = True
+        if settings.input_second_field:
+            settings.input_second_field = ""
+            changed = True
 
     if not group.require_pin:
         if settings.use_pin:
@@ -85,6 +99,7 @@ def normalize_kiosk_settings_for_group_capabilities(settings, *, group=None):
         settings.input_field_count,
         settings.input_second_field,
         settings.card_show_participant_code,
+        settings.mode,
     )
     normalize_kiosk_settings_fields(settings, group=group)
     after = (
@@ -93,6 +108,7 @@ def normalize_kiosk_settings_for_group_capabilities(settings, *, group=None):
         settings.input_field_count,
         settings.input_second_field,
         settings.card_show_participant_code,
+        settings.mode,
     )
     return changed or before != after
 

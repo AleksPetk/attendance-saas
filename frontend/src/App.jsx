@@ -17,6 +17,7 @@ import MemberProfileScreen from "./MemberProfileScreen.jsx";
 import GroupsScreen from "./GroupsScreen.jsx";
 import GroupEditorScreen from "./GroupEditorScreen.jsx";
 import GroupDetailScreen from "./GroupDetailScreen.jsx";
+import GroupClassDetailScreen from "./GroupClassDetailScreen.jsx";
 import KioskSettingsScreen from "./kiosk/KioskSettingsScreen.jsx";
 import KioskBuilderScreen from "./kiosk/builder/KioskBuilderScreen.jsx";
 import HistoryScreen from "./HistoryScreen.jsx";
@@ -96,6 +97,18 @@ function GroupKioskSettingsByParam({ session, onNavigate }) {
 function GroupDetailByParam({ session, onNavigate }) {
   const { groupId } = useParams();
   return <GroupDetailScreen session={session} groupId={groupId ? Number(groupId) : undefined} onNavigate={onNavigate} />;
+}
+
+function GroupClassDetailByParam({ session, onNavigate }) {
+  const { groupId, classId } = useParams();
+  return (
+    <GroupClassDetailScreen
+      session={session}
+      groupId={groupId ? Number(groupId) : undefined}
+      classId={classId ? Number(classId) : undefined}
+      onNavigate={onNavigate}
+    />
+  );
 }
 
 function kioskTargetPath(workspace) {
@@ -210,6 +223,9 @@ function WorkspaceRoutes({ session, setSession, onKioskEntered, onKioskUnlockedL
       else nav("/groups/new");
     }
     if (route.name === "group-detail") nav(`/groups/${route.groupId}`);
+    if (route.name === "group-class") {
+      nav(`/groups/${route.groupId}/classes/${route.classId}`);
+    }
     if (route.name === "kiosk-builder") nav(`/groups/${route.groupId}/kiosk-builder`);
     if (route.name === "kiosk-settings") nav(`/groups/${route.groupId}/kiosk-settings`);
     if (route.name === "history") nav(`/history`);
@@ -291,6 +307,10 @@ function WorkspaceRoutes({ session, setSession, onKioskEntered, onKioskUnlockedL
         <Route path="/groups/new" element={<GroupEditorScreen session={session} onNavigate={onNavigate} />} />
         <Route path="/groups/:groupId/edit" element={<GroupEditorByParam session={session} onNavigate={onNavigate} />} />
         <Route path="/groups/:groupId/kiosk-settings" element={<GroupKioskSettingsByParam session={session} onNavigate={onNavigate} />} />
+        <Route
+          path="/groups/:groupId/classes/:classId"
+          element={<GroupClassDetailByParam session={session} onNavigate={onNavigate} />}
+        />
         <Route path="/groups/:groupId" element={<GroupDetailByParam session={session} onNavigate={onNavigate} />} />
         <Route path="/history" element={<HistoryScreen session={session} />} />
         <Route path="/staff" element={<StaffManagementScreen session={session} onNavigate={onNavigate} />} />

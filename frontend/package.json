@@ -10,6 +10,8 @@
     "test:history-csv": "node --test src/history/*.test.js",
     "test:kiosk-settings": "node --test src/kiosk/kioskSettingsForm.test.js src/kiosk/kioskConfirmation.test.js",
     "test:group-editor": "node --test src/groupEditorForm.test.js",
+    "test:group-form": "node --test src/groupForm.test.js",
+    "test:structured-kiosk": "node --test src/groupKioskClassNav.test.js",
     "test:participant-edit": "node --test src/groupParticipantEdit.test.js"
   },
   "dependencies": {

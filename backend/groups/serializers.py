@@ -13,13 +13,16 @@ from groups.models import (
     GroupMembership,
     GroupMembershipStatus,
     GroupOnlyParticipant,
+    GroupSection,
+    GroupSectionStatus,
+    GroupType,
     KioskIdentifierField,
     KioskMode,
     KioskTheme,
     MAX_BREAKS_CHOICES,
     member_list_kiosk_mode_allowed,
 )
-from groups.readiness import group_setup_status_payload
+from groups.readiness import group_setup_status_payload, structured_group_section_summary
 from groups.templates import validate_notification_template
 from kiosk_builder.models import ensure_group_kiosk_design, ensure_group_kiosk_settings
 from members.models import Member, MemberStatus, validate_member_pin
@@ -102,8 +105,16 @@ class GroupSerializer(serializers.ModelSerializer):
     participation = GroupParticipationSerializer(required=False, write_only=True)
     notifications = GroupNotificationsSerializer(required=False, write_only=True)
     kiosk = GroupKioskSerializer(required=False, write_only=True)
+    group_type = serializers.ChoiceField(
+        choices=GroupType.choices,
+        required=False,
+        default=GroupType.STANDARD,
+    )
+    require_class_pin = serializers.BooleanField(required=False, default=False)
     member_count = serializers.IntegerField(read_only=True)
     group_only_participant_count = serializers.IntegerField(read_only=True)
+    section_count = serializers.IntegerField(read_only=True)
+    participant_count = serializers.IntegerField(read_only=True)
 
     class Meta:
         model = Group
@@ -111,12 +122,16 @@ class GroupSerializer(serializers.ModelSerializer):
             "id",
             "name",
             "status",
+            "group_type",
+            "require_class_pin",
             "actions",
             "participation",
             "notifications",
             "kiosk",
             "member_count",
             "group_only_participant_count",
+            "section_count",
+            "participant_count",
             "created_at",
             "updated_at",
             "archived_at",
@@ -128,6 +143,13 @@ class GroupSerializer(serializers.ModelSerializer):
             "updated_at",
             "archived_at",
         )
+
+    def validate_group_type(self, value):
+        if self.instance and self.instance.group_type != value:
+            raise serializers.ValidationError(
+                "Group type cannot be changed after creation."
+            )
+        return value
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
@@ -181,18 +203,36 @@ class GroupSerializer(serializers.ModelSerializer):
             "kiosk_input_field_1": instance.kiosk_input_field_1,
             "kiosk_input_field_2": instance.kiosk_input_field_2,
         }
+        data["kiosk_available"] = True
+        data["require_class_pin"] = bool(
+            instance.group_type == GroupType.STRUCTURED and instance.require_class_pin
+        )
+
         member_count = getattr(instance, "member_count", None)
         participant_count = getattr(instance, "group_only_participant_count", None)
-        if member_count is None:
-            member_count = instance.memberships.filter(
-                status=GroupMembershipStatus.ACTIVE
-            ).count()
-        if participant_count is None:
-            participant_count = instance.group_only_participants.filter(
-                status="active"
-            ).count()
+        if member_count is None or participant_count is None:
+            memberships = instance.memberships.operational()
+            visitors = instance.group_only_participants.operational()
+            if member_count is None:
+                member_count = memberships.count()
+            if participant_count is None:
+                participant_count = visitors.count()
         data["member_count"] = member_count
         data["group_only_participant_count"] = participant_count
+
+        if instance.group_type == GroupType.STRUCTURED:
+            summary = structured_group_section_summary(instance)
+            data["section_count"] = summary["active_section_count"]
+            data["participant_count"] = summary["participant_count"]
+            data["structured"] = {
+                "require_class_pin": bool(instance.require_class_pin),
+                "active_section_count": summary["active_section_count"],
+                "participant_count": summary["participant_count"],
+            }
+        else:
+            data["section_count"] = 0
+            data["participant_count"] = member_count + participant_count
+            data["structured"] = None
         return data
 
     def validate(self, attrs):
@@ -304,6 +344,10 @@ class GroupSerializer(serializers.ModelSerializer):
         mapped = {}
         if "name" in validated_data:
             mapped["name"] = validated_data["name"]
+        if instance is None and "group_type" in validated_data:
+            mapped["group_type"] = validated_data["group_type"]
+        if "require_class_pin" in validated_data:
+            mapped["require_class_pin"] = validated_data["require_class_pin"]
 
         actions = validated_data.get("actions") or {}
         action_map = {
@@ -420,6 +464,7 @@ class GroupListQuerySerializer(serializers.Serializer):
 
 class GroupMembershipSerializer(serializers.ModelSerializer):
     member_id = serializers.IntegerField(write_only=True, required=False)
+    section_id = serializers.IntegerField(required=False, allow_null=True)
     participation_pin = serializers.CharField(
         write_only=True,
         required=False,
@@ -457,6 +502,7 @@ class GroupMembershipSerializer(serializers.ModelSerializer):
             "id",
             "group_participant_code",
             "member_id",
+            "section_id",
             "member",
             "override_name",
             "override_email",
@@ -512,6 +558,7 @@ class GroupMembershipSerializer(serializers.ModelSerializer):
     def to_representation(self, instance):
         data = super().to_representation(instance)
         data.pop("participation_pin", None)
+        data["section_id"] = instance.section_id
         return data
 
     def get_member(self, obj):
@@ -576,6 +623,15 @@ class GroupMembershipSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         group = self.context["group"]
         organization = self.context["organization"]
+        section = self._resolve_section(validated_data.pop("section_id", None))
+        if group.group_type == GroupType.STRUCTURED and section is None:
+            raise serializers.ValidationError(
+                {"section_id": "Class is required for Structured Group participants."}
+            )
+        if group.group_type == GroupType.STANDARD and section is not None:
+            raise serializers.ValidationError(
+                {"section_id": "Standard Groups cannot assign Classes."}
+            )
         member = self._resolve_member(validated_data.pop("member_id", None))
         pin = validated_data.pop("participation_pin", "") or validated_data.pop(
             "override_pin", ""
@@ -592,6 +648,7 @@ class GroupMembershipSerializer(serializers.ModelSerializer):
 
         membership = existing or GroupMembership(group=group, member=member)
         membership.organization = organization
+        membership.section = section
         membership.status = GroupMembershipStatus.ACTIVE
         if not validated_data.get("participation_email") and group.require_email:
             member_email = (member.email or "").strip()
@@ -611,6 +668,18 @@ class GroupMembershipSerializer(serializers.ModelSerializer):
                 }
             )
         validated_data.pop("member_id", None)
+        if "section_id" in validated_data:
+            section = self._resolve_section(validated_data.pop("section_id"))
+            if instance.group.group_type == GroupType.STRUCTURED:
+                if section is None:
+                    raise serializers.ValidationError(
+                        {"section_id": "Class is required for Structured Group participants."}
+                    )
+                instance.section = section
+            elif section is not None:
+                raise serializers.ValidationError(
+                    {"section_id": "Standard Groups cannot assign Classes."}
+                )
         pin = validated_data.pop("participation_pin", None)
         if pin is None:
             pin = validated_data.pop("override_pin", None)
@@ -624,6 +693,25 @@ class GroupMembershipSerializer(serializers.ModelSerializer):
         self._apply_fields(instance, validated_data, pin=pin, clear_pin=clear_pin)
         instance.save()
         return instance
+
+    def _resolve_section(self, section_id):
+        group = self.context["group"]
+        context_section = self.context.get("section")
+        if context_section is not None:
+            return context_section
+        if section_id in (None, ""):
+            return None
+        section = GroupSection.objects.filter(
+            pk=section_id,
+            group=group,
+            organization=self.context["organization"],
+            status=GroupSectionStatus.ACTIVE,
+        ).first()
+        if section is None:
+            raise serializers.ValidationError(
+                {"section_id": "Class not found in this Group."}
+            )
+        return section
 
     def _resolve_member(self, member_id):
         organization = self.context["organization"]
@@ -666,6 +754,7 @@ class GroupOnlyParticipantSerializer(serializers.ModelSerializer):
         required=False,
         allow_blank=True,
     )
+    section_id = serializers.IntegerField(required=False, allow_null=True)
     clear_pin = serializers.BooleanField(write_only=True, required=False, default=False)
     clear_participation_pin = serializers.BooleanField(
         write_only=True,
@@ -684,6 +773,7 @@ class GroupOnlyParticipantSerializer(serializers.ModelSerializer):
         fields = (
             "id",
             "group_participant_code",
+            "section_id",
             "name",
             "email",
             "photo",
@@ -754,11 +844,24 @@ class GroupOnlyParticipantSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         group = self.context["group"]
+        section = self._resolve_section(validated_data.pop("section_id", None))
+        if group.group_type == GroupType.STRUCTURED and section is None:
+            raise serializers.ValidationError(
+                {"section_id": "Class is required for Structured Group participants."}
+            )
+        if group.group_type == GroupType.STANDARD and section is not None:
+            raise serializers.ValidationError(
+                {"section_id": "Standard Groups cannot assign Classes."}
+            )
         pin = validated_data.pop("participation_pin", "") or validated_data.pop("pin", "")
         validated_data.pop("clear_participation_pin", None)
         validated_data.pop("clear_pin", None)
         validated_data.pop("clear_photo", None)
-        participant = GroupOnlyParticipant(group=group, organization=group.organization)
+        participant = GroupOnlyParticipant(
+            group=group,
+            organization=group.organization,
+            section=section,
+        )
         for field, value in validated_data.items():
             setattr(participant, field, value)
         if pin:
@@ -767,6 +870,18 @@ class GroupOnlyParticipantSerializer(serializers.ModelSerializer):
         return participant
 
     def update(self, instance, validated_data):
+        if "section_id" in validated_data:
+            section = self._resolve_section(validated_data.pop("section_id"))
+            if instance.group.group_type == GroupType.STRUCTURED:
+                if section is None:
+                    raise serializers.ValidationError(
+                        {"section_id": "Class is required for Structured Group participants."}
+                    )
+                instance.section = section
+            elif section is not None:
+                raise serializers.ValidationError(
+                    {"section_id": "Standard Groups cannot assign Classes."}
+                )
         pin = validated_data.pop("participation_pin", None)
         if pin is None:
             pin = validated_data.pop("pin", None)
@@ -786,11 +901,31 @@ class GroupOnlyParticipantSerializer(serializers.ModelSerializer):
         instance.save()
         return instance
 
+    def _resolve_section(self, section_id):
+        group = self.context["group"]
+        context_section = self.context.get("section")
+        if context_section is not None:
+            return context_section
+        if section_id in (None, ""):
+            return None
+        section = GroupSection.objects.filter(
+            pk=section_id,
+            group=group,
+            organization=self.context["organization"],
+            status=GroupSectionStatus.ACTIVE,
+        ).first()
+        if section is None:
+            raise serializers.ValidationError(
+                {"section_id": "Class not found in this Group."}
+            )
+        return section
+
     def to_representation(self, instance):
         data = super().to_representation(instance)
         data.pop("photo", None)
         data.pop("pin", None)
         data.pop("participation_pin", None)
+        data["section_id"] = instance.section_id
         return data
 
 
@@ -821,3 +956,137 @@ def available_member_payload(member, group, request):
         "missing_required_fields": [],
         "field_messages": {},
     }
+
+
+class GroupSectionSerializer(serializers.ModelSerializer):
+    participant_count = serializers.IntegerField(read_only=True)
+    member_count = serializers.IntegerField(read_only=True)
+    group_only_participant_count = serializers.IntegerField(read_only=True)
+    class_pin = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        max_length=12,
+    )
+    clear_class_pin = serializers.BooleanField(
+        write_only=True,
+        required=False,
+        default=False,
+    )
+    has_class_pin = serializers.BooleanField(read_only=True)
+
+    class Meta:
+        model = GroupSection
+        fields = (
+            "id",
+            "name",
+            "class_pin",
+            "clear_class_pin",
+            "has_class_pin",
+            "status",
+            "participant_count",
+            "member_count",
+            "group_only_participant_count",
+            "created_at",
+            "updated_at",
+            "archived_at",
+        )
+        read_only_fields = (
+            "id",
+            "status",
+            "created_at",
+            "updated_at",
+            "archived_at",
+            "has_class_pin",
+        )
+
+    def validate_class_pin(self, value):
+        if not value:
+            return value
+        try:
+            return validate_member_pin(value)
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(exc.messages) from exc
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        member_count = getattr(instance, "member_count", None)
+        visitor_count = getattr(instance, "group_only_participant_count", None)
+        if member_count is None:
+            member_count = instance.memberships.operational().count()
+        if visitor_count is None:
+            visitor_count = instance.group_only_participants.operational().count()
+        data["member_count"] = member_count
+        data["group_only_participant_count"] = visitor_count
+        data["participant_count"] = member_count + visitor_count
+        data["group_id"] = instance.group_id
+        data["group_name"] = instance.group.name
+        data["has_class_pin"] = instance.has_class_pin
+        # Managers may view Class PIN (same low-security attendance PIN policy).
+        data["class_pin"] = instance.class_pin or ""
+        return data
+
+    def create(self, validated_data):
+        group = self.context["group"]
+        if group.group_type != GroupType.STRUCTURED:
+            raise serializers.ValidationError(
+                {"group": "Classes can only be created inside Structured Groups."}
+            )
+        pin = validated_data.pop("class_pin", None)
+        validated_data.pop("clear_class_pin", None)
+        try:
+            section = GroupSection.objects.create_section(
+                group=group,
+                organization=group.organization,
+                **validated_data,
+            )
+            if pin:
+                section.set_class_pin(pin)
+                section.save(update_fields=["class_pin", "updated_at"])
+            return section
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(
+                getattr(exc, "message_dict", exc.messages)
+            ) from exc
+        except IntegrityError as exc:
+            raise serializers.ValidationError(
+                {"name": "A Class with this name already exists in this Group."}
+            ) from exc
+
+    def update(self, instance, validated_data):
+        pin = validated_data.pop("class_pin", None)
+        clear_pin = validated_data.pop("clear_class_pin", False)
+        for field, value in validated_data.items():
+            setattr(instance, field, value)
+        if pin is not None and pin != "":
+            instance.set_class_pin(pin)
+        elif clear_pin:
+            instance.clear_class_pin()
+        try:
+            instance.save()
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(
+                getattr(exc, "message_dict", exc.messages)
+            ) from exc
+        except IntegrityError as exc:
+            raise serializers.ValidationError(
+                {"name": "A Class with this name already exists in this Group."}
+            ) from exc
+        return instance
+
+
+class StandardGroupImportSerializer(serializers.Serializer):
+    source_group_id = serializers.IntegerField()
+    name = serializers.CharField(required=False, allow_blank=True, max_length=150)
+    class_pin = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        max_length=12,
+    )
+
+    def validate_class_pin(self, value):
+        if not value:
+            return value
+        try:
+            return validate_member_pin(value)
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(exc.messages) from exc

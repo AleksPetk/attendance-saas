@@ -9,6 +9,8 @@ from attendance.report_export.common import (
     cell_text,
     flatten_report_rows,
     period_lines,
+    report_identity_headers,
+    report_identity_values,
     status_label,
 )
 
@@ -27,13 +29,17 @@ def build_attendance_report_csv(report: dict) -> str:
     writer.writerow([])
 
     columns = list(report.get("columns") or [])
-    writer.writerow(["Date", "Name", *[col.get("label") or col.get("key") for col in columns]])
+    writer.writerow(
+        [
+            *report_identity_headers(report),
+            *[col.get("label") or col.get("key") for col in columns],
+        ]
+    )
 
     for row in flatten_report_rows(report):
         writer.writerow(
             [
-                row["date"],
-                row["name"],
+                *report_identity_values(row, report),
                 *[cell_text(row["cells"].get(col["key"])) for col in columns],
             ]
         )

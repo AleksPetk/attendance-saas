@@ -7,8 +7,11 @@ from django.http import JsonResponse
 from attendance.kiosk_lock import is_kiosk_locked, kiosk_status_payload, locked_group_id
 from config.session_isolation import is_platform_admin_request
 
+# Live kiosk APIs allowed while the Check Station session is locked.
+# Includes Structured Class people + Class PIN verify (not workspace Class admin APIs).
 KIOSK_GROUP_API_RE = re.compile(
-    r"^/api/groups/(?P<group_id>\d+)/kiosk(?:/identify|/perform)?$"
+    r"^/api/groups/(?P<group_id>\d+)/kiosk"
+    r"(?:/identify|/perform|/classes/\d+/(?:people|verify-pin))?$"
 )
 
 
@@ -60,8 +63,13 @@ def _is_allowed_during_kiosk_lock(request):
             return False
         if requested_id != group_id:
             return False
-        if path.endswith("/identify") or path.endswith("/perform"):
+        if path.endswith("/identify") or path.endswith("/perform") or path.endswith(
+            "/verify-pin"
+        ):
             return method == "POST"
+        if "/classes/" in path and path.endswith("/people"):
+            return method == "GET"
+        # GET/POST /api/groups/<id>/kiosk
         return method in {"GET", "POST"}
 
     return False

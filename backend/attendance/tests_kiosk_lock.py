@@ -404,6 +404,65 @@ class GroupKioskLockTests(TestCase):
         self.assertEqual(other.status_code, 403)
         self.assertEqual(other.json()["kiosk_group_id"], self.group.pk)
 
+    def test_structured_class_people_and_verify_pin_allowed_while_locked(self):
+        from groups.models import GroupOnlyParticipant, GroupSection, GroupType
+
+        structured = Group.objects.create_group(
+            organization=self.org,
+            name="School",
+            group_type=GroupType.STRUCTURED,
+            check_in_enabled=True,
+            check_out_enabled=True,
+            require_pin=False,
+            require_class_pin=True,
+        )
+        configure_group_kiosk_for_launch(structured, use_pin=False)
+        class_a = GroupSection.objects.create_section(group=structured, name="Class A")
+        class_a.set_class_pin("9999")
+        class_a.save()
+        GroupOnlyParticipant.objects.create(
+            organization=self.org,
+            group=structured,
+            section=class_a,
+            name="Aleks",
+            participation_pin="1111",
+        )
+
+        self._login(self.session, self.owner.email)
+        start = self._start_kiosk(self.session, group=structured)
+        self.assertTrue(start.data["kiosk_locked"])
+        self.assertTrue(start.data["kiosk"]["structured"])
+        class_ids = {item["id"] for item in start.data["classes"]}
+        self.assertEqual(class_ids, {class_a.pk})
+
+        blocked = self.session.get(
+            f"/api/groups/{structured.pk}/kiosk/classes/{class_a.pk}/people/"
+        )
+        self.assertEqual(blocked.status_code, 400)
+        self.assertEqual(blocked.data["code"], "invalid_class_pin")
+
+        people = self.session.get(
+            f"/api/groups/{structured.pk}/kiosk/classes/{class_a.pk}/people/?pin=9999"
+        )
+        self.assertEqual(people.status_code, 200, people.content)
+        self.assertEqual(
+            {item.get("name") for item in people.data["people"]},
+            {"Aleks"},
+        )
+
+        verify = self.session.post(
+            f"/api/groups/{structured.pk}/kiosk/classes/{class_a.pk}/verify-pin/",
+            {"pin": "9999"},
+            format="json",
+        )
+        self.assertEqual(verify.status_code, 200, verify.content)
+
+        wrong_group = self.session.get(
+            f"/api/groups/{self.group.pk}/kiosk/classes/{class_a.pk}/people/"
+        )
+        self.assertEqual(wrong_group.status_code, 403)
+        self.assertEqual(wrong_group.json()["code"], "kiosk_locked")
+
 
 class GroupKioskIdentifyBehaviorTests(TestCase):
     def setUp(self):

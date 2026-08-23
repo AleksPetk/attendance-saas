@@ -12,6 +12,9 @@ from attendance.report_export.common import (
     cell_text,
     flatten_report_rows,
     period_lines,
+    report_identity_headers,
+    report_identity_values,
+    report_shows_class_column,
     status_label,
 )
 
@@ -48,7 +51,10 @@ def build_attendance_report_xlsx(report: dict) -> bytes:
 
     row_idx += 1
     columns = list(report.get("columns") or [])
-    headers = ["Date", "Name", *[col.get("label") or col.get("key") for col in columns]]
+    headers = [
+        *report_identity_headers(report),
+        *[col.get("label") or col.get("key") for col in columns],
+    ]
     header_row = row_idx
     for col_idx, header in enumerate(headers, start=1):
         cell = sheet.cell(header_row, col_idx, header)
@@ -58,20 +64,23 @@ def build_attendance_report_xlsx(report: dict) -> bytes:
 
     sheet.freeze_panes = f"A{header_row + 1}"
 
+    identity_count = 3 if report_shows_class_column(report) else 2
     for row in flatten_report_rows(report):
         row_idx += 1
         values = [
-            row["date"],
-            row["name"],
+            *report_identity_values(row, report),
             *[cell_text(row["cells"].get(col["key"])) for col in columns],
         ]
         for col_idx, value in enumerate(values, start=1):
             cell = sheet.cell(row_idx, col_idx, value)
             cell.alignment = Alignment(horizontal="left", vertical="center")
-            if col_idx >= 3:
+            if col_idx > identity_count:
                 cell.number_format = "@"
 
-    widths = [18, 22] + [14] * len(columns)
+    if report_shows_class_column(report):
+        widths = [18, 16, 22] + [14] * len(columns)
+    else:
+        widths = [18, 22] + [14] * len(columns)
     for idx, width in enumerate(widths, start=1):
         sheet.column_dimensions[get_column_letter(idx)].width = width
 

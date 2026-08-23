@@ -7,7 +7,19 @@ from groups.views import (
     GroupMembershipListCreateView,
     GroupOnlyParticipantDetailView,
     GroupOnlyParticipantListCreateView,
+    GroupSectionArchiveView,
+    GroupSectionDetailView,
+    GroupSectionImportSourcesView,
+    GroupSectionImportStandardGroupView,
+    GroupSectionListCreateView,
+    GroupSectionPermanentDeleteView,
+    GroupSectionRestoreView,
     GroupViewSet,
+    SectionAvailableMembersView,
+    SectionMembershipDetailView,
+    SectionMembershipListCreateView,
+    SectionParticipantDetailView,
+    SectionParticipantListCreateView,
 )
 from groups.email_sender_views import GroupEmailSenderTestView, GroupEmailSenderView
 
@@ -39,6 +51,66 @@ urlpatterns = [
         "groups/<int:group_pk>/available-members/",
         GroupAvailableMembersView.as_view(),
         name="group-available-members",
+    ),
+    path(
+        "groups/<int:group_pk>/classes/",
+        GroupSectionListCreateView.as_view(),
+        name="group-section-list",
+    ),
+    path(
+        "groups/<int:group_pk>/classes/import-sources/",
+        GroupSectionImportSourcesView.as_view(),
+        name="group-section-import-sources",
+    ),
+    path(
+        "groups/<int:group_pk>/classes/import-standard-group/",
+        GroupSectionImportStandardGroupView.as_view(),
+        name="group-section-import-standard-group",
+    ),
+    path(
+        "groups/<int:group_pk>/classes/<int:pk>/",
+        GroupSectionDetailView.as_view(),
+        name="group-section-detail",
+    ),
+    path(
+        "groups/<int:group_pk>/classes/<int:pk>/archive/",
+        GroupSectionArchiveView.as_view(),
+        name="group-section-archive",
+    ),
+    path(
+        "groups/<int:group_pk>/classes/<int:pk>/restore/",
+        GroupSectionRestoreView.as_view(),
+        name="group-section-restore",
+    ),
+    path(
+        "groups/<int:group_pk>/classes/<int:pk>/permanently-delete/",
+        GroupSectionPermanentDeleteView.as_view(),
+        name="group-section-permanently-delete",
+    ),
+    path(
+        "groups/<int:group_pk>/classes/<int:section_pk>/memberships/",
+        SectionMembershipListCreateView.as_view(),
+        name="group-section-membership-list",
+    ),
+    path(
+        "groups/<int:group_pk>/classes/<int:section_pk>/memberships/<int:pk>/",
+        SectionMembershipDetailView.as_view(),
+        name="group-section-membership-detail",
+    ),
+    path(
+        "groups/<int:group_pk>/classes/<int:section_pk>/participants/",
+        SectionParticipantListCreateView.as_view(),
+        name="group-section-participant-list",
+    ),
+    path(
+        "groups/<int:group_pk>/classes/<int:section_pk>/participants/<int:pk>/",
+        SectionParticipantDetailView.as_view(),
+        name="group-section-participant-detail",
+    ),
+    path(
+        "groups/<int:group_pk>/classes/<int:section_pk>/available-members/",
+        SectionAvailableMembersView.as_view(),
+        name="group-section-available-members",
     ),
     path(
         "groups/<int:group_pk>/email-sender/",

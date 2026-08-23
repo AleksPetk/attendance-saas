@@ -12,6 +12,8 @@ import {
 
 const EMPTY_GROUP = {
   name: "",
+  group_type: "standard",
+  require_class_pin: false,
   actions: {
     check_in_enabled: true,
     check_out_enabled: false,

@@ -72,8 +72,9 @@ def period_lines(report: dict) -> list[str]:
 
 
 def flatten_report_rows(report: dict) -> list[dict]:
-    """Flatten sections into export rows with date label + name + cells."""
+    """Flatten sections into export rows with date label + identity + cells."""
     columns = list(report.get("columns") or [])
+    show_class = report_shows_class_column(report)
     rows = []
     for section in report.get("sections") or []:
         date_label = section.get("label") or section.get("date") or ""
@@ -84,8 +85,26 @@ def flatten_report_rows(report: dict) -> list[dict]:
                 "name": row.get("name") or "",
                 "cells": {col["key"]: cells.get(col["key"]) for col in columns},
             }
+            if show_class:
+                item["class_name"] = row.get("class_name") or ""
             rows.append(item)
     return rows
+
+
+def report_shows_class_column(report: dict) -> bool:
+    return (report.get("group_type") or "") == "structured"
+
+
+def report_identity_headers(report: dict) -> list[str]:
+    if report_shows_class_column(report):
+        return ["Date", "Class", "Name"]
+    return ["Date", "Name"]
+
+
+def report_identity_values(row: dict, report: dict) -> list[str]:
+    if report_shows_class_column(report):
+        return [row.get("date") or "", row.get("class_name") or "", row.get("name") or ""]
+    return [row.get("date") or "", row.get("name") or ""]
 
 
 def cell_text(value) -> str:

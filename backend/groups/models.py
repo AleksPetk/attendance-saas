@@ -27,9 +27,27 @@ class GroupStatus(models.TextChoices):
     ARCHIVED = "archived", "Archived"
 
 
+class GroupType(models.TextChoices):
+    STANDARD = "standard", "Standard"
+    STRUCTURED = "structured", "Structured"
+
+
+class GroupSectionStatus(models.TextChoices):
+    ACTIVE = "active", "Active"
+    ARCHIVED = "archived", "Archived"
+
+
 def group_is_operationally_active(group):
     """True when the Group may be used in kiosk and attendance flows."""
     return bool(group) and group.status == GroupStatus.ACTIVE
+
+
+def group_is_structured(group):
+    return bool(group) and group.group_type == GroupType.STRUCTURED
+
+
+def group_is_standard(group):
+    return bool(group) and group.group_type == GroupType.STANDARD
 
 
 def member_list_kiosk_mode_allowed(*, check_in_enabled, check_out_enabled, breaks_enabled):
@@ -110,6 +128,23 @@ class Group(models.Model):
         max_length=20,
         choices=GroupStatus.choices,
         default=GroupStatus.ACTIVE,
+    )
+    group_type = models.CharField(
+        max_length=20,
+        choices=GroupType.choices,
+        default=GroupType.STANDARD,
+        help_text=(
+            "standard: participants belong directly to the Group. "
+            "structured: participants belong to Classes (GroupSection) "
+            "inside the Group. Immutable after creation."
+        ),
+    )
+    require_class_pin = models.BooleanField(
+        default=False,
+        help_text=(
+            "Structured Groups only. When enabled, Classes require a PIN "
+            "for future kiosk class entry. Stored now; kiosk behavior deferred."
+        ),
     )
 
     check_in_enabled = models.BooleanField(default=True)
@@ -227,6 +262,10 @@ class Group(models.Model):
                 name="groups_group_status_valid",
             ),
             models.CheckConstraint(
+                condition=models.Q(group_type__in=GroupType.values),
+                name="groups_group_type_valid",
+            ),
+            models.CheckConstraint(
                 condition=models.Q(email_sender_mode__in=EmailSenderMode.values),
                 name="groups_email_sender_mode_valid",
             ),
@@ -285,6 +324,7 @@ class Group(models.Model):
     def save(self, *args, **kwargs):
         self.name = (self.name or "").strip()
         self._prevent_organization_move()
+        self._prevent_group_type_change()
         self._normalize_configuration()
         self._validate_configuration()
         if not self.name:
@@ -314,6 +354,10 @@ class Group(models.Model):
         )
         if not self.email_sender_mode:
             self.email_sender_mode = EmailSenderMode.PLATFORM
+        if not self.group_type:
+            self.group_type = GroupType.STANDARD
+        if self.group_type != GroupType.STRUCTURED:
+            self.require_class_pin = False
         # Automatic check-in removed from the product; keep columns inert.
         self.automatic_check_in_enabled = False
         self.automatic_check_in_time = None
@@ -328,6 +372,8 @@ class Group(models.Model):
 
     def _validate_configuration(self):
         errors = {}
+        if self.group_type not in GroupType.values:
+            errors["group_type"] = "Invalid Group type."
         if self.breaks_enabled and self.max_breaks not in MAX_BREAKS_CHOICES:
             errors["max_breaks"] = (
                 "Maximum breaks must be 1, 2, or 3 when breaks are enabled."
@@ -374,6 +420,178 @@ class Group(models.Model):
         if previous_organization_id and self.organization_id != previous_organization_id:
             raise ValidationError("Groups cannot move between Organizations.")
 
+    def _prevent_group_type_change(self):
+        if not self.pk:
+            return
+        previous_type = (
+            Group.objects.filter(pk=self.pk).values_list("group_type", flat=True).first()
+        )
+        if previous_type and previous_type != self.group_type:
+            raise ValidationError(
+                {
+                    "group_type": (
+                        "Group type cannot be changed after creation."
+                    )
+                }
+            )
+
+
+class GroupSectionQuerySet(models.QuerySet):
+    def operational(self):
+        return self.filter(
+            status=GroupSectionStatus.ACTIVE,
+            group__status=GroupStatus.ACTIVE,
+        )
+
+    def delete(self):
+        now = timezone.now()
+        updated = self.exclude(status=GroupSectionStatus.ARCHIVED).update(
+            status=GroupSectionStatus.ARCHIVED,
+            archived_at=now,
+        )
+        return updated, {self.model._meta.label: updated}
+
+
+class GroupSectionManager(models.Manager.from_queryset(GroupSectionQuerySet)):
+    def create_section(self, *, group, name, **extra_fields):
+        section = self.model(group=group, name=name, **extra_fields)
+        section.save()
+        return section
+
+
+class GroupSection(models.Model):
+    """
+    Child section inside a Structured Group.
+
+    Product label is currently **Class**. Backend name stays generic so
+    later labels (Department, Team, Section) can reuse the same entity.
+    """
+
+    organization = models.ForeignKey(
+        "organizations.Organization",
+        on_delete=models.PROTECT,
+        related_name="group_sections",
+    )
+    group = models.ForeignKey(
+        Group,
+        on_delete=models.PROTECT,
+        related_name="sections",
+    )
+    name = models.CharField(max_length=150)
+    class_pin = models.CharField(
+        max_length=12,
+        blank=True,
+        default="",
+        help_text=(
+            "Low-security Class PIN for Structured kiosk Class entry when "
+            "the parent Group has require_class_pin enabled. Not a password."
+        ),
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=GroupSectionStatus.choices,
+        default=GroupSectionStatus.ACTIVE,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    archived_at = models.DateTimeField(null=True, blank=True)
+
+    objects = GroupSectionManager()
+
+    class Meta:
+        ordering = ["name", "id"]
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(status__in=GroupSectionStatus.values),
+                name="groups_section_status_valid",
+            ),
+            models.UniqueConstraint(
+                Lower("name"),
+                models.F("group"),
+                condition=models.Q(status=GroupSectionStatus.ACTIVE),
+                name="unique_active_section_name_per_group",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["organization", "status"]),
+            models.Index(fields=["group", "status"]),
+        ]
+
+    def __str__(self):
+        return f"{self.name} ({self.group})"
+
+    @property
+    def has_class_pin(self):
+        return bool((self.class_pin or "").strip())
+
+    def set_class_pin(self, raw_pin):
+        pin = validate_member_pin(raw_pin)
+        self.class_pin = pin
+
+    def clear_class_pin(self):
+        self.class_pin = ""
+
+    def check_class_pin(self, raw_pin):
+        stored = (self.class_pin or "").strip()
+        if not stored:
+            return False
+        return str(raw_pin or "") == stored
+
+    def archive(self):
+        if self.status == GroupSectionStatus.ARCHIVED:
+            return
+        self.status = GroupSectionStatus.ARCHIVED
+        self.save(update_fields=["status", "archived_at", "updated_at"])
+
+    def restore(self):
+        if self.status != GroupSectionStatus.ARCHIVED:
+            return
+        self.status = GroupSectionStatus.ACTIVE
+        self.save(update_fields=["status", "archived_at", "updated_at"])
+
+    def delete(self, using=None, keep_parents=False):
+        self.archive()
+
+    def save(self, *args, **kwargs):
+        self.name = (self.name or "").strip()
+        self.class_pin = (self.class_pin or "").strip()
+        if self.group_id:
+            self.organization_id = self.group.organization_id
+        self._assert_structured_group()
+        self._assert_same_workspace()
+        if not self.name:
+            raise ValidationError({"name": "Class name is required."})
+        if self.status == GroupSectionStatus.ARCHIVED:
+            if self.archived_at is None:
+                self.archived_at = timezone.now()
+        else:
+            self.archived_at = None
+        super().save(*args, **kwargs)
+
+    def clean(self):
+        super().clean()
+        self.name = (self.name or "").strip()
+        if self.group_id:
+            self.organization_id = self.group.organization_id
+        self._assert_structured_group()
+        self._assert_same_workspace()
+
+    def _assert_structured_group(self):
+        if not self.group_id:
+            return
+        if self.group.group_type != GroupType.STRUCTURED:
+            raise ValidationError(
+                {"group": "Classes can only belong to Structured Groups."}
+            )
+
+    def _assert_same_workspace(self):
+        if not self.group_id:
+            return
+        if self.organization_id and self.organization_id != self.group.organization_id:
+            raise ValidationError(
+                "Classes must belong to the Group's workspace."
+            )
+
 
 class GroupMembershipQuerySet(models.QuerySet):
     def operational(self):
@@ -382,12 +600,23 @@ class GroupMembershipQuerySet(models.QuerySet):
 
         The GroupMembership row can remain after a Member is archived so
         Restore reactivates the same relationship. Operational queries must
-        still require an active Member.
+        still require an active Member. Structured participation also requires
+        an active Class (section).
         """
         return self.filter(
             status=GroupMembershipStatus.ACTIVE,
             member__status=MemberStatus.ACTIVE,
             group__status=GroupStatus.ACTIVE,
+        ).filter(
+            models.Q(
+                group__group_type=GroupType.STANDARD,
+                section__isnull=True,
+            )
+            | models.Q(
+                group__group_type=GroupType.STRUCTURED,
+                section__isnull=False,
+                section__status=GroupSectionStatus.ACTIVE,
+            )
         )
 
     def delete(self):
@@ -420,6 +649,17 @@ class GroupMembership(models.Model):
         "members.Member",
         on_delete=models.PROTECT,
         related_name="group_memberships",
+    )
+    section = models.ForeignKey(
+        GroupSection,
+        on_delete=models.PROTECT,
+        related_name="memberships",
+        null=True,
+        blank=True,
+        help_text=(
+            "Required for Structured Groups (Class). Must be null for "
+            "Standard Groups."
+        ),
     )
     override_name = models.CharField(max_length=150, blank=True, default="")
     override_email = models.EmailField(blank=True, default="")
@@ -516,11 +756,20 @@ class GroupMembership(models.Model):
 
     @property
     def is_operational(self):
-        return (
-            self.status == GroupMembershipStatus.ACTIVE
-            and member_is_operationally_active(self.member)
-            and group_is_operationally_active(self.group)
-        )
+        if (
+            self.status != GroupMembershipStatus.ACTIVE
+            or not member_is_operationally_active(self.member)
+            or not group_is_operationally_active(self.group)
+        ):
+            return False
+        if self.group.group_type == GroupType.STANDARD:
+            return self.section_id is None
+        if self.group.group_type == GroupType.STRUCTURED:
+            return (
+                self.section_id is not None
+                and self.section.status == GroupSectionStatus.ACTIVE
+            )
+        return False
 
     def set_participation_pin(self, raw_pin):
         pin = validate_member_pin(raw_pin)
@@ -570,6 +819,7 @@ class GroupMembership(models.Model):
         if self.group_id:
             self.organization_id = self.group.organization_id
         self._assert_same_workspace()
+        self._assert_section_rules()
         if self.status == GroupMembershipStatus.INACTIVE:
             if self.deactivated_at is None:
                 self.deactivated_at = timezone.now()
@@ -592,6 +842,7 @@ class GroupMembership(models.Model):
         if self.group_id:
             self.organization_id = self.group.organization_id
         self._assert_same_workspace()
+        self._assert_section_rules()
 
     def _assert_same_workspace(self):
         if not self.group_id or not self.member_id:
@@ -607,6 +858,30 @@ class GroupMembership(models.Model):
                 "Group memberships cannot span Organizations."
             )
 
+    def _assert_section_rules(self):
+        if not self.group_id:
+            return
+        group = self.group
+        if group.group_type == GroupType.STANDARD:
+            if self.section_id is not None:
+                raise ValidationError(
+                    {"section": "Standard Groups cannot assign Classes."}
+                )
+            return
+        if group.group_type == GroupType.STRUCTURED:
+            if self.section_id is None:
+                raise ValidationError(
+                    {"section": "Structured Group participants must belong to a Class."}
+                )
+            if self.section.group_id != group.pk:
+                raise ValidationError(
+                    {"section": "Class must belong to this Group."}
+                )
+            if self.section.organization_id != group.organization_id:
+                raise ValidationError(
+                    {"section": "Class must belong to this workspace."}
+                )
+
     @staticmethod
     def _normalized_email(email):
         if not email:
@@ -615,6 +890,22 @@ class GroupMembership(models.Model):
 
 
 class GroupOnlyParticipantQuerySet(models.QuerySet):
+    def operational(self):
+        return self.filter(
+            status=GroupOnlyParticipantStatus.ACTIVE,
+            group__status=GroupStatus.ACTIVE,
+        ).filter(
+            models.Q(
+                group__group_type=GroupType.STANDARD,
+                section__isnull=True,
+            )
+            | models.Q(
+                group__group_type=GroupType.STRUCTURED,
+                section__isnull=False,
+                section__status=GroupSectionStatus.ACTIVE,
+            )
+        )
+
     def delete(self):
         now = timezone.now()
         updated = self.exclude(status=GroupOnlyParticipantStatus.ARCHIVED).update(
@@ -640,6 +931,17 @@ class GroupOnlyParticipant(models.Model):
         Group,
         on_delete=models.PROTECT,
         related_name="group_only_participants",
+    )
+    section = models.ForeignKey(
+        GroupSection,
+        on_delete=models.PROTECT,
+        related_name="group_only_participants",
+        null=True,
+        blank=True,
+        help_text=(
+            "Required for Structured Groups (Class). Must be null for "
+            "Standard Groups."
+        ),
     )
     name = models.CharField(max_length=150)
     email = models.EmailField(blank=True, default="")
@@ -742,6 +1044,7 @@ class GroupOnlyParticipant(models.Model):
         if self.group_id:
             self.organization_id = self.group.organization_id
         self._assert_same_workspace()
+        self._assert_section_rules()
         if not self.name:
             raise ValidationError({"name": "Name is required."})
         if self.status == GroupOnlyParticipantStatus.ARCHIVED:
@@ -764,6 +1067,7 @@ class GroupOnlyParticipant(models.Model):
         if self.group_id:
             self.organization_id = self.group.organization_id
         self._assert_same_workspace()
+        self._assert_section_rules()
 
     def _assert_same_workspace(self):
         if not self.group_id:
@@ -772,6 +1076,30 @@ class GroupOnlyParticipant(models.Model):
             raise ValidationError(
                 "Group-only participants must belong to the Group's workspace."
             )
+
+    def _assert_section_rules(self):
+        if not self.group_id:
+            return
+        group = self.group
+        if group.group_type == GroupType.STANDARD:
+            if self.section_id is not None:
+                raise ValidationError(
+                    {"section": "Standard Groups cannot assign Classes."}
+                )
+            return
+        if group.group_type == GroupType.STRUCTURED:
+            if self.section_id is None:
+                raise ValidationError(
+                    {"section": "Structured Group participants must belong to a Class."}
+                )
+            if self.section.group_id != group.pk:
+                raise ValidationError(
+                    {"section": "Class must belong to this Group."}
+                )
+            if self.section.organization_id != group.organization_id:
+                raise ValidationError(
+                    {"section": "Class must belong to this workspace."}
+                )
 
     @staticmethod
     def _normalized_email(email):

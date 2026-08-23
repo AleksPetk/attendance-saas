@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api, errorMessage } from "./api.js";
 import { Field, LoadingState, PasswordInput, PhotoThumb } from "./components.jsx";
+import {
+  classPinGateRequired,
+  resolveClassSectionId,
+} from "./groupKioskClassNav.js";
 import KioskRenderer from "./kiosk/KioskRenderer.jsx";
 import KioskConfirmationScreen from "./kiosk/KioskConfirmationScreen.jsx";
 import { confirmationAccentStyleFromDesign } from "./kiosk/kioskConfirmationAccent.js";
@@ -97,6 +101,47 @@ function ParticipantActionPanel({
   );
 }
 
+function ClassPinPanel({
+  className,
+  pin,
+  onPinChange,
+  error,
+  verifying,
+  onCancel,
+  onConfirm,
+}) {
+  return (
+    <div className="kiosk-flow">
+      <h2>{className}</h2>
+      <p className="hint">Enter class PIN</p>
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          onConfirm();
+        }}
+      >
+        <Field label="Class PIN">
+          <KioskPinInput
+            inputRef={null}
+            id="kiosk-class-pin"
+            value={pin}
+            onChange={onPinChange}
+          />
+        </Field>
+        <KioskInlineError error={error} />
+        <div className="kiosk-actions">
+          <button type="submit" className="btn-primary kiosk-submit" disabled={verifying || !pin}>
+            {verifying ? "Verifying…" : "Continue"}
+          </button>
+          <button type="button" className="btn-secondary kiosk-submit" onClick={onCancel} disabled={verifying}>
+            Back to classes
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
 function ExitKioskDialog({
   exitCode,
   onExitCodeChange,
@@ -145,6 +190,9 @@ export default function GroupKioskScreen({ session, groupId, onUnlocked, onKiosk
   const [kiosk, setKiosk] = useState(null);
   const [visualDesign, setVisualDesign] = useState(null);
   const [people, setPeople] = useState([]);
+  const [classes, setClasses] = useState([]);
+  const [selectedClass, setSelectedClass] = useState(null);
+  const [classPin, setClassPin] = useState("");
   const [formKey, setFormKey] = useState(0);
 
   const [step, setStep] = useState("start");
@@ -170,6 +218,9 @@ export default function GroupKioskScreen({ session, groupId, onUnlocked, onKiosk
 
   const usePin = Boolean(kiosk?.use_pin);
   const kioskMode = kiosk?.kiosk_mode;
+  const isStructured = Boolean(kiosk?.structured);
+  const requireClassPin = Boolean(kiosk?.require_class_pin);
+  const participantCodeLabel = kiosk?.participant_code_label || "Group Participant Code";
   const kioskLocked = Boolean(session?.workspace?.kiosk_locked);
 
   function clearParticipantFields() {
@@ -180,6 +231,13 @@ export default function GroupKioskScreen({ session, groupId, onUnlocked, onKiosk
     setAttendanceState(null);
     setAutomaticNote("");
     setFormKey((value) => value + 1);
+  }
+
+  function clearClassSelection() {
+    setSelectedClass(null);
+    setClassPin("");
+    setPeople([]);
+    clearParticipantFields();
   }
 
   async function load() {
@@ -203,10 +261,11 @@ export default function GroupKioskScreen({ session, groupId, onUnlocked, onKiosk
       setKiosk(result.data.kiosk || null);
       setVisualDesign(result.data.visual_design || null);
       setPeople(result.data.people || []);
+      setClasses(result.data.classes || []);
       setUnavailable(false);
-      clearParticipantFields();
+      clearClassSelection();
       setConfirmation(null);
-      setStep("start");
+      setStep(result.data.kiosk?.structured ? "classes" : "start");
     } catch (err) {
       const locked = Boolean(err?.data?.kiosk_locked) || kioskLocked;
       if (err?.status === 404 || (locked && err?.status === 403)) {
@@ -279,10 +338,18 @@ export default function GroupKioskScreen({ session, groupId, onUnlocked, onKiosk
       window.clearTimeout(returnTimerRef.current);
     }
     returnTimerRef.current = window.setTimeout(() => {
-      setStep("start");
       setConfirmation(null);
       setError(null);
       clearParticipantFields();
+      if (isStructured) {
+        setSelectedClass(null);
+        setClassPin("");
+        setPeople([]);
+        setStep("classes");
+        load();
+        return;
+      }
+      setStep("start");
       if (kioskMode === "card") {
         load();
       }
@@ -376,6 +443,79 @@ export default function GroupKioskScreen({ session, groupId, onUnlocked, onKiosk
     setStep("start");
     setError(null);
     clearParticipantFields();
+  }
+
+  function backToClasses() {
+    setError(null);
+    setClassPin("");
+    setPeople([]);
+    setSelectedClass(null);
+    clearParticipantFields();
+    setStep("classes");
+  }
+
+  async function loadClassPeople(section, pinValue = "") {
+    const sectionId = resolveClassSectionId(section);
+    if (sectionId == null) {
+      setError({ title: "Could not open this Class.", detail: "Missing Class id." });
+      return false;
+    }
+    setIdentifying(true);
+    setError(null);
+    try {
+      const result = await api.getGroupKioskClassPeople(session, groupId, sectionId, {
+        pin: pinValue || undefined,
+      });
+      setSelectedClass({
+        id: result.data.section_id,
+        name: result.data.section_name,
+        requires_class_pin: result.data.requires_class_pin,
+      });
+      setPeople(result.data.people || []);
+      setClassPin(pinValue || "");
+      setStep("start");
+      return true;
+    } catch (err) {
+      setError(kioskErrorCopy(err) || { title: "Could not open this Class." });
+      setClassPin("");
+      return false;
+    } finally {
+      setIdentifying(false);
+    }
+  }
+
+  async function handleClassTap(section) {
+    const sectionId = resolveClassSectionId(section);
+    if (sectionId == null) {
+      setError({ title: "Could not open this Class.", detail: "Missing Class id." });
+      return;
+    }
+    setError(null);
+    setSelectedClass(section);
+    if (classPinGateRequired(requireClassPin, section)) {
+      setClassPin("");
+      setStep("class_pin");
+      return;
+    }
+    await loadClassPeople(section);
+  }
+
+  async function submitClassPin() {
+    const sectionId = resolveClassSectionId(selectedClass);
+    if (sectionId == null) return;
+    setIdentifying(true);
+    setError(null);
+    try {
+      await api.verifyGroupKioskClassPin(session, groupId, sectionId, {
+        pin: classPin,
+      });
+      await loadClassPeople(selectedClass, classPin);
+    } catch (err) {
+      setError(kioskErrorCopy(err) || { title: "Incorrect PIN. Try again." });
+      setClassPin("");
+    } finally {
+      setIdentifying(false);
+    }
   }
 
   async function performAction(action) {
@@ -521,21 +661,80 @@ export default function GroupKioskScreen({ session, groupId, onUnlocked, onKiosk
         </div>
       ) : null}
 
-      {kioskMode === "card" && !unavailable ? (
+      { (kioskMode === "card" || isStructured) && !unavailable ? (
         <div className="kiosk-body">
-          {useVisualRenderer && welcomeText && step === "start" ? (
+          {useVisualRenderer && welcomeText && (step === "start" || step === "classes") ? (
             <p className="kiosk-welcome">{welcomeText}</p>
           ) : null}
-          {people.length === 0 && step === "start" ? (
+
+          {isStructured && step === "classes" ? (
+            <>
+              <h2>Choose your class</h2>
+              <KioskInlineError error={error} />
+              {identifying ? <p className="hint">Opening Class…</p> : null}
+              {classes.length === 0 ? (
+                <div className="empty-state">
+                  <h2>No Classes available</h2>
+                  <p>Add a Class with participants before launching.</p>
+                </div>
+              ) : (
+                <div className="kiosk-people-grid">
+                  {classes.map((section) => (
+                    <button
+                      key={section.id}
+                      type="button"
+                      className="kiosk-person-card"
+                      disabled={identifying}
+                      onClick={() => handleClassTap(section)}
+                    >
+                      <div className="kiosk-person-name">{section.name}</div>
+                      <div className="kiosk-person-sub">
+                        {section.participant_count} participant
+                        {section.participant_count === 1 ? "" : "s"}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </>
+          ) : null}
+
+          {isStructured && step === "class_pin" && selectedClass ? (
+            <ClassPinPanel
+              className={selectedClass.name}
+              pin={classPin}
+              onPinChange={setClassPin}
+              error={error}
+              verifying={identifying}
+              onCancel={backToClasses}
+              onConfirm={submitClassPin}
+            />
+          ) : null}
+
+          {people.length === 0 && step === "start" && !isStructured ? (
             <div className="empty-state">
               <h2>No participants available</h2>
               <p>Add Members or Group-only Participants to this Group.</p>
             </div>
           ) : null}
 
+          {people.length === 0 && step === "start" && isStructured ? (
+            <div className="empty-state">
+              <h2>No participants in this Class</h2>
+              <button type="button" className="btn-secondary kiosk-submit" onClick={backToClasses}>
+                Back to classes
+              </button>
+            </div>
+          ) : null}
+
           {people.length > 0 && step === "start" ? (
             <>
-              <p className="hint kiosk-hint">Tap your card to continue.</p>
+              {isStructured && selectedClass ? (
+                <h2>{selectedClass.name}</h2>
+              ) : null}
+              <p className="hint kiosk-hint">
+                {isStructured ? "Choose participant" : "Tap your card to continue."}
+              </p>
               <div className="kiosk-people-grid">
                 {people.map((p) => (
                   <button
@@ -554,13 +753,20 @@ export default function GroupKioskScreen({ session, groupId, onUnlocked, onKiosk
                   >
                     <div className="kiosk-person-name">{p.name || "Participant"}</div>
                     {p.participant_code ? (
-                      <div className="kiosk-person-sub">{p.participant_code}</div>
+                      <div className="kiosk-person-sub">
+                        {participantCodeLabel}: {p.participant_code}
+                      </div>
                     ) : null}
                     {p.email ? <div className="kiosk-person-sub">{p.email}</div> : null}
                   </button>
                 ))}
               </div>
               {identifying ? <p className="hint">Loading…</p> : null}
+              {isStructured ? (
+                <button type="button" className="btn-secondary kiosk-submit" onClick={backToClasses}>
+                  Back to classes
+                </button>
+              ) : null}
             </>
           ) : null}
 
@@ -581,7 +787,7 @@ export default function GroupKioskScreen({ session, groupId, onUnlocked, onKiosk
         </div>
       ) : null}
 
-      {kioskMode === "input" && !unavailable ? (
+      {kioskMode === "input" && !isStructured && !unavailable ? (
         <div className="kiosk-body kiosk-body-input">
           {useVisualRenderer && welcomeText && step === "start" ? (
             <p className="kiosk-welcome">{welcomeText}</p>

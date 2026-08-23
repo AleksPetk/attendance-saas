@@ -22,6 +22,9 @@ from attendance.report_export.common import (
     cell_text,
     flatten_report_rows,
     period_lines,
+    report_identity_headers,
+    report_identity_values,
+    report_shows_class_column,
     status_label,
 )
 from attendance.report_export.fonts import ensure_report_fonts, font_for_text
@@ -144,25 +147,37 @@ def build_attendance_report_pdf(report: dict) -> bytes:
     story.append(Spacer(1, 8))
 
     columns = list(report.get("columns") or [])
-    headers = ["Date", "Name", *[col.get("label") or col.get("key") for col in columns]]
+    headers = [
+        *report_identity_headers(report),
+        *[col.get("label") or col.get("key") for col in columns],
+    ]
     table_data = [[_paragraph(h, header_cell_style) for h in headers]]
 
     for row in flatten_report_rows(report):
         values = [
-            row["date"],
-            row["name"],
+            *report_identity_values(row, report),
             *[cell_text(row["cells"].get(col["key"])) for col in columns],
         ]
         table_data.append([_paragraph(v, cell_style) for v in values])
 
     # Column widths adapt to available page width.
     usable_width = A4[0] - doc.leftMargin - doc.rightMargin
-    name_width = usable_width * 0.28
-    date_width = usable_width * 0.22
-    remaining = usable_width - name_width - date_width
-    action_count = max(len(columns), 1)
-    action_width = remaining / action_count
-    col_widths = [date_width, name_width] + [action_width] * len(columns)
+    show_class = report_shows_class_column(report)
+    if show_class:
+        date_width = usable_width * 0.18
+        class_width = usable_width * 0.18
+        name_width = usable_width * 0.22
+        remaining = usable_width - date_width - class_width - name_width
+        action_count = max(len(columns), 1)
+        action_width = remaining / action_count
+        col_widths = [date_width, class_width, name_width] + [action_width] * len(columns)
+    else:
+        name_width = usable_width * 0.28
+        date_width = usable_width * 0.22
+        remaining = usable_width - name_width - date_width
+        action_count = max(len(columns), 1)
+        action_width = remaining / action_count
+        col_widths = [date_width, name_width] + [action_width] * len(columns)
 
     table = Table(table_data, colWidths=col_widths, repeatRows=1)
     table.setStyle(

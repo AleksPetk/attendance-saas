@@ -14,12 +14,13 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from django.utils import timezone
 
 from attendance.models import ActionRecord, ActionType
-from groups.models import Group, GroupStatus
+from groups.models import Group, GroupStatus, GroupType
 
 
 REPORT_DATE_PRESETS = ("today", "this_week", "this_month", "custom")
 # IANA names are typically short; reject oversized / empty values early.
 TIMEZONE_NAME_MAX_LENGTH = 64
+UNKNOWN_CLASS_LABEL = "Unknown Class"
 
 COLUMN_DEFS = (
     {"key": "check_in", "label": "Check-in", "action_type": ActionType.CHECK_IN},
@@ -131,6 +132,27 @@ def _participant_key(record: ActionRecord) -> str:
     return f"snapshot:{record.participant_kind}:{name}:{identifier}"
 
 
+def _class_identity_key(record: ActionRecord) -> str:
+    if record.source_section_id:
+        return f"section:{record.source_section_id}"
+    name = (record.class_name_snapshot or "").strip()
+    if name:
+        return f"snap:{name.lower()}"
+    return "unknown"
+
+
+def _row_identity_key(record: ActionRecord, *, structured: bool) -> str:
+    participant = _participant_key(record)
+    if not structured:
+        return participant
+    return f"{participant}|{_class_identity_key(record)}"
+
+
+def _class_display_name(record: ActionRecord) -> str:
+    name = (record.class_name_snapshot or "").strip()
+    return name or UNKNOWN_CLASS_LABEL
+
+
 def _visible_columns(action_types_present: set[str]) -> list[dict]:
     columns = []
     for col in COLUMN_DEFS:
@@ -169,6 +191,31 @@ def _cell_values_for_day(records: list[ActionRecord], tz) -> dict:
     return cells
 
 
+def _resolve_group_type(*, organization, source_group_id: int, live_group=None) -> str:
+    """
+    Resolve report group_type from the live Group, else historical snapshots.
+
+    Does not invent Structured solely from a single Class field on one row:
+    prefers live Group.group_type, then any non-empty group_type_snapshot.
+    """
+    if live_group is not None:
+        return live_group.group_type
+
+    snapshot = (
+        ActionRecord.objects.filter(
+            organization=organization,
+            source_group_id=source_group_id,
+        )
+        .exclude(group_type_snapshot="")
+        .order_by("-performed_at", "-id")
+        .values_list("group_type_snapshot", flat=True)
+        .first()
+    )
+    if snapshot in GroupType.values:
+        return snapshot
+    return GroupType.STANDARD
+
+
 def list_report_groups(*, organization):
     """
     Groups selectable for Attendance Report: active, archived, and deleted.
@@ -184,6 +231,7 @@ def list_report_groups(*, organization):
                 "source_group_id": group.pk,
                 "name": group.name,
                 "status": group.status,
+                "group_type": group.group_type,
             }
         )
 
@@ -211,6 +259,10 @@ def list_report_groups(*, organization):
                 "source_group_id": source_group_id,
                 "name": latest_name or f"Deleted group #{source_group_id}",
                 "status": "deleted",
+                "group_type": _resolve_group_type(
+                    organization=organization,
+                    source_group_id=source_group_id,
+                ),
             }
         )
 
@@ -235,6 +287,7 @@ def resolve_report_group(*, organization, source_group_id: int):
             "source_group_id": group.pk,
             "name": group.name,
             "status": group.status,
+            "group_type": group.group_type,
         }
 
     has_records = ActionRecord.objects.filter(
@@ -257,6 +310,10 @@ def resolve_report_group(*, organization, source_group_id: int):
         "source_group_id": source_group_id,
         "name": latest or f"Deleted group #{source_group_id}",
         "status": "deleted",
+        "group_type": _resolve_group_type(
+            organization=organization,
+            source_group_id=source_group_id,
+        ),
     }
 
 
@@ -300,29 +357,53 @@ def build_attendance_report(
     action_types_present.discard(ActionType.BREAK_END)
     columns = _visible_columns(action_types_present)
 
-    # Bucket: local_day -> participant_key -> records (chronological later)
+    is_structured = group_meta["group_type"] == GroupType.STRUCTURED
+
+    # Bucket: local_day -> row_identity_key -> records (chronological later)
     by_day: dict[date, dict[str, list[ActionRecord]]] = defaultdict(lambda: defaultdict(list))
     names: dict[str, str] = {}
+    class_names: dict[str, str] = {}
+    class_source_ids: dict[str, int | None] = {}
     for record in records:
         if record.action_type == ActionType.BREAK_END:
             continue
         local_day = timezone.localtime(record.performed_at, tz).date()
-        key = _participant_key(record)
+        key = _row_identity_key(record, structured=is_structured)
         by_day[local_day][key].append(record)
         if key not in names:
             names[key] = record.participant_name_snapshot or "Unknown"
+        if is_structured and key not in class_names:
+            class_names[key] = _class_display_name(record)
+            class_source_ids[key] = record.source_section_id
 
     sections = []
     for day in sorted(by_day.keys(), reverse=True):
         day_participants = by_day[day]
         rows = []
-        for key in sorted(day_participants.keys(), key=lambda k: (names.get(k, "").lower(), k)):
+        if is_structured:
+            sorted_keys = sorted(
+                day_participants.keys(),
+                key=lambda k: (
+                    class_names.get(k, "").lower(),
+                    names.get(k, "").lower(),
+                    k,
+                ),
+            )
+        else:
+            sorted_keys = sorted(
+                day_participants.keys(),
+                key=lambda k: (names.get(k, "").lower(), k),
+            )
+        for key in sorted_keys:
             cells = _cell_values_for_day(day_participants[key], tz)
             row = {
                 "participant_key": key,
                 "name": names.get(key, "Unknown"),
                 "cells": {col["key"]: cells.get(col["key"]) for col in columns},
             }
+            if is_structured:
+                row["class_name"] = class_names.get(key, UNKNOWN_CLASS_LABEL)
+                row["class_source_id"] = class_source_ids.get(key)
             rows.append(row)
         sections.append(
             {
@@ -335,6 +416,7 @@ def build_attendance_report(
     return {
         "group_name": group_meta["name"],
         "group_status": group_meta["status"],
+        "group_type": group_meta["group_type"],
         "source_group_id": group_meta["source_group_id"],
         "date_preset": preset,
         "date_from": start_day.isoformat(),

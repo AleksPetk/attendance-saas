@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { api, errorMessage } from "./api.js";
 import { ConfirmDialog, ErrorBanner, LoadingState, PageHeader, StatusBadge } from "./components.jsx";
-import { formatGroupId, setupIncompleteSummary } from "./groupForm.js";
+import { formatGroupId, groupTypeLabel, isStructuredGroup, setupIncompleteSummary } from "./groupForm.js";
 
 export default function GroupsScreen({ session, onNavigate }) {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -125,12 +125,16 @@ export default function GroupsScreen({ session, onNavigate }) {
         <div className="card-grid">
           {groups.map((group) => {
             const isArchived = group.status === "archived";
+            const structured = isStructuredGroup(group);
             const participantCount =
               (group.member_count || 0) + (group.group_only_participant_count || 0);
             return (
               <article
                 key={group.id}
-                className={`group-card${isArchived ? " group-card-archived" : ""}`}
+                className={`group-card${
+                  structured ? " group-card-structured" : " group-card-standard"
+                }${isArchived ? " group-card-archived" : ""}`}
+                data-group-type={structured ? "structured" : "standard"}
                 onClick={
                   isArchived
                     ? undefined
@@ -152,7 +156,10 @@ export default function GroupsScreen({ session, onNavigate }) {
                 <div className="group-card-top">
                   <div>
                     <h3>{group.name}</h3>
-                    <p className="entity-kicker">{formatGroupId(group.id)}</p>
+                    <div className="group-card-meta">
+                      <p className="entity-kicker">{formatGroupId(group.id)}</p>
+                      <p className="group-type-label">{groupTypeLabel(group)}</p>
+                    </div>
                   </div>
                   <div className="group-card-badges">
                     {isArchived ? (

@@ -510,3 +510,16 @@
     padding: var(--space-4);
   }
 }
+
+.kiosk-structured-flow-note {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--ks-border-soft, var(--border));
+  border-radius: var(--radius-md);
+  background: var(--surface-muted);
+}
+
+.kiosk-structured-flow-note strong {
+  font-size: 0.95rem;
+}

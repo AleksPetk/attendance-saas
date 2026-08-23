@@ -177,10 +177,11 @@ Which extra fields a Group or Event workflow requires is **not** a global Member
 A **Group** is an Organization-defined **long-lived, reusable participation and activity configuration** **owned by exactly one Organization**. It is not merely a folder of people, and it is not a temporary Event.
 
 - Examples: Employees, Students, Morning Class
-- Contains GroupMemberships and GroupOnlyParticipants
+- **`group_type`:** `standard` (participants directly on the Group) or `structured` (participants under Classes / `GroupSection`). Immutable after create; existing Groups are `standard`.
+- Contains GroupMemberships and GroupOnlyParticipants (Structured: each participation row requires a `section`)
 - Must not span Organizations
-- **Owns its own kiosk configuration automatically** (product rule). Creating a Group gives it kiosk capability and a `KioskDesign` foundation without a customer-facing “Kiosk enabled” toggle
-- Basic Group settings are: name, check-in, check-out, breaks, maximum breaks (1–3 when breaks are enabled), relevant after-action behavior, and Advanced settings (Group outgoing email sender)
+- **Owns its own kiosk configuration automatically** (product rule). Creating a Group gives it kiosk capability and a `KioskDesign` foundation without a customer-facing “Kiosk enabled” toggle. Structured live kiosk is Card-only (Class → Participant → Action; see DEC-066). Standard Group Card/Input kiosk remains unchanged.
+- Basic Group settings are: name, check-in, check-out, breaks, maximum breaks (1–3 when breaks are enabled), relevant after-action behavior, Advanced settings (Group outgoing email sender), and for Structured Groups `require_class_pin` (when ON, every active Class needs a Class PIN before launch)
 - **Group email sender:** each Group may own one `GroupEmailSender` (OneToOne). Providers: **Custom SMTP**, **Gmail (App Password)**, **Outlook / Microsoft 365** (SMTP AUTH), and **Yahoo Mail** (App Password). Credentials are encrypted at rest (`APP_SECRETS_ENCRYPTION_KEY`). Configuration is draft-tested before save: a successful draft test unlocks confirm-save, which persists credentials and marks **Ready**. Failed drafts do not replace an active Ready sender. Statuses: Not configured / Ready / Error (unverified drafts are not persisted as Needs verification). After-action emails require Ready and send through this sender, not platform Resend. Lightweight `GroupEmailDelivery` audit rows record sent/failed attempts without secrets. Gmail uses internal SMTP transport `smtp.gmail.com` SSL/TLS port 465. Microsoft uses STARTTLS port 587 on `smtp.office365.com` (Microsoft 365) or `smtp-mail.outlook.com` (consumer domains). Yahoo uses `smtp.mail.yahoo.com` SSL/TLS port 465. Host/port/security are not customer-facing for Gmail, Microsoft, or Yahoo. The Microsoft provider is primarily for Microsoft 365 business/work mailboxes with Authenticated SMTP enabled; personal Outlook/Hotmail compatibility is not guaranteed. Switching providers clears the previous provider’s encrypted secret only when a verified draft is confirmed and saved. Google/Microsoft/Yahoo OAuth are not implemented. Shared SMTP transport code is reused across providers. MVP dedicated mailbox providers stop at these four (Custom SMTP + Gmail + Microsoft + Yahoo). Automatic check-in was removed from the customer product; deprecated Group columns may remain for migration compatibility.
 - Group basic settings are **not** a Member-profile requirements form. Deprecated `require_*` columns may remain temporarily for kiosk identification compatibility until the next Kiosk cleanup
 - **Archive** is the normal removal path. Archived Groups are operationally inactive (no edit, no kiosk, no attendance actions) but retain configuration, memberships, and kiosk design. **Restore** reactivates the same Group PK. **Permanent delete** is archive-only and preserves ActionRecord snapshots (`ActionRecord.group` SET_NULL, `group_name_snapshot` retained, immutable `source_group_id` retained for attendance reports)
@@ -189,14 +190,16 @@ Group-specific kiosk identification and presentation fields remain on Group for 
 
 ### KioskSettings (implemented)
 
+**Structured kiosk runtime:** start returns Class cards (not all people). `GET …/kiosk/classes/<section_id>/people/` loads that Class’s operational participants (re-checks Class PIN via query when required). `POST …/kiosk/classes/<section_id>/verify-pin/` reports success/failure only. Confirmation payload may indicate return to Class selection. Actions and attendance reset reuse the Standard Group state machine.
+
 Each Group has exactly one **`KioskSettings`** record (OneToOne), created automatically with the Group. It owns behavioral kiosk configuration:
 
 | Area | Fields / behavior |
 |------|-------------------|
-| Mode | `card` or `input` |
-| Card display | show name, group participant code, email (when Group email enabled) |
+| Mode | `card` or `input` (Structured Groups are forced to `card`; Input is not offered) |
+| Card display | show name, group participant code (Structured UI label: Class Participant Code), email (when Group email enabled) |
 | Kiosk PIN usage | `use_pin` — requires Group PIN enabled; forces participant code visible on cards |
-| Input mode | 1 field (code only) or 2 fields (code + name/email/pin) |
+| Input mode | Standard only: 1 field (code only) or 2 fields (code + name/email/pin) |
 | Confirmation screen | preset template key; per-action message templates; return delay 1/3/5 sec (default 3) |
 | Attendance reset | `attendance_reset_mode` (`daily` \| `rolling`); Daily local-time boundary (`attendance_reset_daily_time`, default 00:00); Rolling duration (`attendance_reset_rolling_hours` + `attendance_reset_rolling_minutes`, default 8h); persisted manual boundary `manual_reset_at` (Reset now) |
 | Exit security | hashed `exit_code_hash`; never returned in API |
@@ -223,9 +226,21 @@ A **GroupMembership** links one **Member** to one **Group**.
 - Optional legacy override fields (name, photo, identifier) remain for kiosk compatibility; Member profile email/PIN are not the canonical participation source for newly configured Groups
 - Archiving a Member does **not** delete or deactivate the GroupMembership. Operational lists, kiosk identification, and attendance actions ignore memberships whose Member is archived. Restore makes the same membership operational again.
 
-A Member may have multiple GroupMembership records within one Organization. The same Member in two Groups receives two different participant codes.
+A Member may have multiple GroupMembership records within one Organization. The same Member in two Groups receives two different participant codes. Within one Structured Group, a Member has at most one membership (unique per Group); the `section` FK points to the current Class and may change later without regenerating the participant code.
 
-**Setup incomplete:** when Group participation requirements are enabled but operational participants lack required email/PIN, the Group remains editable but real kiosk/attendance operations are blocked until data is completed or the requirement is turned off. Stored participation values are retained when requirements are disabled.
+**Setup incomplete:** when Group participation requirements are enabled but operational participants lack required email/PIN, the Group remains editable but real kiosk/attendance operations are blocked until data is completed or the requirement is turned off. Stored participation values are retained when requirements are disabled. For Structured Groups, only participants in **active** Classes count; archived Classes and archived Members do not. Structured readiness also requires ≥1 active Class with operational participants, and when `require_class_pin` is ON every active Class must have a Class PIN (missing PINs produce messages such as “2 Classes need a PIN”). Turning `require_class_pin` OFF does not erase stored Class PINs.
+
+### GroupSection (Class)
+
+Backend name **`GroupSection`**; product label **Class**. Child of a Structured Group only.
+
+- Belongs to exactly one Structured Group and the same Organization
+- Visible immutable PK style (`Class #12`)
+- Optional **Class PIN** (`class_pin`) for Structured kiosk Class entry when the parent Group has `require_class_pin` ON — low-security attendance PIN (managers may view/edit; never returned in participant-facing kiosk list/config payloads)
+- Active Class names unique within a Group (case-insensitive among active rows)
+- Lifecycle: Active → Archive → Restore or Permanent Delete (permanent delete removes Class participation rows; ActionRecords remain Group-scoped with Class snapshot fields `source_section_id` / `class_name_snapshot`; live `section` SET_NULL)
+- Live kiosk: empty active Classes are hidden from Class cards; archived Classes are hidden; Class people are loaded per Class after selection/verification
+- **Standard Group snapshot import (DEC-067):** `POST /api/groups/<structured_id>/classes/import-standard-group/` creates a Class and copies operational Standard Group participants into new destination participation rows (new codes; Members skipped if already in the destination Group). Sources: `GET …/classes/import-sources/`. No sync afterward; settings/kiosk/history never copied.
 
 ### GroupOnlyParticipant
 
@@ -351,7 +366,7 @@ This foundation participates in the platform’s historical integrity rules:
 - Do not silently overwrite or manipulate records in a way that destroys historical integrity
 - Future Action Records must remain historically accurate when later Group, Kiosk, or Action configuration changes
 - Action Record creation, correction, source-field design, and audit mechanics are **not designed here**
-- Workspace History includes an **Activity Log** (raw Action Records) and an **Attendance Report** (participant × local day aggregation). Report calendar presets (`today` / week / month) and day bucketing use an explicit client `timezone` IANA name when provided (browser local); otherwise Django `TIME_ZONE`. Report columns follow ActionRecord data in range, not live Group action toggles. Immutable `ActionRecord.source_group_id` keeps permanently deleted Groups selectable for reports (DEC-063)
+- Workspace History includes an **Activity Log** (raw Action Records) and an **Attendance Report** (participant × local day aggregation; Structured adds historical Class column and participant × Class × day grain). Report calendar presets (`today` / week / month) and day bucketing use an explicit client `timezone` IANA name when provided (browser local); otherwise Django `TIME_ZONE`. Report columns follow ActionRecord data in range, not live Group action toggles. Immutable `ActionRecord.source_group_id` keeps permanently deleted Groups selectable for reports; Class snapshots (`source_section_id` / `class_name_snapshot`) preserve Structured Class context (DEC-063, DEC-065)
 - **Permanent customer account deletion** is a separate, explicit exception: after the paying owner or a platform superuser confirms destruction of that tenant, that workspace's operational data including Action Records is removed. Archive/deactivate remains the reversible path. See DEC-052.
 
 ## Authentication sessions

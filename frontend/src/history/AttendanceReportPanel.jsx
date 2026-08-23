@@ -113,6 +113,7 @@ export default function AttendanceReportPanel({ session }) {
 
   const hasSections = report && Array.isArray(report.sections) && report.sections.length > 0;
   const columns = report?.columns || [];
+  const showClassColumn = report?.group_type === "structured";
   const canExport = Boolean(hasSections) && filtersReady && !loadingReport && !exporting;
 
   function reportQueryParams(extra = {}) {
@@ -391,6 +392,7 @@ export default function AttendanceReportPanel({ session }) {
                 <table className="attendance-report-table">
                   <thead>
                     <tr>
+                      {showClassColumn ? <th scope="col">Class</th> : null}
                       <th scope="col">Name</th>
                       {columns.map((col) => (
                         <th key={col.key} scope="col">
@@ -402,6 +404,9 @@ export default function AttendanceReportPanel({ session }) {
                   <tbody>
                     {section.rows.map((row) => (
                       <tr key={`${section.date}-${row.participant_key}`}>
+                        {showClassColumn ? (
+                          <td className="attendance-report-class">{row.class_name || "Unknown Class"}</td>
+                        ) : null}
                         <th scope="row">{row.name}</th>
                         {columns.map((col) => (
                           <td key={col.key}>{cellDisplay(row.cells?.[col.key])}</td>

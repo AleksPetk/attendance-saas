@@ -16,7 +16,7 @@ from django.db import models, transaction
 from accounts.deletion import hard_delete_queryset
 from attendance.models import ActionRecord
 from groups.email_sender_models import GroupEmailDelivery, GroupEmailSender
-from groups.models import Group, GroupMembership, GroupOnlyParticipant, GroupStatus
+from groups.models import Group, GroupMembership, GroupOnlyParticipant, GroupSection, GroupStatus
 from kiosk_builder.models import KioskDesign, KioskSettings
 
 logger = logging.getLogger("groups.deletion")
@@ -67,6 +67,7 @@ def permanently_delete_group(group):
     organization_id = group.organization_id
     memberships = GroupMembership.objects.filter(group_id=group_id)
     participants = GroupOnlyParticipant.objects.filter(group_id=group_id)
+    sections = GroupSection.objects.filter(group_id=group_id)
     designs = KioskDesign.objects.filter(group_id=group_id)
     kiosk_settings = KioskSettings.objects.filter(group_id=group_id)
     email_senders = GroupEmailSender.objects.filter(group_id=group_id)
@@ -95,6 +96,7 @@ def permanently_delete_group(group):
         hard_delete_queryset(email_senders)
         hard_delete_queryset(memberships)
         hard_delete_queryset(participants)
+        hard_delete_queryset(sections)
         hard_delete_queryset(designs)
         hard_delete_queryset(kiosk_settings)
         hard_delete_queryset(Group.objects.filter(pk=group_id))

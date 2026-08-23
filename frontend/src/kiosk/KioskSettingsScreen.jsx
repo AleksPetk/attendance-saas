@@ -72,6 +72,9 @@ export default function KioskSettingsScreen({ session, groupId, onNavigate }) {
       setSettings(settingsResult.data);
       setKioskDesignConfig(designResult.data?.config || null);
       const next = kioskSettingsFormFromApi(settingsResult.data);
+      if (groupResult.data.group_type === "structured") {
+        next.mode = "card";
+      }
       const nextChangingExitCode = !settingsResult.data.exit_code_configured;
       setForm(next);
       setSavedForm(next);
@@ -126,6 +129,7 @@ export default function KioskSettingsScreen({ session, groupId, onNavigate }) {
 
   const groupEmailOn = Boolean(settings?.group_require_email);
   const groupPinOn = Boolean(settings?.group_require_pin);
+  const isStructured = group?.group_type === "structured";
   const pinForcedCode = form.mode === "card" && form.use_pin;
 
   function patchForm(updates) {
@@ -282,29 +286,41 @@ export default function KioskSettingsScreen({ session, groupId, onNavigate }) {
           <section className="kiosk-settings-card card-surface" aria-labelledby="ks-type-title">
             <div className="kiosk-settings-card-head">
               <h3 id="ks-type-title">Kiosk Type</h3>
-              <p className="hint">Choose how participants identify themselves.</p>
+              <p className="hint">
+                {isStructured
+                  ? "Structured Groups use a fixed Class → Participant card flow."
+                  : "Choose how participants identify themselves."}
+              </p>
             </div>
-            <div className="kiosk-type-picker" role="radiogroup" aria-label="Kiosk type">
-              {[
-                { id: "card", label: "Card", hint: "Participants tap their card." },
-                { id: "input", label: "Input", hint: "Participants enter their code." },
-              ].map((option) => (
-                <label
-                  key={option.id}
-                  className={`kiosk-type-option ${form.mode === option.id ? "active" : ""}`}
-                >
-                  <input
-                    type="radio"
-                    name="kiosk-type"
-                    value={option.id}
-                    checked={form.mode === option.id}
-                    onChange={() => patchForm({ mode: option.id })}
-                  />
-                  <span className="kiosk-type-label">{option.label}</span>
-                  <span className="hint">{option.hint}</span>
-                </label>
-              ))}
-            </div>
+            {isStructured ? (
+              <div className="kiosk-structured-flow-note">
+                <strong>Kiosk flow</strong>
+                <p className="hint">Class cards → Participant cards</p>
+                <p className="hint">Class PINs are managed from each Class.</p>
+              </div>
+            ) : (
+              <div className="kiosk-type-picker" role="radiogroup" aria-label="Kiosk type">
+                {[
+                  { id: "card", label: "Card", hint: "Participants tap their card." },
+                  { id: "input", label: "Input", hint: "Participants enter their code." },
+                ].map((option) => (
+                  <label
+                    key={option.id}
+                    className={`kiosk-type-option ${form.mode === option.id ? "active" : ""}`}
+                  >
+                    <input
+                      type="radio"
+                      name="kiosk-type"
+                      value={option.id}
+                      checked={form.mode === option.id}
+                      onChange={() => patchForm({ mode: option.id })}
+                    />
+                    <span className="kiosk-type-label">{option.label}</span>
+                    <span className="hint">{option.hint}</span>
+                  </label>
+                ))}
+              </div>
+            )}
           </section>
 
           <section className="kiosk-settings-card card-surface" aria-labelledby="ks-exit-title">
@@ -377,7 +393,7 @@ export default function KioskSettingsScreen({ session, groupId, onNavigate }) {
             <p className="hint">Configure how participants are shown or identified.</p>
           </div>
 
-          {form.mode === "card" ? (
+          {form.mode === "card" || isStructured ? (
             <div className="kiosk-settings-ident-body">
               <div className="kiosk-settings-subsection">
                 <h4>Card content</h4>
@@ -400,7 +416,7 @@ export default function KioskSettingsScreen({ session, groupId, onNavigate }) {
                       }
                     />
                     <span>
-                      Group Participant Code
+                      {isStructured ? "Class Participant Code" : "Group Participant Code"}
                       {pinForcedCode ? (
                         <span className="ks-option-meta">Required when PIN verification is enabled.</span>
                       ) : null}

@@ -6,6 +6,7 @@ from groups.models import (
     GroupMembershipStatus,
     GroupOnlyParticipant,
     group_is_operationally_active,
+    group_is_structured,
 )
 from groups.readiness import group_is_operationally_ready
 from groups.operations import maybe_run_after_action
@@ -251,6 +252,18 @@ def perform_action_record_from_kiosk(
             "participant_check_in_identifier_snapshot": group_only_participant.check_in_identifier,
         }
 
+    section = None
+    source_section_id = None
+    class_name_snapshot = ""
+    if group_is_structured(group):
+        if participant_kind == "member":
+            section = membership.section
+        else:
+            section = group_only_participant.section
+        if section is not None:
+            source_section_id = section.pk
+            class_name_snapshot = section.name
+
     ar = ActionRecord.objects.create(
         organization=group.organization,
         group=group,
@@ -266,6 +279,10 @@ def perform_action_record_from_kiosk(
         participant_email_snapshot=snapshot.get("participant_email_snapshot", ""),
         participant_check_in_identifier_snapshot=snapshot.get("participant_check_in_identifier_snapshot", ""),
         group_name_snapshot=group.name,
+        group_type_snapshot=group.group_type,
+        section=section,
+        source_section_id=source_section_id,
+        class_name_snapshot=class_name_snapshot,
     )
     maybe_run_after_action(
         group,

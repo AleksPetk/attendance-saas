@@ -1,6 +1,8 @@
 from django.urls import path
 
 from attendance.views import (
+    GroupKioskClassPeopleView,
+    GroupKioskClassVerifyPinView,
     GroupKioskExitView,
     GroupKioskIdentifyView,
     GroupKioskPerformView,
@@ -14,6 +16,16 @@ from attendance.views import (
 urlpatterns = [
     path("kiosk/exit/", GroupKioskExitView.as_view(), name="group-kiosk-exit"),
     path("groups/<int:group_pk>/kiosk/", GroupKioskStartView.as_view(), name="group-kiosk-start"),
+    path(
+        "groups/<int:group_pk>/kiosk/classes/<int:section_pk>/people/",
+        GroupKioskClassPeopleView.as_view(),
+        name="group-kiosk-class-people",
+    ),
+    path(
+        "groups/<int:group_pk>/kiosk/classes/<int:section_pk>/verify-pin/",
+        GroupKioskClassVerifyPinView.as_view(),
+        name="group-kiosk-class-verify-pin",
+    ),
     path(
         "groups/<int:group_pk>/kiosk/identify/",
         GroupKioskIdentifyView.as_view(),

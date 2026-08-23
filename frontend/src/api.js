@@ -143,22 +143,103 @@ export const api = {
   restoreGroup: (_auth, id) => request(`/api/groups/${id}/restore/`, { method: "POST" }),
   permanentlyDeleteGroup: (_auth, id) =>
     request(`/api/groups/${id}/permanently-delete/`, { method: "POST" }),
-  listMemberships: (_auth, groupId) => request(`/api/groups/${groupId}/memberships/`),
-  createMembership: (_auth, groupId, formData) =>
-    request(`/api/groups/${groupId}/memberships/`, { method: "POST", formData }),
-  updateMembership: (_auth, groupId, membershipId, formData) =>
-    request(`/api/groups/${groupId}/memberships/${membershipId}/`, { method: "PATCH", formData }),
-  removeMembership: (_auth, groupId, membershipId) =>
-    request(`/api/groups/${groupId}/memberships/${membershipId}/`, { method: "DELETE" }),
-  listParticipants: (_auth, groupId) => request(`/api/groups/${groupId}/participants/`),
-  createParticipant: (_auth, groupId, formData) =>
-    request(`/api/groups/${groupId}/participants/`, { method: "POST", formData }),
-  updateParticipant: (_auth, groupId, participantId, formData) =>
-    request(`/api/groups/${groupId}/participants/${participantId}/`, { method: "PATCH", formData }),
-  removeParticipant: (_auth, groupId, participantId) =>
-    request(`/api/groups/${groupId}/participants/${participantId}/`, { method: "DELETE" }),
-  listAvailableMembers: (_auth, groupId) => request(`/api/groups/${groupId}/available-members/`),
+  listMemberships: (_auth, groupId, classId) =>
+    request(
+      classId
+        ? `/api/groups/${groupId}/classes/${classId}/memberships/`
+        : `/api/groups/${groupId}/memberships/`,
+    ),
+  createMembership: (_auth, groupId, formData, classId) =>
+    request(
+      classId
+        ? `/api/groups/${groupId}/classes/${classId}/memberships/`
+        : `/api/groups/${groupId}/memberships/`,
+      { method: "POST", formData },
+    ),
+  updateMembership: (_auth, groupId, membershipId, formData, classId) =>
+    request(
+      classId
+        ? `/api/groups/${groupId}/classes/${classId}/memberships/${membershipId}/`
+        : `/api/groups/${groupId}/memberships/${membershipId}/`,
+      { method: "PATCH", formData },
+    ),
+  removeMembership: (_auth, groupId, membershipId, classId) =>
+    request(
+      classId
+        ? `/api/groups/${groupId}/classes/${classId}/memberships/${membershipId}/`
+        : `/api/groups/${groupId}/memberships/${membershipId}/`,
+      { method: "DELETE" },
+    ),
+  listParticipants: (_auth, groupId, classId) =>
+    request(
+      classId
+        ? `/api/groups/${groupId}/classes/${classId}/participants/`
+        : `/api/groups/${groupId}/participants/`,
+    ),
+  createParticipant: (_auth, groupId, formData, classId) =>
+    request(
+      classId
+        ? `/api/groups/${groupId}/classes/${classId}/participants/`
+        : `/api/groups/${groupId}/participants/`,
+      { method: "POST", formData },
+    ),
+  updateParticipant: (_auth, groupId, participantId, formData, classId) =>
+    request(
+      classId
+        ? `/api/groups/${groupId}/classes/${classId}/participants/${participantId}/`
+        : `/api/groups/${groupId}/participants/${participantId}/`,
+      { method: "PATCH", formData },
+    ),
+  removeParticipant: (_auth, groupId, participantId, classId) =>
+    request(
+      classId
+        ? `/api/groups/${groupId}/classes/${classId}/participants/${participantId}/`
+        : `/api/groups/${groupId}/participants/${participantId}/`,
+      { method: "DELETE" },
+    ),
+  listAvailableMembers: (_auth, groupId, classId) =>
+    request(
+      classId
+        ? `/api/groups/${groupId}/classes/${classId}/available-members/`
+        : `/api/groups/${groupId}/available-members/`,
+    ),
+  listGroupClasses: (_auth, groupId, params = "") =>
+    request(`/api/groups/${groupId}/classes/${params}`),
+  getGroupClass: (_auth, groupId, classId) =>
+    request(`/api/groups/${groupId}/classes/${classId}/`),
+  createGroupClass: (_auth, groupId, json) =>
+    request(`/api/groups/${groupId}/classes/`, { method: "POST", json }),
+  listGroupClassImportSources: (_auth, groupId) =>
+    request(`/api/groups/${groupId}/classes/import-sources/`),
+  importStandardGroupAsClass: (_auth, groupId, json) =>
+    request(`/api/groups/${groupId}/classes/import-standard-group/`, {
+      method: "POST",
+      json,
+    }),
+  updateGroupClass: (_auth, groupId, classId, json) =>
+    request(`/api/groups/${groupId}/classes/${classId}/`, { method: "PATCH", json }),
+  archiveGroupClass: (_auth, groupId, classId) =>
+    request(`/api/groups/${groupId}/classes/${classId}/`, { method: "DELETE" }),
+  restoreGroupClass: (_auth, groupId, classId) =>
+    request(`/api/groups/${groupId}/classes/${classId}/restore/`, { method: "POST" }),
+  permanentlyDeleteGroupClass: (_auth, groupId, classId) =>
+    request(`/api/groups/${groupId}/classes/${classId}/permanently-delete/`, {
+      method: "POST",
+    }),
   getGroupKioskStart: (_auth, groupId) => request(`/api/groups/${groupId}/kiosk/`),
+  getGroupKioskClassPeople: (_auth, groupId, classId, params = {}) => {
+    const query = new URLSearchParams();
+    if (params.pin) {
+      query.set("pin", params.pin);
+    }
+    const suffix = query.toString() ? `?${query.toString()}` : "";
+    return request(`/api/groups/${groupId}/kiosk/classes/${classId}/people/${suffix}`);
+  },
+  verifyGroupKioskClassPin: (_auth, groupId, classId, json) =>
+    request(`/api/groups/${groupId}/kiosk/classes/${classId}/verify-pin/`, {
+      method: "POST",
+      json,
+    }),
   getGroupKioskSettings: (_auth, groupId) => request(`/api/groups/${groupId}/kiosk-settings/`),
   updateGroupKioskSettings: (_auth, groupId, json) =>
     request(`/api/groups/${groupId}/kiosk-settings/`, { method: "PATCH", json }),

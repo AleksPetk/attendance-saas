@@ -83,6 +83,7 @@ Platform-operator 2FA uses standard TOTP (Google Authenticator and other TOTP ap
 - The lock is stored on the Check Station app session (`kiosk_locked`, `kiosk_group_id`). It does **not** use the isolated Django `/admin/` session and does not automatically lock other browsers or devices for the same owner.
 - This is an interim control for the current owner/staff browser kiosk. Dedicated kiosk device credentials remain open (OPEN-004).
 - Participant Name/PIN fields are not website login credentials and must not be presented as account password fields.
+- **Class PIN** (Structured Groups) follows the same low-security attendance-PIN philosophy as participation PIN: managers may view/change it; participant-facing kiosk APIs must never return Class PIN values; verify endpoints report only success/failure. Class PIN is not account authentication and must not be merged with participant PIN.
 
 ## Archive versus permanent deletion
 
@@ -106,4 +107,4 @@ Strict Organization tenant isolation remains a non-negotiable security requireme
 | Field | Value |
 |-------|-------|
 | **Status** | Security requirements plus paying-customer email verification, isolated admin sessions, permanent account deletion, mandatory platform-admin TOTP, Check Station app-session kiosk lock, and encrypted Group email-sender credentials (Custom SMTP / Gmail App Password / Outlook Microsoft 365 SMTP / Yahoo Mail App Password) |
-| **Last updated** | 2026-08-21 |
+| **Last updated** | 2026-08-23 |

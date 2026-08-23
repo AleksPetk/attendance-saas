@@ -1,13 +1,13 @@
 from django.contrib import admin
 
-from groups.models import Group, GroupMembership, GroupOnlyParticipant
+from groups.models import Group, GroupMembership, GroupOnlyParticipant, GroupSection
 
 
 class GroupMembershipInline(admin.TabularInline):
     model = GroupMembership
     extra = 0
-    fields = ("member", "override_email", "status")
-    readonly_fields = ("member", "override_email", "status")
+    fields = ("member", "section", "override_email", "status")
+    readonly_fields = ("member", "section", "override_email", "status")
     show_change_link = True
     can_delete = False
 
@@ -21,8 +21,23 @@ class GroupMembershipInline(admin.TabularInline):
 class GroupOnlyParticipantInline(admin.TabularInline):
     model = GroupOnlyParticipant
     extra = 0
-    fields = ("name", "email", "status")
-    readonly_fields = ("name", "email", "status")
+    fields = ("name", "section", "email", "status")
+    readonly_fields = ("name", "section", "email", "status")
+    show_change_link = True
+    can_delete = False
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+
+class GroupSectionInline(admin.TabularInline):
+    model = GroupSection
+    extra = 0
+    fields = ("name", "status")
+    readonly_fields = ("name", "status")
     show_change_link = True
     can_delete = False
 
@@ -40,6 +55,7 @@ class GroupAdmin(admin.ModelAdmin):
     list_display = (
         "name",
         "organization",
+        "group_type",
         "status",
         "check_in_enabled",
         "check_out_enabled",
@@ -48,6 +64,7 @@ class GroupAdmin(admin.ModelAdmin):
     )
     list_filter = (
         "status",
+        "group_type",
         "check_in_enabled",
         "check_out_enabled",
         "breaks_enabled",
@@ -60,11 +77,11 @@ class GroupAdmin(admin.ModelAdmin):
     )
     autocomplete_fields = ("organization",)
     readonly_fields = ("created_at", "updated_at", "archived_at")
-    inlines = (GroupMembershipInline, GroupOnlyParticipantInline)
+    inlines = (GroupSectionInline, GroupMembershipInline, GroupOnlyParticipantInline)
     fieldsets = (
         (
             None,
-            {"fields": ("organization", "name", "status")},
+            {"fields": ("organization", "name", "group_type", "require_class_pin", "status")},
         ),
         (
             "Actions",
@@ -246,4 +263,37 @@ class GroupOnlyParticipantAdmin(admin.ModelAdmin):
         self.message_user(
             request,
             f"{count} group-only participant(s) archived instead of deleted.",
+        )
+
+
+@admin.register(GroupSection)
+class GroupSectionAdmin(admin.ModelAdmin):
+    list_display = ("name", "group", "organization", "status", "created_at")
+    list_filter = ("status", "organization")
+    search_fields = ("name", "group__name", "organization__workspace_id")
+    autocomplete_fields = ("organization", "group")
+    readonly_fields = ("created_at", "updated_at", "archived_at")
+    fields = (
+        "organization",
+        "group",
+        "name",
+        "status",
+        "created_at",
+        "updated_at",
+        "archived_at",
+    )
+
+    def delete_model(self, request, obj):
+        obj.archive()
+        self.message_user(
+            request,
+            f'Class "{obj}" was archived instead of deleted.',
+        )
+
+    def delete_queryset(self, request, queryset):
+        count = queryset.count()
+        queryset.delete()
+        self.message_user(
+            request,
+            f"{count} Class(es) archived instead of deleted.",
         )

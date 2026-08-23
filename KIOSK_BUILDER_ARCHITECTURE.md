@@ -14,8 +14,10 @@ For general product rules see [PRODUCT.md](./PRODUCT.md). For confirmed decision
 |-------|-------|
 | **Status** | Approved architecture; implemented through Phase 5 foundation |
 | **Created** | 2026-08-19 |
-| **Last updated** | 2026-08-20 |
+| **Last updated** | 2026-08-23 |
 | **Supersedes** | DEC-012 limited-theme-only assumption (see [Backward Compatibility](#backward-compatibility)) |
+
+**Structured Groups:** live Main content uses Class cards then participant cards, but the same `KioskDesign` Builder (Header/Main/Footer, presets, backgrounds) applies. Builder fake sample content remains participant-card density testing; Class-card fake samples are not required for this stage.
 
 ---
 

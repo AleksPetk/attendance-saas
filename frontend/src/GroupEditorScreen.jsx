@@ -27,6 +27,8 @@ const PROVIDER_YAHOO = "yahoo";
 
 const EMPTY_GROUP = {
   name: "",
+  group_type: "standard",
+  require_class_pin: false,
   actions: {
     check_in_enabled: true,
     check_out_enabled: false,
@@ -635,6 +637,53 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
       ) : null}
 
       <form id="group-editor-form" className="group-form group-form-dashboard" onSubmit={handleSubmit}>
+        {!isEdit ? (
+          <SectionCard title="Group type" className="section-group-type">
+            <div className="group-type-selector" role="radiogroup" aria-label="Group type">
+              <button
+                type="button"
+                className="group-type-option"
+                role="radio"
+                aria-checked={values.group_type === "standard"}
+                data-selected={values.group_type === "standard" ? "true" : "false"}
+                onClick={() =>
+                  setValues((current) => ({
+                    ...current,
+                    group_type: "standard",
+                    require_class_pin: false,
+                  }))
+                }
+              >
+                <strong>Standard Group</strong>
+                <span>Participants belong directly to the Group.</span>
+              </button>
+              <button
+                type="button"
+                className="group-type-option"
+                role="radio"
+                aria-checked={values.group_type === "structured"}
+                data-selected={values.group_type === "structured" ? "true" : "false"}
+                onClick={() =>
+                  setValues((current) => ({
+                    ...current,
+                    group_type: "structured",
+                  }))
+                }
+              >
+                <strong>Structured Group</strong>
+                <span>Organize participants inside Classes/Sections.</span>
+              </button>
+            </div>
+          </SectionCard>
+        ) : (
+          <SectionCard title="Group type" className="section-group-type">
+            <p className="hint">
+              {values.group_type === "structured" ? "Structured Group" : "Standard Group"} — type
+              cannot be changed after creation.
+            </p>
+          </SectionCard>
+        )}
+
         <SectionCard title="Group name" className="section-name">
           <Field label="Name">
             <input
@@ -685,6 +734,43 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
                 ))}
               </div>
             </Field>
+          ) : null}
+        </SectionCard>
+
+        <SectionCard
+          title="Participation"
+          description="Require participation email or PIN for operational participants."
+          className="section-participation"
+        >
+          <div className="toggle-grid toggle-grid-compact toggle-grid-stack">
+            <Toggle
+              label="Require email"
+              checked={participation.email_required}
+              onChange={(checked) => {
+                patch("participation.email_required", checked);
+                if (!checked) {
+                  setRequireEmailNotice("");
+                }
+              }}
+            />
+            <Toggle
+              label="Require PIN"
+              checked={participation.pin_required}
+              onChange={(checked) => patch("participation.pin_required", checked)}
+            />
+            {values.group_type === "structured" ? (
+              <Toggle
+                label="Require PIN for classes"
+                checked={Boolean(values.require_class_pin)}
+                onChange={(checked) => patch("require_class_pin", checked)}
+              />
+            ) : null}
+          </div>
+          {values.group_type === "structured" ? (
+            <p className="hint">
+              Class PIN is stored for upcoming Structured kiosk flow. Kiosk class entry is not
+              enabled in this stage.
+            </p>
           ) : null}
         </SectionCard>
 
@@ -756,30 +842,6 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
               ) : null}
             </div>
           )}
-        </SectionCard>
-
-        <SectionCard
-          title="Participation"
-          description="Require participation email or PIN for operational participants."
-          className="section-participation"
-        >
-          <div className="toggle-grid toggle-grid-compact toggle-grid-stack">
-            <Toggle
-              label="Require email"
-              checked={participation.email_required}
-              onChange={(checked) => {
-                patch("participation.email_required", checked);
-                if (!checked) {
-                  setRequireEmailNotice("");
-                }
-              }}
-            />
-            <Toggle
-              label="Require PIN"
-              checked={participation.pin_required}
-              onChange={(checked) => patch("participation.pin_required", checked)}
-            />
-          </div>
         </SectionCard>
 
         <section className="section-card section-advanced">

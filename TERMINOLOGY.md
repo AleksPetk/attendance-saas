@@ -108,13 +108,27 @@ Group-specific overrides belong to **Group Membership**, not to the canonical Me
 
 A **long-lived, reusable** Organization-defined **participation and activity configuration**, not merely a folder of people, and not a temporary Event. Basic settings: name, check-in, check-out, breaks, maximum breaks (1–3 when enabled), Group participation email/PIN requirements, relevant after-action behavior, and Advanced (Group outgoing email sender). Visible **Group #ID** uses the Django Group PK. Every Group automatically has kiosk capability and its own kiosk design foundation. **Setup incomplete** is an active derived state when participation requirements are unsatisfied. **Archive** hides a Group from normal use while retaining configuration, memberships, and kiosk design. **Restore** reactivates the same Group. **Permanent delete** is archive-only and preserves ActionRecord snapshots.
 
+**Group types:** **Standard Group** (participants belong directly to the Group) and **Structured Group** (participants belong to Classes inside the Group). Type is immutable after creation.
+
+### Class **(confirmed for Structured Groups)**
+
+Product label for a child section inside a Structured Group. Architecture entity: **GroupSection**. Visible **Class #ID** uses the Django PK. Participants attach to a Class, not to the parent Structured Group list. Custom renaming of the “Class” label is not in this stage. Optional **Class PIN** gates entry to that Class’s participant list when the parent Structured Group requires Class PINs. Class PIN is not the participant PIN. A Class may also be created by **one-time snapshot import** from an active Standard Group (no ongoing link).
+
+### Copy existing Group as Class **(confirmed)**
+
+Workspace action that snapshots a Standard Group’s current operational participants into a new Class inside a Structured Group. Not synchronization. Does not copy kiosk, settings, or history.
+
+### Structured Kiosk **(confirmed)**
+
+Live kiosk for Structured Groups only: **Class cards → Participant cards → Action → Confirmation → Class selection**. Always Card-based (no Input mode). Confirmation returns to Class selection so the next participant may choose another Class.
+
 ### Group participant code **(confirmed)**
 
 Immutable Group-scoped code on each GroupMembership and Group-only participant (example `G1-5679`). Not the reusable Member ID. **Canonical kiosk participant identifier** for Card/Input identification (DEC-057).
 
 ### Kiosk Settings **(confirmed)**
 
-Behavioral configuration for a Group-owned kiosk: Card vs Input mode, card display fields, input field layout, **attendance reset** (Daily or Rolling cycle boundaries plus manual Reset now), **confirmation screen settings** (preset template, per-enabled-action messages, 1/3/5-second return delay), and hashed kiosk exit code. Separate from Group participation requirements and from Kiosk Design visual editor. One record per Group, created automatically.
+Behavioral configuration for a Group-owned kiosk: Standard Groups choose Card vs Input; Structured Groups use a fixed Class → Participant card flow (Input not offered). Card display fields (Structured label for code: **Class Participant Code**), input field layout (Standard Input only), **attendance reset** (Daily or Rolling cycle boundaries plus manual Reset now), **confirmation screen settings** (preset template, per-enabled-action messages, 1/3/5-second return delay), and hashed kiosk exit code. Class PINs are not configured here. Separate from Group participation requirements and from Kiosk Design visual editor. One record per Group, created automatically.
 
 ### Attendance Reset **(confirmed)**
 

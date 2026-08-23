@@ -11,6 +11,8 @@ class ActionRecordSerializer(serializers.ModelSerializer):
     person = serializers.SerializerMethodField()
     group_id = serializers.IntegerField(read_only=True)
     group_name = serializers.SerializerMethodField()
+    class_name = serializers.SerializerMethodField()
+    source_section_id = serializers.IntegerField(read_only=True, allow_null=True)
 
     class Meta:
         model = ActionRecord
@@ -18,6 +20,8 @@ class ActionRecordSerializer(serializers.ModelSerializer):
             "id",
             "group_id",
             "group_name",
+            "class_name",
+            "source_section_id",
             "person",
             "action",
             "source",
@@ -30,6 +34,9 @@ class ActionRecordSerializer(serializers.ModelSerializer):
         if obj.group_id and obj.group is not None:
             return obj.group.name
         return ""
+
+    def get_class_name(self, obj: ActionRecord):
+        return (obj.class_name_snapshot or "").strip()
 
     def get_person(self, obj: ActionRecord):
         # Snapshot fields only: later edits must not rewrite history.
