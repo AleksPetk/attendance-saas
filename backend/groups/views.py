@@ -45,9 +45,12 @@ from groups.standard_group_import import (
 )
 from members.models import Member, MemberStatus
 from organizations.permissions import (
+    CanManageGroupParticipants,
     CanManageWorkspace,
-    CanViewWorkspace,
+    CanViewAssignedGroup,
+    can_access_group,
     get_active_workspace_organization,
+    scope_groups_queryset,
 )
 
 class OwnedWorkspaceMixin:
@@ -62,7 +65,7 @@ class GroupViewSet(OwnedWorkspaceMixin, viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.request.method in ("GET", "HEAD", "OPTIONS"):
-            return [CanViewWorkspace()]
+            return [CanViewAssignedGroup()]
         return [CanManageWorkspace()]
 
     def get_queryset(self):
@@ -113,7 +116,7 @@ class GroupViewSet(OwnedWorkspaceMixin, viewsets.ModelViewSet):
         search = (query.validated_data.get("search") or "").strip()
         if search and self.action == "list":
             queryset = queryset.filter(name__icontains=search)
-        return queryset
+        return scope_groups_queryset(self.request.user, queryset)
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -209,6 +212,8 @@ class GroupScopedMixin(OwnedWorkspaceMixin):
         ).first()
         if self.group is None:
             raise NotFound("Group not found in this workspace.")
+        if not can_access_group(request.user, self.group):
+            raise NotFound("Group not found in this workspace.")
         if self.group.status == GroupStatus.ARCHIVED and request.method not in (
             "GET",
             "HEAD",
@@ -238,8 +243,8 @@ class GroupMembershipListCreateView(GroupScopedMixin, ListCreateAPIView):
 
     def get_permissions(self):
         if self.request.method in ("GET", "HEAD", "OPTIONS"):
-            return [CanViewWorkspace()]
-        return [CanManageWorkspace()]
+            return [CanViewAssignedGroup()]
+        return [CanManageGroupParticipants()]
 
     def get_queryset(self):
         if self.group.group_type == GroupType.STRUCTURED and self.context_section() is None:
@@ -279,8 +284,8 @@ class GroupMembershipDetailView(GroupScopedMixin, RetrieveUpdateDestroyAPIView):
 
     def get_permissions(self):
         if self.request.method in ("GET", "HEAD", "OPTIONS"):
-            return [CanViewWorkspace()]
-        return [CanManageWorkspace()]
+            return [CanViewAssignedGroup()]
+        return [CanManageGroupParticipants()]
 
     def get_queryset(self):
         queryset = GroupMembership.objects.filter(
@@ -306,8 +311,8 @@ class GroupOnlyParticipantListCreateView(GroupScopedMixin, ListCreateAPIView):
 
     def get_permissions(self):
         if self.request.method in ("GET", "HEAD", "OPTIONS"):
-            return [CanViewWorkspace()]
-        return [CanManageWorkspace()]
+            return [CanViewAssignedGroup()]
+        return [CanManageGroupParticipants()]
 
     def get_queryset(self):
         if self.group.group_type == GroupType.STRUCTURED and getattr(self, "section", None) is None:
@@ -340,8 +345,8 @@ class GroupOnlyParticipantDetailView(GroupScopedMixin, RetrieveUpdateDestroyAPIV
 
     def get_permissions(self):
         if self.request.method in ("GET", "HEAD", "OPTIONS"):
-            return [CanViewWorkspace()]
-        return [CanManageWorkspace()]
+            return [CanViewAssignedGroup()]
+        return [CanManageGroupParticipants()]
 
     def get_queryset(self):
         queryset = GroupOnlyParticipant.objects.filter(
@@ -366,7 +371,7 @@ class GroupAvailableMembersView(GroupScopedMixin, ListAPIView):
     serializer_class = AvailableMemberSerializer
 
     def get_permissions(self):
-        return [CanViewWorkspace()]
+        return [CanViewAssignedGroup()]
 
     def get_queryset(self):
         already_in_group = GroupMembership.objects.filter(
@@ -425,7 +430,7 @@ class GroupSectionListCreateView(GroupScopedMixin, ListCreateAPIView):
 
     def get_permissions(self):
         if self.request.method in ("GET", "HEAD", "OPTIONS"):
-            return [CanViewWorkspace()]
+            return [CanViewAssignedGroup()]
         return [CanManageWorkspace()]
 
     def get_queryset(self):
@@ -472,7 +477,7 @@ class GroupSectionImportSourcesView(GroupScopedMixin, APIView):
     """List active Standard Groups that can be snapshotted into a Class."""
 
     def get_permissions(self):
-        return [CanViewWorkspace()]
+        return [CanViewAssignedGroup()]
 
     def get(self, request, group_pk):
         if self.group.group_type != GroupType.STRUCTURED:
@@ -581,7 +586,7 @@ class GroupSectionDetailView(GroupScopedMixin, RetrieveUpdateDestroyAPIView):
 
     def get_permissions(self):
         if self.request.method in ("GET", "HEAD", "OPTIONS"):
-            return [CanViewWorkspace()]
+            return [CanViewAssignedGroup()]
         return [CanManageWorkspace()]
 
     def get_queryset(self):

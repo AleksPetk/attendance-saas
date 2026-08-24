@@ -229,13 +229,22 @@ def _resolve_group_type(*, organization, source_group_id: int, live_group=None) 
     return GroupType.STANDARD
 
 
-def list_report_groups(*, organization):
+def list_report_groups(*, organization, allowed_group_ids=None):
     """
     Groups selectable for Attendance Report: active, archived, and deleted.
+
+    When allowed_group_ids is provided (workspace Staff), only those Groups are
+    returned plus archived assigned Groups. Permanently deleted Groups remain
+    visible in report selection when ActionRecords exist for assigned ids.
     """
     items = []
 
     live_groups = Group.objects.filter(organization=organization).order_by("name", "id")
+    if allowed_group_ids is not None:
+        if not allowed_group_ids:
+            live_groups = live_groups.none()
+        else:
+            live_groups = live_groups.filter(pk__in=allowed_group_ids)
     live_ids = set()
     for group in live_groups:
         live_ids.add(group.pk)
@@ -257,6 +266,8 @@ def list_report_groups(*, organization):
         .values_list("source_group_id", flat=True)
         .distinct()
     )
+    if allowed_group_ids is not None:
+        deleted_ids = [gid for gid in deleted_ids if gid in allowed_group_ids]
     for source_group_id in deleted_ids:
         latest_name = (
             ActionRecord.objects.filter(

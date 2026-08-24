@@ -3,8 +3,10 @@ import { api, errorMessage } from "./api.js";
 import { AccountSettingsSection } from "./accountAccordion.js";
 import {
   Badge,
+  CodeBadge,
   ErrorBanner,
   Field,
+  CopyButton,
   LoadingState,
   PageHeader,
   PasswordInput,
@@ -14,7 +16,7 @@ import {
 import {
   emailAccordionStatusPills,
   emailAccordionStatusSummary,
-  TWO_FACTOR_STATUS_PILLS,
+  twoFactorStatusPills,
 } from "./accountScreenUi.js";
 
 function fieldError(error, name) {
@@ -75,6 +77,34 @@ export default function AccountScreen({ onAccountDeleted }) {
   const [deleting, setDeleting] = useState(false);
   const [emailExpanded, setEmailExpanded] = useState(false);
   const [passwordExpanded, setPasswordExpanded] = useState(false);
+  const [twoFactorExpanded, setTwoFactorExpanded] = useState(false);
+  const [twoFactorAction, setTwoFactorAction] = useState(null); // "setup" | "regen" | "disable"
+
+  // Setup flow (disabled -> pending -> enabled)
+  const [setupPassword, setSetupPassword] = useState("");
+  const [setupBusy, setSetupBusy] = useState(false);
+  const [setupError, setSetupError] = useState("");
+  const [setupQrDataUri, setSetupQrDataUri] = useState("");
+  const [setupKey, setSetupKey] = useState("");
+  const [setupCode, setSetupCode] = useState("");
+  const [setupRecoveryCodes, setSetupRecoveryCodes] = useState(null);
+  const [setupStep, setSetupStep] = useState("password"); // "password" | "verifying"
+
+  // Enabled-management flows
+  const [regenPassword, setRegenPassword] = useState("");
+  const [regenBusy, setRegenBusy] = useState(false);
+  const [regenError, setRegenError] = useState("");
+  const [regenUseRecoveryCode, setRegenUseRecoveryCode] = useState(false);
+  const [regenCode, setRegenCode] = useState("");
+  const [regenRecoveryCode, setRegenRecoveryCode] = useState("");
+  const [regenRecoveryCodes, setRegenRecoveryCodes] = useState(null);
+
+  const [disablePassword, setDisablePassword] = useState("");
+  const [disableBusy, setDisableBusy] = useState(false);
+  const [disableError, setDisableError] = useState("");
+  const [disableUseRecoveryCode, setDisableUseRecoveryCode] = useState(false);
+  const [disableCode, setDisableCode] = useState("");
+  const [disableRecoveryCode, setDisableRecoveryCode] = useState("");
   const newPasswordVisibility = usePasswordVisibility();
   const emailPasswordVisibility = usePasswordVisibility();
 
@@ -571,14 +601,392 @@ export default function AccountScreen({ onAccountDeleted }) {
         <AccountSettingsSection
           id="two-factor"
           title="Two-factor authentication"
-          description="Add a second step when signing in to your owner account."
-          statusPills={TWO_FACTOR_STATUS_PILLS}
+          description="Add an extra security step when signing in."
+          statusPills={twoFactorStatusPills(account?.two_factor_status)}
           variant="twoFactor"
+          isOpen={twoFactorExpanded}
+          onToggle={() => {
+            setTwoFactorExpanded((open) => !open);
+            // Closing the panel should also dismiss any in-progress subflow.
+            if (twoFactorExpanded) setTwoFactorAction(null);
+          }}
         >
-          <p className="account-settings-note">
-            Two-factor authentication is recommended and coming next. It is not
-            available for workspace staff logins in this release.
-          </p>
+          {account?.two_factor_status === "enabled" ? (
+            <div className="account-page-two-factor">
+              {twoFactorAction === null ? (
+                <>
+                  <p className="account-settings-note">
+                    <strong>Status: Enabled</strong>
+                  </p>
+                  <div style={{ display: "grid", gap: "0.75rem" }}>
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      onClick={() => {
+                        setTwoFactorAction("regen");
+                        setRegenPassword("");
+                        setRegenError("");
+                        setRegenUseRecoveryCode(false);
+                        setRegenCode("");
+                        setRegenRecoveryCode("");
+                        setRegenRecoveryCodes(null);
+                      }}
+                    >
+                      Regenerate recovery codes
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-danger-soft"
+                      onClick={() => {
+                        setTwoFactorAction("disable");
+                        setDisablePassword("");
+                        setDisableError("");
+                        setDisableUseRecoveryCode(false);
+                        setDisableCode("");
+                        setDisableRecoveryCode("");
+                      }}
+                    >
+                      Disable two-factor authentication
+                    </button>
+                  </div>
+                </>
+              ) : null}
+
+              {twoFactorAction === "regen" ? (
+                <form
+                  className="auth-form"
+                  autoComplete="off"
+                  onSubmit={async (event) => {
+                    event.preventDefault();
+                    setRegenBusy(true);
+                    setRegenError("");
+                    setRegenRecoveryCodes(null);
+                    try {
+                      await api.csrf();
+                      const payload = {
+                        current_password: regenPassword,
+                        ...(regenUseRecoveryCode
+                          ? { recovery_code: regenRecoveryCode }
+                          : { code: regenCode }),
+                      };
+                      const result = await api.owner2faRegenerateRecoveryCodes(payload);
+                      setRegenRecoveryCodes(result.data.recovery_codes || result.data.recoveryCodes || []);
+                    } catch (err) {
+                      setRegenError(errorMessage(err));
+                    } finally {
+                      setRegenBusy(false);
+                    }
+                  }}
+                >
+                  <h4 style={{ margin: 0, fontWeight: 700 }}>Regenerate recovery codes</h4>
+                  <Field label="Current password" error={regenError}>
+                    <PasswordInput value={regenPassword} onChange={(e) => setRegenPassword(e.target.value)} required autoComplete="current-password" />
+                  </Field>
+
+                  <div style={{ display: "grid", gap: "0.75rem" }}>
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      onClick={() => {
+                        setRegenUseRecoveryCode((v) => !v);
+                        setRegenCode("");
+                        setRegenRecoveryCode("");
+                      }}
+                    >
+                      {regenUseRecoveryCode ? "Use authenticator code" : "Use a recovery code"}
+                    </button>
+
+                    {!regenUseRecoveryCode ? (
+                      <Field label="Authenticator code">
+                        <input
+                          value={regenCode}
+                          onChange={(e) => setRegenCode(e.target.value)}
+                          type="text"
+                          inputMode="numeric"
+                          autoComplete="one-time-code"
+                          required
+                        />
+                      </Field>
+                    ) : (
+                      <Field label="Recovery code">
+                        <input
+                          value={regenRecoveryCode}
+                          onChange={(e) => setRegenRecoveryCode(e.target.value)}
+                          type="text"
+                          autoComplete="one-time-code"
+                          required
+                          placeholder="e.g. ABCD-EFGH"
+                        />
+                      </Field>
+                    )}
+                  </div>
+
+                  <ErrorBanner message={regenError} />
+                  <SuccessBanner message="" />
+
+                  {regenRecoveryCodes ? (
+                    <div className="auth-status-panel">
+                      <p className="account-settings-note">
+                        Recovery codes are shown once. Save them somewhere safe.
+                      </p>
+                      <div style={{ display: "grid", gap: "0.4rem" }}>
+                        {regenRecoveryCodes.map((c) => (
+                          <CodeBadge key={c}>{c}</CodeBadge>
+                        ))}
+                      </div>
+                      <div style={{ display: "grid", gap: "0.75rem", marginTop: "1rem" }}>
+                        <button
+                          type="button"
+                          className="btn-secondary"
+                          onClick={() => {
+                            setRegenRecoveryCodes(null);
+                            setTwoFactorAction(null);
+                          }}
+                        >
+                          Done
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button type="submit" className="btn-primary" disabled={regenBusy}>
+                      {regenBusy ? "Working…" : "Regenerate"}
+                    </button>
+                  )}
+                </form>
+              ) : null}
+
+              {twoFactorAction === "disable" ? (
+                <form
+                  className="auth-form"
+                  autoComplete="off"
+                  onSubmit={async (event) => {
+                    event.preventDefault();
+                    setDisableBusy(true);
+                    setDisableError("");
+                    try {
+                      await api.csrf();
+                      const payload = {
+                        current_password: disablePassword,
+                        ...(disableUseRecoveryCode ? { recovery_code: disableRecoveryCode } : { code: disableCode }),
+                      };
+                      await api.owner2faDisable(payload);
+                      setTwoFactorExpanded(false);
+                      setTwoFactorAction(null);
+                      await loadAccount();
+                    } catch (err) {
+                      setDisableError(errorMessage(err));
+                    } finally {
+                      setDisableBusy(false);
+                    }
+                  }}
+                >
+                  <h4 style={{ margin: 0, fontWeight: 700 }}>Disable two-factor authentication</h4>
+                  <Field label="Current password">
+                    <PasswordInput value={disablePassword} onChange={(e) => setDisablePassword(e.target.value)} required autoComplete="current-password" />
+                  </Field>
+
+                  <div style={{ display: "grid", gap: "0.75rem" }}>
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      onClick={() => {
+                        setDisableUseRecoveryCode((v) => !v);
+                        setDisableCode("");
+                        setDisableRecoveryCode("");
+                      }}
+                    >
+                      {disableUseRecoveryCode ? "Use authenticator code" : "Use a recovery code"}
+                    </button>
+
+                    {!disableUseRecoveryCode ? (
+                      <Field label="Authenticator code">
+                        <input value={disableCode} onChange={(e) => setDisableCode(e.target.value)} type="text" inputMode="numeric" autoComplete="one-time-code" required />
+                      </Field>
+                    ) : (
+                      <Field label="Recovery code">
+                        <input value={disableRecoveryCode} onChange={(e) => setDisableRecoveryCode(e.target.value)} type="text" autoComplete="one-time-code" required placeholder="e.g. ABCD-EFGH" />
+                      </Field>
+                    )}
+                  </div>
+
+                  <ErrorBanner message={disableError} />
+                  <button type="submit" className="btn-danger-soft" disabled={disableBusy}>
+                    {disableBusy ? "Working…" : "Disable two-factor authentication"}
+                  </button>
+                </form>
+              ) : null}
+            </div>
+          ) : null}
+
+          {account?.two_factor_status !== "enabled" ? (
+            <div className="account-page-two-factor">
+              {twoFactorAction === null ? (
+                <>
+                  <p className="account-settings-note">
+                    <strong>Two-factor authentication is not enabled.</strong>
+                  </p>
+                  <p className="account-settings-note">
+                    Protect your workspace with an authenticator app, even if your password is compromised.
+                  </p>
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    onClick={() => {
+                      setTwoFactorAction("setup");
+                      setSetupStep("password");
+                      setSetupPassword("");
+                      setSetupError("");
+                      setSetupQrDataUri("");
+                      setSetupKey("");
+                      setSetupCode("");
+                      setSetupRecoveryCodes(null);
+                    }}
+                  >
+                    Set up two-factor authentication
+                  </button>
+                </>
+              ) : null}
+
+              {twoFactorAction === "setup" ? (
+                <div className="auth-form">
+                  {setupStep === "password" ? (
+                    <form
+                      onSubmit={async (event) => {
+                        event.preventDefault();
+                        setSetupBusy(true);
+                        setSetupError("");
+                        setSetupQrDataUri("");
+                        setSetupKey("");
+                        setSetupCode("");
+                        setSetupRecoveryCodes(null);
+                        try {
+                          await api.csrf();
+                          const result = await api.owner2faStartSetup({ current_password: setupPassword });
+                          setSetupQrDataUri(result.data.qr_data_uri);
+                          setSetupKey(result.data.setup_key);
+                          setSetupStep("verifying");
+                        } catch (err) {
+                          setSetupError(errorMessage(err));
+                        } finally {
+                          setSetupBusy(false);
+                        }
+                      }}
+                    >
+                      <Field label="Current password" error={setupError}>
+                        <PasswordInput value={setupPassword} onChange={(e) => setSetupPassword(e.target.value)} required autoComplete="current-password" />
+                      </Field>
+                      <ErrorBanner message={setupError} />
+                      <button type="submit" className="btn-primary" disabled={setupBusy}>
+                        {setupBusy ? "Working…" : "Continue"}
+                      </button>
+                    </form>
+                  ) : null}
+
+                  {setupStep === "verifying" ? (
+                    <form
+                      autoComplete="off"
+                      onSubmit={async (event) => {
+                        event.preventDefault();
+                        setSetupBusy(true);
+                        setSetupError("");
+                        try {
+                          await api.csrf();
+                          const result = await api.owner2faVerifySetup({ code: setupCode });
+                          setSetupRecoveryCodes(result.data.recovery_codes || result.data.recoveryCodes || []);
+                        } catch (err) {
+                          setSetupError(errorMessage(err));
+                        } finally {
+                          setSetupBusy(false);
+                        }
+                      }}
+                    >
+                      {setupRecoveryCodes ? (
+                        <div className="auth-status-panel">
+                          <p className="account-settings-note">
+                            Recovery codes are shown once. Save them somewhere safe.
+                          </p>
+                          <div style={{ display: "grid", gap: "0.4rem" }}>
+                            {setupRecoveryCodes.map((c) => (
+                              <CodeBadge key={c}>{c}</CodeBadge>
+                            ))}
+                          </div>
+                          <div style={{ display: "grid", gap: "0.75rem", marginTop: "1rem" }}>
+                            <button
+                              type="button"
+                              className="btn-primary"
+                              onClick={async () => {
+                                setTwoFactorExpanded(false);
+                                setTwoFactorAction(null);
+                                setSetupRecoveryCodes(null);
+                                setSetupStep("password");
+                                await loadAccount();
+                              }}
+                            >
+                              Done
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <div style={{ display: "grid", gap: "0.75rem" }}>
+                            {setupQrDataUri ? (
+                              <div style={{ display: "grid", gap: "0.35rem", justifyItems: "start" }}>
+                                <p className="account-settings-note">
+                                  Scan this QR code with your authenticator app:
+                                </p>
+                                <img src={setupQrDataUri} alt="Authenticator QR code" style={{ width: 160, height: 160 }} />
+                              </div>
+                            ) : null}
+
+                            {setupKey ? (
+                              <div style={{ display: "grid", gap: "0.35rem" }}>
+                                <p className="account-settings-note">Manual setup key:</p>
+                                <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+                                  <CodeBadge>{setupKey}</CodeBadge>
+                                  <CopyButton value={setupKey} label="Copy key" />
+                                </div>
+                              </div>
+                            ) : null}
+
+                            <Field label="Authenticator code" error={setupError}>
+                              <input
+                                value={setupCode}
+                                onChange={(e) => setSetupCode(e.target.value)}
+                                type="text"
+                                inputMode="numeric"
+                                autoComplete="one-time-code"
+                                required
+                                placeholder="6-digit code"
+                              />
+                            </Field>
+                            <ErrorBanner message={setupError} />
+                          </div>
+
+                          <button type="submit" className="btn-primary" disabled={setupBusy}>
+                            {setupBusy ? "Verifying…" : "Verify & enable"}
+                          </button>
+                          <button
+                            type="button"
+                            className="btn-secondary"
+                            onClick={() => {
+                              // Supersede pending setup with a fresh QR + secret.
+                              setSetupStep("password");
+                              setSetupQrDataUri("");
+                              setSetupKey("");
+                              setSetupCode("");
+                              setSetupRecoveryCodes(null);
+                            }}
+                          >
+                            Restart setup
+                          </button>
+                        </>
+                      )}
+                    </form>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
         </AccountSettingsSection>
 
         <AccountSettingsSection

@@ -403,6 +403,7 @@ class MemberAPITests(TestCase):
             username="natsumi",
             password="staff-password",
             role=WorkspaceStaffRole.ADMIN,
+            email="natsumi.admin@example.com",
         )
         staff_client = APIClient()
         staff_client.credentials(

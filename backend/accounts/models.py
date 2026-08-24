@@ -67,4 +67,8 @@ class User(AbstractUser):
         self.save(update_fields=["email_verified", "email_verified_at"])
 
 
+from accounts.customer_two_factor_models import (  # noqa: E402,F401
+    OwnerRecoveryCode,
+    OwnerTOTPDevice,
+)
 from accounts.two_factor_models import PlatformRecoveryCode, PlatformTOTPDevice  # noqa: E402,F401

@@ -18,6 +18,13 @@ from accounts.views import (
     VerifyEmailView,
     VerifyPrimaryEmailView,
 )
+from accounts.owner_two_factor_views import (
+    OwnerTOTPDisableView,
+    OwnerTOTPLoginChallengeView,
+    OwnerTOTPRecoveryCodesRegenerateView,
+    OwnerTOTPSetupStartView,
+    OwnerTOTPSetupVerifyView,
+)
 
 urlpatterns = [
     path("auth/verify-email/", VerifyEmailView.as_view(), name="verify-email"),
@@ -75,5 +82,30 @@ urlpatterns = [
         "auth/account/primary-email/cancel/",
         PrimaryEmailCancelView.as_view(),
         name="account-primary-email-cancel",
+    ),
+    path(
+        "auth/owner-2fa/setup/",
+        OwnerTOTPSetupStartView.as_view(),
+        name="owner-2fa-setup",
+    ),
+    path(
+        "auth/owner-2fa/setup/verify/",
+        OwnerTOTPSetupVerifyView.as_view(),
+        name="owner-2fa-setup-verify",
+    ),
+    path(
+        "auth/owner-2fa/challenge/",
+        OwnerTOTPLoginChallengeView.as_view(),
+        name="owner-2fa-challenge",
+    ),
+    path(
+        "auth/owner-2fa/recovery-codes/regenerate/",
+        OwnerTOTPRecoveryCodesRegenerateView.as_view(),
+        name="owner-2fa-regen-recovery-codes",
+    ),
+    path(
+        "auth/owner-2fa/disable/",
+        OwnerTOTPDisableView.as_view(),
+        name="owner-2fa-disable",
     ),
 ]

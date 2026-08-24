@@ -24,8 +24,10 @@ from kiosk_builder.kiosk_settings_validation import repair_kiosk_settings_for_gr
 from kiosk_builder.presets import PRESET_CATALOG
 from kiosk_builder.serializers import KioskDesignSerializer
 from organizations.permissions import (
+    CanManageGroupConfiguration,
     CanManageWorkspace,
     CanUseKioskAndViewHistory,
+    can_access_group,
     get_active_workspace_organization,
 )
 
@@ -69,9 +71,7 @@ class GroupKioskDesignView(APIView):
     parser_classes = [MultiPartParser, JSONParser]
 
     def get_permissions(self):
-        if self.request.method == "GET":
-            return [CanUseKioskAndViewHistory()]
-        return [CanManageWorkspace()]
+        return [CanManageGroupConfiguration()]
 
     def _get_group(self, request, group_pk):
         org = get_active_workspace_organization(request.user)
@@ -83,6 +83,8 @@ class GroupKioskDesignView(APIView):
             .first()
         )
         if group is None:
+            raise NotFound("Group not found in this workspace.")
+        if not can_access_group(request.user, group):
             raise NotFound("Group not found in this workspace.")
         return org, group
 
@@ -195,9 +197,7 @@ class GroupKioskSettingsView(APIView):
     """
 
     def get_permissions(self):
-        if self.request.method == "GET":
-            return [CanUseKioskAndViewHistory()]
-        return [CanManageWorkspace()]
+        return [CanManageGroupConfiguration()]
 
     def _get_group(self, request, group_pk):
         org = get_active_workspace_organization(request.user)
@@ -209,6 +209,8 @@ class GroupKioskSettingsView(APIView):
             .first()
         )
         if group is None:
+            raise NotFound("Group not found in this workspace.")
+        if not can_access_group(request.user, group):
             raise NotFound("Group not found in this workspace.")
         return org, group
 
@@ -247,7 +249,7 @@ class GroupKioskResetNowView(APIView):
     scheduled Daily/Rolling configuration.
     """
 
-    permission_classes = [CanManageWorkspace]
+    permission_classes = [CanManageGroupConfiguration]
 
     def _get_group(self, request, group_pk):
         org = get_active_workspace_organization(request.user)
@@ -278,7 +280,7 @@ class GroupKioskResetNowView(APIView):
 class KioskPresetListView(APIView):
     """Return the full preset catalog for the builder UI."""
 
-    permission_classes = [CanUseKioskAndViewHistory]
+    permission_classes = [CanManageGroupConfiguration]
 
     def get(self, request):
         return Response(PRESET_CATALOG)

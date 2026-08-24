@@ -198,6 +198,7 @@ class WorkspaceStaffAccountTests(TestCase):
             username="natsumi",
             password="other-password",
             role=WorkspaceStaffRole.ADMIN,
+            email="natsumi.admin@example.com",
         )
 
         self.assertEqual(
@@ -220,6 +221,7 @@ class WorkspaceStaffAccountTests(TestCase):
                     username="NATSUMI",
                     password="other-password",
                     role=WorkspaceStaffRole.ADMIN,
+                    email="duplicate.username.admin@example.com",
                 )
 
     def test_same_staff_email_allowed_in_different_workspaces(self):
@@ -255,15 +257,14 @@ class WorkspaceStaffAccountTests(TestCase):
             email="natsumi@example.com",
         )
 
-        with self.assertRaises(IntegrityError):
-            with transaction.atomic():
-                WorkspaceStaffAccount.objects.create_account(
-                    organization=self.organization,
-                    username="other",
-                    password="staff-password",
-                    role=WorkspaceStaffRole.STAFF,
-                    email="Natsumi@Example.com",
-                )
+        with self.assertRaises(ValidationError):
+            WorkspaceStaffAccount.objects.create_account(
+                organization=self.organization,
+                username="other",
+                password="staff-password",
+                role=WorkspaceStaffRole.STAFF,
+                email="Natsumi@Example.com",
+            )
 
     def test_staff_email_may_match_a_global_user_email(self):
         WorkspaceStaffAccount.objects.create_account(
@@ -376,6 +377,7 @@ class CurrentWorkspaceAPITests(TestCase):
             username="natsumi",
             password="other-password",
             role=WorkspaceStaffRole.ADMIN,
+            email="natsumi.other@example.com",
         )
 
         self.client.credentials(
@@ -557,6 +559,7 @@ class OrganizationAdminTests(TestCase):
             username="natsumi",
             password="staff-password",
             role=WorkspaceStaffRole.ADMIN,
+            email="natsumi.admin@example.com",
         )
         client = Client()
         logged_in = client.login(username="natsumi", password="staff-password")

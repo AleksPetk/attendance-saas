@@ -58,6 +58,7 @@ def seed_workspace(owner):
         username="natsumi",
         password="staff-password",
         role=WorkspaceStaffRole.ADMIN,
+        email="natsumi.admin@example.com",
     )
     member = Member.objects.create_member(
         organization=organization,

@@ -147,10 +147,10 @@ A **WorkspaceStaffAccount** is a customer-created workspace **admin** or **staff
 | Role | Who holds it |
 |------|----------------|
 | **owner** | The paying customer `accounts.User` on `Organization.owner` |
-| **admin** | A `WorkspaceStaffAccount` in that Organization |
-| **staff** | A `WorkspaceStaffAccount` in that Organization |
+| **admin** | A `WorkspaceStaffAccount` in that Organization with `role=admin` |
+| **staff** | A `WorkspaceStaffAccount` in that Organization with `role=staff` |
 
-Exact capability differences remain to be defined. This document does **not** approve a permission matrix.
+**Workspace Admin** capabilities are frozen in [DEC-070](./DECISIONS.md#dec-070--workspace-admin-customer-workspace-permissions): full operational workspace management except billing, Owner account/security, Admin-account management, ownership transfer, permanent deletion, and platform admin. Central enforcement lives in `organizations.permissions` (`CanManageWorkspace`, `CanManageStaffAccounts`, `IsWorkspaceOwner`, plus capability flags on current-workspace responses). **Workspace Staff** final matrix remains open (OPEN-005).
 
 Do **not** use **OrganizationMembership** to attach global Users as workspace admin/staff. That model is retired.
 
@@ -392,7 +392,7 @@ The following are confirmed **product concepts** but intentionally **excluded fr
 | Subscriptions / Plans | Product direction approved; architecture not started. Groups and Events may later be limited on different axes; exact numbers undecided |
 | Configurable fields | Product direction approved; structure not started |
 | GroupMembership overrides | Explicit name/email/photo/identifier/PIN overrides implemented in the Member/Group slice; generic field engine still not started |
-| Organization role permissions | Owner is the paying User; admin/staff are WorkspaceStaffAccount; capability matrix not started |
+| Organization role permissions | Owner is the paying User; admin/staff are WorkspaceStaffAccount. **Admin matrix frozen (DEC-070).** Staff matrix open (OPEN-005). |
 
 ---
 

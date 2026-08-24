@@ -1,13 +1,20 @@
 import { useState } from "react";
 import { EmptyState as EmptyStateComponent, PhotoThumb, StatusBadge, Wordmark } from "./components.jsx";
+import {
+  canManageOwnerAccount,
+  canManageStaffAccounts,
+  canViewGlobalMembers,
+  workspaceRoleLabel,
+  workspaceTopbarNotice,
+} from "./workspaceSession.js";
 
 const NAV_ITEMS = [
   { name: "dashboard", label: "Dashboard", icon: "▦" },
-  { name: "members", label: "Members", icon: "◉" },
+  { name: "members", label: "Members", icon: "◉", requiresGlobalMembers: true },
   { name: "groups", label: "Groups", icon: "◈" },
   { name: "history", label: "History", icon: "↻" },
-  { name: "staff", label: "Staff", icon: "🔑", ownerOnly: true },
-  { name: "account", label: "Account", icon: "⚙", ownerOnly: true },
+  { name: "staff", label: "Staff", icon: "🔑", requiresStaffManagement: true },
+  { name: "account", label: "Account", icon: "⚙", requiresOwnerAccount: true },
 ];
 
 const PAGE_TITLES = {
@@ -43,10 +50,17 @@ function isNavActive(routeName, itemName) {
 
 export default function WorkspaceLayout({ session, route, onNavigate, onSignOut, children }) {
   const workspace = session.workspace;
-  const isOwner = workspace.account_kind === "owner";
-  const roleLabel = isOwner ? "Owner" : workspace.role || workspace.account_kind.replace(/_/g, " ");
+  const roleLabel = workspaceRoleLabel(session);
+  const topbarNotice = workspaceTopbarNotice(session);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const pageTitle = PAGE_TITLES[route.name] || "Workspace";
+
+  const visibleNavItems = NAV_ITEMS.filter((item) => {
+    if (item.requiresOwnerAccount) return canManageOwnerAccount(session);
+    if (item.requiresStaffManagement) return canManageStaffAccounts(session);
+    if (item.requiresGlobalMembers) return canViewGlobalMembers(session);
+    return true;
+  });
 
   return (
     <div className="workspace-shell">
@@ -63,7 +77,7 @@ export default function WorkspaceLayout({ session, route, onNavigate, onSignOut,
           <Wordmark subtitle="Workspace" />
         </div>
         <nav className="sidebar-nav" aria-label="Workspace">
-          {NAV_ITEMS.filter((item) => !item.ownerOnly || isOwner).map((item) => (
+          {visibleNavItems.map((item) => (
             <button
               key={item.name}
               type="button"
@@ -106,8 +120,8 @@ export default function WorkspaceLayout({ session, route, onNavigate, onSignOut,
               <h1>{pageTitle}</h1>
             </div>
           </div>
-          {!isOwner ? (
-            <p className="notice">Staff view — editing is limited to permitted areas.</p>
+          {topbarNotice ? (
+            <p className="notice">{topbarNotice}</p>
           ) : null}
         </header>
         <div className="content">

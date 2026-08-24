@@ -18,6 +18,11 @@ export default function OwnerLoginScreen({ onSignedIn }) {
   });
   const [loading, setLoading] = useState(false);
   const [needsVerification, setNeedsVerification] = useState(false);
+  const [needsTwoFactor, setNeedsTwoFactor] = useState(false);
+  const [twoFactorCode, setTwoFactorCode] = useState("");
+  const [twoFactorRecoveryCode, setTwoFactorRecoveryCode] = useState("");
+  const [useRecoveryCode, setUseRecoveryCode] = useState(false);
+  const [twoFactorError, setTwoFactorError] = useState("");
   const [resendLoading, setResendLoading] = useState(false);
   const [resendMessage, setResendMessage] = useState("");
 
@@ -26,6 +31,10 @@ export default function OwnerLoginScreen({ onSignedIn }) {
     setLoading(true);
     setError("");
     setNeedsVerification(false);
+    setNeedsTwoFactor(false);
+    setTwoFactorError("");
+    setTwoFactorCode("");
+    setTwoFactorRecoveryCode("");
     setResendMessage("");
 
     try {
@@ -36,11 +45,28 @@ export default function OwnerLoginScreen({ onSignedIn }) {
       if (err?.data?.code === "email_not_verified") {
         setNeedsVerification(true);
         setError(errorMessage(err));
+      } else if (err?.data?.code === "two_factor_required") {
+        setNeedsTwoFactor(true);
       } else {
         setError(errorMessage(err));
       }
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleTwoFactorVerify(event) {
+    event.preventDefault();
+    setTwoFactorError("");
+    const payload = useRecoveryCode
+      ? { recovery_code: twoFactorRecoveryCode }
+      : { code: twoFactorCode };
+    try {
+      await api.csrf();
+      const result = await api.owner2faChallenge(payload);
+      onSignedIn({ workspace: result.data });
+    } catch (err) {
+      setTwoFactorError(errorMessage(err) || "Authentication failed.");
     }
   }
 
@@ -60,8 +86,12 @@ export default function OwnerLoginScreen({ onSignedIn }) {
 
   return (
     <AuthLayout
-      title="Customer login"
-      lead="Sign in as the paying workspace owner with your email and password."
+      title={needsTwoFactor ? "Two-factor authentication" : "Customer login"}
+      lead={
+        needsTwoFactor
+          ? "Enter the 6-digit code from your authenticator app."
+          : "Sign in as the paying workspace owner with your email and password."
+      }
       footnote={
         <p>
           Staff member? <Link to="/staff-login">Staff login</Link>
@@ -70,43 +100,83 @@ export default function OwnerLoginScreen({ onSignedIn }) {
         </p>
       }
     >
-      <form onSubmit={handleSubmit} className="auth-form">
-        <div className="auth-fields">
-          <Field label="Email">
-            <input
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              type="email"
-              required
-              autoComplete="email"
-            />
-          </Field>
-          <Field label="Password">
-            <PasswordInput
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              autoComplete="current-password"
-            />
-          </Field>
-        </div>
-        <SuccessBanner message={info} />
-        <ErrorBanner message={error} />
-        {needsVerification ? (
-          <div className="auth-status-panel">
-            <SuccessBanner message={resendMessage} />
-            <button type="button" className="btn-secondary btn-block" onClick={handleResend} disabled={resendLoading || !email}>
-              {resendLoading ? "Sending…" : "Resend verification email"}
+      {!needsTwoFactor ? (
+        <form onSubmit={handleSubmit} className="auth-form">
+          <div className="auth-fields">
+            <Field label="Email">
+              <input
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                type="email"
+                required
+                autoComplete="email"
+              />
+            </Field>
+            <Field label="Password">
+              <PasswordInput
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                autoComplete="current-password"
+              />
+            </Field>
+          </div>
+          <SuccessBanner message={info} />
+          <ErrorBanner message={error} />
+          {needsVerification ? (
+            <div className="auth-status-panel">
+              <SuccessBanner message={resendMessage} />
+              <button
+                type="button"
+                className="btn-secondary btn-block"
+                onClick={handleResend}
+                disabled={resendLoading || !email}
+              >
+                {resendLoading ? "Sending…" : "Resend verification email"}
+              </button>
+            </div>
+          ) : null}
+          <button type="submit" className="btn-primary btn-block" disabled={loading}>
+            {loading ? "Signing in…" : "Sign in"}
+          </button>
+          <p className="hint" style={{ textAlign: "center" }}>
+            <Link to="/forgot-password">Forgot password?</Link>
+          </p>
+        </form>
+      ) : (
+        <form onSubmit={handleTwoFactorVerify} className="auth-form">
+          <ErrorBanner message={twoFactorError} />
+          <div className="auth-fields">
+            <Field label="Two-factor authentication">
+              <input
+                value={useRecoveryCode ? twoFactorRecoveryCode : twoFactorCode}
+                onChange={(e) => (useRecoveryCode ? setTwoFactorRecoveryCode(e.target.value) : setTwoFactorCode(e.target.value))}
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                required
+                placeholder={useRecoveryCode ? "e.g. ABCD-EFGH" : "6-digit code"}
+              />
+            </Field>
+          </div>
+          <div style={{ display: "grid", gap: "0.75rem" }}>
+            <button
+              type="button"
+              className="btn-secondary btn-block"
+              onClick={() => {
+                setUseRecoveryCode((v) => !v);
+                setTwoFactorCode("");
+                setTwoFactorRecoveryCode("");
+              }}
+            >
+              {useRecoveryCode ? "Use an authenticator code" : "Use a recovery code"}
+            </button>
+            <button type="submit" className="btn-primary btn-block">
+              Verify
             </button>
           </div>
-        ) : null}
-        <button type="submit" className="btn-primary btn-block" disabled={loading}>
-          {loading ? "Signing in…" : "Sign in"}
-        </button>
-        <p className="hint" style={{ textAlign: "center" }}>
-          <Link to="/forgot-password">Forgot password?</Link>
-        </p>
-      </form>
+        </form>
+      )}
     </AuthLayout>
   );
 }

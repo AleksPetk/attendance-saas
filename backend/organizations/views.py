@@ -33,7 +33,14 @@ from organizations.serializers import (
     WorkspaceStaffAccountUpdateSerializer,
 )
 from attendance.kiosk_lock import attach_kiosk_status
-from organizations.permissions import IsWorkspaceOwner, get_owned_organization
+from organizations.permissions import (
+    CanManageStaffAccounts,
+    get_active_workspace_organization,
+    get_workspace_operator_role,
+    staff_account_manageable_by_actor,
+    workspace_capabilities,
+)
+from accounts.owner_two_factor import begin_pending_owner_2fa, has_confirmed_owner_totp
 
 from attendance.models import ActionRecord
 from attendance.serializers import ActionRecordSerializer
@@ -65,6 +72,7 @@ class CurrentWorkspaceView(APIView):
                 "identity": actor.username,
                 "is_platform_operator": False,
                 "workspace_id": actor.organization.workspace_id,
+                "capabilities": workspace_capabilities(actor),
             }
             return Response(CurrentWorkspaceSerializer(attach_kiosk_status(request, payload)).data)
 
@@ -84,6 +92,7 @@ class CurrentWorkspaceView(APIView):
                 "identity": actor.email,
                 "is_platform_operator": is_platform_operator,
                 "workspace_id": organization.workspace_id,
+                "capabilities": workspace_capabilities(actor),
             }
             return Response(CurrentWorkspaceSerializer(attach_kiosk_status(request, payload)).data)
 
@@ -185,7 +194,6 @@ class OwnerLoginView(APIView):
                 status=403,
             )
 
-        login(request, user)
         organization = Organization.objects.filter(
             owner=user,
             status=OrganizationStatus.ACTIVE,
@@ -193,12 +201,25 @@ class OwnerLoginView(APIView):
         if organization is None:
             return Response({"detail": "No active workspace for this account."}, status=404)
 
+        if has_confirmed_owner_totp(user):
+            begin_pending_owner_2fa(request, user)
+            return Response(
+                {
+                    "detail": "Two-factor authentication is required.",
+                    "code": "two_factor_required",
+                    "email": user.email,
+                },
+                status=403,
+            )
+
+        login(request, user)
         payload = {
             "account_kind": "owner",
             "role": "owner",
             "identity": user.email,
             "is_platform_operator": bool(user.is_staff or user.is_superuser),
             "workspace_id": organization.workspace_id,
+            "capabilities": workspace_capabilities(user),
         }
         return Response(CurrentWorkspaceSerializer(attach_kiosk_status(request, payload)).data)
 
@@ -240,6 +261,7 @@ class StaffLoginView(APIView):
             "identity": staff.username,
             "is_platform_operator": False,
             "workspace_id": staff.organization.workspace_id,
+            "capabilities": workspace_capabilities(staff),
         }
         return Response(CurrentWorkspaceSerializer(attach_kiosk_status(request, payload)).data)
 
@@ -296,30 +318,41 @@ class ReauthView(APIView):
 
 class WorkspaceStaffListCreateView(APIView):
     """
-    Owner-only management of WorkspaceStaffAccount (admin/staff).
+    Owner and workspace admin may manage staff accounts.
+
+    Workspace admin can create/edit/deactivate staff-role accounts only.
+    Only the paying owner can create or manage admin-role accounts.
     """
 
-    permission_classes = [IsWorkspaceOwner]
+    permission_classes = [CanManageStaffAccounts]
+
+    def _organization(self, request):
+        return get_active_workspace_organization(request.user)
+
+    def _actor_role(self, request):
+        return get_workspace_operator_role(request.user)
 
     def get(self, request):
-        organization = get_owned_organization(request.user)
+        organization = self._organization(request)
         if organization is None:
             return Response(status=404)
 
-        qs = (
-            WorkspaceStaffAccount.objects.filter(organization=organization)
-            .order_by("username")
-        )
-        payload = WorkspaceStaffAccountListSerializer(qs, many=True).data
+        qs = WorkspaceStaffAccount.objects.filter(organization=organization)
+        if self._actor_role(request) == WorkspaceStaffRole.ADMIN:
+            qs = qs.filter(role=WorkspaceStaffRole.STAFF)
+
+        payload = WorkspaceStaffAccountListSerializer(qs.order_by("username"), many=True).data
         return Response(payload)
 
     def post(self, request):
-        organization = get_owned_organization(request.user)
+        organization = self._organization(request)
         if organization is None:
             return Response(status=404)
 
+        actor_role = self._actor_role(request)
         ser = WorkspaceStaffAccountCreateSerializer(
-            data=request.data, context={"organization": organization}
+            data=request.data,
+            context={"organization": organization, "actor_role": actor_role},
         )
         ser.is_valid(raise_exception=True)
 
@@ -336,10 +369,10 @@ class WorkspaceStaffListCreateView(APIView):
 
 
 class WorkspaceStaffDetailView(APIView):
-    permission_classes = [IsWorkspaceOwner]
+    permission_classes = [CanManageStaffAccounts]
 
     def _get_scoped_staff(self, request, staff_id: int):
-        organization = get_owned_organization(request.user)
+        organization = get_active_workspace_organization(request.user)
         if organization is None:
             return None
         return WorkspaceStaffAccount.objects.filter(
@@ -351,13 +384,25 @@ class WorkspaceStaffDetailView(APIView):
         staff = self._get_scoped_staff(request, staff_id)
         if staff is None:
             return Response(status=404)
+        if not staff_account_manageable_by_actor(request.user, staff):
+            return Response(
+                {"detail": "Only the workspace owner can manage admin accounts."},
+                status=403,
+            )
 
+        actor_role = get_workspace_operator_role(request.user)
         ser = WorkspaceStaffAccountUpdateSerializer(
             data=request.data,
-            context={"organization": staff.organization, "staff_id": staff.pk},
+            context={
+                "organization": staff.organization,
+                "staff_id": staff.pk,
+                "actor_role": actor_role,
+                "staff_account": staff,
+            },
         )
         ser.is_valid(raise_exception=True)
 
+        previous_role = staff.role
         for field, value in ser.validated_data.items():
             if field == "status":
                 staff.status = value
@@ -369,14 +414,23 @@ class WorkspaceStaffDetailView(APIView):
                 staff.email = value or ""
 
         staff.save()
+
+        if (
+            previous_role == WorkspaceStaffRole.ADMIN
+            and staff.role == WorkspaceStaffRole.STAFF
+        ):
+            from organizations.staff_group_access import clear_staff_group_access
+
+            clear_staff_group_access(staff)
+
         return Response(WorkspaceStaffAccountListSerializer(staff).data)
 
 
 class WorkspaceStaffResetPasswordView(APIView):
-    permission_classes = [IsWorkspaceOwner]
+    permission_classes = [CanManageStaffAccounts]
 
     def post(self, request, staff_id: int):
-        organization = get_owned_organization(request.user)
+        organization = get_active_workspace_organization(request.user)
         if organization is None:
             return Response(status=404)
 
@@ -386,6 +440,11 @@ class WorkspaceStaffResetPasswordView(APIView):
         ).first()
         if staff is None:
             return Response(status=404)
+        if not staff_account_manageable_by_actor(request.user, staff):
+            return Response(
+                {"detail": "Only the workspace owner can reset admin account passwords."},
+                status=403,
+            )
 
         new_password = request.data.get("password") or ""
         # Use Django password validators for strength.
@@ -403,6 +462,79 @@ class WorkspaceStaffResetPasswordView(APIView):
         return Response({"ok": True})
 
 
+class WorkspaceStaffGroupAccessView(APIView):
+    """
+    List or replace Group access assignments for a Staff account.
+
+    Owner and workspace Admin may manage Staff assignments only.
+    """
+
+    permission_classes = [CanManageStaffAccounts]
+
+    def _get_scoped_staff(self, request, staff_id: int):
+        organization = get_active_workspace_organization(request.user)
+        if organization is None:
+            return None, None
+        staff = WorkspaceStaffAccount.objects.filter(
+            organization=organization,
+            pk=staff_id,
+        ).first()
+        return organization, staff
+
+    def get(self, request, staff_id: int):
+        organization, staff = self._get_scoped_staff(request, staff_id)
+        if staff is None:
+            return Response(status=404)
+        if not staff_account_manageable_by_actor(request.user, staff):
+            return Response(
+                {"detail": "Only the workspace owner can manage admin accounts."},
+                status=403,
+            )
+        if staff.role != WorkspaceStaffRole.STAFF:
+            return Response(
+                {"detail": "Group access applies to Staff accounts only."},
+                status=400,
+            )
+
+        from organizations.staff_group_access import list_staff_group_access
+
+        return Response({"items": list_staff_group_access(staff_account=staff, organization=organization)})
+
+    def put(self, request, staff_id: int):
+        organization, staff = self._get_scoped_staff(request, staff_id)
+        if staff is None:
+            return Response(status=404)
+        if not staff_account_manageable_by_actor(request.user, staff):
+            return Response(
+                {"detail": "Only the workspace owner can manage admin accounts."},
+                status=403,
+            )
+        if staff.role != WorkspaceStaffRole.STAFF:
+            return Response(
+                {"detail": "Group access applies to Staff accounts only."},
+                status=400,
+            )
+
+        from django.core.exceptions import ValidationError as DjangoValidationError
+        from organizations.staff_group_access import list_staff_group_access, set_staff_group_access
+
+        group_ids = request.data.get("group_ids")
+        if group_ids is None:
+            return Response({"group_ids": "This field is required."}, status=400)
+        try:
+            set_staff_group_access(
+                staff_account=staff,
+                organization=organization,
+                group_ids=group_ids,
+            )
+        except DjangoValidationError as exc:
+            if hasattr(exc, "message_dict"):
+                return Response(exc.message_dict, status=400)
+            return Response({"detail": exc.messages}, status=400)
+
+        return Response({"items": list_staff_group_access(staff_account=staff, organization=organization)})
+
+
 class WorkspaceDashboardView(APIView):
     """
     Simple workspace dashboard data:
@@ -416,28 +548,46 @@ class WorkspaceDashboardView(APIView):
     def get(self, request):
         # Permission/scoping are handled by the customer-facing permissions layer
         # in a later slice; for now we reuse active-workspace scoping.
-        from organizations.permissions import get_active_workspace_organization, CanViewWorkspace
+        from organizations.permissions import (
+            CanUseKioskAndViewHistory,
+            get_staff_assigned_group_ids,
+        )
 
-        # Enforce at runtime even though this view is permissive by class.
-        if not CanViewWorkspace().has_permission(request, self):
+        if not CanUseKioskAndViewHistory().has_permission(request, self):
             return Response({"detail": "Not allowed."}, status=403)
 
         organization = get_active_workspace_organization(request.user)
         if organization is None:
             return Response({"detail": "Not allowed."}, status=403)
 
-        member_count = Member.objects.filter(
-            organization=organization,
-            status=MemberStatus.ACTIVE,
-        ).count()
-        group_count = Group.objects.filter(
-            organization=organization,
-            status=GroupStatus.ACTIVE,
-        ).count()
-        recent = (
-            ActionRecord.objects.filter(organization=organization)
-            .order_by("-performed_at", "-id")[:10]
-        )
+        assigned_ids = get_staff_assigned_group_ids(request.user)
+        if assigned_ids is not None:
+            if assigned_ids:
+                group_count = Group.objects.filter(
+                    organization=organization,
+                    status=GroupStatus.ACTIVE,
+                    pk__in=assigned_ids,
+                ).count()
+                recent_qs = ActionRecord.objects.filter(
+                    organization=organization,
+                    group_id__in=assigned_ids,
+                )
+            else:
+                group_count = 0
+                recent_qs = ActionRecord.objects.none()
+            member_count = 0
+        else:
+            member_count = Member.objects.filter(
+                organization=organization,
+                status=MemberStatus.ACTIVE,
+            ).count()
+            group_count = Group.objects.filter(
+                organization=organization,
+                status=GroupStatus.ACTIVE,
+            ).count()
+            recent_qs = ActionRecord.objects.filter(organization=organization)
+
+        recent = recent_qs.order_by("-performed_at", "-id")[:10]
 
         return Response(
             {

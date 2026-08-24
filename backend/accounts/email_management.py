@@ -40,6 +40,18 @@ def account_email_payload(user):
         backup_status = "verified"
         backup_display = user.backup_email
 
+    from accounts.customer_two_factor_models import OwnerTOTPDevice
+    from django.db.utils import OperationalError, ProgrammingError
+
+    try:
+        device = OwnerTOTPDevice.objects.filter(user=user, confirmed=True).first()
+        enabled_at = device.confirmed_at if device is not None else None
+    except (OperationalError, ProgrammingError):
+        # If the DB migration for owner 2FA hasn't been applied yet, keep the
+        # account endpoint working (and default to 2FA disabled).
+        device = None
+        enabled_at = None
+
     return {
         "email": user.email,
         "email_verified": bool(user.email_verified),
@@ -48,8 +60,9 @@ def account_email_payload(user):
         "backup_email_status": backup_status,
         "backup_email": backup_display if backup_status == "verified" else None,
         "pending_backup_email": user.pending_backup_email,
-        "two_factor_status": "not_enabled",
-        "two_factor_label": "Two-factor authentication — Recommended — Coming next",
+        "two_factor_status": "enabled" if device is not None else "not_enabled",
+        "two_factor_enabled_at": enabled_at,
+        "two_factor_label": "Two-factor authentication",
     }
 
 

@@ -7,6 +7,10 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from organizations.models import Organization, OrganizationStatus
 from organizations.models import WorkspaceStaffAccount
 from organizations.models import WorkspaceStaffRole, WorkspaceStaffStatus
+from organizations.staff_email import (
+    normalize_staff_email,
+    validate_staff_account_email,
+)
 
 User = get_user_model()
 
@@ -17,6 +21,7 @@ class CurrentWorkspaceSerializer(serializers.Serializer):
     identity = serializers.CharField()
     is_platform_operator = serializers.BooleanField()
     workspace_id = serializers.CharField(allow_null=True)
+    capabilities = serializers.DictField(required=False)
     kiosk_locked = serializers.BooleanField(required=False, default=False)
     kiosk_group_id = serializers.IntegerField(required=False, allow_null=True, default=None)
     kiosk_available = serializers.BooleanField(required=False, default=False)
@@ -86,12 +91,29 @@ class WorkspaceStaffAccountCreateSerializer(serializers.Serializer):
         if not org:
             raise serializers.ValidationError({"detail": "Missing organization context."})
 
+        actor_role = self.context.get("actor_role")
+        role = attrs.get("role")
+        if actor_role == WorkspaceStaffRole.ADMIN:
+            if role == WorkspaceStaffRole.ADMIN:
+                raise serializers.ValidationError(
+                    {"role": "Only the workspace owner can create admin accounts."}
+                )
+
         username = (attrs.get("username") or "").strip().lower()
         if not username:
             raise serializers.ValidationError({"username": "Username is required."})
 
         if WorkspaceStaffAccount.objects.filter(organization=org, username__iexact=username).exists():
             raise serializers.ValidationError({"username": "Username is already in use in this workspace."})
+
+        try:
+            attrs["email"] = validate_staff_account_email(
+                organization=org,
+                role=role,
+                email=attrs.get("email"),
+            )
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(exc.message_dict) from exc
 
         # Password strength: use Django's password validators.
         user_for_validation = User(email=attrs.get("email") or org.owner.email)
@@ -101,8 +123,6 @@ class WorkspaceStaffAccountCreateSerializer(serializers.Serializer):
             raise serializers.ValidationError({"password": e.messages})
 
         attrs["username"] = username
-        if "email" in attrs and attrs["email"]:
-            attrs["email"] = (attrs["email"] or "").strip().lower()
         return attrs
 
 
@@ -117,6 +137,12 @@ class WorkspaceStaffAccountUpdateSerializer(serializers.Serializer):
         if not org:
             raise serializers.ValidationError({"detail": "Missing organization context."})
 
+        actor_role = self.context.get("actor_role")
+        if actor_role == WorkspaceStaffRole.ADMIN and "role" in attrs:
+            raise serializers.ValidationError(
+                {"role": "Only the workspace owner can change account roles."}
+            )
+
         if "username" in attrs:
             username = (attrs.get("username") or "").strip().lower()
             if not username:
@@ -129,7 +155,29 @@ class WorkspaceStaffAccountUpdateSerializer(serializers.Serializer):
                 raise serializers.ValidationError({"username": "Username is already in use in this workspace."})
             attrs["username"] = username
 
-        if "email" in attrs and attrs["email"] is not None:
-            attrs["email"] = (attrs.get("email") or "").strip().lower()
+        staff_account = self.context.get("staff_account")
+        effective_role = attrs.get("role")
+        if effective_role is None and staff_account is not None:
+            effective_role = staff_account.role
+
+        if "email" in attrs:
+            effective_email = attrs.get("email")
+        elif staff_account is not None:
+            effective_email = staff_account.email
+        else:
+            effective_email = ""
+
+        try:
+            normalized_email = validate_staff_account_email(
+                organization=org,
+                role=effective_role,
+                email=effective_email,
+                exclude_pk=self.context.get("staff_id"),
+            )
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(exc.message_dict) from exc
+
+        if "email" in attrs:
+            attrs["email"] = normalized_email
 
         return attrs

@@ -27,6 +27,14 @@ This document records **security requirements and direction**. It does not defin
 - Login must not use an Organization database PK, workspace-name lookup, or organization switcher.
 - Cannot exist globally or move between workspaces.
 - Disabling or removing a WorkspaceStaffAccount must **not** destroy that person’s Member attendance history (Members remain unlinked).
+- **Workspace Admin** and **Workspace Staff** are customer workspace roles only. They must **never** receive Django `is_staff` / `is_superuser` or access `/admin/`. See [DEC-070](./DECISIONS.md#dec-070--workspace-admin-customer-workspace-permissions).
+
+### Customer workspace authorization (Owner / Admin / Staff)
+
+- **Owner** (`accounts.User` who owns the Organization) retains all workspace operational capabilities plus exclusive billing, Owner account/security, Admin-account management, ownership transfer, and permanent account/workspace deletion.
+- **Workspace Admin** (`WorkspaceStaffAccount.role=admin`) may manage almost all operational workspace data and may create/manage **Staff** accounts only. Admin cannot create or manage other Admin accounts, change roles to/from Admin, access Owner account endpoints, billing, or permanent deletion. Enforcement is server-side (`organizations.permissions`); SPA capability flags are UI hints only.
+- **Workspace Staff** (`role=staff`) is **Group-scoped** (DEC-071): explicit `WorkspaceStaffGroupAccess` assignments; participant/kiosk/history/report operations within assigned Groups only; no global Members or Group/Kiosk configuration.
+- Role authorization and plan entitlements are **both** required; neither overrides the other.
 
 ### Platform operator User (`accounts.User` platform-admin flags)
 
@@ -106,5 +114,5 @@ Strict Organization tenant isolation remains a non-negotiable security requireme
 
 | Field | Value |
 |-------|-------|
-| **Status** | Security requirements plus paying-customer email verification, isolated admin sessions, permanent account deletion, mandatory platform-admin TOTP, Check Station app-session kiosk lock, and encrypted Group email-sender credentials (Custom SMTP / Gmail App Password / Outlook Microsoft 365 SMTP / Yahoo Mail App Password) |
-| **Last updated** | 2026-08-23 |
+| **Status** | Security requirements plus paying-customer email verification, isolated admin sessions, permanent account deletion, mandatory platform-admin TOTP, Check Station app-session kiosk lock, encrypted Group email-sender credentials, and customer workspace Admin authorization (DEC-070) |
+| **Last updated** | 2026-08-24 |

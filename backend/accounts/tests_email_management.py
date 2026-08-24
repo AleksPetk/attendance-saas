@@ -34,6 +34,7 @@ class OwnerEmailManagementTestCase(TestCase):
             username="natsumi",
             password="staff-password",
             role=WorkspaceStaffRole.ADMIN,
+            email="natsumi.admin@example.com",
         )
         self.api = APIClient()
         self.api.force_login(self.owner)

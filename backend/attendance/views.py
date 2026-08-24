@@ -59,7 +59,9 @@ from kiosk_builder.kiosk_settings_constants import KioskInputSecondField, KioskT
 from kiosk_builder.models import ensure_group_kiosk_design, ensure_group_kiosk_settings
 from organizations.permissions import (
     CanUseKioskAndViewHistory,
+    can_access_group,
     get_active_workspace_organization,
+    get_staff_assigned_group_ids,
 )
 from groups.models import (
     Group,
@@ -113,6 +115,8 @@ class GroupKioskStartView(OwnedWorkspaceMixin, APIView):
             .first()
         )
         if group is None:
+            raise NotFound("Group not found in this workspace.")
+        if not can_access_group(self.request.user, group):
             raise NotFound("Group not found in this workspace.")
         return group
 
@@ -600,8 +604,19 @@ class WorkspaceHistoryListView(OwnedWorkspaceMixin, APIView):
         data = query.validated_data
 
         qs = ActionRecord.objects.filter(organization=self.organization)
+        assigned_ids = get_staff_assigned_group_ids(request.user)
+        if assigned_ids is not None:
+            if not assigned_ids:
+                return Response({"items": []})
+            qs = qs.filter(group_id__in=assigned_ids)
+
         group_id = data.get("group_id")
         if group_id:
+            if assigned_ids is not None and group_id not in assigned_ids:
+                return Response(
+                    {"detail": "Not allowed to view history for this Group."},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
             qs = qs.filter(group_id=group_id)
 
         if data.get("action"):
@@ -633,7 +648,15 @@ class WorkspaceHistoryReportGroupsView(OwnedWorkspaceMixin, APIView):
     """
 
     def get(self, request):
-        return Response({"items": list_report_groups(organization=self.organization)})
+        assigned_ids = get_staff_assigned_group_ids(request.user)
+        return Response(
+            {
+                "items": list_report_groups(
+                    organization=self.organization,
+                    allowed_group_ids=assigned_ids,
+                )
+            }
+        )
 
 
 class WorkspaceAttendanceReportView(OwnedWorkspaceMixin, APIView):
@@ -648,10 +671,20 @@ class WorkspaceAttendanceReportView(OwnedWorkspaceMixin, APIView):
         query.is_valid(raise_exception=True)
         data = query.validated_data
 
+        source_group_id = data["source_group_id"]
+        group = Group.objects.filter(
+            pk=source_group_id,
+            organization=self.organization,
+        ).first()
+        if group is None:
+            raise NotFound("Group not found for attendance report in this workspace.")
+        if not can_access_group(request.user, group):
+            raise NotFound("Group not found for attendance report in this workspace.")
+
         try:
             report = build_attendance_report(
                 organization=self.organization,
-                source_group_id=data["source_group_id"],
+                source_group_id=source_group_id,
                 preset=data["preset"],
                 date_from=data.get("date_from"),
                 date_to=data.get("date_to"),
@@ -678,10 +711,20 @@ class WorkspaceAttendanceReportExportView(OwnedWorkspaceMixin, APIView):
         query.is_valid(raise_exception=True)
         data = query.validated_data
 
+        source_group_id = data["source_group_id"]
+        group = Group.objects.filter(
+            pk=source_group_id,
+            organization=self.organization,
+        ).first()
+        if group is None:
+            raise NotFound("Group not found for attendance report in this workspace.")
+        if not can_access_group(request.user, group):
+            raise NotFound("Group not found for attendance report in this workspace.")
+
         try:
             report = build_attendance_report(
                 organization=self.organization,
-                source_group_id=data["source_group_id"],
+                source_group_id=source_group_id,
                 preset=data["preset"],
                 date_from=data.get("date_from"),
                 date_to=data.get("date_to"),

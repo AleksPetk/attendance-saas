@@ -1,7 +1,9 @@
 """
 Platform-operator TOTP helpers.
 
-Customer owner and WorkspaceStaffAccount 2FA is intentionally out of scope.
+Customer-owner TOTP 2FA is implemented in `accounts.owner_two_factor` and is
+kept separate from the platform-admin security surface. WorkspaceStaffAccount
+2FA remains intentionally out of scope.
 Secrets, OTP values, and plaintext recovery codes must never be logged.
 """
 

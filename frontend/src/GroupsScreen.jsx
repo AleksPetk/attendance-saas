@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { api, errorMessage } from "./api.js";
-import { ConfirmDialog, ErrorBanner, LoadingState, PageHeader, StatusBadge } from "./components.jsx";
+import { ConfirmDialog, EmptyState, ErrorBanner, LoadingState, PageHeader, StatusBadge } from "./components.jsx";
+import { canManageGroupConfiguration, isGroupScopedStaff } from "./workspaceSession.js";
 import { formatGroupId, groupTypeLabel, isStructuredGroup, setupIncompleteSummary } from "./groupForm.js";
 
 export default function GroupsScreen({ session, onNavigate }) {
@@ -70,16 +71,24 @@ export default function GroupsScreen({ session, onNavigate }) {
   }
 
   const archived = statusFilter === "archived";
+  const canConfigure = canManageGroupConfiguration(session);
+  const staffScoped = isGroupScopedStaff(session);
 
   return (
     <div className="page">
       <PageHeader
         title="Groups"
-        description="Reusable participation and activity configurations for this workspace."
+        description={
+          staffScoped
+            ? "Groups assigned to your staff account."
+            : "Reusable participation and activity configurations for this workspace."
+        }
         actions={
+          canConfigure ? (
           <button type="button" className="btn-primary" onClick={() => onNavigate({ name: "group-editor" })}>
             Create Group
           </button>
+          ) : null
         }
       />
       <div className="toolbar card-surface toolbar-compact">
@@ -106,13 +115,15 @@ export default function GroupsScreen({ session, onNavigate }) {
       {loading ? <LoadingState label="Loading Groups…" /> : null}
       {!loading && groups.length === 0 ? (
         <div className="empty-state">
-          <h2>{archived ? "No archived Groups" : "No Groups yet"}</h2>
+          <h2>{archived ? "No archived Groups" : staffScoped ? "No Groups assigned" : "No Groups yet"}</h2>
           <p>
             {archived
               ? "Archived Groups appear here. Restore them or delete them permanently."
-              : "Create a Group to configure check-in behavior and add people."}
+              : staffScoped
+                ? "No Groups have been assigned to your account. Contact your workspace owner or admin."
+                : "Create a Group to configure check-in behavior and add people."}
           </p>
-          {archived ? null : (
+          {archived || staffScoped ? null : (
             <div className="empty-state-action">
               <button type="button" className="btn-primary" onClick={() => onNavigate({ name: "group-editor" })}>
                 Create Group

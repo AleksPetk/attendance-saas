@@ -134,6 +134,18 @@ export const api = {
   verifyPrimaryEmail: (payload) =>
     request("/api/auth/verify-primary-email/", { method: "POST", json: payload }),
 
+  /* Owner (customer) TOTP 2FA */
+  owner2faStartSetup: (payload) =>
+    request("/api/auth/owner-2fa/setup/", { method: "POST", json: payload }),
+  owner2faVerifySetup: (payload) =>
+    request("/api/auth/owner-2fa/setup/verify/", { method: "POST", json: payload }),
+  owner2faChallenge: (payload) =>
+    request("/api/auth/owner-2fa/challenge/", { method: "POST", json: payload }),
+  owner2faRegenerateRecoveryCodes: (payload) =>
+    request("/api/auth/owner-2fa/recovery-codes/regenerate/", { method: "POST", json: payload }),
+  owner2faDisable: (payload) =>
+    request("/api/auth/owner-2fa/disable/", { method: "POST", json: payload }),
+
   /* Workspace data endpoints (cookie session auth; `auth` arg kept for compatibility) */
   loadWorkspace: (_auth) => request("/api/workspace/"),
   dashboard: (_auth) => request("/api/dashboard/"),
@@ -288,6 +300,10 @@ export const api = {
     request(`/api/workspace-staff/${staffId}/`, { method: "PATCH", json }),
   resetWorkspaceStaffPassword: (_auth, staffId, json) =>
     request(`/api/workspace-staff/${staffId}/reset-password/`, { method: "POST", json }),
+  getWorkspaceStaffGroupAccess: (_auth, staffId) =>
+    request(`/api/workspace-staff/${staffId}/group-access/`),
+  setWorkspaceStaffGroupAccess: (_auth, staffId, json) =>
+    request(`/api/workspace-staff/${staffId}/group-access/`, { method: "PUT", json }),
 };
 
 export function errorMessage(error) {

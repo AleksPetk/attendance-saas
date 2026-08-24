@@ -7,6 +7,11 @@ from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
 
+from organizations.staff_email import (
+    normalize_staff_email,
+    validate_staff_account_email,
+)
+
 WORKSPACE_ID_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 WORKSPACE_ID_LENGTH = 6
 WORKSPACE_ID_PATTERN = rf"^[{WORKSPACE_ID_ALPHABET}]{{{WORKSPACE_ID_LENGTH}}}$"
@@ -232,6 +237,11 @@ class WorkspaceStaffAccount(models.Model):
                 condition=models.Q(status__in=WorkspaceStaffStatus.values),
                 name="organizations_staff_status_valid",
             ),
+            models.CheckConstraint(
+                condition=models.Q(role=WorkspaceStaffRole.STAFF)
+                | models.Q(email__gt=""),
+                name="organizations_staff_admin_requires_email",
+            ),
         ]
         indexes = [
             models.Index(fields=["organization", "status"]),
@@ -278,8 +288,9 @@ class WorkspaceStaffAccount(models.Model):
             kwargs["update_fields"] = filtered
 
         self.username = self._normalized_username(self.username)
-        self.email = self._normalized_email(self.email)
+        self.email = normalize_staff_email(self.email)
         self._validate_username()
+        self._validate_email()
         self._prevent_organization_move()
         self._sync_deactivated_at()
         super().save(*args, **kwargs)
@@ -287,8 +298,9 @@ class WorkspaceStaffAccount(models.Model):
     def clean(self):
         super().clean()
         self.username = self._normalized_username(self.username)
-        self.email = self._normalized_email(self.email)
+        self.email = normalize_staff_email(self.email)
         self._validate_username()
+        self._validate_email()
         self._prevent_organization_move()
 
     def deactivate(self):
@@ -327,14 +339,71 @@ class WorkspaceStaffAccount(models.Model):
         if not self.username:
             raise ValidationError("Username is required.")
 
+    def _validate_email(self):
+        try:
+            self.email = validate_staff_account_email(
+                organization=self.organization,
+                role=self.role,
+                email=self.email,
+                exclude_pk=self.pk,
+            )
+        except ValidationError as exc:
+            if hasattr(exc, "message_dict"):
+                raise ValidationError(exc.message_dict) from exc
+            raise
+
     @staticmethod
     def _normalized_username(username):
         if not username:
             return ""
         return username.strip().lower()
 
-    @staticmethod
-    def _normalized_email(email):
-        if not email:
-            return ""
-        return email.strip().lower()
+
+class WorkspaceStaffGroupAccess(models.Model):
+    """
+    Explicit Group access grant for a workspace Staff account.
+
+    Only WorkspaceStaffAccount rows with role=staff receive assignments.
+    Owner and workspace Admin have implicit access to all Groups in the org.
+    """
+
+    staff_account = models.ForeignKey(
+        WorkspaceStaffAccount,
+        on_delete=models.CASCADE,
+        related_name="group_access",
+    )
+    group = models.ForeignKey(
+        "groups.Group",
+        on_delete=models.CASCADE,
+        related_name="staff_access",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["staff_account_id", "group_id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["staff_account", "group"],
+                name="unique_staff_group_access",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["staff_account"]),
+            models.Index(fields=["group"]),
+        ]
+
+    def clean(self):
+        super().clean()
+        if self.staff_account.role != WorkspaceStaffRole.STAFF:
+            raise ValidationError(
+                "Group access assignments apply to Staff accounts only."
+            )
+        if self.staff_account.organization_id != self.group.organization_id:
+            raise ValidationError(
+                "Staff account and Group must belong to the same workspace."
+            )
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+

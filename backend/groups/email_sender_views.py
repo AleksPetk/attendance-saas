@@ -18,8 +18,8 @@ from groups.email_sender_serializers import (
 from groups.models import Group, GroupStatus
 from groups.operations import group_archived_error_payload
 from organizations.permissions import (
-    CanManageWorkspace,
-    CanViewWorkspace,
+    CanManageGroupConfiguration,
+    can_access_group,
     get_active_workspace_organization,
 )
 
@@ -36,6 +36,8 @@ class GroupScopedEmailSenderMixin:
         ).first()
         if group is None:
             return None
+        if not can_access_group(self.request.user, group):
+            return None
         return group
 
 
@@ -43,9 +45,7 @@ class GroupEmailSenderView(GroupScopedEmailSenderMixin, APIView):
     http_method_names = ["get", "put", "patch", "head", "options"]
 
     def get_permissions(self):
-        if self.request.method in ("GET", "HEAD", "OPTIONS"):
-            return [CanViewWorkspace()]
-        return [CanManageWorkspace()]
+        return [CanManageGroupConfiguration()]
 
     def get(self, request, group_pk):
         group = self.get_group()
@@ -99,7 +99,7 @@ class GroupEmailSenderTestView(GroupScopedEmailSenderMixin, APIView):
     http_method_names = ["post", "head", "options"]
 
     def get_permissions(self):
-        return [CanManageWorkspace()]
+        return [CanManageGroupConfiguration()]
 
     def post(self, request, group_pk):
         group = self.get_group()

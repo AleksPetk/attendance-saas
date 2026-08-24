@@ -690,6 +690,26 @@ Only log decisions supported by approved product planning. Do not invent decisio
 | **Status** | confirmed |
 | **Clarifies** | DEC-053, DEC-059, DEC-068 |
 
+### DEC-070 — Workspace Admin customer-workspace permissions
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-08-24 |
+| **Decision** | Customer workspace roles are **Owner** (paying `accounts.User`), **Admin**, and **Staff** (`WorkspaceStaffAccount.role`). **Workspace Admin** may perform almost all operational workspace management: Members, Groups (Standard and Structured when plan permits), participation data, Group configuration, email sender/forward emails, kiosks, Activity Log, Attendance Report exports, and **Staff** account management (create/edit/deactivate/reactivate/reset password for `role=staff` only). **Owner-only:** billing/subscription, Owner account/security (login email, backup email, password, 2FA, recovery), creating or managing other **Admin** accounts (including role promotion/demotion), ownership transfer, permanent account/workspace deletion, and platform Django admin. Workspace Admin is **not** Django `is_staff` / `is_superuser`. Authorization is enforced server-side via centralized helpers in `organizations.permissions` (`CanManageWorkspace`, `CanManageStaffAccounts`, `IsWorkspaceOwner`, capability flags on current-workspace responses). Role permission does **not** override plan entitlements. **Workspace Staff** final capability matrix remains undecided (OPEN-005). |
+| **Reason** | Trusted workspace managers need full day-to-day control without SaaS ownership, billing, or admin-role escalation. |
+| **Status** | confirmed |
+| **Clarifies** | OPEN-005 (partial — Admin frozen; Staff TBD) |
+
+### DEC-071 — Workspace Staff Group-scoped permissions
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-08-24 |
+| **Decision** | **Workspace Staff** (`WorkspaceStaffAccount.role=staff`) is **Group-scoped**, not a global workspace operator. Staff may be assigned zero or more Groups via `WorkspaceStaffGroupAccess` (Owner/Admin manage assignments for Staff only). Within assigned Groups, Staff may perform participant operations, launch/exit kiosk, and view/export History/Attendance Reports for those Groups only. Staff cannot: access unassigned Groups, use global Members directory/profile management, configure Groups/Kiosks/email sender, manage Staff/Admin, billing, or Owner account security. Owner/Admin retain workspace-wide operational access. Admin demoted → Staff clears Group assignments (Owner must reassign). Staff promoted → Admin preserves dormant assignments. Archived assigned Groups remain in access/history; permanently deleted Groups drop from live access but historical ActionRecords follow existing report scoping. |
+| **Reason** | Operational staff need narrow Group access without workspace-wide configuration or Member management. |
+| **Status** | confirmed |
+| **Clarifies** | OPEN-005 (Staff matrix frozen) |
+
 ---
 
 ## Open Decisions
@@ -701,7 +721,7 @@ Unresolved questions requiring explicit approval before implementation.
 | OPEN-002 | Action/state model | How actions relate to participant current state. Repeated Actions and simple presets are product-confirmed (DEC-039); implementation remains open |
 | OPEN-003 | Configurable field types and MVP scope | Which field types and how many per Group |
 | OPEN-004 | Kiosk security and session model | Device credentials remain open. Group-owned **kiosk exit code** (hashed, 4–10 alphanumeric) replaces owner-password exit for real launch (DEC-057). Interim app-session kiosk lock remains until device credentials are designed. |
-| OPEN-005 | Organization role capability matrix | Role names remain owner (paying User), admin/staff (WorkspaceStaffAccount); exact capabilities and permission differences per role undecided |
+| OPEN-005 | Organization role capability matrix | **Frozen (DEC-070 Admin, DEC-071 Staff).** Owner/Admin/Staff role names unchanged |
 | OPEN-006 | Notification engine architecture | Group after-action senders implemented for Custom SMTP, Gmail App Password, Outlook/Microsoft 365 SMTP, and Yahoo Mail App Password (DEC-059–062). Multiple participation emails (max 3) confirmed in DEC-069. Group Forward Emails (max 3 private copies) confirmed in DEC-068. Broader templates/triggers/channels and Gmail/Microsoft/Yahoo OAuth remain open. No further dedicated MVP mailbox providers planned. |
 | OPEN-007 | Plan names, pricing, and exact limits | Basic/Pro/Business and all quota numbers. Plans may later limit persistent Groups and Events on different axes (DEC-045); do not decide numbers yet. Independent workspace-level kiosk-definition counts are not the product model (DEC-044). |
 | OPEN-008 | Free trial behavior | Workspace may begin trial/unsubscribed (DEC-035). Duration (~7 days is direction only), feature access during trial, and billing state machine remain open |

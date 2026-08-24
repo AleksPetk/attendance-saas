@@ -15,7 +15,7 @@ import {
   emailAccordionStatusPills,
   emailAccordionStatusSummary,
   toggleAccountAccordionSection,
-  TWO_FACTOR_STATUS_PILLS,
+  twoFactorStatusPills,
 } from "./accountScreenUi.js";
 
 const sampleAccount = {
@@ -142,16 +142,16 @@ test("two-factor section renders as static settings card with pills", () => {
         id: "two-factor",
         title: "Two-factor authentication",
         description: "Add a second step when signing in to your owner account.",
-        statusPills: TWO_FACTOR_STATUS_PILLS,
+        statusPills: twoFactorStatusPills("not_enabled"),
         variant: "twoFactor",
       },
-      createElement("p", null, "Coming next note"),
+      createElement("p", null, "Security step note"),
     ),
   );
   assert.match(html, /Two-factor authentication/);
   assert.match(html, /Recommended/);
-  assert.match(html, /Coming next/);
-  assert.match(html, /Coming next note/);
+  assert.match(html, /Not enabled/);
+  assert.match(html, /Security step note/);
   assert.match(html, /is-static/);
   assert.match(html, /tone-twoFactor/);
   assert.doesNotMatch(html, /aria-expanded/);
@@ -208,7 +208,7 @@ test("two-factor section uses violet tone class", () => {
       id: "two-factor",
       title: "Two-factor authentication",
       description: "Add a second step when signing in to your owner account.",
-      statusPills: TWO_FACTOR_STATUS_PILLS,
+      statusPills: twoFactorStatusPills("not_enabled"),
       variant: "twoFactor",
     }),
   );

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api, errorMessage } from "./api.js";
 import { ErrorBanner, Field, LoadingState, PasswordInput, SectionCard, StatusBadge } from "./components.jsx";
 import GroupParticipantsSection from "./GroupParticipantsSection.jsx";
+import { canLaunchKiosk, canManageGroupConfiguration } from "./workspaceSession.js";
 import { actionSummary } from "./GroupsScreen.jsx";
 import {
   formatClassId,
@@ -11,6 +12,8 @@ import {
 } from "./groupForm.js";
 
 export default function GroupDetailScreen({ session, groupId, onNavigate }) {
+  const canConfigure = canManageGroupConfiguration(session);
+  const canLaunch = canLaunchKiosk(session);
   const [group, setGroup] = useState(null);
   const [kioskReadiness, setKioskReadiness] = useState(null);
   const [classes, setClasses] = useState([]);
@@ -40,19 +43,28 @@ export default function GroupDetailScreen({ session, groupId, onNavigate }) {
       setGroup(nextGroup);
 
       if (isStructuredGroup(nextGroup)) {
-        const [classResult, kioskSettingsResult, sourcesResult] = await Promise.all([
-          api.listGroupClasses(session, groupId),
-          api.getGroupKioskSettings(session, groupId).catch(() => ({ data: null })),
-          api.listGroupClassImportSources(session, groupId).catch(() => ({ data: [] })),
-        ]);
+        const classResult = await api.listGroupClasses(session, groupId);
         setClasses(classResult.data);
-        setKioskReadiness(kioskSettingsResult.data?.readiness || null);
-        setImportSources(Array.isArray(sourcesResult.data) ? sourcesResult.data : []);
-      } else {
+        if (canConfigure) {
+          const [kioskSettingsResult, sourcesResult] = await Promise.all([
+            api.getGroupKioskSettings(session, groupId).catch(() => ({ data: null })),
+            api.listGroupClassImportSources(session, groupId).catch(() => ({ data: [] })),
+          ]);
+          setKioskReadiness(kioskSettingsResult.data?.readiness || null);
+          setImportSources(Array.isArray(sourcesResult.data) ? sourcesResult.data : []);
+        } else {
+          setKioskReadiness(null);
+          setImportSources([]);
+        }
+      } else if (canConfigure) {
         const kioskSettingsResult = await api
           .getGroupKioskSettings(session, groupId)
           .catch(() => ({ data: null }));
         setKioskReadiness(kioskSettingsResult.data?.readiness || null);
+        setClasses([]);
+        setImportSources([]);
+      } else {
+        setKioskReadiness(null);
         setClasses([]);
         setImportSources([]);
       }
@@ -68,7 +80,7 @@ export default function GroupDetailScreen({ session, groupId, onNavigate }) {
   const setupIncomplete = group?.readiness && !group.readiness.setup_complete;
   const structured = isStructuredGroup(group);
   const kioskNeedsSetup = kioskReadiness && !kioskReadiness.ready;
-  const launchBlocked = setupIncomplete || kioskNeedsSetup;
+  const launchBlocked = setupIncomplete || (canConfigure && kioskNeedsSetup);
   const setupSummary = setupIncompleteSummary(group?.readiness);
 
   async function archiveGroup() {
@@ -201,16 +213,20 @@ export default function GroupDetailScreen({ session, groupId, onNavigate }) {
           <p>{actionSummary(group.actions)}</p>
         </div>
         <div className="header-actions">
-          <button
-            type="button"
-            className="btn-secondary"
-            onClick={() => onNavigate({ name: "group-editor", groupId })}
-          >
-            Edit configuration
-          </button>
-          <button type="button" className="btn-danger-soft" onClick={archiveGroup}>
-            Archive
-          </button>
+          {canConfigure ? (
+            <>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => onNavigate({ name: "group-editor", groupId })}
+              >
+                Edit configuration
+              </button>
+              <button type="button" className="btn-danger-soft" onClick={archiveGroup}>
+                Archive
+              </button>
+            </>
+          ) : null}
           <button type="button" className="btn-secondary" onClick={() => onNavigate({ name: "groups" })}>
             Back
           </button>
@@ -243,7 +259,7 @@ export default function GroupDetailScreen({ session, groupId, onNavigate }) {
         </div>
       ) : null}
 
-      {kioskNeedsSetup && !setupIncomplete ? (
+      {canConfigure && kioskNeedsSetup && !setupIncomplete ? (
         <div className="setup-incomplete-banner">
           <div>
             <strong>Kiosk settings need attention</strong>
@@ -322,35 +338,41 @@ export default function GroupDetailScreen({ session, groupId, onNavigate }) {
           </p>
         </div>
         <div className="kiosk-action-row">
-          <button
-            type="button"
-            className="btn-secondary btn-sm"
-            onClick={() => onNavigate({ name: "kiosk-settings", groupId })}
-          >
-            Kiosk Settings
-          </button>
-          <button
-            type="button"
-            className="btn-secondary btn-sm"
-            onClick={() => onNavigate({ name: "kiosk-builder", groupId })}
-          >
-            Edit Kiosk Design
-          </button>
-          <button
-            type="button"
-            className="btn-success kiosk-action-launch"
-            disabled={launchBlocked}
-            title={
-              setupIncomplete
-                ? "Complete setup before launching."
-                : kioskNeedsSetup
-                  ? "Complete Kiosk Settings before launching."
-                  : undefined
-            }
-            onClick={() => onNavigate({ name: "kiosk", groupId })}
-          >
-            Launch Kiosk
-          </button>
+          {canConfigure ? (
+            <>
+              <button
+                type="button"
+                className="btn-secondary btn-sm"
+                onClick={() => onNavigate({ name: "kiosk-settings", groupId })}
+              >
+                Kiosk Settings
+              </button>
+              <button
+                type="button"
+                className="btn-secondary btn-sm"
+                onClick={() => onNavigate({ name: "kiosk-builder", groupId })}
+              >
+                Edit Kiosk Design
+              </button>
+            </>
+          ) : null}
+          {canLaunch ? (
+            <button
+              type="button"
+              className="btn-success kiosk-action-launch"
+              disabled={launchBlocked}
+              title={
+                setupIncomplete
+                  ? "Complete setup before launching."
+                  : kioskNeedsSetup
+                    ? "Complete Kiosk Settings before launching."
+                    : undefined
+              }
+              onClick={() => onNavigate({ name: "kiosk", groupId })}
+            >
+              Launch Kiosk
+            </button>
+          ) : null}
         </div>
       </div>
 
@@ -376,31 +398,35 @@ export default function GroupDetailScreen({ session, groupId, onNavigate }) {
                   >
                     Open
                   </button>
-                  <button
-                    type="button"
-                    className="btn-secondary btn-sm"
-                    onClick={() => {
-                      setEditingClassId(section.id);
-                      setEditingClassName(section.name);
-                      setEditingClassPin(section.class_pin || "");
-                    }}
-                  >
-                    Edit
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-danger-soft btn-sm"
-                    onClick={() => removeClass(section)}
-                  >
-                    Remove
-                  </button>
+                  {canConfigure ? (
+                    <>
+                      <button
+                        type="button"
+                        className="btn-secondary btn-sm"
+                        onClick={() => {
+                          setEditingClassId(section.id);
+                          setEditingClassName(section.name);
+                          setEditingClassPin(section.class_pin || "");
+                        }}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-danger-soft btn-sm"
+                        onClick={() => removeClass(section)}
+                      >
+                        Remove
+                      </button>
+                    </>
+                  ) : null}
                 </div>
               </article>
             ))}
             {classes.length === 0 ? <p className="hint">No Classes yet.</p> : null}
           </div>
 
-          {editingClassId ? (
+          {canConfigure && editingClassId ? (
             <form className="panel-form card-surface panel-form-edit" onSubmit={saveClassRename}>
               <h3>Edit Class</h3>
               <Field label="Name">
@@ -439,6 +465,7 @@ export default function GroupDetailScreen({ session, groupId, onNavigate }) {
             </form>
           ) : null}
 
+          {canConfigure ? (
           <form
             className="add-participant-card"
             onSubmit={addClassMode === "import" ? copyStandardGroupAsClass : addClass}
@@ -564,6 +591,7 @@ export default function GroupDetailScreen({ session, groupId, onNavigate }) {
             )}
             {importNotice ? <p className="hint import-success-note">{importNotice}</p> : null}
           </form>
+          ) : null}
         </SectionCard>
       ) : (
         <GroupParticipantsSection

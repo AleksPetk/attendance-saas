@@ -47,7 +47,13 @@ export function emailAccordionStatusPills(account) {
   return pills;
 }
 
-export const TWO_FACTOR_STATUS_PILLS = [
-  { label: "Recommended", variant: "pro" },
-  { label: "Coming next", variant: "default" },
-];
+export function twoFactorStatusPills(twoFactorStatus) {
+  const status = twoFactorStatus || "not_enabled";
+  return [
+    { label: "Recommended", variant: "pro" },
+    {
+      label: status === "enabled" ? "Enabled" : "Not enabled",
+      variant: status === "enabled" ? "live" : "default",
+    },
+  ];
+}

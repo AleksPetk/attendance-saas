@@ -10,8 +10,18 @@ import {
   PasswordInput,
   StatusBadge,
 } from "./components.jsx";
+import {
+  canManageStaffAccounts,
+  canManageWorkspaceAdminAccounts,
+} from "./workspaceSession.js";
+import StaffGroupAccessEditor from "./StaffGroupAccessEditor.jsx";
+import {
+  STAFF_EMAIL_DUPLICATE_MESSAGE,
+  isStaffEmailRequired,
+  staffEmailFieldLabel,
+} from "./staffManagementEmail.js";
 
-function StaffRow({ staff, onDeactivateToggle, onResetPassword }) {
+function StaffRow({ staff, readOnly, onDeactivateToggle, onResetPassword, onManageAccess, managingAccess }) {
   return (
     <article className="person-row">
       <div className="person-copy" style={{ flex: 1 }}>
@@ -23,14 +33,21 @@ function StaffRow({ staff, onDeactivateToggle, onResetPassword }) {
         </p>
         {staff.email ? <p className="hint" style={{ marginTop: "0.35rem" }}>{staff.email}</p> : null}
       </div>
-      <div className="person-meta" style={{ alignItems: "flex-start", flexDirection: "column" }}>
-        <button type="button" className="btn-secondary btn-sm" onClick={onDeactivateToggle}>
-          {staff.status === "active" ? "Deactivate" : "Reactivate"}
-        </button>
-        <button type="button" className="btn-ghost btn-sm" onClick={onResetPassword}>
-          Reset password
-        </button>
-      </div>
+      {!readOnly ? (
+        <div className="person-meta" style={{ alignItems: "flex-start", flexDirection: "column" }}>
+          {staff.role === "staff" ? (
+            <button type="button" className="btn-secondary btn-sm" onClick={onManageAccess}>
+              {managingAccess ? "Close access" : "Group access"}
+            </button>
+          ) : null}
+          <button type="button" className="btn-secondary btn-sm" onClick={onDeactivateToggle}>
+            {staff.status === "active" ? "Deactivate" : "Reactivate"}
+          </button>
+          <button type="button" className="btn-ghost btn-sm" onClick={onResetPassword}>
+            Reset password
+          </button>
+        </div>
+      ) : null}
     </article>
   );
 }
@@ -40,7 +57,8 @@ export default function StaffManagementScreen({ session }) {
   const [error, setError] = useState("");
   const [staff, setStaff] = useState([]);
 
-  const isOwner = session?.workspace?.account_kind === "owner";
+  const canManageStaff = canManageStaffAccounts(session);
+  const canManageAdmins = canManageWorkspaceAdminAccounts(session);
   const workspaceId = session.workspace.workspace_id;
 
   const [createUsername, setCreateUsername] = useState("");
@@ -48,9 +66,13 @@ export default function StaffManagementScreen({ session }) {
   const [createRole, setCreateRole] = useState("staff");
   const [createPassword, setCreatePassword] = useState("");
   const [creating, setCreating] = useState(false);
+  const [accessStaffId, setAccessStaffId] = useState(null);
+
+  const effectiveCreateRole = canManageAdmins ? createRole : "staff";
+  const createEmailRequired = isStaffEmailRequired(effectiveCreateRole);
 
   useEffect(() => {
-    if (!isOwner) return;
+    if (!canManageStaff) return;
     let cancelled = false;
     async function run() {
       setLoading(true);
@@ -70,7 +92,7 @@ export default function StaffManagementScreen({ session }) {
     return () => {
       cancelled = true;
     };
-  }, [isOwner]);
+  }, [canManageStaff]);
 
   async function refresh() {
     const result = await api.listWorkspaceStaff(null);
@@ -79,7 +101,7 @@ export default function StaffManagementScreen({ session }) {
 
   async function handleCreate(event) {
     event.preventDefault();
-    if (!isOwner) return;
+    if (!canManageStaff) return;
     setError("");
     setCreating(true);
 
@@ -87,7 +109,7 @@ export default function StaffManagementScreen({ session }) {
       await api.createWorkspaceStaff(null, {
         username: createUsername,
         email: createEmail,
-        role: createRole,
+        role: canManageAdmins ? createRole : "staff",
         password: createPassword,
       });
       setCreateUsername("");
@@ -96,7 +118,12 @@ export default function StaffManagementScreen({ session }) {
       setCreatePassword("");
       await refresh();
     } catch (e) {
-      setError(errorMessage(e));
+      const message = errorMessage(e);
+      if (message.includes("already exists in this workspace")) {
+        setError(STAFF_EMAIL_DUPLICATE_MESSAGE);
+      } else {
+        setError(message);
+      }
     } finally {
       setCreating(false);
     }
@@ -124,12 +151,12 @@ export default function StaffManagementScreen({ session }) {
     }
   }
 
-  if (!isOwner) {
+  if (!canManageStaff) {
     return (
       <div className="page">
         <EmptyState
-          title="Owner-only"
-          body="Only the paying workspace owner can manage admin and staff accounts."
+          title="Not available"
+          body="Only the workspace owner or an admin can manage staff accounts."
         />
       </div>
     );
@@ -147,7 +174,11 @@ export default function StaffManagementScreen({ session }) {
     <div className="page">
       <PageHeader
         title="Staff management"
-        description="Create workspace admin and staff accounts. Share the Workspace ID so staff can sign in."
+        description={
+          canManageAdmins
+            ? "Create workspace admin and staff accounts. Share the Workspace ID so staff can sign in."
+            : "Create and manage staff accounts. Admin accounts can only be managed by the workspace owner."
+        }
       />
 
       <div className="workspace-id-card">
@@ -167,24 +198,46 @@ export default function StaffManagementScreen({ session }) {
         <section className="section-card">
           <header className="section-card-header">
             <h2>Existing accounts</h2>
-            <p>Admins and staff who can access this workspace.</p>
+            <p>
+              {canManageAdmins
+                ? "Admins and staff who can access this workspace."
+                : "Staff accounts you can manage in this workspace."}
+            </p>
           </header>
           <div className="section-card-body">
             {staff.length ? (
               <div className="activity-list">
                 {staff.map((s) => (
-                  <StaffRow
-                    key={s.id}
-                    staff={s}
-                    onDeactivateToggle={() => toggleDeactivate(s.id, s.status)}
-                    onResetPassword={() => resetPassword(s.id)}
-                  />
+                  <div key={s.id}>
+                    <StaffRow
+                      staff={s}
+                      readOnly={!canManageAdmins && s.role === "admin"}
+                      managingAccess={accessStaffId === s.id}
+                      onManageAccess={() =>
+                        setAccessStaffId((current) => (current === s.id ? null : s.id))
+                      }
+                      onDeactivateToggle={() => toggleDeactivate(s.id, s.status)}
+                      onResetPassword={() => resetPassword(s.id)}
+                    />
+                    {accessStaffId === s.id && s.role === "staff" ? (
+                      <StaffGroupAccessEditor
+                        staff={s}
+                        onClose={() => setAccessStaffId(null)}
+                        onSaved={refresh}
+                        onError={setError}
+                      />
+                    ) : null}
+                  </div>
                 ))}
               </div>
             ) : (
               <EmptyState
                 title="No staff accounts yet"
-                body="Create an admin or staff account for someone who needs workspace access."
+                body={
+                  canManageAdmins
+                    ? "Create an admin or staff account for someone who needs workspace access."
+                    : "Create a staff account for someone who needs workspace access."
+                }
               />
             )}
           </div>
@@ -200,15 +253,29 @@ export default function StaffManagementScreen({ session }) {
                 required
               />
             </Field>
-            <Field label="Email (optional)">
-              <input value={createEmail} onChange={(e) => setCreateEmail(e.target.value)} type="email" />
+            <Field
+              label={staffEmailFieldLabel(effectiveCreateRole)}
+              hint={createEmailRequired ? "Required for admin accounts" : undefined}
+            >
+              <input
+                value={createEmail}
+                onChange={(e) => setCreateEmail(e.target.value)}
+                type="email"
+                required={createEmailRequired}
+              />
             </Field>
-            <Field label="Role">
-              <select value={createRole} onChange={(e) => setCreateRole(e.target.value)}>
-                <option value="admin">Admin</option>
-                <option value="staff">Staff</option>
-              </select>
-            </Field>
+            {canManageAdmins ? (
+              <Field label="Role">
+                <select value={createRole} onChange={(e) => setCreateRole(e.target.value)}>
+                  <option value="admin">Admin</option>
+                  <option value="staff">Staff</option>
+                </select>
+              </Field>
+            ) : (
+              <Field label="Role">
+                <input value="Staff" readOnly disabled />
+              </Field>
+            )}
             <Field label="Password">
               <PasswordInput
                 value={createPassword}

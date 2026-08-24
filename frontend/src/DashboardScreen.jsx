@@ -8,6 +8,7 @@ import {
   PageHeader,
   StatCard,
 } from "./components.jsx";
+import { canManageGroupConfiguration, canViewGlobalMembers } from "./workspaceSession.js";
 
 function ActivityRow({ item }) {
   const when = item.performed_at ? new Date(item.performed_at) : null;
@@ -33,11 +34,13 @@ function ActivityRow({ item }) {
   );
 }
 
-export default function DashboardScreen() {
+export default function DashboardScreen({ session }) {
   const nav = useNavigate();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [data, setData] = useState(null);
+  const showMembers = canViewGlobalMembers(session);
+  const canConfigure = canManageGroupConfiguration(session);
 
   useEffect(() => {
     let cancelled = false;
@@ -86,23 +89,25 @@ export default function DashboardScreen() {
       />
 
       <div className="dashboard-metrics">
-        <StatCard
-          label="Members"
-          value={data.member_count}
-          hint="Reusable people in workspace"
-          accent="blue"
-          onClick={() => nav("/members")}
-        />
+        {showMembers ? (
+          <StatCard
+            label="Members"
+            value={data?.member_count ?? 0}
+            hint="Reusable people in workspace"
+            accent="blue"
+            onClick={() => nav("/members")}
+          />
+        ) : null}
         <StatCard
           label="Groups"
-          value={data.group_count}
-          hint="Check-in configurations"
+          value={data?.group_count ?? 0}
+          hint={showMembers ? "Check-in configurations" : "Assigned Groups"}
           accent="green"
           onClick={() => nav("/groups")}
         />
         <StatCard
           label="Recent actions"
-          value={data.recent_activity?.length || 0}
+          value={data?.recent_activity?.length || 0}
           hint="Shown below"
           accent="cyan"
         />
@@ -138,12 +143,16 @@ export default function DashboardScreen() {
         <aside className="card-surface" style={{ padding: "var(--space-5)" }}>
           <h3 style={{ marginBottom: "var(--space-4)", fontSize: "1rem" }}>Quick actions</h3>
           <div className="quick-actions">
-            <button type="button" className="quick-action-btn" onClick={() => nav("/members/new")}>
-              <span aria-hidden="true">+</span> Add Member
-            </button>
-            <button type="button" className="quick-action-btn" onClick={() => nav("/groups/new")}>
-              <span aria-hidden="true">+</span> Create Group
-            </button>
+            {showMembers ? (
+              <button type="button" className="quick-action-btn" onClick={() => nav("/members/new")}>
+                <span aria-hidden="true">+</span> Add Member
+              </button>
+            ) : null}
+            {canConfigure ? (
+              <button type="button" className="quick-action-btn" onClick={() => nav("/groups/new")}>
+                <span aria-hidden="true">+</span> Create Group
+              </button>
+            ) : null}
             <button type="button" className="quick-action-btn" onClick={() => nav("/history")}>
               <span aria-hidden="true">↻</span> View history
             </button>

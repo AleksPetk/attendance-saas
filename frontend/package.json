@@ -17,7 +17,8 @@
     "test:kiosk-editor-sections": "node --test src/kiosk/builder/kioskEditorSections.test.js",
     "test:input-templates": "node --test src/kiosk/inputTemplates.test.js src/kiosk/flowTemplate.test.js src/kiosk/templateFamilies.test.js src/kiosk/kioskIdentifyGenericVisual.test.js",
     "test:card-templates": "node --test src/kiosk/cardTemplates.test.js src/kiosk/cardContainment.test.js src/kiosk/kioskParticipantAvatar.test.js src/kiosk/templateFamilies.test.js",
-    "test:account": "node --test src/accountScreenUi.test.js"
+    "test:staff-access": "node --test src/staffGroupAccess.test.js",
+    "test:account": "node --test src/accountScreenUi.test.js src/workspaceSession.test.js src/staffManagementEmail.test.js src/staffGroupAccess.test.js"
   },
   "dependencies": {
     "react": "^19.1.1",

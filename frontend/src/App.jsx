@@ -41,6 +41,12 @@ import StaffManagementScreen from "./StaffManagementScreen.jsx";
 import AccountScreen from "./AccountScreen.jsx";
 import { api } from "./api.js";
 import { LoadingState } from "./components.jsx";
+import {
+  canLaunchKiosk,
+  canManageGroupConfiguration,
+  canManageOwnerAccount,
+  canViewGlobalMembers,
+} from "./workspaceSession.js";
 import { confirmWorkspaceLeave } from "./kiosk/builder/workspaceLeaveGuard.js";
 
 const SESSION_KEY = "attendance-saas-local-session";
@@ -181,9 +187,8 @@ function KioskLockGate({ loadingSession, session, children }) {
 }
 
 function WorkspaceRoutes({ session, setSession, onKioskEntered, onKioskUnlockedLocally }) {
-  const isOwner = session.workspace.account_kind === "owner";
   const kioskLocked = Boolean(session.workspace.kiosk_locked);
-  const canUseKiosk = isOwner || kioskLocked;
+  const canUseKiosk = canLaunchKiosk(session) || kioskLocked;
   const nav = useNavigate();
   const location = useLocation();
   const sidebarRoute = (() => {
@@ -263,8 +268,8 @@ function WorkspaceRoutes({ session, setSession, onKioskEntered, onKioskUnlockedL
             ) : (
               <div className="page" style={{ padding: "var(--space-8)" }}>
                 <div className="empty-state">
-                  <h2>Owner-only</h2>
-                  <p>Only the paying workspace owner can launch the kiosk in this local slice.</p>
+                  <h2>Kiosk unavailable</h2>
+                  <p>You do not have permission to launch the kiosk from this account.</p>
                 </div>
               </div>
             )
@@ -279,7 +284,13 @@ function WorkspaceRoutes({ session, setSession, onKioskEntered, onKioskUnlockedL
       <Routes>
         <Route
           path="/groups/:groupId/kiosk-builder"
-          element={<GroupKioskBuilderByParam session={session} onNavigate={onNavigate} />}
+          element={
+            canManageGroupConfiguration(session) ? (
+              <GroupKioskBuilderByParam session={session} onNavigate={onNavigate} />
+            ) : (
+              <Navigate to="/groups" replace />
+            )
+          }
         />
       </Routes>
     );
@@ -297,25 +308,90 @@ function WorkspaceRoutes({ session, setSession, onKioskEntered, onKioskUnlockedL
       }}
     >
       <Routes>
-        <Route path="/dashboard" element={<DashboardScreen />} />
-        <Route path="/account" element={<AccountScreen onAccountDeleted={() => {
-          setSession(null);
-          nav("/login?deleted=1");
-        }} />} />
-        <Route path="/members" element={<MembersScreen session={session} onNavigate={onNavigate} />} />
-        <Route path="/members/new" element={<MemberCreateScreen session={session} onNavigate={onNavigate} />} />
-        <Route path="/members/:memberId" element={<MemberProfileByParam session={session} onNavigate={onNavigate} />} />
+        <Route path="/dashboard" element={<DashboardScreen session={session} />} />
+        <Route
+          path="/account"
+          element={
+            canManageOwnerAccount(session) ? (
+              <AccountScreen
+                onAccountDeleted={() => {
+                  setSession(null);
+                  nav("/login?deleted=1");
+                }}
+              />
+            ) : (
+              <Navigate to="/dashboard" replace />
+            )
+          }
+        />
+        <Route
+          path="/members"
+          element={
+            canViewGlobalMembers(session) ? (
+              <MembersScreen session={session} onNavigate={onNavigate} />
+            ) : (
+              <Navigate to="/dashboard" replace />
+            )
+          }
+        />
+        <Route
+          path="/members/new"
+          element={
+            canViewGlobalMembers(session) ? (
+              <MemberCreateScreen session={session} onNavigate={onNavigate} />
+            ) : (
+              <Navigate to="/dashboard" replace />
+            )
+          }
+        />
+        <Route
+          path="/members/:memberId"
+          element={
+            canViewGlobalMembers(session) ? (
+              <MemberProfileByParam session={session} onNavigate={onNavigate} />
+            ) : (
+              <Navigate to="/dashboard" replace />
+            )
+          }
+        />
         <Route path="/groups" element={<GroupsScreen session={session} onNavigate={onNavigate} />} />
-        <Route path="/groups/new" element={<GroupEditorScreen session={session} onNavigate={onNavigate} />} />
-        <Route path="/groups/:groupId/edit" element={<GroupEditorByParam session={session} onNavigate={onNavigate} />} />
-        <Route path="/groups/:groupId/kiosk-settings" element={<GroupKioskSettingsByParam session={session} onNavigate={onNavigate} />} />
+        <Route
+          path="/groups/new"
+          element={
+            canManageGroupConfiguration(session) ? (
+              <GroupEditorScreen session={session} onNavigate={onNavigate} />
+            ) : (
+              <Navigate to="/groups" replace />
+            )
+          }
+        />
+        <Route
+          path="/groups/:groupId/edit"
+          element={
+            canManageGroupConfiguration(session) ? (
+              <GroupEditorByParam session={session} onNavigate={onNavigate} />
+            ) : (
+              <Navigate to="/groups" replace />
+            )
+          }
+        />
+        <Route
+          path="/groups/:groupId/kiosk-settings"
+          element={
+            canManageGroupConfiguration(session) ? (
+              <GroupKioskSettingsByParam session={session} onNavigate={onNavigate} />
+            ) : (
+              <Navigate to="/groups" replace />
+            )
+          }
+        />
         <Route
           path="/groups/:groupId/classes/:classId"
           element={<GroupClassDetailByParam session={session} onNavigate={onNavigate} />}
         />
         <Route path="/groups/:groupId" element={<GroupDetailByParam session={session} onNavigate={onNavigate} />} />
         <Route path="/history" element={<HistoryScreen session={session} />} />
-        <Route path="/staff" element={<StaffManagementScreen session={session} onNavigate={onNavigate} />} />
+        <Route path="/staff" element={<StaffManagementScreen session={session} />} />
       </Routes>
     </WorkspaceLayout>
   );

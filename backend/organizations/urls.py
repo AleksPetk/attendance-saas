@@ -10,6 +10,7 @@ from organizations.views import (
     ReauthView,
     WorkspaceStaffListCreateView,
     WorkspaceStaffDetailView,
+    WorkspaceStaffGroupAccessView,
     WorkspaceStaffResetPasswordView,
     WorkspaceDashboardView,
 )
@@ -28,6 +29,11 @@ urlpatterns = [
         "workspace-staff/<int:staff_id>/reset-password/",
         WorkspaceStaffResetPasswordView.as_view(),
         name="workspace-staff-reset-password",
+    ),
+    path(
+        "workspace-staff/<int:staff_id>/group-access/",
+        WorkspaceStaffGroupAccessView.as_view(),
+        name="workspace-staff-group-access",
     ),
     path("dashboard/", WorkspaceDashboardView.as_view(), name="workspace-dashboard"),
 ]
