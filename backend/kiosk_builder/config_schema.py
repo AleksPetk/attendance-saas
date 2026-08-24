@@ -20,10 +20,12 @@ import re
 from kiosk_builder.presets import (
     BUTTON_PRESETS,
     CARD_PRESETS,
+    CARD_TEMPLATES,
     FONT_IDENTIFIERS,
     INPUT_PRESETS,
     INPUT_TEMPLATES,
     MAIN_LAYOUT_PRESETS,
+    derive_card_template,
     derive_input_template,
 )
 
@@ -106,6 +108,7 @@ def default_config(*, header_title_text=""):
             "overlay": 0.0,
             "layout_preset": "centered",
             "input_template": "clean",
+            "card_template": "clean",
             "title": {
                 "text": "",
                 "font": "inter",
@@ -534,6 +537,18 @@ def validate_config(config):
                 m["layout_preset"], m["button_preset"], m["input_preset"]
             )
         m["input_template"] = template
+
+        # Canonical Card template id. Prefer explicit value; otherwise derive from
+        # legacy layout/card so older designs keep working.
+        # Do not force-sync layout from the template here — Input mode still owns
+        # layout_preset via input_template. The builder writes the full package when
+        # the user picks a Card template.
+        card_template = main.get("card_template")
+        if card_template not in CARD_TEMPLATES:
+            if card_template is not None:
+                errors.append(f"main.card_template: unknown template '{card_template}'.")
+            card_template = derive_card_template(m["layout_preset"], m["card_preset"])
+        m["card_template"] = card_template
 
         result["main"] = m
 

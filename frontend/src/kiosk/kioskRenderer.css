@@ -339,6 +339,13 @@
 
 .kr-main-content .kiosk-people-grid {
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.kr-main-content .kiosk-person-card {
+  min-width: 0;
+  max-width: 100%;
 }
 
 @media (max-width: 720px) {

@@ -7,12 +7,26 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from accounts.deletion import PermanentDeletionError, permanently_delete_customer_account
-from accounts.exceptions import EmailNotVerified
+from accounts.email_management import (
+    account_email_payload,
+    cancel_pending_backup,
+    cancel_pending_primary_email,
+    remove_backup_email,
+    request_backup_email,
+    request_primary_email_change,
+    resend_backup_verification,
+    resend_primary_email_change,
+    verify_backup_email_uid_token,
+    verify_primary_email_uid_token,
+)
+from accounts.exceptions import EmailCooldown, EmailNotVerified
 from accounts.serializers import (
     AccountSerializer,
     ChangePasswordSerializer,
     DeleteAccountSerializer,
+    EmailWithPasswordSerializer,
     ForgotPasswordSerializer,
+    PasswordOnlySerializer,
     ResendVerificationSerializer,
     ResetPasswordSerializer,
     VerifyEmailSerializer,
@@ -58,6 +72,27 @@ def _send_failure_response():
             "code": "email_send_failed",
         },
         status=503,
+    )
+
+
+def _require_owner(actor):
+    if isinstance(actor, WorkspaceStaffAccount) or not isinstance(actor, User):
+        return Response(
+            {"detail": "Only the paying workspace owner can manage this account."},
+            status=403,
+        )
+    if not actor.is_active:
+        return Response({"detail": "This account is inactive."}, status=403)
+    return None
+
+
+def _email_unavailable_response():
+    return Response(
+        {
+            "detail": "This email address is no longer available.",
+            "code": "email_unavailable",
+        },
+        status=400,
     )
 
 
@@ -184,21 +219,254 @@ class AccountView(APIView):
 
     def get(self, request):
         actor = request.user
-        if isinstance(actor, WorkspaceStaffAccount) or not isinstance(actor, User):
-            return Response(
-                {"detail": "Only the paying workspace owner can view this account."},
-                status=403,
-            )
+        denied = _require_owner(actor)
+        if denied is not None:
+            return denied
         if customer_must_verify_email(actor):
             raise EmailNotVerified()
-        payload = {
-            "email": actor.email,
-            "email_verified": bool(actor.email_verified),
-            "email_verified_at": actor.email_verified_at,
-            "two_factor_status": "not_enabled",
-            "two_factor_label": "Two-factor authentication — Recommended — Coming next",
-        }
-        return Response(AccountSerializer(payload).data)
+        return Response(AccountSerializer(account_email_payload(actor)).data)
+
+
+class BackupEmailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        actor = request.user
+        denied = _require_owner(actor)
+        if denied is not None:
+            return denied
+        if customer_must_verify_email(actor):
+            raise EmailNotVerified()
+
+        serializer = EmailWithPasswordSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        result, detail = request_backup_email(
+            actor,
+            serializer.validated_data["email"],
+            serializer.validated_data["current_password"],
+        )
+        if result == "wrong_password":
+            return Response(
+                {"current_password": "Current password is incorrect."},
+                status=400,
+            )
+        if result == "validation_error":
+            return Response({"email": detail}, status=400)
+        if result == "send_failed":
+            return _send_failure_response()
+        return Response(
+            {
+                "detail": "Verification email sent.",
+                "code": "sent",
+                "pending_backup_email": detail,
+            }
+        )
+
+
+class BackupEmailRemoveView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        actor = request.user
+        denied = _require_owner(actor)
+        if denied is not None:
+            return denied
+        if customer_must_verify_email(actor):
+            raise EmailNotVerified()
+
+        serializer = PasswordOnlySerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        if not remove_backup_email(actor, serializer.validated_data["current_password"]):
+            return Response(
+                {"current_password": "Current password is incorrect."},
+                status=400,
+            )
+        return Response({"detail": "Backup email removed.", "code": "removed"})
+
+
+class BackupEmailResendView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        actor = request.user
+        denied = _require_owner(actor)
+        if denied is not None:
+            return denied
+        if customer_must_verify_email(actor):
+            raise EmailNotVerified()
+
+        try:
+            result = resend_backup_verification(actor)
+        except EmailCooldown as exc:
+            raise exc
+        if result == "nothing_pending":
+            return Response(
+                {"detail": "No backup email change is pending.", "code": "nothing_pending"},
+                status=400,
+            )
+        if result == "send_failed":
+            return _send_failure_response()
+        return Response(
+            {
+                "detail": "Verification email sent.",
+                "code": "sent",
+                "pending_backup_email": actor.pending_backup_email,
+            }
+        )
+
+
+class BackupEmailCancelView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        actor = request.user
+        denied = _require_owner(actor)
+        if denied is not None:
+            return denied
+        if customer_must_verify_email(actor):
+            raise EmailNotVerified()
+
+        result = cancel_pending_backup(actor)
+        if result == "nothing_pending":
+            return Response(
+                {"detail": "No backup email change is pending.", "code": "nothing_pending"},
+                status=400,
+            )
+        return Response({"detail": "Pending backup email change cancelled.", "code": "cancelled"})
+
+
+class VerifyBackupEmailView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = VerifyEmailSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        status_key, user = verify_backup_email_uid_token(
+            serializer.validated_data["uid"],
+            serializer.validated_data["token"],
+        )
+        if status_key == "email_unavailable":
+            return _email_unavailable_response()
+        if status_key != "verified":
+            return _token_error_response(status_key)
+        return Response(
+            {
+                "detail": "Backup email verified.",
+                "code": "verified",
+                "backup_email": user.backup_email,
+            }
+        )
+
+
+class PrimaryEmailChangeView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        actor = request.user
+        denied = _require_owner(actor)
+        if denied is not None:
+            return denied
+        if customer_must_verify_email(actor):
+            raise EmailNotVerified()
+
+        serializer = EmailWithPasswordSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        result, detail = request_primary_email_change(
+            actor,
+            serializer.validated_data["email"],
+            serializer.validated_data["current_password"],
+        )
+        if result == "wrong_password":
+            return Response(
+                {"current_password": "Current password is incorrect."},
+                status=400,
+            )
+        if result == "validation_error":
+            return Response({"email": detail}, status=400)
+        if result == "send_failed":
+            return _send_failure_response()
+        return Response(
+            {
+                "detail": "Verification email sent.",
+                "code": "sent",
+                "pending_primary_email": detail,
+            }
+        )
+
+
+class PrimaryEmailResendView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        actor = request.user
+        denied = _require_owner(actor)
+        if denied is not None:
+            return denied
+        if customer_must_verify_email(actor):
+            raise EmailNotVerified()
+
+        try:
+            result = resend_primary_email_change(actor)
+        except EmailCooldown as exc:
+            raise exc
+        if result == "nothing_pending":
+            return Response(
+                {"detail": "No login email change is pending.", "code": "nothing_pending"},
+                status=400,
+            )
+        if result == "send_failed":
+            return _send_failure_response()
+        return Response(
+            {
+                "detail": "Verification email sent.",
+                "code": "sent",
+                "pending_primary_email": actor.pending_primary_email,
+            }
+        )
+
+
+class PrimaryEmailCancelView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        actor = request.user
+        denied = _require_owner(actor)
+        if denied is not None:
+            return denied
+        if customer_must_verify_email(actor):
+            raise EmailNotVerified()
+
+        result = cancel_pending_primary_email(actor)
+        if result == "nothing_pending":
+            return Response(
+                {"detail": "No login email change is pending.", "code": "nothing_pending"},
+                status=400,
+            )
+        return Response({"detail": "Pending login email change cancelled.", "code": "cancelled"})
+
+
+class VerifyPrimaryEmailView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = VerifyEmailSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        status_key, user = verify_primary_email_uid_token(
+            serializer.validated_data["uid"],
+            serializer.validated_data["token"],
+        )
+        if status_key == "email_unavailable":
+            return _email_unavailable_response()
+        if status_key != "verified":
+            return _token_error_response(status_key)
+        return Response(
+            {
+                "detail": "Login email updated.",
+                "code": "verified",
+                "email": user.email,
+                "email_verified": True,
+            }
+        )
 
 
 class DeleteAccountView(APIView):

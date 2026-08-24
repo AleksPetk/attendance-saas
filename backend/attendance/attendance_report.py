@@ -122,6 +122,19 @@ def _format_local_time(dt, tz):
     return timezone.localtime(dt, tz).strftime("%H:%M")
 
 
+def format_local_action_time(dt, *, organization=None, timezone_name=None):
+    """
+    Format an action instant as 24-hour HH:MM in the report timezone.
+
+    Uses the same resolution as Attendance Report and Activity Log display
+    (browser IANA name when provided; otherwise project/workspace timezone).
+    """
+    if dt is None:
+        dt = timezone.now()
+    tz = get_report_timezone(organization, timezone_name=timezone_name)
+    return _format_local_time(dt, tz)
+
+
 def _participant_key(record: ActionRecord) -> str:
     if record.member_id:
         return f"member:{record.member_id}"

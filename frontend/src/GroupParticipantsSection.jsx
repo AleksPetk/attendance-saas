@@ -2,11 +2,31 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { api, errorMessage } from "./api.js";
 import { Field, SectionCard } from "./components.jsx";
 import { revealParticipantEditPanel } from "./groupParticipantEdit.js";
+import {
+  compactEmailSlots,
+  emailSlotsFromList,
+  MAX_PARTICIPATION_EMAILS,
+  participationEmailsForEdit,
+  participationEmailsForNewMember,
+} from "./groupParticipantEmails.js";
 
 const EMPTY_PARTICIPATION = {
-  participation_email: "",
+  participation_emails: [""],
   participation_pin: "",
 };
+
+function appendParticipationEmails(data, emails) {
+  const cleaned = compactEmailSlots(emails);
+  data.append("participation_emails", JSON.stringify(cleaned));
+}
+
+function formatParticipantEmails(emails, fallback = "") {
+  const list = Array.isArray(emails) && emails.length ? emails : fallback ? [fallback] : [];
+  if (!list.length) {
+    return "—";
+  }
+  return list.join(", ");
+}
 
 /**
  * Shared participant list + add/edit for Standard Groups and Classes.
@@ -25,7 +45,7 @@ export default function GroupParticipantsSection({
   const [available, setAvailable] = useState([]);
   const [selectedMemberId, setSelectedMemberId] = useState("");
   const [participation, setParticipation] = useState(EMPTY_PARTICIPATION);
-  const [participant, setParticipant] = useState({ name: "", email: "", pin: "" });
+  const [participant, setParticipant] = useState({ name: "", emails: [""], pin: "" });
   const [saving, setSaving] = useState(false);
   const [editingMembershipId, setEditingMembershipId] = useState(null);
   const [editingParticipantId, setEditingParticipantId] = useState(null);
@@ -73,11 +93,13 @@ export default function GroupParticipantsSection({
       setParticipation(EMPTY_PARTICIPATION);
       return;
     }
+    // New participation only: refresh #1 from the selected Member profile.
+    // Switching Members replaces the draft with that Member's profile email.
     setParticipation({
-      participation_email: selectedMember.suggested_participation_email || "",
+      participation_emails: participationEmailsForNewMember(selectedMember),
       participation_pin: "",
     });
-  }, [selectedMemberId, selectedMember?.suggested_participation_email]);
+  }, [selectedMemberId, selectedMember]);
 
   async function refresh() {
     await load();
@@ -95,8 +117,9 @@ export default function GroupParticipantsSection({
     onError?.("");
     const data = new FormData();
     data.append("member_id", selectedMember.id);
-    if (participation.participation_email) {
-      data.append("participation_email", participation.participation_email);
+    const cleanedEmails = compactEmailSlots(participation.participation_emails);
+    if (cleanedEmails.length) {
+      appendParticipationEmails(data, cleanedEmails);
     }
     if (participation.participation_pin) {
       data.append("participation_pin", participation.participation_pin);
@@ -119,15 +142,13 @@ export default function GroupParticipantsSection({
     onError?.("");
     const data = new FormData();
     data.append("name", participant.name);
-    if (participant.email) {
-      data.append("email", participant.email);
-    }
+    appendParticipationEmails(data, participant.emails);
     if (participant.pin) {
       data.append("participation_pin", participant.pin);
     }
     try {
       await api.createParticipant(session, groupId, data, classId);
-      setParticipant({ name: "", email: "", pin: "" });
+      setParticipant({ name: "", emails: [""], pin: "" });
       await refresh();
     } catch (saveError) {
       onError?.(errorMessage(saveError));
@@ -166,7 +187,10 @@ export default function GroupParticipantsSection({
               name={membership.effective.name}
               code={membership.group_participant_code}
               kind="Member"
-              email={membership.participation?.email}
+              email={formatParticipantEmails(
+                membership.participation?.emails || membership.participation_emails,
+                membership.participation?.email,
+              )}
               pin={membership.participation?.pin}
               incomplete={!membership.participation?.complete}
               onEdit={() => beginEditMembership(membership.id)}
@@ -179,7 +203,10 @@ export default function GroupParticipantsSection({
               name={record.name}
               code={record.group_participant_code}
               kind="Visitor"
-              email={record.participation?.email || record.email}
+              email={formatParticipantEmails(
+                record.participation?.emails || record.participation_emails,
+                record.participation?.email || record.email,
+              )}
               pin={record.participation?.pin}
               incomplete={!record.participation?.complete}
               onEdit={() => beginEditParticipant(record.id)}
@@ -254,24 +281,21 @@ export default function GroupParticipantsSection({
               ))}
             </select>
           </Field>
-          {group.participation?.email_required ? (
-            <Field
-              label="Group email"
-              hint="Prefilled from Member profile when available. Does not change the Member record."
-            >
-              <input
-                type="email"
-                value={participation.participation_email}
-                onChange={(event) =>
-                  setParticipation((current) => ({
-                    ...current,
-                    participation_email: event.target.value,
-                  }))
-                }
-                required
-              />
-            </Field>
-          ) : null}
+          <ParticipationEmailsEditor
+            emails={participation.participation_emails}
+            required={group.participation?.email_required}
+            hint={
+              group.participation?.email_required
+                ? "Prefilled from Member profile when available. Does not change the Member record."
+                : "Optional. Does not change the Member record."
+            }
+            onChange={(next) =>
+              setParticipation((current) => ({
+                ...current,
+                participation_emails: next,
+              }))
+            }
+          />
           {group.participation?.pin_required ? (
             <Field label="Group PIN" hint="Attendance check-in code for this Group.">
               <input
@@ -308,19 +332,16 @@ export default function GroupParticipantsSection({
               required
             />
           </Field>
-          <Field
-            label="Group email"
-            hint={group.participation?.email_required ? "Required for this Group" : "Optional"}
-          >
-            <input
-              type="email"
-              value={participant.email}
-              onChange={(event) =>
-                setParticipant((current) => ({ ...current, email: event.target.value }))
-              }
-              required={group.participation?.email_required}
-            />
-          </Field>
+          <ParticipationEmailsEditor
+            emails={participant.emails}
+            required={group.participation?.email_required}
+            hint={
+              group.participation?.email_required
+                ? "Required for this Group"
+                : "Optional"
+            }
+            onChange={(next) => setParticipant((current) => ({ ...current, emails: next }))}
+          />
           <Field
             label="Group PIN"
             hint={group.participation?.pin_required ? "Required for this Group" : "Optional"}
@@ -337,6 +358,70 @@ export default function GroupParticipantsSection({
         </form>
       </div>
     </SectionCard>
+  );
+}
+
+function ParticipationEmailsEditor({ emails, onChange, required = false, hint = "", firstFieldRef = null }) {
+  const slots = emailSlotsFromList(emails);
+  const numbered = slots.length > 1;
+
+  function updateSlot(index, value) {
+    const next = [...slots];
+    next[index] = value;
+    onChange(next);
+  }
+
+  function addSlot() {
+    if (slots.length >= MAX_PARTICIPATION_EMAILS) {
+      return;
+    }
+    onChange([...slots, ""]);
+  }
+
+  function removeSlot(index) {
+    if (slots.length <= 1) {
+      onChange([""]);
+      return;
+    }
+    const next = slots.filter((_, slotIndex) => slotIndex !== index);
+    onChange(next.length ? next : [""]);
+  }
+
+  return (
+    <div className="participation-emails-editor">
+      {slots.map((email, index) => (
+        <Field
+          key={`participation-email-${index}`}
+          label={numbered ? `Group email ${index + 1}` : "Group email"}
+          hint={index === 0 ? hint : undefined}
+        >
+          <div className="forward-email-input-row">
+            <input
+              ref={index === 0 ? firstFieldRef : undefined}
+              type="email"
+              value={email}
+              onChange={(event) => updateSlot(index, event.target.value)}
+              placeholder="email@example.com"
+              autoComplete="off"
+              required={required && index === 0}
+            />
+            {numbered && index > 0 ? (
+              <button type="button" className="btn-text" onClick={() => removeSlot(index)}>
+                Remove
+              </button>
+            ) : null}
+          </div>
+        </Field>
+      ))}
+      {slots.length < MAX_PARTICIPATION_EMAILS ? (
+        <button type="button" className="btn-secondary btn-sm" onClick={addSlot}>
+          + Add another email
+        </button>
+      ) : null}
+      <p className="hint participation-emails-helper">
+        After-action notifications are sent to all configured addresses.
+      </p>
+    </div>
   );
 }
 
@@ -376,7 +461,10 @@ function MembershipEditForm({
   onError,
 }) {
   const [values, setValues] = useState({
-    participation_email: membership?.participation?.email || "",
+    participation_emails: participationEmailsForEdit(
+      membership?.participation?.emails || membership?.participation_emails,
+      membership?.participation?.email || "",
+    ),
     participation_pin: membership?.participation?.pin || "",
   });
   if (!membership) {
@@ -386,7 +474,7 @@ function MembershipEditForm({
   async function handleSubmit(event) {
     event.preventDefault();
     const data = new FormData();
-    data.append("participation_email", values.participation_email);
+    appendParticipationEmails(data, values.participation_emails);
     if (values.participation_pin && values.participation_pin !== membership.participation?.pin) {
       data.append("participation_pin", values.participation_pin);
     }
@@ -403,17 +491,14 @@ function MembershipEditForm({
       <h3 id="participant-edit-heading">Edit participation for {membership.member.name}</h3>
       <p className="hint">Code {membership.group_participant_code}. Member profile stays unchanged.</p>
       <div className="form-grid">
-        <Field label="Group email">
-          <input
-            ref={firstFieldRef}
-            type="email"
-            value={values.participation_email}
-            onChange={(event) =>
-              setValues((current) => ({ ...current, participation_email: event.target.value }))
-            }
-            required={group.participation?.email_required}
-          />
-        </Field>
+        <ParticipationEmailsEditor
+          emails={values.participation_emails}
+          required={group.participation?.email_required}
+          firstFieldRef={firstFieldRef}
+          onChange={(next) =>
+            setValues((current) => ({ ...current, participation_emails: next }))
+          }
+        />
         <Field label="Group PIN" hint="Visible to workspace managers only.">
           <input
             value={values.participation_pin}
@@ -449,7 +534,10 @@ function ParticipantEditForm({
 }) {
   const [values, setValues] = useState({
     name: participant?.name || "",
-    email: participant?.participation?.email || participant?.email || "",
+    emails: participationEmailsForEdit(
+      participant?.participation?.emails || participant?.participation_emails,
+      participant?.participation?.email || participant?.email || "",
+    ),
     participation_pin: participant?.participation?.pin || "",
   });
   if (!participant) {
@@ -460,7 +548,7 @@ function ParticipantEditForm({
     event.preventDefault();
     const data = new FormData();
     data.append("name", values.name);
-    data.append("email", values.email);
+    appendParticipationEmails(data, values.emails);
     if (values.participation_pin && values.participation_pin !== participant.participation?.pin) {
       data.append("participation_pin", values.participation_pin);
     }
@@ -485,14 +573,11 @@ function ParticipantEditForm({
             required
           />
         </Field>
-        <Field label="Group email">
-          <input
-            type="email"
-            value={values.email}
-            onChange={(event) => setValues((current) => ({ ...current, email: event.target.value }))}
-            required={group.participation?.email_required}
-          />
-        </Field>
+        <ParticipationEmailsEditor
+          emails={values.emails}
+          required={group.participation?.email_required}
+          onChange={(next) => setValues((current) => ({ ...current, emails: next }))}
+        />
         <Field label="Group PIN">
           <input
             value={values.participation_pin}

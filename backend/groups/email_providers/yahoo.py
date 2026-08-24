@@ -195,3 +195,27 @@ class YahooProvider(EmailSenderProvider):
                 diagnostic_summary,
             )
             raise EmailSenderProviderError(public, diagnostic=exc.diagnostic) from None
+
+    def send_messages_batch(self, sender, *, messages):
+        self.validate_configuration(sender)
+        yahoo_email = (sender.from_email or "").strip().lower()
+        password = normalize_yahoo_app_password(sender.get_smtp_password())
+        results = transport.send_smtp_messages_batch(
+            host=YAHOO_SMTP_HOST,
+            port=YAHOO_SMTP_PORT,
+            security=YAHOO_SMTP_SECURITY,
+            username=yahoo_email,
+            password=password,
+            from_email=yahoo_email,
+            from_name=sender.from_name,
+            messages=messages,
+            group_id=sender.group_id,
+        )
+        for item in results:
+            if not item["ok"] and item["error"] is not None:
+                exc = item["error"]
+                public = _map_yahoo_public_error(exc.public_message, exc.diagnostic)
+                item["error"] = EmailSenderProviderError(
+                    public, diagnostic=exc.diagnostic
+                )
+        return results

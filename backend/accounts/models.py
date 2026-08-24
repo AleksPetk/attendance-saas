@@ -28,6 +28,13 @@ class User(AbstractUser):
     email_verified_at = models.DateTimeField(null=True, blank=True)
     email_verification_last_sent_at = models.DateTimeField(null=True, blank=True)
     password_reset_last_sent_at = models.DateTimeField(null=True, blank=True)
+    backup_email = models.EmailField(null=True, blank=True)
+    backup_email_verified_at = models.DateTimeField(null=True, blank=True)
+    pending_backup_email = models.EmailField(null=True, blank=True)
+    backup_email_verification_last_sent_at = models.DateTimeField(null=True, blank=True)
+    pending_primary_email = models.EmailField(null=True, blank=True)
+    pending_primary_email_requested_at = models.DateTimeField(null=True, blank=True)
+    primary_email_change_last_sent_at = models.DateTimeField(null=True, blank=True)
 
     objects = UserManager()
 
@@ -42,8 +49,16 @@ class User(AbstractUser):
         return self.email
 
     def save(self, *args, **kwargs):
-        if self.email:
-            self.email = type(self).objects.normalize_email(self.email)
+        manager = type(self).objects
+        for field in (
+            "email",
+            "backup_email",
+            "pending_backup_email",
+            "pending_primary_email",
+        ):
+            value = getattr(self, field, None)
+            if value:
+                setattr(self, field, manager.normalize_email(value))
         super().save(*args, **kwargs)
 
     def mark_email_verified(self, when=None):

@@ -103,6 +103,89 @@ class ConfigSchemaTests(TestCase):
         self.assertEqual(normalized["main"]["layout_preset"], "photo_cards")
         self.assertIn(normalized["main"]["input_template"], PRESET_CATALOG["input_templates"])
 
+    def test_card_template_defaults_to_clean(self):
+        config = default_config()
+        normalized, errors = validate_config(config)
+        self.assertEqual(errors, [])
+        self.assertEqual(normalized["main"]["card_template"], "clean")
+
+    def test_card_template_derived_from_legacy_presets(self):
+        config = default_config()
+        del config["main"]["card_template"]
+        config["main"]["layout_preset"] = "photo_cards"
+        config["main"]["card_preset"] = "bordered"
+        normalized, errors = validate_config(config)
+        self.assertEqual(errors, [])
+        self.assertEqual(normalized["main"]["card_template"], "photo")
+        self.assertEqual(normalized["main"]["layout_preset"], "photo_cards")
+
+    def test_unknown_card_template_falls_back_via_legacy(self):
+        config = default_config()
+        config["main"]["card_template"] = "nonexistent"
+        config["main"]["layout_preset"] = "large_touch"
+        config["main"]["card_preset"] = "elevated"
+        normalized, errors = validate_config(config)
+        self.assertTrue(any("card_template" in e for e in errors))
+        self.assertEqual(normalized["main"]["card_template"], "large_touch")
+
+    def test_character_card_templates_accepted(self):
+        for template_id in (
+            "kids_bubble",
+            "heart_pop",
+            "ticket",
+            "id_badge",
+            "cyber_hex",
+            "polaroid",
+            "sticker_pack",
+            "terminal",
+            "ribbon",
+            "comic",
+            "pure",
+            "executive",
+            "welcome",
+            "playground",
+            "active",
+            "pass",
+            "victory",
+            "bare",
+        ):
+            with self.subTest(template_id=template_id):
+                config = default_config()
+                config["main"]["card_template"] = template_id
+                normalized, errors = validate_config(config)
+                self.assertEqual(errors, [])
+                self.assertEqual(normalized["main"]["card_template"], template_id)
+                self.assertIn(template_id, PRESET_CATALOG["card_templates"])
+
+    def test_character_input_templates_accepted(self):
+        for template_id in (
+            "kids_bubble",
+            "heart_pop",
+            "ticket",
+            "id_badge",
+            "cyber_hex",
+            "polaroid",
+            "sticker_pack",
+            "terminal",
+            "ribbon",
+            "comic",
+            "pure",
+            "executive",
+            "welcome",
+            "playground",
+            "active",
+            "pass",
+            "victory",
+            "bare",
+        ):
+            with self.subTest(template_id=template_id):
+                config = default_config()
+                config["main"]["input_template"] = template_id
+                normalized, errors = validate_config(config)
+                self.assertEqual(errors, [])
+                self.assertEqual(normalized["main"]["input_template"], template_id)
+                self.assertIn(template_id, PRESET_CATALOG["input_templates"])
+
     def test_header_alignment_defaults_to_left(self):
         config = default_config()
         config["header"].pop("alignment", None)

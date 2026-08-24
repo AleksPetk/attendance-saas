@@ -37,6 +37,12 @@ class GroupEmailDeliveryStatus(models.TextChoices):
     FAILED = "failed", "Failed"
 
 
+class GroupEmailRecipientKind(models.TextChoices):
+    PARTICIPANT = "participant", "Participant"
+    FORWARD = "forward", "Forward"
+    TEST = "test", "Test"
+
+
 class GroupEmailSender(models.Model):
     """
     Per-Group outgoing email sender.
@@ -197,6 +203,15 @@ class GroupEmailDelivery(models.Model):
         related_name="email_deliveries",
     )
     recipient = models.EmailField()
+    recipient_kind = models.CharField(
+        max_length=20,
+        choices=GroupEmailRecipientKind.choices,
+        default=GroupEmailRecipientKind.PARTICIPANT,
+        help_text=(
+            "Whether this delivery targeted the participant participation "
+            "email, a Group forward-email copy, or a sender test."
+        ),
+    )
     event_type = models.CharField(max_length=40)
     status = models.CharField(
         max_length=20,
@@ -215,6 +230,12 @@ class GroupEmailDelivery(models.Model):
             models.CheckConstraint(
                 condition=models.Q(status__in=GroupEmailDeliveryStatus.values),
                 name="groups_email_delivery_status_valid",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(
+                    recipient_kind__in=GroupEmailRecipientKind.values
+                ),
+                name="groups_email_delivery_recipient_kind_valid",
             ),
         ]
 

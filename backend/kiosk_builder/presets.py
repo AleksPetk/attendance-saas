@@ -36,6 +36,198 @@ CARD_PRESETS = {
     "bordered": {"label": "Bordered", "description": "Prominent bordered card."},
 }
 
+# Canonical Card-mode presentation templates (complete looks).
+# Legacy layout_preset + card_preset are derived from these for compatibility.
+CARD_TEMPLATES = {
+    "clean": {
+        "label": "Clean",
+        "layout": "centered",
+        "card": "elevated",
+    },
+    "compact": {
+        "label": "Compact",
+        "layout": "compact",
+        "card": "flat",
+    },
+    "business": {
+        "label": "Business",
+        "layout": "split",
+        "card": "bordered",
+    },
+    "large_touch": {
+        "label": "Large Touch",
+        "layout": "large_touch",
+        "card": "elevated",
+    },
+    "photo": {
+        "label": "Photo",
+        "layout": "photo_cards",
+        "card": "elevated",
+    },
+    "minimal": {
+        "label": "Minimal",
+        "layout": "centered",
+        "card": "flat",
+    },
+    "bold": {
+        "label": "Bold",
+        "layout": "centered",
+        "card": "elevated",
+    },
+    "glass": {
+        "label": "Glass",
+        "layout": "centered",
+        "card": "elevated",
+    },
+    "outline": {
+        "label": "Outline",
+        "layout": "centered",
+        "card": "bordered",
+    },
+    "soft": {
+        "label": "Soft",
+        "layout": "centered",
+        "card": "elevated",
+    },
+    "kids_bubble": {
+        "label": "Kids Bubble",
+        "layout": "centered",
+        "card": "elevated",
+    },
+    "heart_pop": {
+        "label": "Heart Pop",
+        "layout": "centered",
+        "card": "elevated",
+    },
+    "ticket": {
+        "label": "Ticket",
+        "layout": "centered",
+        "card": "bordered",
+    },
+    "id_badge": {
+        "label": "ID Badge",
+        "layout": "centered",
+        "card": "elevated",
+    },
+    "cyber_hex": {
+        "label": "Cyber Hex",
+        "layout": "centered",
+        "card": "elevated",
+    },
+    "polaroid": {
+        "label": "Polaroid",
+        "layout": "centered",
+        "card": "elevated",
+    },
+    "sticker_pack": {
+        "label": "Sticker Pack",
+        "layout": "centered",
+        "card": "elevated",
+    },
+    "terminal": {
+        "label": "Terminal",
+        "layout": "centered",
+        "card": "elevated",
+    },
+    "ribbon": {
+        "label": "Ribbon",
+        "layout": "centered",
+        "card": "elevated",
+    },
+    "comic": {
+        "label": "Comic",
+        "layout": "centered",
+        "card": "elevated",
+    },
+    "pure": {
+        "label": "Pure",
+        "layout": "centered",
+        "card": "elevated",
+    },
+    "executive": {
+        "label": "Executive",
+        "layout": "centered",
+        "card": "bordered",
+    },
+    "welcome": {
+        "label": "Welcome",
+        "layout": "centered",
+        "card": "elevated",
+    },
+    "playground": {
+        "label": "Playground",
+        "layout": "centered",
+        "card": "elevated",
+    },
+    "active": {
+        "label": "Active",
+        "layout": "centered",
+        "card": "elevated",
+    },
+    "pass": {
+        "label": "Pass",
+        "layout": "centered",
+        "card": "bordered",
+    },
+    "victory": {
+        "label": "Victory",
+        "layout": "centered",
+        "card": "elevated",
+    },
+    "bare": {
+        "label": "Bare",
+        "layout": "centered",
+        "card": "flat",
+    },
+}
+
+_LEGACY_CARD_TEMPLATE_MAP = {
+    ("centered", "elevated"): "clean",
+    ("centered", "flat"): "minimal",
+    ("centered", "bordered"): "outline",
+    ("compact", "elevated"): "compact",
+    ("compact", "flat"): "compact",
+    ("compact", "bordered"): "compact",
+    ("split", "elevated"): "business",
+    ("split", "flat"): "business",
+    ("split", "bordered"): "business",
+    ("large_touch", "elevated"): "large_touch",
+    ("large_touch", "flat"): "large_touch",
+    ("large_touch", "bordered"): "large_touch",
+    ("photo_cards", "elevated"): "photo",
+    ("photo_cards", "flat"): "photo",
+    ("photo_cards", "bordered"): "photo",
+}
+
+
+def derive_card_template(layout="centered", card="elevated"):
+    exact = _LEGACY_CARD_TEMPLATE_MAP.get((layout, card))
+    if exact:
+        return exact
+    if layout == "photo_cards":
+        return "photo"
+    if layout == "large_touch":
+        return "large_touch"
+    if layout == "compact":
+        return "compact"
+    if layout == "split":
+        return "business"
+    if card == "bordered":
+        return "outline"
+    if card == "flat":
+        return "minimal"
+    return "clean"
+
+
+def apply_card_template_presets(template_id):
+    """Return layout/card legacy fields for a card template id."""
+    meta = CARD_TEMPLATES.get(template_id) or CARD_TEMPLATES["clean"]
+    return {
+        "card_template": template_id if template_id in CARD_TEMPLATES else "clean",
+        "layout_preset": meta["layout"],
+        "card_preset": meta["card"],
+    }
+
 # Canonical Input-mode Main templates (complete looks).
 # Legacy layout/button/input presets are derived from these for compatibility.
 INPUT_TEMPLATES = {
@@ -98,6 +290,114 @@ INPUT_TEMPLATES = {
         "layout": "large_touch",
         "button": "rounded",
         "input": "outlined",
+    },
+    "kids_bubble": {
+        "label": "Kids Bubble",
+        "layout": "centered",
+        "button": "pill",
+        "input": "filled",
+    },
+    "heart_pop": {
+        "label": "Heart Pop",
+        "layout": "centered",
+        "button": "pill",
+        "input": "outlined",
+    },
+    "ticket": {
+        "label": "Ticket",
+        "layout": "centered",
+        "button": "flat",
+        "input": "outlined",
+    },
+    "id_badge": {
+        "label": "ID Badge",
+        "layout": "centered",
+        "button": "rounded",
+        "input": "outlined",
+    },
+    "cyber_hex": {
+        "label": "Cyber Hex",
+        "layout": "centered",
+        "button": "flat",
+        "input": "filled",
+    },
+    "polaroid": {
+        "label": "Polaroid",
+        "layout": "centered",
+        "button": "rounded",
+        "input": "outlined",
+    },
+    "sticker_pack": {
+        "label": "Sticker Pack",
+        "layout": "centered",
+        "button": "rounded",
+        "input": "filled",
+    },
+    "terminal": {
+        "label": "Terminal",
+        "layout": "centered",
+        "button": "flat",
+        "input": "outlined",
+    },
+    "ribbon": {
+        "label": "Ribbon",
+        "layout": "centered",
+        "button": "rounded",
+        "input": "outlined",
+    },
+    "comic": {
+        "label": "Comic",
+        "layout": "centered",
+        "button": "flat",
+        "input": "outlined",
+    },
+    "pure": {
+        "label": "Pure",
+        "layout": "centered",
+        "button": "rounded",
+        "input": "outlined",
+    },
+    "executive": {
+        "label": "Executive",
+        "layout": "centered",
+        "button": "rounded",
+        "input": "outlined",
+    },
+    "welcome": {
+        "label": "Welcome",
+        "layout": "centered",
+        "button": "pill",
+        "input": "filled",
+    },
+    "playground": {
+        "label": "Playground",
+        "layout": "centered",
+        "button": "pill",
+        "input": "filled",
+    },
+    "active": {
+        "label": "Active",
+        "layout": "centered",
+        "button": "flat",
+        "input": "outlined",
+    },
+    "pass": {
+        "label": "Pass",
+        "layout": "centered",
+        "button": "rounded",
+        "input": "outlined",
+    },
+    "victory": {
+        "label": "Victory",
+        "layout": "centered",
+        "button": "rounded",
+        "input": "filled",
+    },
+    "bare": {
+        "label": "Bare",
+        "layout": "centered",
+        "button": "flat",
+        "input": "minimal",
     },
 }
 
@@ -162,6 +462,7 @@ PRESET_CATALOG = {
     "button_styles": BUTTON_PRESETS,
     "input_styles": INPUT_PRESETS,
     "card_styles": CARD_PRESETS,
+    "card_templates": CARD_TEMPLATES,
     "input_templates": INPUT_TEMPLATES,
     "fonts": FONT_IDENTIFIERS,
 }

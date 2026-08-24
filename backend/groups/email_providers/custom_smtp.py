@@ -183,3 +183,18 @@ class CustomSMTPProvider(EmailSenderProvider):
             envelope_to=envelope_to,
             group_id=getattr(sender, "group_id", None),
         )
+
+    def send_messages_batch(self, sender, *, messages):
+        self.validate_configuration(sender)
+        password = sender.get_smtp_password()
+        return transport.send_smtp_messages_batch(
+            host=sender.smtp_host,
+            port=int(sender.smtp_port),
+            security=sender.smtp_security,
+            username=sender.smtp_username,
+            password=password,
+            from_email=sender.from_email,
+            from_name=sender.from_name,
+            messages=messages,
+            group_id=getattr(sender, "group_id", None),
+        )

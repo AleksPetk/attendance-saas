@@ -49,6 +49,7 @@ def maybe_run_after_action(
     action_record=None,
     membership=None,
     group_only_participant=None,
+    timezone_name=None,
 ):
     """
     Send after-action email when configured.
@@ -76,6 +77,7 @@ def maybe_run_after_action(
         participant_name=participant_name,
         membership=membership,
         group_only_participant=group_only_participant,
+        timezone_name=timezone_name,
     )
 
 

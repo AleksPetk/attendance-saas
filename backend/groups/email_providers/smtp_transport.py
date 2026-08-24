@@ -295,6 +295,206 @@ def smtp_send(
         raise EmailSenderProviderError(public, diagnostic=diagnostic) from None
 
 
+def _prepare_smtp_sends(*, from_email, from_name, messages):
+    """Build SMTP send payloads from normalized message dicts."""
+    sends = []
+    from_email = (from_email or "").strip().lower()
+    from_name = (from_name or "").strip()
+    for msg in messages:
+        to_email = (msg.get("to_email") or "").strip().lower()
+        try:
+            validate_email(to_email)
+        except ValidationError as exc:
+            raise EmailSenderProviderError("Enter a valid recipient email.") from exc
+        email_message = build_email_message(
+            from_email=from_email,
+            from_name=from_name,
+            to_email=to_email,
+            subject=msg.get("subject") or "",
+            text_body=msg.get("text_body") or "",
+            html_body=msg.get("html_body") or "",
+        )
+        sends.append(
+            {
+                "message": email_message,
+                "envelope_from": from_email,
+                "envelope_to": to_email,
+            }
+        )
+    return sends
+
+
+def smtp_send_batch(
+    *,
+    host,
+    port,
+    security,
+    username,
+    password,
+    sends,
+    group_id=None,
+    timeout=20,
+):
+    """
+    Open one SMTP session and send multiple messages on the same connection.
+
+    sends: list of dicts with message, envelope_from, envelope_to.
+    Returns list of dicts: envelope_to, ok, error (EmailSenderProviderError or None).
+    """
+    if not sends:
+        return []
+
+    results = []
+    stage = "connect"
+    try:
+        if security == SmtpSecurity.SSL:
+            context = ssl.create_default_context()
+            smtp_factory = lambda: smtplib.SMTP_SSL(  # noqa: E731
+                host, port, timeout=timeout, context=context
+            )
+        elif security in {SmtpSecurity.STARTTLS, SmtpSecurity.NONE}:
+            smtp_factory = lambda: smtplib.SMTP(host, port, timeout=timeout)  # noqa: E731
+        else:
+            raise EmailSenderProviderError(SAFE_TLS_FAILED)
+
+        with smtp_factory() as smtp:
+            if security == SmtpSecurity.STARTTLS:
+                stage = "ehlo"
+                smtp.ehlo()
+                stage = "starttls"
+                context = ssl.create_default_context()
+                smtp.starttls(context=context)
+                smtp.ehlo()
+            elif security == SmtpSecurity.NONE:
+                stage = "ehlo"
+                smtp.ehlo()
+
+            stage = "login"
+            smtp.login(username, password)
+
+            for item in sends:
+                envelope_to = item["envelope_to"]
+                envelope_from = item["envelope_from"]
+                try:
+                    stage = "send_message"
+                    smtp.send_message(
+                        item["message"],
+                        from_addr=envelope_from,
+                        to_addrs=[envelope_to],
+                    )
+                    results.append(
+                        {"envelope_to": envelope_to, "ok": True, "error": None}
+                    )
+                except EmailSenderProviderError as exc:
+                    results.append(
+                        {"envelope_to": envelope_to, "ok": False, "error": exc}
+                    )
+                except Exception as exc:
+                    public, diagnostic = classify_smtp_error(
+                        exc,
+                        password=password,
+                        security=security,
+                        stage=stage,
+                    )
+                    logger.error(
+                        "Group SMTP batch send failed group_id=%s security=%s "
+                        "stage=%s code=%s response=%s exception=%s "
+                        "envelope_from=%s envelope_to=%s",
+                        group_id,
+                        security,
+                        diagnostic.get("stage"),
+                        diagnostic.get("code"),
+                        diagnostic.get("response"),
+                        diagnostic.get("exception"),
+                        envelope_from,
+                        envelope_to,
+                    )
+                    results.append(
+                        {
+                            "envelope_to": envelope_to,
+                            "ok": False,
+                            "error": EmailSenderProviderError(
+                                public, diagnostic=diagnostic
+                            ),
+                        }
+                    )
+        return results
+    except EmailSenderProviderError as exc:
+        pending = [item["envelope_to"] for item in sends[len(results) :]]
+        for envelope_to in pending:
+            results.append(
+                {"envelope_to": envelope_to, "ok": False, "error": exc}
+            )
+        return results
+    except Exception as exc:
+        public, diagnostic = classify_smtp_error(
+            exc,
+            password=password,
+            security=security,
+            stage=stage,
+        )
+        logger.error(
+            "Group SMTP batch connection failed group_id=%s security=%s "
+            "stage=%s code=%s response=%s exception=%s",
+            group_id,
+            security,
+            diagnostic.get("stage"),
+            diagnostic.get("code"),
+            diagnostic.get("response"),
+            diagnostic.get("exception"),
+        )
+        connection_error = EmailSenderProviderError(public, diagnostic=diagnostic)
+        for item in sends[len(results) :]:
+            results.append(
+                {
+                    "envelope_to": item["envelope_to"],
+                    "ok": False,
+                    "error": connection_error,
+                }
+            )
+        return results
+
+
+def send_smtp_messages_batch(
+    *,
+    host,
+    port,
+    security,
+    username,
+    password,
+    from_email,
+    from_name,
+    messages,
+    group_id=None,
+):
+    """
+    Build and send multiple messages over one SMTP connection.
+    Returns list of dicts: to_email, ok, error.
+    """
+    sends = _prepare_smtp_sends(
+        from_email=from_email,
+        from_name=from_name,
+        messages=messages,
+    )
+    raw_results = smtp_send_batch(
+        host=host,
+        port=int(port),
+        security=security,
+        username=username,
+        password=password,
+        sends=sends,
+        group_id=group_id,
+    )
+    return [
+        {
+            "to_email": item["envelope_to"],
+            "ok": item["ok"],
+            "error": item["error"],
+        }
+        for item in raw_results
+    ]
+
+
 def send_smtp_message(
     *,
     host,

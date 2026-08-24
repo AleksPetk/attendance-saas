@@ -1,15 +1,29 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { api, errorMessage } from "./api.js";
-import { Field, LoadingState, PasswordInput, PhotoThumb } from "./components.jsx";
+import { Field, LoadingState, PasswordInput } from "./components.jsx";
 import {
   classPinGateRequired,
   resolveClassSectionId,
 } from "./groupKioskClassNav.js";
+import {
+  initialKioskStepFromStartPayload,
+  peopleFromKioskStartPayload,
+} from "./groupKioskStartPeople.js";
+import { browserReportTimezone } from "./history/reportTimezone.js";
 import KioskRenderer from "./kiosk/KioskRenderer.jsx";
 import KioskConfirmationScreen from "./kiosk/KioskConfirmationScreen.jsx";
-import { confirmationAccentStyleFromDesign } from "./kiosk/kioskConfirmationAccent.js";
+import KioskProcessingScreen from "./kiosk/KioskProcessingScreen.jsx";
+import { KioskParticipantSummary } from "./kiosk/KioskParticipantSummary.jsx";
+import { KioskIdentifyGenericVisual } from "./kiosk/kioskIdentifyGenericVisual.jsx";
+import {
+  confirmationVisualAccent,
+  resolveConfirmationVisualFamily,
+} from "./kiosk/kioskConfirmation.js";
 import {
   KioskInlineError,
+  KioskPersonAvatar,
+  KioskPersonCardFields,
   KioskPinInput,
   actionLabel,
   kioskAutofillShield,
@@ -61,23 +75,15 @@ function ParticipantActionPanel({
   onChooseAction,
 }) {
   return (
-    <div className="kiosk-flow">
+    <div className="kiosk-flow kiosk-flow--action">
       <h2>Choose action</h2>
       {automaticNote ? <p className="hint">{automaticNote}</p> : null}
       {selected?.name ? (
-        <div className="kiosk-selected-person">
-          <PhotoThumb url={null} name={selected.name} size="md" />
-          <div>
-            <strong>{selected.name}</strong>
-            {attendanceState?.is_checked_in ? (
-              <div className="hint">
-                Status: checked in{attendanceState.is_on_break ? ", on break" : ""}
-              </div>
-            ) : (
-              <div className="hint">Status: not checked in</div>
-            )}
-          </div>
-        </div>
+        <KioskParticipantSummary
+          name={selected.name}
+          photoUrl={selected.photo_url}
+          attendanceState={attendanceState}
+        />
       ) : null}
       <KioskInlineError error={error} />
       {allowedActions.length === 0 ? <p className="hint">No actions available right now.</p> : null}
@@ -111,7 +117,7 @@ function ClassPinPanel({
   onConfirm,
 }) {
   return (
-    <div className="kiosk-flow">
+    <div className="kiosk-flow kiosk-flow--pin">
       <h2>{className}</h2>
       <p className="hint">Enter class PIN</p>
       <form
@@ -211,10 +217,13 @@ export default function GroupKioskScreen({ session, groupId, onUnlocked, onKiosk
   const [verifyingExit, setVerifyingExit] = useState(false);
   const [identifying, setIdentifying] = useState(false);
   const [performing, setPerforming] = useState(false);
+  const [pendingAction, setPendingAction] = useState(null);
 
   const pinInputRef = useRef(null);
   const firstFieldRef = useRef(null);
   const returnTimerRef = useRef(null);
+  const performingRef = useRef(false);
+  const pendingActionRef = useRef(null);
 
   const usePin = Boolean(kiosk?.use_pin);
   const kioskMode = kiosk?.kiosk_mode;
@@ -236,7 +245,6 @@ export default function GroupKioskScreen({ session, groupId, onUnlocked, onKiosk
   function clearClassSelection() {
     setSelectedClass(null);
     setClassPin("");
-    setPeople([]);
     clearParticipantFields();
   }
 
@@ -258,14 +266,17 @@ export default function GroupKioskScreen({ session, groupId, onUnlocked, onKiosk
         onKioskEntered?.(groupId, lockResult.data);
       }
       const result = await api.getGroupKioskStart(session, groupId);
-      setKiosk(result.data.kiosk || null);
+      const nextKiosk = result.data.kiosk || null;
+      setKiosk(nextKiosk);
       setVisualDesign(result.data.visual_design || null);
-      setPeople(result.data.people || []);
       setClasses(result.data.classes || []);
       setUnavailable(false);
       clearClassSelection();
       setConfirmation(null);
-      setStep(result.data.kiosk?.structured ? "classes" : "start");
+      // Structured starts on Class cards (people loaded after Class selection).
+      // Standard Card mode must keep the start payload people list.
+      setPeople(peopleFromKioskStartPayload(result.data));
+      setStep(initialKioskStepFromStartPayload(result.data));
     } catch (err) {
       const locked = Boolean(err?.data?.kiosk_locked) || kioskLocked;
       if (err?.status === 404 || (locked && err?.status === 403)) {
@@ -305,10 +316,19 @@ export default function GroupKioskScreen({ session, groupId, onUnlocked, onKiosk
   const title = kiosk?.title || (unavailable ? "Kiosk unavailable" : "Kiosk");
   const welcomeText = kiosk?.welcome_text || "";
 
-  const confirmationAccentStyle = useMemo(
-    () => confirmationAccentStyleFromDesign(visualDesign?.config),
-    [visualDesign],
+  const confirmationVisualFamily = useMemo(
+    () => resolveConfirmationVisualFamily(visualDesign?.config?.main || {}, kioskMode || "card"),
+    [visualDesign, kioskMode],
   );
+  const confirmationAccentStyle = useMemo(() => {
+    const accent = confirmationVisualAccent(confirmationVisualFamily);
+    return {
+      "--kc-accent": accent,
+      "--kc-accent-2": accent,
+      "--kc-accent-gradient": accent,
+      "--kc-accent-mode": "solid",
+    };
+  }, [confirmationVisualFamily]);
 
   const themeClass = useMemo(() => {
     if (!kiosk?.theme) return "kiosk-theme-classic";
@@ -360,8 +380,21 @@ export default function GroupKioskScreen({ session, groupId, onUnlocked, onKiosk
     if (!confirmation) return null;
     return (
       <KioskConfirmationScreen
-        template={confirmation.template}
+        template={confirmationVisualFamily}
         message={confirmation.message}
+        accentStyle={confirmationAccentStyle}
+      />
+    );
+  }
+
+  function processingPanel() {
+    const action = pendingAction || pendingActionRef.current || "";
+    return (
+      <KioskProcessingScreen
+        template={confirmationVisualFamily}
+        action={action}
+        participantName={selected?.name}
+        photoUrl={selected?.photo_url}
         accentStyle={confirmationAccentStyle}
       />
     );
@@ -373,6 +406,7 @@ export default function GroupKioskScreen({ session, groupId, onUnlocked, onKiosk
       membership_id: result.data.participant.membership_id,
       group_only_participant_id: result.data.participant.group_only_participant_id,
       name: result.data.participant.name,
+      photo_url: result.data.participant.photo_url ?? null,
     });
     setAllowedActions(result.data.allowed_actions || []);
     setAttendanceState(result.data.attendance_state);
@@ -440,6 +474,7 @@ export default function GroupKioskScreen({ session, groupId, onUnlocked, onKiosk
   }
 
   function backToParticipants() {
+    if (performingRef.current || step === "processing") return;
     setStep("start");
     setError(null);
     clearParticipantFields();
@@ -519,14 +554,26 @@ export default function GroupKioskScreen({ session, groupId, onUnlocked, onKiosk
   }
 
   async function performAction(action) {
-    if (!selected) return;
-    setPerforming(true);
-    setError(null);
+    if (!selected || performingRef.current || step === "processing") return;
+    performingRef.current = true;
+    pendingActionRef.current = action;
+    // Force Processing to paint before the network round-trip begins.
+    // Without flushSync, Choose Action can remain visible for the whole wait.
+    flushSync(() => {
+      setPendingAction(action);
+      setPerforming(true);
+      setError(null);
+      setStep("processing");
+    });
     try {
       const payload = {
         participant_kind: selected.participant_kind,
         action,
       };
+      const reportTimezone = browserReportTimezone();
+      if (reportTimezone) {
+        payload.timezone = reportTimezone;
+      }
       if (selected.participant_kind === "member") {
         payload.membership_id = selected.membership_id;
       } else {
@@ -552,6 +599,7 @@ export default function GroupKioskScreen({ session, groupId, onUnlocked, onKiosk
     } catch (err) {
       const copy = kioskErrorCopy(err);
       setError(copy);
+      setStep("confirm");
       if (err?.data?.code === "invalid_pin" || usePin) {
         setPin("");
         setInputValues((current) => ({ ...current, pin: "" }));
@@ -559,6 +607,9 @@ export default function GroupKioskScreen({ session, groupId, onUnlocked, onKiosk
       }
     } finally {
       setPerforming(false);
+      performingRef.current = false;
+      pendingActionRef.current = null;
+      setPendingAction(null);
     }
   }
 
@@ -661,7 +712,17 @@ export default function GroupKioskScreen({ session, groupId, onUnlocked, onKiosk
         </div>
       ) : null}
 
-      { (kioskMode === "card" || isStructured) && !unavailable ? (
+      {!unavailable && step === "processing" ? (
+        <div
+          className={`kiosk-body${
+            kioskMode === "input" && !isStructured ? " kiosk-body-input" : ""
+          }`}
+        >
+          {processingPanel()}
+        </div>
+      ) : null}
+
+      {(kioskMode === "card" || isStructured) && !unavailable && step !== "processing" ? (
         <div className="kiosk-body">
           {useVisualRenderer && welcomeText && (step === "start" || step === "classes") ? (
             <p className="kiosk-welcome">{welcomeText}</p>
@@ -687,11 +748,13 @@ export default function GroupKioskScreen({ session, groupId, onUnlocked, onKiosk
                       disabled={identifying}
                       onClick={() => handleClassTap(section)}
                     >
-                      <div className="kiosk-person-name">{section.name}</div>
-                      <div className="kiosk-person-sub">
-                        {section.participant_count} participant
-                        {section.participant_count === 1 ? "" : "s"}
-                      </div>
+                      <KioskPersonAvatar name={section.name} variant="class" />
+                      <KioskPersonCardFields
+                        name={section.name}
+                        meta={`${section.participant_count} participant${
+                          section.participant_count === 1 ? "" : "s"
+                        }`}
+                      />
                     </button>
                   ))}
                 </div>
@@ -748,16 +811,20 @@ export default function GroupKioskScreen({ session, groupId, onUnlocked, onKiosk
                         membership_id: p.membership_id,
                         group_only_participant_id: p.group_only_participant_id,
                         name: p.name,
+                        photo_url: p.photo_url ?? null,
                       })
                     }
                   >
-                    <div className="kiosk-person-name">{p.name || "Participant"}</div>
-                    {p.participant_code ? (
-                      <div className="kiosk-person-sub">
-                        {participantCodeLabel}: {p.participant_code}
-                      </div>
-                    ) : null}
-                    {p.email ? <div className="kiosk-person-sub">{p.email}</div> : null}
+                    <KioskPersonAvatar name={p.name} photoUrl={p.photo_url} />
+                    <KioskPersonCardFields
+                      name={p.name || "Participant"}
+                      code={
+                        p.participant_code
+                          ? `${participantCodeLabel}: ${p.participant_code}`
+                          : ""
+                      }
+                      email={p.email || ""}
+                    />
                   </button>
                 ))}
               </div>
@@ -787,7 +854,7 @@ export default function GroupKioskScreen({ session, groupId, onUnlocked, onKiosk
         </div>
       ) : null}
 
-      {kioskMode === "input" && !isStructured && !unavailable ? (
+      {kioskMode === "input" && !isStructured && !unavailable && step !== "processing" ? (
         <div className="kiosk-body kiosk-body-input">
           {useVisualRenderer && welcomeText && step === "start" ? (
             <p className="kiosk-welcome">{welcomeText}</p>
@@ -795,7 +862,7 @@ export default function GroupKioskScreen({ session, groupId, onUnlocked, onKiosk
           {step === "start" ? (
             <form
               key={formKey}
-              className="kiosk-flow kiosk-identify-form"
+              className="kiosk-flow kiosk-flow--identify kiosk-identify-form"
               autoComplete="off"
               autoCapitalize="off"
               autoCorrect="off"
@@ -805,6 +872,7 @@ export default function GroupKioskScreen({ session, groupId, onUnlocked, onKiosk
               data-form-type="other"
               onSubmit={handleInputSubmit}
             >
+              <KioskIdentifyGenericVisual />
               <h2>Check in</h2>
               {kiosk?.input_fields?.length ? (
                 <p className="hint">
@@ -927,6 +995,7 @@ export default function GroupKioskScreen({ session, groupId, onUnlocked, onKiosk
         <KioskRenderer
           design={visualDesign}
           mode="live"
+          kioskBehavior={{ mode: kioskMode || "card" }}
           showExit={showExit && !unavailable}
           onExit={() => setExitOpen(true)}
         >

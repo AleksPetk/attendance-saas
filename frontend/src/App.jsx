@@ -32,6 +32,8 @@ import StaffLoginScreen from "./StaffLoginScreen.jsx";
 import RegisterScreen from "./RegisterScreen.jsx";
 import CheckEmailScreen from "./CheckEmailScreen.jsx";
 import VerifyEmailScreen from "./VerifyEmailScreen.jsx";
+import VerifyBackupEmailScreen from "./VerifyBackupEmailScreen.jsx";
+import VerifyPrimaryEmailScreen from "./VerifyPrimaryEmailScreen.jsx";
 import ForgotPasswordScreen from "./ForgotPasswordScreen.jsx";
 import ResetPasswordScreen from "./ResetPasswordScreen.jsx";
 import DashboardScreen from "./DashboardScreen.jsx";
@@ -452,6 +454,8 @@ export default function App() {
               />
             }
           />
+          <Route path="/verify-backup-email/:uid/:token" element={<VerifyBackupEmailScreen />} />
+          <Route path="/verify-primary-email/:uid/:token" element={<VerifyPrimaryEmailScreen />} />
           <Route path="/forgot-password" element={<ForgotPasswordScreen />} />
           <Route path="/reset-password/:uid/:token" element={<ResetPasswordScreen />} />
           <Route

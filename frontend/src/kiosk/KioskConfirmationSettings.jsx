@@ -1,18 +1,8 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import {
   CONFIRMATION_RETURN_OPTIONS,
-  CONFIRMATION_TEMPLATES,
-  messageTemplateForPreview,
-  PREVIEW_CONTEXT,
-  renderConfirmationMessage,
   visibleConfirmationMessageFields,
 } from "./kioskConfirmation.js";
-import { confirmationAccentStyleFromDesign } from "./kioskConfirmationAccent.js";
-import { KioskConfirmationPreview } from "./KioskConfirmationScreen.jsx";
-
-const TEMPLATE_LABELS = Object.fromEntries(
-  CONFIRMATION_TEMPLATES.map((preset) => [preset.id, preset.label]),
-);
 
 function messagesSummary(form, visibleFields) {
   if (visibleFields.length === 0) {
@@ -64,28 +54,18 @@ function ConfirmationAccordionSection({
   );
 }
 
+/**
+ * Confirmation Screen settings: Messages + Return time only.
+ * Visual template is controlled by the selected Card/Input template in the Kiosk Editor.
+ */
 export default function KioskConfirmationSettings({
   form,
   groupActions,
   defaults,
-  groupName,
-  kioskDesignConfig,
   onPatch,
 }) {
   const [openSection, setOpenSection] = useState(null);
   const visibleFields = visibleConfirmationMessageFields(groupActions);
-  const previewTemplate = form.confirmation_template || "clean";
-  const previewContext = { ...PREVIEW_CONTEXT, group: groupName || PREVIEW_CONTEXT.group };
-  const previewMessage = renderConfirmationMessage(
-    messageTemplateForPreview(form, "check_in", defaults),
-    previewContext,
-  );
-  const accentStyle = useMemo(
-    () => confirmationAccentStyleFromDesign(kioskDesignConfig),
-    [kioskDesignConfig],
-  );
-
-  const templateLabel = TEMPLATE_LABELS[previewTemplate] || "Clean";
   const returnSeconds = Number(form.confirmation_return_seconds) || 3;
 
   function toggleSection(sectionId) {
@@ -94,51 +74,6 @@ export default function KioskConfirmationSettings({
 
   return (
     <div className="kc-accordion">
-      <ConfirmationAccordionSection
-        id="template"
-        title="Template"
-        summary={templateLabel}
-        isOpen={openSection === "template"}
-        onToggle={() => toggleSection("template")}
-      >
-        <div className="kc-template-expanded">
-          <div className="kc-template-picker" role="radiogroup" aria-label="Confirmation template">
-            {CONFIRMATION_TEMPLATES.map((preset) => (
-              <label
-                key={preset.id}
-                className={`kc-template-option ${form.confirmation_template === preset.id ? "active" : ""}`}
-              >
-                <input
-                  type="radio"
-                  name="confirmation-template"
-                  value={preset.id}
-                  checked={form.confirmation_template === preset.id}
-                  onChange={() => onPatch({ confirmation_template: preset.id })}
-                />
-                <div className="kc-template-mini">
-                  <KioskConfirmationPreview
-                    template={preset.id}
-                    message="Thanks, Aleks."
-                    accentStyle={accentStyle}
-                    compact
-                  />
-                </div>
-                <span className="kc-template-option-label">{preset.label}</span>
-              </label>
-            ))}
-          </div>
-          <div className="kc-template-live-preview">
-            <p className="kc-preview-label">Preview</p>
-            <KioskConfirmationPreview
-              template={previewTemplate}
-              message={previewMessage}
-              accentStyle={accentStyle}
-              compact
-            />
-          </div>
-        </div>
-      </ConfirmationAccordionSection>
-
       <ConfirmationAccordionSection
         id="messages"
         title="Messages"

@@ -133,6 +133,28 @@ class GroupParticipationSliceTests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data["participation"]["email"], "alex@example.com")
 
+    def test_available_members_suggests_profile_email_when_require_email_off(self):
+        self.group.require_email = False
+        self.group.save()
+        url = reverse("group-available-members", kwargs={"group_pk": self.group.pk})
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        row = next(item for item in response.data if item["id"] == self.member.id)
+        self.assertEqual(row["email"], "alex@example.com")
+        self.assertEqual(row["suggested_participation_email"], "alex@example.com")
+
+    def test_available_members_blank_suggestion_without_profile_email(self):
+        blank = Member.objects.create(
+            organization=self.organization,
+            name="No Email Member",
+            email="",
+        )
+        url = reverse("group-available-members", kwargs={"group_pk": self.group.pk})
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        row = next(item for item in response.data if item["id"] == blank.id)
+        self.assertEqual(row["suggested_participation_email"], "")
+
     def test_editing_participation_email_does_not_change_member_profile(self):
         membership = self._create_membership(participation_email="group@example.com")
         url = reverse(

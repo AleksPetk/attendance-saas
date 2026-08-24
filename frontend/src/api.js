@@ -115,6 +115,24 @@ export const api = {
   changePassword: (payload) => request("/api/auth/change-password/", { method: "POST", json: payload }),
   account: () => request("/api/auth/account/"),
   deleteAccount: (payload) => request("/api/auth/account/delete/", { method: "POST", json: payload }),
+  requestBackupEmail: (payload) =>
+    request("/api/auth/account/backup-email/", { method: "POST", json: payload }),
+  removeBackupEmail: (payload) =>
+    request("/api/auth/account/backup-email/remove/", { method: "POST", json: payload }),
+  resendBackupEmailVerification: () =>
+    request("/api/auth/account/backup-email/resend/", { method: "POST", json: {} }),
+  cancelBackupEmailChange: () =>
+    request("/api/auth/account/backup-email/cancel/", { method: "POST", json: {} }),
+  verifyBackupEmail: (payload) =>
+    request("/api/auth/verify-backup-email/", { method: "POST", json: payload }),
+  requestPrimaryEmailChange: (payload) =>
+    request("/api/auth/account/primary-email/", { method: "POST", json: payload }),
+  resendPrimaryEmailChange: () =>
+    request("/api/auth/account/primary-email/resend/", { method: "POST", json: {} }),
+  cancelPrimaryEmailChange: () =>
+    request("/api/auth/account/primary-email/cancel/", { method: "POST", json: {} }),
+  verifyPrimaryEmail: (payload) =>
+    request("/api/auth/verify-primary-email/", { method: "POST", json: payload }),
 
   /* Workspace data endpoints (cookie session auth; `auth` arg kept for compatibility) */
   loadWorkspace: (_auth) => request("/api/workspace/"),

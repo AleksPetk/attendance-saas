@@ -24,7 +24,18 @@ def _operational_group_only_participants(group):
 
 
 def membership_participation_email(membership):
-    return (membership.participation_email or "").strip()
+    from groups.participation_emails import (
+        participation_emails_for_membership,
+        primary_participation_email,
+    )
+
+    return primary_participation_email(participation_emails_for_membership(membership))
+
+
+def membership_participation_emails(membership):
+    from groups.participation_emails import participation_emails_for_membership
+
+    return participation_emails_for_membership(membership)
 
 
 def membership_has_participation_pin(membership):
@@ -34,7 +45,18 @@ def membership_has_participation_pin(membership):
 
 
 def participant_participation_email(participant):
-    return (participant.email or "").strip()
+    from groups.participation_emails import (
+        participation_emails_for_visitor,
+        primary_participation_email,
+    )
+
+    return primary_participation_email(participation_emails_for_visitor(participant))
+
+
+def participant_participation_emails(participant):
+    from groups.participation_emails import participation_emails_for_visitor
+
+    return participation_emails_for_visitor(participant)
 
 
 def participant_has_participation_pin(participant):

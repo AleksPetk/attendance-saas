@@ -174,6 +174,9 @@ def import_standard_group_as_class(
                     member=membership.member,
                     section=section,
                     override_name=membership.override_name or "",
+                    participation_emails=list(
+                        membership.participation_emails or []
+                    ),
                     participation_email=membership.participation_email or "",
                     participation_pin=(membership.participation_pin or "").strip(),
                     status=membership.status,
@@ -196,6 +199,7 @@ def import_standard_group_as_class(
                     group=destination_group,
                     section=section,
                     name=visitor.name,
+                    participation_emails=list(visitor.participation_emails or []),
                     email=visitor.email or "",
                     participation_pin=(visitor.participation_pin or "").strip(),
                     phone=visitor.phone or "",

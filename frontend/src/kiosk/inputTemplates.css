@@ -1,7 +1,8 @@
-/* Complete Input Main templates. Scoped by data-input-template.
+/* Flow-panel templates (.kiosk-flow): action selection, identify forms, class PIN.
+   Scoped by data-flow-template on .kr-shell (Card template on card kiosks, Input on input kiosks).
    Template colors are owned here — never inherit Header background. */
 
-.kr-shell[data-input-template] {
+.kr-shell[data-flow-template] {
   --kr-tpl-flow-bg: #ffffff;
   --kr-tpl-flow-border: transparent;
   --kr-tpl-flow-shadow: none;
@@ -21,7 +22,7 @@
   --kr-tpl-max-w: 36rem;
 }
 
-.kr-shell[data-input-template] .kiosk-flow {
+.kr-shell[data-flow-template] .kiosk-flow {
   max-width: var(--kr-tpl-max-w);
   margin-inline: auto;
   width: 100%;
@@ -36,8 +37,8 @@
   box-sizing: border-box;
 }
 
-.kr-shell[data-input-template] .kiosk-flow input,
-.kr-shell[data-input-template] .kiosk-pin-input {
+.kr-shell[data-flow-template] .kiosk-flow input,
+.kr-shell[data-flow-template] .kiosk-pin-input {
   min-height: var(--kr-tpl-input-min-h);
   background: var(--kr-tpl-input-bg);
   border: 2px solid var(--kr-tpl-input-border);
@@ -46,14 +47,14 @@
   box-shadow: none;
 }
 
-.kr-shell[data-input-template] .kiosk-flow input:focus,
-.kr-shell[data-input-template] .kiosk-pin-input:focus {
+.kr-shell[data-flow-template] .kiosk-flow input:focus,
+.kr-shell[data-flow-template] .kiosk-pin-input:focus {
   outline: 3px solid color-mix(in srgb, var(--kr-accent, #2563eb) 45%, transparent);
   outline-offset: 1px;
   border-color: var(--kr-accent, #2563eb);
 }
 
-.kr-shell[data-input-template] .kiosk-submit:not(.btn-secondary) {
+.kr-shell[data-flow-template] .kiosk-submit:not(.btn-secondary) {
   min-height: var(--kr-tpl-btn-min-h);
   background: var(--kr-tpl-btn-bg);
   color: var(--kr-tpl-btn-color);
@@ -62,13 +63,13 @@
   font-weight: 650;
 }
 
-.kr-shell[data-input-template] .kiosk-submit:not(.btn-secondary):disabled {
+.kr-shell[data-flow-template] .kiosk-submit:not(.btn-secondary):disabled {
   opacity: 0.45;
   cursor: not-allowed;
 }
 
 /* Secondary/back controls share submit sizing but stay outlined and readable. */
-.kr-shell[data-input-template] .btn-secondary.kiosk-submit {
+.kr-shell[data-flow-template] .btn-secondary.kiosk-submit {
   min-height: var(--kr-tpl-btn-min-h);
   border-radius: var(--kr-tpl-btn-radius);
   border-width: 2px;
@@ -80,7 +81,7 @@
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
 }
 
-.kr-shell[data-input-template] .btn-secondary.kiosk-submit:hover:not(:disabled) {
+.kr-shell[data-flow-template] .btn-secondary.kiosk-submit:hover:not(:disabled) {
   background: color-mix(in srgb, var(--kr-accent, #2563eb) 11%, #ffffff);
   border-color: var(--kr-accent, #2563eb);
   color: color-mix(in srgb, var(--kr-accent, #2563eb) 78%, #0f172a);
@@ -90,14 +91,14 @@
   transform: translateY(-1px);
 }
 
-.kr-shell[data-input-template] .btn-secondary.kiosk-submit:focus-visible {
+.kr-shell[data-flow-template] .btn-secondary.kiosk-submit:focus-visible {
   outline: 3px solid color-mix(in srgb, var(--kr-accent, #2563eb) 42%, transparent);
   outline-offset: 2px;
   border-color: var(--kr-accent, #2563eb);
   color: color-mix(in srgb, var(--kr-accent, #2563eb) 78%, #0f172a);
 }
 
-.kr-shell[data-input-template] .btn-secondary.kiosk-submit:active:not(:disabled) {
+.kr-shell[data-flow-template] .btn-secondary.kiosk-submit:active:not(:disabled) {
   background: color-mix(in srgb, var(--kr-accent, #2563eb) 18%, #ffffff);
   border-color: color-mix(in srgb, var(--kr-accent, #2563eb) 88%, #0f172a);
   color: #0f172a;
@@ -105,14 +106,14 @@
   transform: translateY(0);
 }
 
-.kr-shell[data-input-template] .btn-secondary.kiosk-submit:disabled {
+.kr-shell[data-flow-template] .btn-secondary.kiosk-submit:disabled {
   opacity: 0.45;
   cursor: not-allowed;
   transform: none;
   box-shadow: none;
 }
 
-.kr-shell[data-input-template] .kiosk-action-choice {
+.kr-shell[data-flow-template] .kiosk-action-choice {
   min-height: var(--kr-tpl-btn-min-h);
   background: #fff;
   color: #111827;
@@ -120,12 +121,21 @@
   border-radius: var(--kr-tpl-btn-radius);
 }
 
-.kr-shell[data-input-template] .kiosk-action-choice:hover {
-  background: color-mix(in srgb, var(--kr-accent, #2563eb) 12%, #fff);
+.kr-shell[data-flow-template] .kiosk-flow .kiosk-selected-person {
+  margin-bottom: 0;
+  border-width: 1px;
+  border-style: solid;
+  border-color: color-mix(in srgb, var(--kr-tpl-flow-border, #e2e8f0) 55%, var(--kr-accent, #2563eb));
+  border-radius: calc(var(--kr-tpl-flow-radius, 1rem) * 0.55);
+  background: color-mix(in srgb, var(--kr-tpl-flow-bg, #fff) 92%, var(--kr-accent, #2563eb) 8%);
 }
 
-/* 1 Clean */
-.kr-shell[data-input-template="clean"] {
+.kr-shell[data-flow-template] .kiosk-flow .kiosk-selected-person .hint {
+  color: inherit;
+  opacity: 0.82;
+}
+
+.kr-shell[data-flow-template="clean"] {
   --kr-accent: #2563eb;
   --kr-tpl-flow-bg: #ffffff;
   --kr-tpl-flow-border: #e2e8f0;
@@ -136,7 +146,7 @@
 }
 
 /* 2 Soft */
-.kr-shell[data-input-template="soft"] {
+.kr-shell[data-flow-template="soft"] {
   --kr-accent: #3b82f6;
   --kr-tpl-flow-bg: #f8fafc;
   --kr-tpl-flow-border: transparent;
@@ -151,7 +161,7 @@
 }
 
 /* 3 Bold */
-.kr-shell[data-input-template="bold"] {
+.kr-shell[data-flow-template="bold"] {
   --kr-accent: #0f172a;
   --kr-tpl-flow-bg: #ffffff;
   --kr-tpl-flow-border: #0f172a;
@@ -165,92 +175,236 @@
   --kr-tpl-btn-min-h: 3.25rem;
 }
 
-.kr-shell[data-input-template="bold"] .kiosk-submit:not(.btn-secondary) {
+.kr-shell[data-flow-template="bold"] .kiosk-submit:not(.btn-secondary) {
   text-transform: uppercase;
   letter-spacing: 0.06em;
   font-weight: 800;
 }
 
 /* 4 Minimal */
-.kr-shell[data-input-template="minimal"] {
+.kr-shell[data-flow-template="minimal"] {
   --kr-accent: #334155;
-  --kr-tpl-flow-bg: transparent;
-  --kr-tpl-flow-border: transparent;
+  --kr-tpl-flow-bg: color-mix(in srgb, #ffffff 78%, transparent);
+  --kr-tpl-flow-border: color-mix(in srgb, #94a3b8 35%, transparent);
   --kr-tpl-flow-shadow: none;
-  --kr-tpl-flow-pad: 0.35rem;
-  --kr-tpl-flow-gap: 1.15rem;
+  --kr-tpl-flow-radius: 0.65rem;
+  --kr-tpl-flow-pad: 1.15rem 1.05rem 1.2rem;
+  --kr-tpl-flow-gap: 0.85rem;
   --kr-tpl-input-bg: transparent;
   --kr-tpl-input-border: transparent;
   --kr-tpl-input-radius: 0;
-  --kr-tpl-btn-bg: transparent;
-  --kr-tpl-btn-color: #0f172a;
+  --kr-tpl-input-color: #0f172a;
+  --kr-tpl-btn-bg: #0f172a;
+  --kr-tpl-btn-color: #ffffff;
   --kr-tpl-btn-border: #0f172a;
-  --kr-tpl-btn-radius: 0;
+  --kr-tpl-btn-radius: 0.35rem;
 }
 
-.kr-shell[data-input-template="minimal"] .kiosk-flow input,
-.kr-shell[data-input-template="minimal"] .kiosk-pin-input {
+.kr-shell[data-flow-template="minimal"] .kiosk-flow {
+  color: #0f172a;
+}
+
+.kr-shell[data-flow-template="minimal"] .kiosk-flow h2 {
+  font-size: 1.4rem;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+  color: #0f172a;
+}
+
+.kr-shell[data-flow-template="minimal"] .kiosk-flow .hint,
+.kr-shell[data-flow-template="minimal"] .kiosk-flow .kiosk-hint {
+  color: #475569;
+  margin: 0;
+}
+
+.kr-shell[data-flow-template="minimal"] .kiosk-flow label {
+  display: grid;
+  gap: 0.4rem;
+  font-weight: 650;
+  color: #334155;
+  font-size: 0.92rem;
+}
+
+.kr-shell[data-flow-template="minimal"] .kiosk-flow input,
+.kr-shell[data-flow-template="minimal"] .kiosk-pin-input {
   border: 0;
-  border-bottom: 3px solid #64748b;
-  padding-inline: 0.15rem;
+  border-bottom: 2px solid #64748b;
+  padding-inline: 0.1rem;
+  padding-block: 0.55rem;
   border-radius: 0;
+  background: transparent;
 }
 
-.kr-shell[data-input-template="minimal"] .kiosk-submit:not(.btn-secondary):hover {
-  background: #f1f5f9;
+.kr-shell[data-flow-template="minimal"] .kiosk-flow input:focus,
+.kr-shell[data-flow-template="minimal"] .kiosk-pin-input:focus {
+  border-bottom-color: #0f172a;
+  outline: none;
+  box-shadow: 0 2px 0 #0f172a;
+}
+
+.kr-shell[data-flow-template="minimal"] .kiosk-submit:not(.btn-secondary) {
+  font-weight: 700;
+  margin-top: 0.25rem;
+}
+
+.kr-shell[data-flow-template="minimal"] .kiosk-submit:not(.btn-secondary):hover:not(:disabled) {
+  background: #1e293b;
+}
+
+.kr-shell[data-flow-template="minimal"] .btn-secondary.kiosk-submit {
+  background: transparent;
+  color: #0f172a;
+  border-color: #94a3b8;
 }
 
 /* 5 Outline */
-.kr-shell[data-input-template="outline"] {
+.kr-shell[data-flow-template="outline"] {
   --kr-accent: #2563eb;
-  --kr-tpl-flow-bg: transparent;
-  --kr-tpl-flow-border: #2563eb;
+  --kr-tpl-flow-bg: color-mix(in srgb, #ffffff 86%, transparent);
+  --kr-tpl-flow-border: var(--kr-accent, #2563eb);
   --kr-tpl-flow-shadow: none;
-  --kr-tpl-flow-radius: 1rem;
-  --kr-tpl-input-bg: transparent;
-  --kr-tpl-input-border: #94a3b8;
-  --kr-tpl-btn-bg: transparent;
-  --kr-tpl-btn-color: #2563eb;
-  --kr-tpl-btn-border: #2563eb;
+  --kr-tpl-flow-radius: 0.95rem;
+  --kr-tpl-flow-pad: 1.25rem 1.2rem;
+  --kr-tpl-flow-gap: 0.9rem;
+  --kr-tpl-input-bg: #ffffff;
+  --kr-tpl-input-border: #cbd5e1;
+  --kr-tpl-input-radius: 0.55rem;
+  --kr-tpl-input-color: #0f172a;
+  --kr-tpl-btn-bg: var(--kr-accent, #2563eb);
+  --kr-tpl-btn-color: #ffffff;
+  --kr-tpl-btn-border: var(--kr-accent, #2563eb);
+  --kr-tpl-btn-radius: 0.55rem;
 }
 
-.kr-shell[data-input-template="outline"] .kiosk-submit:not(.btn-secondary):hover {
-  background: color-mix(in srgb, #2563eb 10%, transparent);
+.kr-shell[data-flow-template="outline"] .kiosk-flow {
+  border-width: 2px;
+  color: #0f172a;
+}
+
+.kr-shell[data-flow-template="outline"] .kiosk-flow h2 {
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.kr-shell[data-flow-template="outline"] .kiosk-flow .hint,
+.kr-shell[data-flow-template="outline"] .kiosk-flow .kiosk-hint {
+  color: #475569;
+  margin: 0;
+}
+
+.kr-shell[data-flow-template="outline"] .kiosk-flow label {
+  display: grid;
+  gap: 0.4rem;
+  font-weight: 650;
+  color: #334155;
+  font-size: 0.92rem;
+}
+
+.kr-shell[data-flow-template="outline"] .kiosk-flow input,
+.kr-shell[data-flow-template="outline"] .kiosk-pin-input {
+  border-width: 1.5px;
+}
+
+.kr-shell[data-flow-template="outline"] .kiosk-submit:not(.btn-secondary) {
+  font-weight: 700;
+}
+
+.kr-shell[data-flow-template="outline"] .kiosk-submit:not(.btn-secondary):hover:not(:disabled) {
+  filter: brightness(0.96);
+}
+
+.kr-shell[data-flow-template="outline"] .btn-secondary.kiosk-submit {
+  background: #ffffff;
+  color: var(--kr-accent, #2563eb);
+  border-color: color-mix(in srgb, var(--kr-accent, #2563eb) 55%, #cbd5e1);
 }
 
 /* 6 Dark */
-.kr-shell[data-input-template="dark"] {
+.kr-shell[data-flow-template="dark"] {
   --kr-accent: #38bdf8;
   --kr-tpl-flow-bg: #0f172a;
-  --kr-tpl-flow-border: #1e293b;
+  --kr-tpl-flow-border: #334155;
   --kr-tpl-flow-shadow: 0 16px 36px rgba(0, 0, 0, 0.35);
   --kr-tpl-flow-radius: 1.1rem;
+  --kr-tpl-flow-pad: 1.35rem 1.25rem;
+  --kr-tpl-flow-gap: 0.95rem;
   --kr-tpl-input-bg: #1e293b;
-  --kr-tpl-input-border: #334155;
+  --kr-tpl-input-border: #475569;
   --kr-tpl-input-color: #f8fafc;
   --kr-tpl-btn-bg: #38bdf8;
   --kr-tpl-btn-color: #0f172a;
   --kr-tpl-btn-border: #38bdf8;
 }
 
-.kr-shell[data-input-template="dark"] .kiosk-action-choice {
+.kr-shell[data-flow-template="dark"] .kiosk-flow {
+  color: #e2e8f0;
+}
+
+.kr-shell[data-flow-template="dark"] .kiosk-flow h2 {
+  color: #f8fafc;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.kr-shell[data-flow-template="dark"] .kiosk-flow .hint,
+.kr-shell[data-flow-template="dark"] .kiosk-flow .kiosk-hint {
+  color: #cbd5e1;
+  margin: 0;
+}
+
+.kr-shell[data-flow-template="dark"] .kiosk-flow label {
+  display: grid;
+  gap: 0.4rem;
+  color: #e2e8f0;
+  font-weight: 650;
+  font-size: 0.92rem;
+}
+
+.kr-shell[data-flow-template="dark"] .kiosk-flow input::placeholder,
+.kr-shell[data-flow-template="dark"] .kiosk-pin-input::placeholder {
+  color: #94a3b8;
+}
+
+.kr-shell[data-flow-template="dark"] .kiosk-flow input:focus,
+.kr-shell[data-flow-template="dark"] .kiosk-pin-input:focus {
+  outline-color: color-mix(in srgb, #38bdf8 50%, transparent);
+  border-color: #38bdf8;
+}
+
+.kr-shell[data-flow-template="dark"] .kiosk-submit:not(.btn-secondary) {
+  font-weight: 750;
+  color: #0f172a;
+}
+
+.kr-shell[data-flow-template="dark"] .kiosk-inline-error {
+  background: color-mix(in srgb, #fecaca 16%, #1e293b);
+  border-color: #f87171;
+  color: #fecaca;
+}
+
+.kr-shell[data-flow-template="dark"] .kiosk-inline-error p {
+  color: #fecaca;
+}
+
+.kr-shell[data-flow-template="dark"] .kiosk-action-choice {
   background: #1e293b;
   color: #f8fafc;
   border-color: #38bdf8;
 }
 
-.kr-shell[data-input-template="dark"] .kiosk-action-choice:hover {
+.kr-shell[data-flow-template="dark"] .kiosk-action-choice:hover {
   background: #334155;
 }
 
-.kr-shell[data-input-template="dark"] .btn-secondary.kiosk-submit {
+.kr-shell[data-flow-template="dark"] .btn-secondary.kiosk-submit {
   background: #1e293b;
   color: #e2e8f0;
   border-color: #475569;
   box-shadow: none;
 }
 
-.kr-shell[data-input-template="dark"] .btn-secondary.kiosk-submit:hover:not(:disabled) {
+.kr-shell[data-flow-template="dark"] .btn-secondary.kiosk-submit:hover:not(:disabled) {
   background: #334155;
   border-color: var(--kr-accent, #38bdf8);
   color: #f8fafc;
@@ -259,20 +413,20 @@
     0 2px 8px rgba(0, 0, 0, 0.28);
 }
 
-.kr-shell[data-input-template="dark"] .btn-secondary.kiosk-submit:focus-visible {
+.kr-shell[data-flow-template="dark"] .btn-secondary.kiosk-submit:focus-visible {
   outline-color: color-mix(in srgb, var(--kr-accent, #38bdf8) 45%, transparent);
   border-color: var(--kr-accent, #38bdf8);
   color: #f8fafc;
 }
 
-.kr-shell[data-input-template="dark"] .btn-secondary.kiosk-submit:active:not(:disabled) {
+.kr-shell[data-flow-template="dark"] .btn-secondary.kiosk-submit:active:not(:disabled) {
   background: #0f172a;
   border-color: color-mix(in srgb, var(--kr-accent, #38bdf8) 70%, #475569);
   color: #f8fafc;
 }
 
 /* 7 Glass */
-.kr-shell[data-input-template="glass"] {
+.kr-shell[data-flow-template="glass"] {
   --kr-accent: #2563eb;
   --kr-tpl-flow-bg: rgba(255, 255, 255, 0.55);
   --kr-tpl-flow-border: rgba(255, 255, 255, 0.65);
@@ -283,13 +437,13 @@
   --kr-tpl-btn-radius: 999px;
 }
 
-.kr-shell[data-input-template="glass"] .kiosk-flow {
+.kr-shell[data-flow-template="glass"] .kiosk-flow {
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
 }
 
 /* 8 Rounded */
-.kr-shell[data-input-template="rounded"] {
+.kr-shell[data-flow-template="rounded"] {
   --kr-accent: #4f46e5;
   --kr-tpl-flow-bg: #ffffff;
   --kr-tpl-flow-border: #e0e7ff;
@@ -305,7 +459,7 @@
 }
 
 /* 9 Compact */
-.kr-shell[data-input-template="compact"] {
+.kr-shell[data-flow-template="compact"] {
   --kr-accent: #2563eb;
   --kr-tpl-max-w: 24rem;
   --kr-tpl-flow-bg: #ffffff;
@@ -321,7 +475,7 @@
 }
 
 /* 10 Large Touch */
-.kr-shell[data-input-template="large_touch"] {
+.kr-shell[data-flow-template="large_touch"] {
   --kr-accent: #2563eb;
   --kr-tpl-max-w: 40rem;
   --kr-tpl-flow-bg: #ffffff;
@@ -336,24 +490,718 @@
   --kr-tpl-btn-radius: 1rem;
 }
 
-.kr-shell[data-input-template="large_touch"] .kiosk-flow input,
-.kr-shell[data-input-template="large_touch"] .kiosk-pin-input,
-.kr-shell[data-input-template="large_touch"] .kiosk-submit {
+.kr-shell[data-flow-template="large_touch"] .kiosk-flow input,
+.kr-shell[data-flow-template="large_touch"] .kiosk-pin-input,
+.kr-shell[data-flow-template="large_touch"] .kiosk-submit {
   font-size: 1.25rem;
 }
 
+/* —— Character Input templates (pair with Card Template families) —— */
+
+/* Kids Bubble */
+.kr-shell[data-flow-template="kids_bubble"] {
+  --kr-accent: color-mix(in srgb, #a855f7 70%, #22d3ee);
+  --kr-tpl-max-w: 34rem;
+  --kr-tpl-flow-bg: linear-gradient(160deg, #fff 0%, color-mix(in srgb, #c084fc 14%, #fff) 100%);
+  --kr-tpl-flow-border: color-mix(in srgb, #f9a8d4 45%, #fff);
+  --kr-tpl-flow-shadow: 0 14px 28px color-mix(in srgb, #c084fc 22%, transparent);
+  --kr-tpl-flow-radius: 2.2rem 1.5rem 2rem 1.7rem / 1.7rem 2.2rem 1.5rem 2rem;
+  --kr-tpl-flow-pad: 1.45rem 1.3rem;
+  --kr-tpl-input-bg: #fff;
+  --kr-tpl-input-border: color-mix(in srgb, #c084fc 40%, #e2e8f0);
+  --kr-tpl-input-radius: 999px;
+  --kr-tpl-btn-bg: color-mix(in srgb, #a855f7 55%, #22d3ee);
+  --kr-tpl-btn-border: color-mix(in srgb, #a855f7 55%, #22d3ee);
+  --kr-tpl-btn-radius: 999px;
+}
+
+.kr-shell[data-flow-template="kids_bubble"] .kiosk-flow {
+  position: relative;
+  isolation: isolate;
+  background: linear-gradient(160deg, #fff 0%, color-mix(in srgb, #c084fc 14%, #fff) 100%);
+  border-width: 2px;
+}
+
+.kr-shell[data-flow-template="kids_bubble"] .kiosk-flow::before {
+  content: "";
+  position: absolute;
+  inset: 0.4rem;
+  pointer-events: none;
+  z-index: 0;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='120' fill='none'%3E%3Ccircle cx='18' cy='22' r='3' fill='%23f9a8d4'/%3E%3Ccircle cx='120' cy='30' r='2.4' fill='%2367e8f9'/%3E%3Cpath d='M108 96l2 5 5.2.2-4 3.2 1.4 4.9-4.6-2.9-4.6 2.9 1.4-4.9-4-3.2 5.2-.2z' fill='%23fcd34d'/%3E%3C/svg%3E");
+  background-size: 100% 100%;
+  opacity: 0.9;
+}
+
+.kr-shell[data-flow-template="kids_bubble"] .kiosk-flow > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* Heart Pop */
+.kr-shell[data-flow-template="heart_pop"] {
+  --kr-accent: #fb7185;
+  --kr-tpl-max-w: 34rem;
+  --kr-tpl-flow-bg: #fff7ed;
+  --kr-tpl-flow-border: color-mix(in srgb, #fb7185 35%, #fed7aa);
+  --kr-tpl-flow-shadow: 0 12px 26px color-mix(in srgb, #fb7185 16%, transparent);
+  --kr-tpl-flow-radius: 1.4rem 1.4rem 1.15rem 1.7rem;
+  --kr-tpl-input-bg: #fff;
+  --kr-tpl-input-border: color-mix(in srgb, #fb7185 35%, #fdba74);
+  --kr-tpl-input-radius: 999px;
+  --kr-tpl-btn-bg: #fb7185;
+  --kr-tpl-btn-border: #fb7185;
+  --kr-tpl-btn-radius: 999px;
+}
+
+.kr-shell[data-flow-template="heart_pop"] .kiosk-flow {
+  position: relative;
+  background: linear-gradient(180deg, #fff 0%, #fff7ed 100%);
+}
+
+.kr-shell[data-flow-template="heart_pop"] .kiosk-flow::before {
+  content: "";
+  position: absolute;
+  top: 0.65rem;
+  right: 0.75rem;
+  width: 1.25rem;
+  height: 1.1rem;
+  pointer-events: none;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 22'%3E%3Cpath fill='%23fb7185' d='M12 20.4S2.5 14.2 2.5 8.4C2.5 5.1 5 2.8 8.1 2.8c1.8 0 3.3.9 3.9 2.2.6-1.3 2.1-2.2 3.9-2.2 3.1 0 5.6 2.3 5.6 5.6 0 5.8-9.5 12-9.5 12z'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+}
+
+.kr-shell[data-flow-template="heart_pop"] .kiosk-flow input:focus,
+.kr-shell[data-flow-template="heart_pop"] .kiosk-pin-input:focus {
+  outline-color: color-mix(in srgb, #fb7185 45%, transparent);
+  border-color: #fb7185;
+}
+
+/* Ticket */
+.kr-shell[data-flow-template="ticket"] {
+  --kr-accent: #2563eb;
+  --kr-tpl-max-w: 36rem;
+  --kr-tpl-flow-bg: color-mix(in srgb, #fff 90%, #2563eb);
+  --kr-tpl-flow-border: color-mix(in srgb, #2563eb 35%, #cbd5e1);
+  --kr-tpl-flow-shadow: 0 12px 24px rgba(15, 23, 42, 0.12);
+  --kr-tpl-flow-radius: 0.35rem;
+  --kr-tpl-flow-pad: 1.15rem 1.2rem 1.25rem;
+  --kr-tpl-flow-gap: 0.85rem;
+  --kr-tpl-input-radius: 0.35rem;
+  --kr-tpl-btn-radius: 0.35rem;
+  --kr-tpl-btn-bg: #0f172a;
+  --kr-tpl-btn-border: #0f172a;
+}
+
+.kr-shell[data-flow-template="ticket"] .kiosk-flow {
+  position: relative;
+  border-style: solid;
+  border-width: 1px;
+  -webkit-mask-image: radial-gradient(circle 0.55rem at left center, #0000 98%, #000 100%);
+  mask-image: radial-gradient(circle 0.55rem at left center, #0000 98%, #000 100%);
+}
+
+.kr-shell[data-flow-template="ticket"] .kiosk-flow::before {
+  content: "CHECK IN";
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  color: #475569;
+  padding-bottom: 0.65rem;
+  margin-bottom: 0.15rem;
+  border-bottom: 2px dashed color-mix(in srgb, #2563eb 40%, #94a3b8);
+  pointer-events: none;
+}
+
+.kr-shell[data-flow-template="ticket"] .kiosk-submit:not(.btn-secondary) {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 750;
+}
+
+/* ID Badge */
+.kr-shell[data-flow-template="id_badge"] {
+  --kr-accent: #2563eb;
+  --kr-tpl-max-w: 26rem;
+  --kr-tpl-flow-bg: #ffffff;
+  --kr-tpl-flow-border: #cbd5e1;
+  --kr-tpl-flow-shadow: 0 14px 28px rgba(15, 23, 42, 0.12);
+  --kr-tpl-flow-radius: 0.7rem;
+  --kr-tpl-flow-pad: 2.2rem 1.2rem 1.2rem;
+  --kr-tpl-input-radius: 0.45rem;
+  --kr-tpl-btn-radius: 0.45rem;
+}
+
+.kr-shell[data-flow-template="id_badge"] .kiosk-flow {
+  position: relative;
+  text-align: center;
+}
+
+.kr-shell[data-flow-template="id_badge"] .kiosk-flow::before {
+  content: "";
+  position: absolute;
+  top: 0.35rem;
+  left: 50%;
+  width: 2.5rem;
+  height: 1.15rem;
+  transform: translateX(-50%);
+  pointer-events: none;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 24' fill='none'%3E%3Crect x='16' y='2' width='16' height='8' rx='2' fill='%2394a3b8'/%3E%3Cpath d='M18 10h12v4c0 2.2-1.8 4-4 4h-4c-2.2 0-4-1.8-4-4v-4z' fill='%23cbd5e1'/%3E%3Crect x='20' y='0' width='8' height='3' rx='1' fill='%2364748b'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+}
+
+.kr-shell[data-flow-template="id_badge"] .kiosk-flow::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 1.6rem;
+  height: 0.45rem;
+  pointer-events: none;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--kr-accent, #2563eb) 80%, #0f172a),
+    color-mix(in srgb, var(--kr-accent, #2563eb) 40%, #38bdf8)
+  );
+}
+
+/* Cyber Hex */
+.kr-shell[data-flow-template="cyber_hex"] {
+  --kr-accent: #22d3ee;
+  --kr-tpl-max-w: 36rem;
+  --kr-tpl-flow-bg: #0f172a;
+  --kr-tpl-flow-border: color-mix(in srgb, #22d3ee 55%, transparent);
+  --kr-tpl-flow-shadow: 0 14px 30px rgba(2, 6, 23, 0.42);
+  --kr-tpl-flow-radius: 0.2rem;
+  --kr-tpl-flow-pad: 1.35rem 1.25rem;
+  --kr-tpl-flow-gap: 0.95rem;
+  --kr-tpl-input-bg: #1e293b;
+  --kr-tpl-input-border: color-mix(in srgb, #22d3ee 40%, #64748b);
+  --kr-tpl-input-color: #f1f5f9;
+  --kr-tpl-input-radius: 0.2rem;
+  --kr-tpl-btn-bg: color-mix(in srgb, #22d3ee 78%, #0ea5e9);
+  --kr-tpl-btn-color: #0f172a;
+  --kr-tpl-btn-border: #22d3ee;
+  --kr-tpl-btn-radius: 0.2rem;
+}
+
+.kr-shell[data-flow-template="cyber_hex"] .kiosk-flow {
+  position: relative;
+  color: #e2e8f0;
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  clip-path: polygon(
+    0.7rem 0,
+    calc(100% - 0.7rem) 0,
+    100% 0.7rem,
+    100% calc(100% - 0.7rem),
+    calc(100% - 0.7rem) 100%,
+    0.7rem 100%,
+    0 calc(100% - 0.7rem),
+    0 0.7rem
+  );
+}
+
+.kr-shell[data-flow-template="cyber_hex"] .kiosk-flow::before {
+  content: "";
+  position: absolute;
+  inset: 0.45rem;
+  pointer-events: none;
+  background:
+    linear-gradient(#22d3ee, #22d3ee) top left / 0.7rem 1.5px no-repeat,
+    linear-gradient(#22d3ee, #22d3ee) top left / 1.5px 0.7rem no-repeat,
+    linear-gradient(#22d3ee, #22d3ee) top right / 0.7rem 1.5px no-repeat,
+    linear-gradient(#22d3ee, #22d3ee) top right / 1.5px 0.7rem no-repeat,
+    linear-gradient(#22d3ee, #22d3ee) bottom left / 0.7rem 1.5px no-repeat,
+    linear-gradient(#22d3ee, #22d3ee) bottom left / 1.5px 0.7rem no-repeat,
+    linear-gradient(#22d3ee, #22d3ee) bottom right / 0.7rem 1.5px no-repeat,
+    linear-gradient(#22d3ee, #22d3ee) bottom right / 1.5px 0.7rem no-repeat;
+  opacity: 0.55;
+}
+
+.kr-shell[data-flow-template="cyber_hex"] .kiosk-flow::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.045;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent 0 9px,
+    color-mix(in srgb, #22d3ee 50%, transparent) 9px 10px
+  );
+}
+
+.kr-shell[data-flow-template="cyber_hex"] .kiosk-flow > * {
+  position: relative;
+  z-index: 1;
+}
+
+.kr-shell[data-flow-template="cyber_hex"] .kiosk-flow h2 {
+  color: #f8fafc;
+  font-weight: 750;
+  letter-spacing: 0.02em;
+}
+
+.kr-shell[data-flow-template="cyber_hex"] .kiosk-flow .hint,
+.kr-shell[data-flow-template="cyber_hex"] .kiosk-flow .kiosk-hint {
+  color: #cbd5e1;
+  margin: 0;
+}
+
+.kr-shell[data-flow-template="cyber_hex"] .kiosk-flow label {
+  display: grid;
+  gap: 0.4rem;
+  color: #e2e8f0;
+  font-weight: 650;
+  font-size: 0.92rem;
+}
+
+.kr-shell[data-flow-template="cyber_hex"] .kiosk-flow input::placeholder,
+.kr-shell[data-flow-template="cyber_hex"] .kiosk-pin-input::placeholder {
+  color: #94a3b8;
+}
+
+.kr-shell[data-flow-template="cyber_hex"] .kiosk-flow input:focus,
+.kr-shell[data-flow-template="cyber_hex"] .kiosk-pin-input:focus {
+  outline-color: color-mix(in srgb, #22d3ee 50%, transparent);
+  border-color: #22d3ee;
+}
+
+.kr-shell[data-flow-template="cyber_hex"] .kiosk-submit:not(.btn-secondary) {
+  font-weight: 800;
+  letter-spacing: 0.03em;
+}
+
+.kr-shell[data-flow-template="cyber_hex"] .kiosk-action-choice,
+.kr-shell[data-flow-template="cyber_hex"] .btn-secondary.kiosk-submit {
+  background: #1e293b;
+  color: #e2e8f0;
+  border-color: color-mix(in srgb, #22d3ee 50%, #64748b);
+}
+
+.kr-shell[data-flow-template="cyber_hex"] .kiosk-inline-error {
+  background: color-mix(in srgb, #fecaca 18%, #1e293b);
+  border-color: #f87171;
+  color: #fecaca;
+}
+
+.kr-shell[data-flow-template="cyber_hex"] .kiosk-inline-error p {
+  color: #fecaca;
+}
+
+/* Polaroid */
+.kr-shell[data-flow-template="polaroid"] {
+  --kr-accent: #2563eb;
+  --kr-tpl-max-w: 28rem;
+  --kr-tpl-flow-bg: #f8fafc;
+  --kr-tpl-flow-border: #e2e8f0;
+  --kr-tpl-flow-shadow: 0 16px 30px rgba(15, 23, 42, 0.14);
+  --kr-tpl-flow-radius: 0.2rem;
+  --kr-tpl-flow-pad: 0.75rem 0.75rem 1.1rem;
+  --kr-tpl-flow-gap: 0.85rem;
+  --kr-tpl-input-radius: 0.25rem;
+  --kr-tpl-btn-radius: 0.35rem;
+}
+
+.kr-shell[data-flow-template="polaroid"] .kiosk-flow {
+  position: relative;
+}
+
+.kr-shell[data-flow-template="polaroid"] .kiosk-flow--identify::after {
+  content: "";
+  position: absolute;
+  top: 0.7rem;
+  left: 1.05rem;
+  width: 1.7rem;
+  height: 0.55rem;
+  z-index: 1;
+  pointer-events: none;
+  background: color-mix(in srgb, #fde68a 75%, #fff);
+  transform: rotate(-16deg);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.12);
+}
+
+/* Sticker Pack */
+.kr-shell[data-flow-template="sticker_pack"] {
+  --kr-accent: #f59e0b;
+  --kr-tpl-max-w: 34rem;
+  --kr-tpl-flow-bg: #fffef8;
+  --kr-tpl-flow-border: color-mix(in srgb, #f59e0b 40%, #e2e8f0);
+  --kr-tpl-flow-shadow:
+    0 0 0 3px color-mix(in srgb, #fff 80%, #f59e0b),
+    4px 6px 0 color-mix(in srgb, #f59e0b 28%, transparent),
+    0 12px 22px rgba(15, 23, 42, 0.1);
+  --kr-tpl-flow-radius: 1.35rem 1.05rem 1.45rem 1.15rem / 1.15rem 1.4rem 1.05rem 1.35rem;
+  --kr-tpl-input-bg: #fff7ed;
+  --kr-tpl-input-border: color-mix(in srgb, #f59e0b 45%, #fdba74);
+  --kr-tpl-input-radius: 0.85rem;
+  --kr-tpl-btn-bg: #f59e0b;
+  --kr-tpl-btn-border: #d97706;
+  --kr-tpl-btn-color: #0f172a;
+  --kr-tpl-btn-radius: 0.85rem;
+}
+
+.kr-shell[data-flow-template="sticker_pack"] .kiosk-flow {
+  position: relative;
+  transform: rotate(-0.5deg);
+  border-width: 2px;
+}
+
+.kr-shell[data-flow-template="sticker_pack"] .kiosk-flow::before {
+  content: "";
+  position: absolute;
+  top: -0.15rem;
+  left: 1rem;
+  width: 1.8rem;
+  height: 0.55rem;
+  pointer-events: none;
+  background: #fde68a;
+  transform: rotate(-12deg);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.12);
+}
+
+.kr-shell[data-flow-template="sticker_pack"] .kiosk-flow::after {
+  content: "";
+  position: absolute;
+  top: 0.7rem;
+  right: 0.7rem;
+  width: 0.75rem;
+  height: 0.75rem;
+  pointer-events: none;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%23fbbf24' d='M12 2.4l2.4 6.1 6.6.4-5.1 4.1 1.7 6.3L12 15.8 6.4 19.3l1.7-6.3L3 8.9l6.6-.4z'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+}
+
+.kr-shell[data-flow-template="sticker_pack"] .kiosk-submit:not(.btn-secondary) {
+  font-weight: 800;
+  box-shadow: 3px 3px 0 color-mix(in srgb, #d97706 55%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kr-shell[data-flow-template="sticker_pack"] .kiosk-flow {
+    transform: none;
+  }
+}
+
+/* Terminal */
+.kr-shell[data-flow-template="terminal"] {
+  --kr-accent: #4ade80;
+  --kr-tpl-max-w: 36rem;
+  --kr-tpl-flow-bg: #0b1220;
+  --kr-tpl-flow-border: color-mix(in srgb, #4ade80 45%, #334155);
+  --kr-tpl-flow-shadow: 0 16px 32px rgba(2, 6, 23, 0.48);
+  --kr-tpl-flow-radius: 0.55rem;
+  --kr-tpl-flow-pad: 0 1.4rem 1.45rem;
+  --kr-tpl-flow-gap: 1rem;
+  --kr-tpl-input-bg: #020617;
+  --kr-tpl-input-border: #4ade80;
+  --kr-tpl-input-color: #f0fdf4;
+  --kr-tpl-input-radius: 0.35rem;
+  --kr-tpl-input-min-h: 3.25rem;
+  --kr-tpl-btn-bg: #15803d;
+  --kr-tpl-btn-border: #4ade80;
+  --kr-tpl-btn-color: #f0fdf4;
+  --kr-tpl-btn-radius: 0.35rem;
+  --kr-tpl-btn-min-h: 3.25rem;
+}
+
+.kr-shell[data-flow-template="terminal"] .kiosk-flow {
+  position: relative;
+  overflow: hidden;
+  color: #d1fae5;
+  min-height: 24rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+}
+
+.kr-shell[data-flow-template="terminal"] .kiosk-flow::before {
+  content: "";
+  display: block;
+  height: 1.55rem;
+  flex-shrink: 0;
+  margin-inline: -1.4rem;
+  margin-bottom: 0.35rem;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 0.85rem 50%, #f87171 0 0.2rem, transparent 0.22rem),
+    radial-gradient(circle at 1.55rem 50%, #fbbf24 0 0.2rem, transparent 0.22rem),
+    radial-gradient(circle at 2.25rem 50%, #4ade80 0 0.2rem, transparent 0.22rem),
+    linear-gradient(180deg, #1e293b, #111827);
+  border-bottom: 1px solid color-mix(in srgb, #4ade80 30%, #334155);
+}
+
+.kr-shell[data-flow-template="terminal"] .kiosk-flow::after {
+  content: "";
+  position: absolute;
+  inset: 1.55rem 0 0;
+  pointer-events: none;
+  opacity: 0.04;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent 0 3px,
+    color-mix(in srgb, #4ade80 40%, transparent) 3px 4px
+  );
+}
+
+.kr-shell[data-flow-template="terminal"] .kiosk-flow > * {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.kr-shell[data-flow-template="terminal"] .kiosk-flow h2 {
+  color: #4ade80;
+  font-size: 1.28rem;
+  font-weight: 750;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  margin: 0.35rem 0 0;
+}
+
+.kr-shell[data-flow-template="terminal"] .kiosk-flow h2::before {
+  content: "> ";
+  color: #86efac;
+  font-weight: 650;
+}
+
+.kr-shell[data-flow-template="terminal"] .kiosk-flow .hint,
+.kr-shell[data-flow-template="terminal"] .kiosk-flow .kiosk-hint {
+  color: #bbf7d0;
+  margin: 0;
+  font-size: 0.98rem;
+  line-height: 1.45;
+}
+
+.kr-shell[data-flow-template="terminal"] .kiosk-flow label {
+  display: grid;
+  gap: 0.45rem;
+  color: #dcfce7;
+  font-weight: 650;
+  font-size: 0.95rem;
+}
+
+/* Beat legacy filled/outlined presets so typed text stays bright on dark. */
+.kr-shell[data-flow-template="terminal"] .kiosk-flow input,
+.kr-shell[data-flow-template="terminal"] .kiosk-pin-input,
+.kr-shell[data-flow-template="terminal"][data-input="filled"] .kiosk-flow input,
+.kr-shell[data-flow-template="terminal"][data-input="filled"] .kiosk-pin-input,
+.kr-shell[data-flow-template="terminal"][data-input="outlined"] .kiosk-flow input,
+.kr-shell[data-flow-template="terminal"][data-input="outlined"] .kiosk-pin-input {
+  background: #020617;
+  color: #f0fdf4;
+  caret-color: #4ade80;
+  -webkit-text-fill-color: #f0fdf4;
+  border: 2px solid #22c55e;
+  border-radius: 0.35rem;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, #4ade80 18%, transparent);
+  font-size: 1.12rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.kr-shell[data-flow-template="terminal"] .kiosk-flow input::placeholder,
+.kr-shell[data-flow-template="terminal"] .kiosk-pin-input::placeholder {
+  color: #86efac;
+  opacity: 0.55;
+  -webkit-text-fill-color: #86efac;
+}
+
+.kr-shell[data-flow-template="terminal"] .kiosk-flow input:focus,
+.kr-shell[data-flow-template="terminal"] .kiosk-pin-input:focus,
+.kr-shell[data-flow-template="terminal"][data-input] .kiosk-flow input:focus,
+.kr-shell[data-flow-template="terminal"][data-input] .kiosk-pin-input:focus {
+  outline: 3px solid color-mix(in srgb, #4ade80 45%, transparent);
+  outline-offset: 1px;
+  border-color: #4ade80;
+  background: #04110a;
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, #4ade80 28%, transparent),
+    0 0 0 1px color-mix(in srgb, #4ade80 25%, transparent);
+}
+
+.kr-shell[data-flow-template="terminal"] .kiosk-submit:not(.btn-secondary) {
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 800;
+  font-size: 1.02rem;
+  margin-top: 0.15rem;
+}
+
+.kr-shell[data-flow-template="terminal"] .kiosk-action-choice,
+.kr-shell[data-flow-template="terminal"] .btn-secondary.kiosk-submit {
+  background: #111827;
+  color: #e2e8f0;
+  border-color: #475569;
+}
+
+.kr-shell[data-flow-template="terminal"] .kiosk-inline-error {
+  background: color-mix(in srgb, #fecaca 16%, #111827);
+  border-color: #f87171;
+  color: #fecaca;
+}
+
+.kr-shell[data-flow-template="terminal"] .kiosk-inline-error p {
+  color: #fecaca;
+}
+
 @media (max-width: 640px) {
-  .kr-shell[data-input-template] .kiosk-flow {
+  .kr-shell[data-flow-template="terminal"] {
+    --kr-tpl-flow-pad: 0 1rem 1.15rem;
+  }
+
+  .kr-shell[data-flow-template="terminal"] .kiosk-flow {
+    min-height: 0;
+  }
+
+  .kr-shell[data-flow-template="terminal"] .kiosk-flow::before {
+    margin-inline: -1rem;
+  }
+}
+
+/* Ribbon */
+.kr-shell[data-flow-template="ribbon"] {
+  --kr-accent: #7c3aed;
+  --kr-tpl-max-w: 34rem;
+  --kr-tpl-flow-bg: #ffffff;
+  --kr-tpl-flow-border: #e2e8f0;
+  --kr-tpl-flow-shadow: 0 14px 28px rgba(15, 23, 42, 0.1);
+  --kr-tpl-flow-radius: 0.75rem;
+  --kr-tpl-flow-pad: 1.15rem 1.1rem 1.25rem;
+  --kr-tpl-input-radius: 0.55rem;
+  --kr-tpl-btn-bg: color-mix(in srgb, #7c3aed 75%, #2563eb);
+  --kr-tpl-btn-border: #7c3aed;
+  --kr-tpl-btn-radius: 0.55rem;
+}
+
+.kr-shell[data-flow-template="ribbon"] .kiosk-flow {
+  position: relative;
+  overflow: hidden;
+}
+
+.kr-shell[data-flow-template="ribbon"] .kiosk-flow::before {
+  content: "";
+  display: block;
+  margin: -0.25rem -0.25rem 0.85rem;
+  padding: 0.55rem 0.85rem;
+  min-height: 1.7rem;
+  pointer-events: none;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, #7c3aed 88%, #0f172a),
+    color-mix(in srgb, #7c3aed 55%, #38bdf8)
+  );
+  clip-path: polygon(0 0, 100% 0, 96.5% 100%, 3.5% 100%);
+  box-shadow: 0 4px 10px color-mix(in srgb, #7c3aed 24%, transparent);
+}
+
+.kr-shell[data-flow-template="ribbon"] .kiosk-flow::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 2.6rem;
+  height: 2.6rem;
+  pointer-events: none;
+  background: linear-gradient(
+    225deg,
+    color-mix(in srgb, #7c3aed 80%, #0f172a) 0 50%,
+    transparent 50.5%
+  );
+}
+
+/* Comic */
+.kr-shell[data-flow-template="comic"] {
+  --kr-accent: #f97316;
+  --kr-tpl-max-w: 34rem;
+  --kr-tpl-flow-bg: #fffbeb;
+  --kr-tpl-flow-border: #0f172a;
+  --kr-tpl-flow-shadow: 4px 4px 0 #0f172a;
+  --kr-tpl-flow-radius: 1.35rem 1.35rem 1.35rem 0.35rem;
+  --kr-tpl-flow-pad: 1.3rem 1.15rem 1.45rem;
+  --kr-tpl-input-bg: #fff;
+  --kr-tpl-input-border: #0f172a;
+  --kr-tpl-input-radius: 0.35rem;
+  --kr-tpl-btn-bg: #fbbf24;
+  --kr-tpl-btn-color: #0f172a;
+  --kr-tpl-btn-border: #0f172a;
+  --kr-tpl-btn-radius: 0.35rem;
+}
+
+.kr-shell[data-flow-template="comic"] .kiosk-flow {
+  position: relative;
+  border-width: 3px;
+  background:
+    radial-gradient(circle at 14% 18%, color-mix(in srgb, #f97316 16%, transparent) 0 0.12rem, transparent 0.14rem),
+    radial-gradient(circle at 82% 24%, color-mix(in srgb, #f97316 14%, transparent) 0 0.1rem, transparent 0.12rem),
+    #fffbeb;
+}
+
+.kr-shell[data-flow-template="comic"] .kiosk-flow::before {
+  content: "";
+  position: absolute;
+  left: 0.95rem;
+  bottom: -0.72rem;
+  width: 1.1rem;
+  height: 0.85rem;
+  pointer-events: none;
+  background: #fffbeb;
+  border-left: 3px solid #0f172a;
+  border-bottom: 3px solid #0f172a;
+  transform: skewX(-28deg);
+  box-shadow: 3px 3px 0 #0f172a;
+}
+
+.kr-shell[data-flow-template="comic"] .kiosk-flow::after {
+  content: "";
+  position: absolute;
+  top: 0.55rem;
+  right: 0.65rem;
+  width: 1.15rem;
+  height: 1.15rem;
+  pointer-events: none;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%23fbbf24' stroke='%230f172a' stroke-width='2' d='M16 2l3.2 8.4H28l-7 5.4 2.6 8.2L16 19.4l-7.6 4.6 2.6-8.2-7-5.4h8.8z'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+}
+
+.kr-shell[data-flow-template="comic"] .kiosk-submit:not(.btn-secondary) {
+  font-weight: 850;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  box-shadow: 3px 3px 0 #0f172a;
+}
+
+.kr-shell[data-flow-template="comic"] .kiosk-flow input:focus,
+.kr-shell[data-flow-template="comic"] .kiosk-pin-input:focus {
+  outline: 3px solid color-mix(in srgb, #f97316 40%, transparent);
+  border-color: #0f172a;
+}
+
+@media (max-width: 640px) {
+  .kr-shell[data-flow-template] .kiosk-flow {
     padding: max(0.85rem, calc(var(--kr-tpl-flow-pad) * 0.85));
   }
 
-  .kr-shell[data-input-template="large_touch"] {
+  .kr-shell[data-flow-template="large_touch"] {
     --kr-tpl-input-min-h: 3.35rem;
     --kr-tpl-btn-min-h: 3.85rem;
   }
 
-  .kr-shell[data-input-template="compact"] {
+  .kr-shell[data-flow-template="compact"] {
     --kr-tpl-input-min-h: 2.75rem;
     --kr-tpl-btn-min-h: 2.85rem;
+  }
+
+  .kr-shell[data-flow-template="id_badge"] {
+    --kr-tpl-max-w: 100%;
+  }
+
+  .kr-shell[data-flow-template="polaroid"] .kiosk-identify-generic {
+    max-height: 5.5rem;
+  }
+
+  .kr-shell[data-flow-template="sticker_pack"] .kiosk-flow {
+    transform: none;
   }
 }

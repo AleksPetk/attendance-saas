@@ -8,11 +8,16 @@
     "build": "vite build",
     "preview": "vite preview",
     "test:history-csv": "node --test src/history/*.test.js",
-    "test:kiosk-settings": "node --test src/kiosk/kioskSettingsForm.test.js src/kiosk/kioskConfirmation.test.js",
+    "test:kiosk-settings": "node --test src/kiosk/kioskSettingsForm.test.js src/kiosk/kioskConfirmation.test.js src/kiosk/unifiedVisualFlow.test.js src/kiosk/kioskActionFlow.test.js src/kiosk/kioskFlowStages.test.js",
     "test:group-editor": "node --test src/groupEditorForm.test.js",
     "test:group-form": "node --test src/groupForm.test.js",
-    "test:structured-kiosk": "node --test src/groupKioskClassNav.test.js",
-    "test:participant-edit": "node --test src/groupParticipantEdit.test.js"
+    "test:structured-kiosk": "node --test src/groupKioskClassNav.test.js src/groupKioskStartPeople.test.js",
+    "test:participant-edit": "node --test src/groupParticipantEdit.test.js",
+    "test:participant-emails": "node --test src/groupParticipantEmails.test.js",
+    "test:kiosk-editor-sections": "node --test src/kiosk/builder/kioskEditorSections.test.js",
+    "test:input-templates": "node --test src/kiosk/inputTemplates.test.js src/kiosk/flowTemplate.test.js src/kiosk/templateFamilies.test.js src/kiosk/kioskIdentifyGenericVisual.test.js",
+    "test:card-templates": "node --test src/kiosk/cardTemplates.test.js src/kiosk/cardContainment.test.js src/kiosk/kioskParticipantAvatar.test.js src/kiosk/templateFamilies.test.js",
+    "test:account": "node --test src/accountScreenUi.test.js"
   },
   "dependencies": {
     "react": "^19.1.1",

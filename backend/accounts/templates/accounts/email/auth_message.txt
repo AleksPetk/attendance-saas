@@ -7,6 +7,6 @@
 {{ action_label }}:
 {{ action_url }}
 
-This link expires in {{ expiry_hours }} hours.
+{% if show_expiry %}This link expires in {{ expiry_hours }} hours.
 
-{{ security_note }}
+{% endif %}{{ security_note }}

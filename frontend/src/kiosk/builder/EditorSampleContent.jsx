@@ -4,6 +4,8 @@
  * Card density uses builder-only fake participants — never real tenant data.
  */
 
+import { KioskPersonAvatar, KioskPersonCardFields } from "../kioskUi.jsx";
+import { KioskIdentifyGenericVisual } from "../kioskIdentifyGenericVisual.jsx";
 import { createFakeParticipants } from "./fakeParticipants.js";
 
 const FIELD_LABELS = {
@@ -50,15 +52,12 @@ export default function EditorSampleContent({ kioskBehavior, fakeParticipantCoun
         <div className="kiosk-people-grid">
           {people.map((person) => (
             <article key={person.id} className="kiosk-person-card">
-              {display.show_name ? (
-                <div className="kiosk-person-name">{person.name}</div>
-              ) : null}
-              {display.show_participant_code ? (
-                <div className="kiosk-person-sub">{person.participant_code}</div>
-              ) : null}
-              {display.show_email ? (
-                <div className="kiosk-person-sub">{person.email}</div>
-              ) : null}
+              <KioskPersonAvatar name={person.name} />
+              <KioskPersonCardFields
+                name={display.show_name ? person.name : ""}
+                code={display.show_participant_code ? person.participant_code : ""}
+                email={display.show_email ? person.email : ""}
+              />
             </article>
           ))}
         </div>
@@ -69,7 +68,11 @@ export default function EditorSampleContent({ kioskBehavior, fakeParticipantCoun
   const fields = inputFields(kioskBehavior);
   return (
     <div className="kb-sample" aria-hidden="true">
-      <form className="kiosk-flow" onSubmit={(event) => event.preventDefault()}>
+      <form
+        className="kiosk-flow kiosk-flow--identify"
+        onSubmit={(event) => event.preventDefault()}
+      >
+        <KioskIdentifyGenericVisual />
         <h2>Check in</h2>
         <p className="hint">Enter your details.</p>
         {fields.map((field) => (
@@ -78,9 +81,9 @@ export default function EditorSampleContent({ kioskBehavior, fakeParticipantCoun
             <input
               className={field === "pin" ? "kiosk-pin-input" : undefined}
               type="text"
-              defaultValue={FIELD_SAMPLES[field] || ""}
               readOnly
               tabIndex={-1}
+              value={FIELD_SAMPLES[field] || ""}
             />
           </label>
         ))}

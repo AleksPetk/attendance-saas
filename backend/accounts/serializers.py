@@ -52,8 +52,24 @@ class AccountSerializer(serializers.Serializer):
     email = serializers.EmailField()
     email_verified = serializers.BooleanField()
     email_verified_at = serializers.DateTimeField(allow_null=True)
+    pending_primary_email = serializers.EmailField(allow_null=True, required=False)
+    backup_email_status = serializers.ChoiceField(
+        choices=["none", "pending", "verified"],
+        required=False,
+    )
+    backup_email = serializers.EmailField(allow_null=True, required=False)
+    pending_backup_email = serializers.EmailField(allow_null=True, required=False)
     two_factor_status = serializers.CharField()
     two_factor_label = serializers.CharField()
+
+
+class EmailWithPasswordSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    current_password = serializers.CharField(write_only=True)
+
+
+class PasswordOnlySerializer(serializers.Serializer):
+    current_password = serializers.CharField(write_only=True)
 
 
 class DeleteAccountSerializer(serializers.Serializer):

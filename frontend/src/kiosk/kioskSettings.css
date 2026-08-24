@@ -15,40 +15,8 @@
   --ks-interactive-hover: var(--surface-subtle);
 }
 
-/* Page header */
-.kiosk-settings-page .page-header-stable {
-  padding-bottom: var(--space-4);
-  margin-bottom: 0;
-  border-bottom: 1px solid var(--ks-border-soft);
-}
+/* Page header uses shared PageHeader (same as Dashboard / Group editor). */
 
-.kiosk-settings-page .editor-title-row h2 {
-  font-size: 1.25rem;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  color: var(--text);
-}
-
-.kiosk-settings-readiness-label {
-  padding: 0.15rem 0.5rem;
-  border-radius: 999px;
-  font-size: 0.82rem;
-  background: var(--surface-subtle);
-  border: 1px solid var(--ks-border);
-  color: var(--text-muted);
-}
-
-.kiosk-settings-context {
-  font-size: 0.9rem;
-  color: var(--text-secondary);
-}
-
-.kiosk-settings-context strong {
-  color: var(--text);
-  font-weight: 600;
-}
-
-/* Header actions */
 .kiosk-settings-page .header-actions .btn-primary:focus-visible,
 .kiosk-settings-page .header-actions .btn-secondary:focus-visible {
   outline: 2px solid var(--blue);

@@ -139,12 +139,19 @@ export function Card({ children, className = "", glow = false }) {
   return <div className={`card-surface ${glow ? "card-glow" : ""} ${className}`.trim()}>{children}</div>;
 }
 
-export function PageHeader({ title, description, actions, eyebrow }) {
+export function PageHeader({ title, description, actions, eyebrow, meta }) {
   return (
     <header className="page-header">
       <div className="page-header-copy">
         {eyebrow ? <p className="eyebrow">{eyebrow}</p> : null}
-        <h2>{title}</h2>
+        {meta ? (
+          <div className="page-header-title-row">
+            <h2>{title}</h2>
+            {meta}
+          </div>
+        ) : (
+          <h2>{title}</h2>
+        )}
         {description ? <p>{description}</p> : null}
       </div>
       {actions ? <div className="header-actions">{actions}</div> : null}

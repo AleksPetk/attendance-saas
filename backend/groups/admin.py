@@ -116,6 +116,7 @@ class GroupAdmin(admin.ModelAdmin):
                     "check_out_email_template",
                     "send_email_after_break",
                     "break_email_template",
+                    "forward_emails",
                 )
             },
         ),

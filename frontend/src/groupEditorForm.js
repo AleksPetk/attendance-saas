@@ -1,10 +1,25 @@
 /**
  * Normalized Group configuration draft/baseline comparison for the Group editor.
  * Email Sender state is intentionally excluded — it has its own save flow.
+ * Forward emails are Group configuration and are included in dirty tracking.
  */
 
 export function cloneGroupConfig(source) {
   return JSON.parse(JSON.stringify(source || {}));
+}
+
+export function normalizeForwardEmailsList(raw) {
+  const list = Array.isArray(raw) ? raw : [];
+  const normalized = [];
+  const seen = new Set();
+  for (const item of list) {
+    const email = String(item || "").trim().toLowerCase();
+    if (!email || seen.has(email)) continue;
+    seen.add(email);
+    normalized.push(email);
+    if (normalized.length >= 3) break;
+  }
+  return normalized;
 }
 
 export function normalizeGroupConfig(values) {
@@ -21,6 +36,7 @@ export function normalizeGroupConfig(values) {
 
   body.name = (body.name || "").trim();
   body.group_type = body.group_type === "structured" ? "structured" : "standard";
+  body.forward_emails = normalizeForwardEmailsList(body.forward_emails);
 
   body.actions.check_in_enabled = Boolean(body.actions.check_in_enabled);
   body.actions.check_out_enabled = Boolean(body.actions.check_out_enabled);
@@ -62,10 +78,16 @@ export function isGroupConfigDirty(values, savedBaseline) {
 }
 
 export function groupConfigFromApi(group, emptyGroup) {
+  const forwardEmails =
+    group.forward_emails ||
+    group.advanced?.forward_emails ||
+    emptyGroup.forward_emails ||
+    [];
   return {
     name: group.name || "",
     group_type: group.group_type === "structured" ? "structured" : "standard",
     require_class_pin: Boolean(group.require_class_pin),
+    forward_emails: normalizeForwardEmailsList(forwardEmails),
     actions: { ...emptyGroup.actions, ...(group.actions || {}) },
     participation: { ...emptyGroup.participation, ...(group.participation || {}) },
     notifications: {

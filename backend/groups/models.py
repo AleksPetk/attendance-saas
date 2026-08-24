@@ -200,6 +200,15 @@ class Group(models.Model):
     check_out_email_template = models.TextField(blank=True, default="")
     send_email_after_break = models.BooleanField(default=False)
     break_email_template = models.TextField(blank=True, default="")
+    forward_emails = models.JSONField(
+        default=list,
+        blank=True,
+        help_text=(
+            "Optional Group-level forwarding recipients (max 3). "
+            "After-action emails also send private copies to these addresses. "
+            "Not part of GroupEmailSender credentials."
+        ),
+    )
     email_sender_mode = models.CharField(
         max_length=20,
         choices=EmailSenderMode.choices,
@@ -343,6 +352,8 @@ class Group(models.Model):
         self._validate_configuration()
 
     def _normalize_configuration(self):
+        from groups.forward_emails import normalize_forward_emails
+
         self.check_in_email_template = validate_notification_template(
             self.check_in_email_template
         )
@@ -352,6 +363,7 @@ class Group(models.Model):
         self.break_email_template = validate_notification_template(
             self.break_email_template
         )
+        self.forward_emails = normalize_forward_emails(self.forward_emails)
         if not self.email_sender_mode:
             self.email_sender_mode = EmailSenderMode.PLATFORM
         if not self.group_type:
@@ -673,7 +685,22 @@ class GroupMembership(models.Model):
         default="",
     )
     group_participant_code = models.CharField(max_length=20, blank=True, default="")
-    participation_email = models.EmailField(blank=True, default="")
+    participation_email = models.EmailField(
+        blank=True,
+        default="",
+        help_text=(
+            "Deprecated scalar mirror of participation_emails[0]. "
+            "Prefer participation_emails."
+        ),
+    )
+    participation_emails = models.JSONField(
+        default=list,
+        blank=True,
+        help_text=(
+            "Up to 3 Group participation notification emails. "
+            "Independent of Member profile email."
+        ),
+    )
     participation_pin = models.CharField(max_length=12, blank=True, default="")
     override_pin_hash = models.CharField(max_length=128, blank=True, default="")
     status = models.CharField(
@@ -722,9 +749,16 @@ class GroupMembership(models.Model):
 
     @property
     def effective_email(self):
-        participation = (self.participation_email or "").strip()
-        if participation:
-            return participation
+        from groups.participation_emails import (
+            participation_emails_for_membership,
+            primary_participation_email,
+        )
+
+        primary = primary_participation_email(
+            participation_emails_for_membership(self)
+        )
+        if primary:
+            return primary
         return (self.override_email or "").strip() or self.member.email
 
     @property
@@ -811,7 +845,21 @@ class GroupMembership(models.Model):
 
         self.override_name = (self.override_name or "").strip()
         self.override_email = self._normalized_email(self.override_email)
-        self.participation_email = self._normalized_email(self.participation_email)
+        from groups.participation_emails import (
+            normalize_participation_emails,
+            primary_participation_email,
+        )
+
+        emails = normalize_participation_emails(
+            getattr(self, "participation_emails", None) or []
+        )
+        if not emails:
+            legacy = self._normalized_email(self.participation_email)
+            if legacy:
+                # Promote scalar-only writes (legacy API / tests).
+                emails = [legacy]
+        self.participation_emails = emails
+        self.participation_email = primary_participation_email(emails)
         self.participation_pin = (self.participation_pin or "").strip()
         self.override_check_in_identifier = (
             self.override_check_in_identifier or ""
@@ -944,7 +992,19 @@ class GroupOnlyParticipant(models.Model):
         ),
     )
     name = models.CharField(max_length=150)
-    email = models.EmailField(blank=True, default="")
+    email = models.EmailField(
+        blank=True,
+        default="",
+        help_text=(
+            "Deprecated scalar mirror of participation_emails[0]. "
+            "Prefer participation_emails."
+        ),
+    )
+    participation_emails = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Up to 3 Group participation notification emails for this visitor.",
+    )
     photo = models.ImageField(
         upload_to=group_only_participant_photo_upload_to,
         blank=True,
@@ -1034,9 +1094,21 @@ class GroupOnlyParticipant(models.Model):
 
     def save(self, *args, **kwargs):
         from groups.participant_codes import assign_group_participant_code
+        from groups.participation_emails import (
+            normalize_participation_emails,
+            primary_participation_email,
+        )
 
         self.name = (self.name or "").strip()
-        self.email = self._normalized_email(self.email)
+        emails = normalize_participation_emails(
+            getattr(self, "participation_emails", None) or []
+        )
+        if not emails:
+            legacy = self._normalized_email(self.email)
+            if legacy:
+                emails = [legacy]
+        self.participation_emails = emails
+        self.email = primary_participation_email(emails)
         self.participation_pin = (self.participation_pin or "").strip()
         self.phone = (self.phone or "").strip()
         self.check_in_identifier = (self.check_in_identifier or "").strip()

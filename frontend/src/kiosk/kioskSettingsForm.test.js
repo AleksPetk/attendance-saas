@@ -76,10 +76,10 @@ test("one-field mode ignores second field in comparison", () => {
   assert.deepEqual(a, b);
 });
 
-test("confirmation template change marks dirty", () => {
+test("confirmation template change no longer marks dirty", () => {
   const saved = { ...EMPTY_KIOSK_SETTINGS_FORM };
   const draft = { ...saved, confirmation_template: "friendly" };
-  assert.equal(isKioskSettingsDirty(draft, saved, configuredUi), true);
+  assert.equal(isKioskSettingsDirty(draft, saved, configuredUi), false);
 });
 
 test("confirmation return delay change marks dirty", () => {

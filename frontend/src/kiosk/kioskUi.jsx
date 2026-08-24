@@ -1,5 +1,12 @@
 import { errorMessage } from "../api.js";
 
+export {
+  KioskPersonAvatar,
+  kioskAvatarToneStep,
+  kioskPersonInitials,
+  PHOTO_CAPABLE_CARD_TEMPLATE_IDS,
+} from "./kioskParticipantAvatar.jsx";
+
 export function actionLabel(action) {
   const map = {
     check_in: "Check in",
@@ -79,3 +86,36 @@ export function KioskPinInput({ inputRef, id, value, onChange }) {
     />
   );
 }
+
+/**
+ * Contained text stack for kiosk cards (name / code / email / meta).
+ * Truncation is CSS-owned; title preserves full values when clipped.
+ */
+export function KioskPersonCardFields({ name, code, email, meta }) {
+  const nameText = name || "";
+  return (
+    <div className="kiosk-person-content">
+      {nameText ? (
+        <div className="kiosk-person-name" title={nameText}>
+          {nameText}
+        </div>
+      ) : null}
+      {code ? (
+        <div className="kiosk-person-sub kiosk-person-code" title={code}>
+          {code}
+        </div>
+      ) : null}
+      {email ? (
+        <div className="kiosk-person-sub kiosk-person-email" title={email}>
+          {email}
+        </div>
+      ) : null}
+      {meta ? (
+        <div className="kiosk-person-sub kiosk-person-meta" title={meta}>
+          {meta}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { kioskEditorSectionLabel } from "./kioskEditorSections.js";
 
 const DEFAULT_POS = { x: 16, y: 16 };
 const EDITOR_WIDTH = 360;
@@ -11,10 +12,6 @@ function clampPosition(x, y, width, height) {
     x: Math.min(maxX, Math.max(SAFE_MARGIN, x)),
     y: Math.min(maxY, Math.max(SAFE_MARGIN, y)),
   };
-}
-
-function sectionLabel(name) {
-  return name[0].toUpperCase() + name.slice(1);
 }
 
 /**
@@ -114,13 +111,13 @@ export default function FloatingEditorWindow({
         type="button"
         className="kb-corner-pill"
         onClick={onRestore}
-        aria-label={`Edit kiosk — ${sectionLabel(activeSection)}. Restore editor.`}
+        aria-label={`Edit kiosk — ${kioskEditorSectionLabel(activeSection)}. Restore editor.`}
       >
         <span className="kb-corner-pill-icon" aria-hidden="true">
           ✎
         </span>
         <span>Edit kiosk</span>
-        <span className="kb-corner-pill-section">{sectionLabel(activeSection)}</span>
+        <span className="kb-corner-pill-section">{kioskEditorSectionLabel(activeSection)}</span>
       </button>
     );
   }
@@ -169,7 +166,7 @@ export default function FloatingEditorWindow({
             className={`kb-editor-section-btn ${activeSection === name ? "active" : ""}`}
             onClick={() => onSectionChange(name)}
           >
-            {sectionLabel(name)}
+            {kioskEditorSectionLabel(name)}
           </button>
         ))}
       </div>

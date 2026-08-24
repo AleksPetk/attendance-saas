@@ -14,6 +14,7 @@ const EMPTY_GROUP = {
   name: "",
   group_type: "standard",
   require_class_pin: false,
+  forward_emails: [],
   actions: {
     check_in_enabled: true,
     check_out_enabled: false,
@@ -72,4 +73,24 @@ test("disabled action omits notification block from comparison", () => {
     },
   });
   assert.equal(JSON.stringify(saved), JSON.stringify(draft));
+});
+
+test("empty forward email slots do not mark dirty", () => {
+  const saved = { ...EMPTY_GROUP, forward_emails: [] };
+  const draft = { ...EMPTY_GROUP, forward_emails: [""] };
+  assert.equal(isGroupConfigDirty(draft, saved), false);
+});
+
+test("forward email change marks dirty", () => {
+  const saved = { ...EMPTY_GROUP, forward_emails: [] };
+  const draft = { ...EMPTY_GROUP, forward_emails: ["office@example.com"] };
+  assert.equal(isGroupConfigDirty(draft, saved), true);
+});
+
+test("forward emails normalize case and trim", () => {
+  const normalized = normalizeGroupConfig({
+    ...EMPTY_GROUP,
+    forward_emails: ["  Office@Example.com "],
+  });
+  assert.deepEqual(normalized.forward_emails, ["office@example.com"]);
 });

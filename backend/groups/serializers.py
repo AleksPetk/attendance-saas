@@ -8,6 +8,13 @@ from groups.email_sender import (
     get_group_email_sender,
     group_email_sender_is_ready,
 )
+from groups.forward_emails import normalize_forward_emails
+from groups.participation_emails import (
+    normalize_participation_emails,
+    participation_emails_for_membership,
+    participation_emails_for_visitor,
+    primary_participation_email,
+)
 from groups.models import (
     Group,
     GroupMembership,
@@ -26,6 +33,40 @@ from groups.readiness import group_setup_status_payload, structured_group_sectio
 from groups.templates import validate_notification_template
 from kiosk_builder.models import ensure_group_kiosk_design, ensure_group_kiosk_settings
 from members.models import Member, MemberStatus, validate_member_pin
+
+
+class ParticipationEmailsField(serializers.Field):
+    """Accept JSON list, multipart repeated keys, or a single email string."""
+
+    default_error_messages = {
+        "invalid": "Participation emails must be a list.",
+    }
+
+    def get_value(self, dictionary):
+        if hasattr(dictionary, "getlist"):
+            values = dictionary.getlist(self.field_name)
+            if len(values) > 1:
+                return values
+            if len(values) == 1:
+                return values[0]
+            if self.field_name in dictionary:
+                return dictionary.get(self.field_name)
+            return serializers.empty
+        return dictionary.get(self.field_name, serializers.empty)
+
+    def to_internal_value(self, data):
+        try:
+            return normalize_participation_emails(data)
+        except DjangoValidationError as exc:
+            message_dict = getattr(exc, "message_dict", None)
+            if message_dict and "participation_emails" in message_dict:
+                raise serializers.ValidationError(
+                    message_dict["participation_emails"]
+                ) from exc
+            raise serializers.ValidationError(exc.messages) from exc
+
+    def to_representation(self, value):
+        return list(value or [])
 
 
 class GroupParticipationSerializer(serializers.Serializer):
@@ -100,11 +141,37 @@ class GroupKioskSerializer(serializers.Serializer):
     )
 
 
+class GroupAdvancedWriteSerializer(serializers.Serializer):
+    """Writable Advanced fields that belong on Group (not Email Sender)."""
+
+    forward_emails = serializers.ListField(
+        child=serializers.CharField(allow_blank=True),
+        required=False,
+        allow_empty=True,
+    )
+
+    def validate_forward_emails(self, value):
+        try:
+            return normalize_forward_emails(value)
+        except DjangoValidationError as exc:
+            message_dict = getattr(exc, "message_dict", None)
+            if message_dict and "forward_emails" in message_dict:
+                raise serializers.ValidationError(message_dict["forward_emails"]) from exc
+            raise serializers.ValidationError(exc.messages) from exc
+
+
 class GroupSerializer(serializers.ModelSerializer):
     actions = GroupActionsSerializer(required=False, write_only=True)
     participation = GroupParticipationSerializer(required=False, write_only=True)
     notifications = GroupNotificationsSerializer(required=False, write_only=True)
     kiosk = GroupKioskSerializer(required=False, write_only=True)
+    advanced = GroupAdvancedWriteSerializer(required=False, write_only=True)
+    forward_emails = serializers.ListField(
+        child=serializers.CharField(allow_blank=True),
+        required=False,
+        write_only=True,
+        allow_empty=True,
+    )
     group_type = serializers.ChoiceField(
         choices=GroupType.choices,
         required=False,
@@ -128,6 +195,8 @@ class GroupSerializer(serializers.ModelSerializer):
             "participation",
             "notifications",
             "kiosk",
+            "advanced",
+            "forward_emails",
             "member_count",
             "group_only_participant_count",
             "section_count",
@@ -182,7 +251,9 @@ class GroupSerializer(serializers.ModelSerializer):
         data["advanced"] = {
             "email_sender": email_sender_public_payload(sender),
             "email_sender_ready": bool(sender and sender.is_ready),
+            "forward_emails": list(instance.forward_emails or []),
         }
+        data["forward_emails"] = list(instance.forward_emails or [])
         data["email_sender_ready"] = bool(sender and sender.is_ready)
         data["require_email_enabled_for_after_action"] = bool(
             getattr(instance, "_require_email_enabled_for_after_action", False)
@@ -234,6 +305,15 @@ class GroupSerializer(serializers.ModelSerializer):
             data["participant_count"] = member_count + participant_count
             data["structured"] = None
         return data
+
+    def validate_forward_emails(self, value):
+        try:
+            return normalize_forward_emails(value)
+        except DjangoValidationError as exc:
+            message_dict = getattr(exc, "message_dict", None)
+            if message_dict and "forward_emails" in message_dict:
+                raise serializers.ValidationError(message_dict["forward_emails"]) from exc
+            raise serializers.ValidationError(exc.messages) from exc
 
     def validate(self, attrs):
         attrs = super().validate(attrs)
@@ -448,6 +528,12 @@ class GroupSerializer(serializers.ModelSerializer):
             if src in kiosk:
                 mapped[dest] = kiosk[src]
 
+        advanced = validated_data.get("advanced") or {}
+        if "forward_emails" in validated_data:
+            mapped["forward_emails"] = validated_data["forward_emails"]
+        elif "forward_emails" in advanced:
+            mapped["forward_emails"] = advanced["forward_emails"]
+
         if instance is None:
             return mapped
         return mapped
@@ -495,6 +581,7 @@ class GroupMembershipSerializer(serializers.ModelSerializer):
     effective = serializers.SerializerMethodField()
     participation = serializers.SerializerMethodField()
     setup = serializers.SerializerMethodField()
+    participation_emails = ParticipationEmailsField(required=False)
 
     class Meta:
         model = GroupMembership
@@ -507,6 +594,7 @@ class GroupMembershipSerializer(serializers.ModelSerializer):
             "override_name",
             "override_email",
             "participation_email",
+            "participation_emails",
             "participation_pin",
             "clear_participation_pin",
             "override_photo",
@@ -555,10 +643,28 @@ class GroupMembershipSerializer(serializers.ModelSerializer):
         except DjangoValidationError as exc:
             raise serializers.ValidationError(exc.messages) from exc
 
+    def validate_participation_email(self, value):
+        if value in (None, ""):
+            return ""
+        try:
+            return primary_participation_email(
+                normalize_participation_emails([value])
+            )
+        except DjangoValidationError as exc:
+            message_dict = getattr(exc, "message_dict", None)
+            if message_dict and "participation_emails" in message_dict:
+                raise serializers.ValidationError(
+                    message_dict["participation_emails"]
+                ) from exc
+            raise serializers.ValidationError(exc.messages) from exc
+
     def to_representation(self, instance):
         data = super().to_representation(instance)
         data.pop("participation_pin", None)
         data["section_id"] = instance.section_id
+        emails = participation_emails_for_membership(instance)
+        data["participation_emails"] = emails
+        data["participation_email"] = primary_participation_email(emails)
         return data
 
     def get_member(self, obj):
@@ -577,7 +683,8 @@ class GroupMembershipSerializer(serializers.ModelSerializer):
 
     def get_participation(self, obj):
         group = obj.group
-        email = (obj.participation_email or "").strip()
+        emails = participation_emails_for_membership(obj)
+        email = primary_participation_email(emails)
         pin = (obj.participation_pin or "").strip()
         missing = []
         if group.require_email and not email:
@@ -586,6 +693,7 @@ class GroupMembershipSerializer(serializers.ModelSerializer):
             missing.append("pin")
         return {
             "email": email,
+            "emails": emails,
             "pin": pin or None,
             "has_pin": obj.has_participation_pin,
             "missing_required_fields": missing,
@@ -650,10 +758,11 @@ class GroupMembershipSerializer(serializers.ModelSerializer):
         membership.organization = organization
         membership.section = section
         membership.status = GroupMembershipStatus.ACTIVE
-        if not validated_data.get("participation_email") and group.require_email:
-            member_email = (member.email or "").strip()
-            if member_email:
-                validated_data["participation_email"] = member_email
+        self._resolve_participation_emails_for_write(
+            validated_data,
+            prefer_member_email=group.require_email,
+            member=member,
+        )
         self._apply_fields(membership, validated_data, pin=pin)
         membership.save()
         return membership
@@ -690,6 +799,7 @@ class GroupMembershipSerializer(serializers.ModelSerializer):
         if clear_photo and not validated_data.get("override_photo"):
             instance.override_photo.delete(save=False)
             instance.override_photo = ""
+        self._resolve_participation_emails_for_write(validated_data)
         self._apply_fields(instance, validated_data, pin=pin, clear_pin=clear_pin)
         instance.save()
         return instance
@@ -731,11 +841,32 @@ class GroupMembershipSerializer(serializers.ModelSerializer):
             )
         return member
 
+    def _resolve_participation_emails_for_write(
+        self,
+        validated_data,
+        *,
+        prefer_member_email=False,
+        member=None,
+    ):
+        if "participation_emails" in validated_data:
+            emails = validated_data["participation_emails"]
+        elif "participation_email" in validated_data:
+            legacy = (validated_data.get("participation_email") or "").strip()
+            emails = [legacy] if legacy else []
+        elif prefer_member_email and member is not None:
+            member_email = (member.email or "").strip().lower()
+            emails = [member_email] if member_email else []
+        else:
+            return
+        validated_data["participation_emails"] = emails
+        validated_data["participation_email"] = primary_participation_email(emails)
+
     def _apply_fields(self, membership, validated_data, *, pin=None, clear_pin=False):
         for field in (
             "override_name",
             "override_email",
             "participation_email",
+            "participation_emails",
             "override_photo",
             "override_check_in_identifier",
         ):
@@ -767,6 +898,7 @@ class GroupOnlyParticipantSerializer(serializers.ModelSerializer):
     photo_url = serializers.SerializerMethodField()
     participation = serializers.SerializerMethodField()
     setup = serializers.SerializerMethodField()
+    participation_emails = ParticipationEmailsField(required=False)
 
     class Meta:
         model = GroupOnlyParticipant
@@ -776,6 +908,7 @@ class GroupOnlyParticipantSerializer(serializers.ModelSerializer):
             "section_id",
             "name",
             "email",
+            "participation_emails",
             "photo",
             "photo_url",
             "has_photo",
@@ -806,6 +939,7 @@ class GroupOnlyParticipantSerializer(serializers.ModelSerializer):
         )
         extra_kwargs = {
             "photo": {"write_only": True, "required": False},
+            "email": {"required": False, "allow_blank": True},
         }
 
     def validate_pin(self, value):
@@ -819,12 +953,28 @@ class GroupOnlyParticipantSerializer(serializers.ModelSerializer):
     def validate_participation_pin(self, value):
         return self.validate_pin(value)
 
+    def validate_email(self, value):
+        if value in (None, ""):
+            return ""
+        try:
+            return primary_participation_email(
+                normalize_participation_emails([value])
+            )
+        except DjangoValidationError as exc:
+            message_dict = getattr(exc, "message_dict", None)
+            if message_dict and "participation_emails" in message_dict:
+                raise serializers.ValidationError(
+                    message_dict["participation_emails"]
+                ) from exc
+            raise serializers.ValidationError(exc.messages) from exc
+
     def get_photo_url(self, obj):
         return absolute_file_url(self.context.get("request"), obj.photo)
 
     def get_participation(self, obj):
         group = obj.group
-        email = (obj.email or "").strip()
+        emails = participation_emails_for_visitor(obj)
+        email = primary_participation_email(emails)
         pin = (obj.participation_pin or "").strip()
         missing = []
         if group.require_email and not email:
@@ -833,6 +983,7 @@ class GroupOnlyParticipantSerializer(serializers.ModelSerializer):
             missing.append("pin")
         return {
             "email": email,
+            "emails": emails,
             "pin": pin or None,
             "has_pin": obj.has_pin,
             "missing_required_fields": missing,
@@ -857,6 +1008,7 @@ class GroupOnlyParticipantSerializer(serializers.ModelSerializer):
         validated_data.pop("clear_participation_pin", None)
         validated_data.pop("clear_pin", None)
         validated_data.pop("clear_photo", None)
+        self._resolve_participation_emails_for_write(validated_data)
         participant = GroupOnlyParticipant(
             group=group,
             organization=group.organization,
@@ -892,6 +1044,7 @@ class GroupOnlyParticipantSerializer(serializers.ModelSerializer):
         if clear_photo and not validated_data.get("photo"):
             instance.photo.delete(save=False)
             instance.photo = ""
+        self._resolve_participation_emails_for_write(validated_data)
         for field, value in validated_data.items():
             setattr(instance, field, value)
         if pin:
@@ -900,6 +1053,17 @@ class GroupOnlyParticipantSerializer(serializers.ModelSerializer):
             instance.clear_participation_pin()
         instance.save()
         return instance
+
+    def _resolve_participation_emails_for_write(self, validated_data):
+        if "participation_emails" in validated_data:
+            emails = validated_data["participation_emails"]
+        elif "email" in validated_data:
+            legacy = (validated_data.get("email") or "").strip()
+            emails = [legacy] if legacy else []
+        else:
+            return
+        validated_data["participation_emails"] = emails
+        validated_data["email"] = primary_participation_email(emails)
 
     def _resolve_section(self, section_id):
         group = self.context["group"]
@@ -926,6 +1090,9 @@ class GroupOnlyParticipantSerializer(serializers.ModelSerializer):
         data.pop("pin", None)
         data.pop("participation_pin", None)
         data["section_id"] = instance.section_id
+        emails = participation_emails_for_visitor(instance)
+        data["participation_emails"] = emails
+        data["email"] = primary_participation_email(emails)
         return data
 
 
@@ -943,7 +1110,9 @@ class AvailableMemberSerializer(serializers.Serializer):
 
 
 def available_member_payload(member, group, request):
-    suggested_email = (member.email or "").strip() if group.require_email else ""
+    # Always suggest profile email for new-participation UI prefill (#1 only).
+    # Independent of Group require_email; edits never write back to Member.
+    suggested_email = (member.email or "").strip()
     return {
         "id": member.id,
         "name": member.name,

@@ -5,6 +5,7 @@ import {
   ErrorBanner,
   Field,
   LoadingState,
+  PageHeader,
   PasswordInput,
   StatusBadge,
 } from "../components.jsx";
@@ -29,7 +30,6 @@ const LEAVE_CONFIRM_MESSAGE =
 export default function KioskSettingsScreen({ session, groupId, onNavigate }) {
   const [group, setGroup] = useState(null);
   const [settings, setSettings] = useState(null);
-  const [kioskDesignConfig, setKioskDesignConfig] = useState(null);
   const [form, setForm] = useState(EMPTY_KIOSK_SETTINGS_FORM);
   const [savedForm, setSavedForm] = useState(EMPTY_KIOSK_SETTINGS_FORM);
   const [changingExitCode, setChangingExitCode] = useState(false);
@@ -58,10 +58,9 @@ export default function KioskSettingsScreen({ session, groupId, onNavigate }) {
     setError("");
     setSuccessMessage("");
     try {
-      const [groupResult, settingsResult, designResult] = await Promise.all([
+      const [groupResult, settingsResult] = await Promise.all([
         api.getGroup(session, groupId),
         api.getGroupKioskSettings(session, groupId),
-        api.getGroupKioskDesign(session, groupId).catch(() => ({ data: null })),
       ]);
       if (groupResult.data.status === "archived") {
         skipNextWorkspaceLeaveCheck();
@@ -70,7 +69,6 @@ export default function KioskSettingsScreen({ session, groupId, onNavigate }) {
       }
       setGroup(groupResult.data);
       setSettings(settingsResult.data);
-      setKioskDesignConfig(designResult.data?.config || null);
       const next = kioskSettingsFormFromApi(settingsResult.data);
       if (groupResult.data.group_type === "structured") {
         next.mode = "card";
@@ -227,36 +225,37 @@ export default function KioskSettingsScreen({ session, groupId, onNavigate }) {
   const readiness = settings.readiness;
 
   return (
-    <div className="page page-detail kiosk-settings-page">
-      <header className="page-header page-header-stable">
-        <div className="page-header-copy">
-          <div className="editor-title-row">
-            <h2>Kiosk Settings</h2>
+    <div className="page kiosk-settings-page">
+      <PageHeader
+        title="Kiosk Settings"
+        meta={
+          <>
             <span className="entity-kicker">{formatGroupId(group.id)}</span>
             <StatusBadge status={readiness?.ready ? "active" : "setup_incomplete"} />
-            <span className="kiosk-settings-readiness-label">
-              {readiness?.ready ? "Ready" : "Needs setup"}
-            </span>
-          </div>
-          <p className="kiosk-settings-context">
+          </>
+        }
+        description={
+          <>
             <strong>{group.name}</strong> — identification, confirmation, and exit security.
-          </p>
-        </div>
-        <div className="header-actions header-actions-stable">
-          <button type="button" className="btn-secondary" onClick={handleBack}>
-            Back
-          </button>
-          <button
-            type="submit"
-            form="kiosk-settings-form"
-            className="btn-primary"
-            disabled={!dirty || saving}
-            aria-disabled={!dirty || saving}
-          >
-            {saving ? "Saving…" : "Save Kiosk Settings"}
-          </button>
-        </div>
-      </header>
+          </>
+        }
+        actions={
+          <>
+            <button type="button" className="btn-secondary" onClick={handleBack}>
+              Back
+            </button>
+            <button
+              type="submit"
+              form="kiosk-settings-form"
+              className="btn-primary"
+              disabled={!dirty || saving}
+              aria-disabled={!dirty || saving}
+            >
+              {saving ? "Saving…" : "Save Kiosk Settings"}
+            </button>
+          </>
+        }
+      />
 
       {readiness && !readiness.ready && (readiness.issues || []).length > 0 ? (
         <div className="kiosk-settings-status-banner" role="status">
@@ -567,8 +566,6 @@ export default function KioskSettingsScreen({ session, groupId, onNavigate }) {
             form={form}
             groupActions={settings.group_actions || {}}
             defaults={settings.confirmation_defaults || {}}
-            groupName={group.name}
-            kioskDesignConfig={kioskDesignConfig}
             onPatch={patchForm}
           />
         </section>

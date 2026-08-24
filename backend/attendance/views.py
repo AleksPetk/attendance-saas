@@ -15,6 +15,7 @@ from django.http import HttpResponse
 
 from attendance.attendance_report import (
     build_attendance_report,
+    get_report_timezone,
     list_report_groups,
 )
 from attendance.report_export import render_attendance_report_export
@@ -397,6 +398,8 @@ class GroupKioskIdentifyView(OwnedWorkspaceMixin, APIView):
                 participant_kind=participant_kind,
                 membership=obj if participant_kind == "member" else None,
                 group_only_participant=obj if participant_kind == "group_only_participant" else None,
+                request=request,
+                absolute_file_url=absolute_file_url,
             )
             return Response(payload)
 
@@ -444,6 +447,8 @@ class GroupKioskIdentifyView(OwnedWorkspaceMixin, APIView):
             participant_kind=kind,
             membership=obj if kind == "member" else None,
             group_only_participant=obj if kind == "group_only_participant" else None,
+            request=request,
+            absolute_file_url=absolute_file_url,
         )
         return Response(payload)
 
@@ -545,6 +550,7 @@ class GroupKioskPerformView(OwnedWorkspaceMixin, APIView):
             pin_verified=bool(pin),
             snapshot=snapshot,
             now=timezone.now(),
+            timezone_name=data.get("timezone"),
         )
 
         state = compute_current_attendance_state(
@@ -557,12 +563,17 @@ class GroupKioskPerformView(OwnedWorkspaceMixin, APIView):
 
         settings_obj = get_kiosk_settings_for_group(group)
         participant_name = snapshot["participant_name_snapshot"]
+        display_tz = get_report_timezone(
+            self.organization,
+            timezone_name=data.get("timezone"),
+        )
         confirmation = confirmation_payload_for_perform(
             settings_obj,
             group=group,
             action_type=action_type,
             participant_name=participant_name,
             performed_at=ar.performed_at,
+            tz=display_tz,
         )
 
         return Response(

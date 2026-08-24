@@ -136,17 +136,35 @@ def ensure_automatic_check_in_action_record_for_participant(*, group: Group, par
     return {"created": False, "due": False, "performed_at": None}
 
 
-def build_kiosk_identify_payload(*, group: Group, participant_kind: str, membership=None, group_only_participant=None):
+def build_kiosk_identify_payload(
+    *,
+    group: Group,
+    participant_kind: str,
+    membership=None,
+    group_only_participant=None,
+    request=None,
+    absolute_file_url=None,
+):
     """Return identify response data after a participant is resolved."""
+    from kiosk_builder.kiosk_runtime import membership_kiosk_photo_url
+
     if participant_kind == "member":
         state = compute_current_attendance_state(
             group=group, participant_kind="member", member_id=membership.member_id
         )
+        photo_url = None
+        if request is not None and absolute_file_url is not None:
+            photo_url = membership_kiosk_photo_url(
+                request=request,
+                membership=membership,
+                absolute_file_url=absolute_file_url,
+            )
         participant = {
             "participant_kind": "member",
             "membership_id": membership.id,
             "name": membership.effective_name,
             "participant_code": membership.group_participant_code,
+            "photo_url": photo_url,
         }
     elif participant_kind == "group_only_participant":
         state = compute_current_attendance_state(
@@ -159,6 +177,7 @@ def build_kiosk_identify_payload(*, group: Group, participant_kind: str, members
             "group_only_participant_id": group_only_participant.id,
             "name": group_only_participant.name,
             "participant_code": group_only_participant.group_participant_code,
+            "photo_url": None,
         }
     else:
         raise ValidationError("Invalid participant kind.")
@@ -200,6 +219,7 @@ def perform_action_record_from_kiosk(
     pin_verified=False,
     snapshot=None,
     now=None,
+    timezone_name=None,
 ):
     if now is None:
         now = timezone.now()
@@ -292,6 +312,7 @@ def perform_action_record_from_kiosk(
         group_only_participant=(
             group_only_participant if participant_kind == "group_only_participant" else None
         ),
+        timezone_name=timezone_name,
     )
     return ar
 

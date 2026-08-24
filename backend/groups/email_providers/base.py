@@ -36,6 +36,31 @@ class EmailSenderProvider(ABC):
     def send_message(self, sender, *, to_email, subject, text_body, html_body=""):
         """Send an operational message. Raises EmailSenderProviderError."""
 
+    def send_messages_batch(self, sender, *, messages):
+        """
+        Send multiple operational messages.
+
+        messages: list of dicts with to_email, subject, text_body, html_body.
+        Returns list of dicts: to_email, ok (bool), error (EmailSenderProviderError|None).
+        Default implementation sends serially with one connection per message.
+        """
+        results = []
+        for msg in messages:
+            to_email = (msg.get("to_email") or "").strip().lower()
+            try:
+                self.send_message(
+                    sender,
+                    to_email=to_email,
+                    subject=msg.get("subject") or "",
+                    text_body=msg.get("text_body") or "",
+                    html_body=msg.get("html_body") or "",
+                )
+            except EmailSenderProviderError as exc:
+                results.append({"to_email": to_email, "ok": False, "error": exc})
+            else:
+                results.append({"to_email": to_email, "ok": True, "error": None})
+        return results
+
 
 _PROVIDERS = {}
 

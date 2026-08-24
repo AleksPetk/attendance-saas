@@ -123,3 +123,10 @@ class KioskPerformRequestSerializer(serializers.Serializer):
         choices=[(v, v) for v in ActionType.values],
     )
     pin = serializers.CharField(required=False, allow_blank=True)
+    timezone = serializers.CharField(required=False, allow_blank=True, max_length=64)
+
+    def validate_timezone(self, value):
+        try:
+            return normalize_report_timezone_name(value)
+        except ValueError as exc:
+            raise serializers.ValidationError("Invalid timezone.") from exc

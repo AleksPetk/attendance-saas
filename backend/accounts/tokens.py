@@ -65,3 +65,33 @@ class EmailVerificationTokenGenerator(PasswordResetTokenGenerator):
 
 email_verification_token_generator = EmailVerificationTokenGenerator()
 password_reset_token_generator = PasswordResetTokenGenerator()
+
+
+class BackupEmailVerificationTokenGenerator(EmailVerificationTokenGenerator):
+    key_salt = "accounts.tokens.BackupEmailVerificationTokenGenerator"
+
+    def _make_hash_value(self, user, timestamp):
+        login_timestamp = (
+            ""
+            if user.last_login is None
+            else user.last_login.replace(microsecond=0, tzinfo=None)
+        )
+        pending = getattr(user, "pending_backup_email", "") or ""
+        return f"{user.pk}{user.password}{login_timestamp}{timestamp}{pending}"
+
+
+class PrimaryEmailChangeTokenGenerator(EmailVerificationTokenGenerator):
+    key_salt = "accounts.tokens.PrimaryEmailChangeTokenGenerator"
+
+    def _make_hash_value(self, user, timestamp):
+        login_timestamp = (
+            ""
+            if user.last_login is None
+            else user.last_login.replace(microsecond=0, tzinfo=None)
+        )
+        pending = getattr(user, "pending_primary_email", "") or ""
+        return f"{user.pk}{user.password}{login_timestamp}{timestamp}{pending}"
+
+
+backup_email_verification_token_generator = BackupEmailVerificationTokenGenerator()
+primary_email_change_token_generator = PrimaryEmailChangeTokenGenerator()

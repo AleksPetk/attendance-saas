@@ -105,7 +105,7 @@ export default function KioskBuilderPreview({
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
     >
-      <KioskRenderer design={design} mode="editor">
+      <KioskRenderer design={design} mode="editor" kioskBehavior={kioskBehavior}>
         <EditorSampleContent
           kioskBehavior={kioskBehavior}
           fakeParticipantCount={fakeParticipantCount}

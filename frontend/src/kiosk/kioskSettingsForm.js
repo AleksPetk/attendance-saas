@@ -83,7 +83,8 @@ export function normalizeKioskSettingsComparable(form, { changingExitCode, exitC
     input_second_field: inputFieldCount === 2 ? form.input_second_field || "name" : "",
     exit_code: exitEditing ? (form.exit_code || "").trim() : "",
     exit_code_confirm: exitEditing ? (form.exit_code_confirm || "").trim() : "",
-    confirmation_template: form.confirmation_template || "clean",
+    // confirmation_template is deprecated for visuals (Card/Input template is canonical).
+    // Omit from dirty comparison so the legacy stored value cannot mark settings dirty.
     confirmation_check_in_message: (form.confirmation_check_in_message || "").trim(),
     confirmation_check_out_message: (form.confirmation_check_out_message || "").trim(),
     confirmation_break_start_message: (form.confirmation_break_start_message || "").trim(),
@@ -114,7 +115,8 @@ export function buildKioskSettingsSavePayload(form, { changingExitCode, exitCode
     use_pin: form.use_pin,
     input_field_count: form.input_field_count,
     input_second_field: form.input_field_count === 2 ? form.input_second_field : "",
-    confirmation_template: form.confirmation_template || "clean",
+    // Do not send confirmation_template — visual family comes from Card/Input design.
+    // Omitting preserves the legacy DB field without exposing it in UI.
     confirmation_check_in_message: form.confirmation_check_in_message || "",
     confirmation_check_out_message: form.confirmation_check_out_message || "",
     confirmation_break_start_message: form.confirmation_break_start_message || "",

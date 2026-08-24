@@ -36,7 +36,7 @@ test("normalizeTemplate falls back to clean", () => {
   assert.equal(normalizeConfirmationTemplate(""), "clean");
 });
 
-test("registry includes all eight templates", () => {
+test("legacy confirmation registry remains for storage compat", () => {
   assert.equal(CONFIRMATION_TEMPLATE_IDS.length, 8);
   assert.deepEqual(CONFIRMATION_TEMPLATE_IDS, [
     "clean",

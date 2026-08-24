@@ -1,0 +1,517 @@
+/* Confirmation-inspired Card template families (Stage 1). Scoped by data-card-template. */
+
+/* —— Pure —— */
+.kr-shell[data-card-template="pure"] .kiosk-people-grid {
+  max-width: 56rem;
+  margin-inline: auto;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr));
+  gap: 1.25rem;
+}
+
+.kr-shell[data-card-template="pure"] .kiosk-person-card {
+  --pure-accent: color-mix(in srgb, var(--kr-accent, #64748b) 72%, #94a3b8);
+  position: relative;
+  background:
+    linear-gradient(#ffffff, #ffffff) padding-box,
+    linear-gradient(135deg, color-mix(in srgb, var(--pure-accent) 35%, #e2e8f0), #f8fafc) border-box;
+  border: 1px solid transparent;
+  border-radius: 1rem;
+  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.08);
+  padding: 1.35rem 1.15rem 1.2rem;
+  min-height: 8.75rem;
+  gap: 0.55rem;
+  overflow: hidden;
+}
+
+.kr-shell[data-card-template="pure"] .kiosk-person-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 1.15rem;
+  right: 1.15rem;
+  height: 2px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent, var(--pure-accent), transparent);
+  pointer-events: none;
+}
+
+.kr-shell[data-card-template="pure"] .kiosk-person-card::after {
+  content: "";
+  position: absolute;
+  bottom: 0.85rem;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 2.5rem;
+  height: 1px;
+  background: color-mix(in srgb, var(--pure-accent) 45%, #e2e8f0);
+  pointer-events: none;
+}
+
+.kr-shell[data-card-template="pure"] .kiosk-person-name {
+  font-size: 1.08rem;
+  font-weight: 650;
+  letter-spacing: -0.015em;
+  color: #0f172a;
+}
+
+.kr-shell[data-card-template="pure"] .kiosk-person-sub {
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: #64748b;
+}
+
+/* —— Executive —— */
+.kr-shell[data-card-template="executive"] .kiosk-people-grid {
+  max-width: 54rem;
+  margin-inline: auto;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  gap: 0.9rem;
+}
+
+.kr-shell[data-card-template="executive"] .kiosk-person-card {
+  --exec-accent: color-mix(in srgb, var(--kr-accent, #1e40af) 85%, #0f172a);
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: start;
+  gap: 0.65rem 0.75rem;
+  text-align: left;
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.4rem;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
+  padding: 0.85rem 0.95rem 0.95rem 0;
+  min-height: 7.75rem;
+  overflow: hidden;
+}
+
+.kr-shell[data-card-template="executive"] .kiosk-person-card::before {
+  content: "";
+  grid-row: 1 / span 3;
+  width: 4px;
+  align-self: stretch;
+  margin-left: 0;
+  border-radius: 0.4rem 0 0 0.4rem;
+  background: linear-gradient(180deg, var(--exec-accent), color-mix(in srgb, var(--exec-accent) 55%, #38bdf8));
+  pointer-events: none;
+}
+
+.kr-shell[data-card-template="executive"] .kiosk-person-avatar {
+  display: grid;
+  grid-column: 2;
+  width: 2.1rem;
+  height: 2.1rem;
+  font-size: 0.85rem;
+}
+
+.kr-shell[data-card-template="executive"] .kiosk-person-content {
+  grid-column: 2;
+  align-items: flex-start;
+}
+
+.kr-shell[data-card-template="executive"] .kiosk-person-name {
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: #0f172a;
+}
+
+.kr-shell[data-card-template="executive"] .kiosk-person-sub {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #475569;
+}
+
+/* —— Welcome —— */
+.kr-shell[data-card-template="welcome"] .kiosk-people-grid {
+  max-width: 56rem;
+  margin-inline: auto;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
+  gap: 1.1rem;
+}
+
+.kr-shell[data-card-template="welcome"] .kiosk-person-card {
+  --wel-accent: color-mix(in srgb, var(--kr-accent, #ea580c) 75%, #f59e0b);
+  position: relative;
+  background: #fffdf8;
+  border: 2px solid color-mix(in srgb, var(--wel-accent) 28%, #fde68a);
+  border-radius: 1.5rem 1.5rem 1.5rem 0.55rem;
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--wel-accent) 10%, transparent),
+    0 10px 22px rgba(15, 23, 42, 0.09);
+  padding: 1.2rem 1rem 1.15rem;
+  min-height: 8.5rem;
+  gap: 0.45rem;
+  overflow: hidden;
+}
+
+.kr-shell[data-card-template="welcome"] .kiosk-person-card::before {
+  content: "";
+  position: absolute;
+  top: 0.55rem;
+  left: 1rem;
+  right: 1rem;
+  height: 3px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--wel-accent), color-mix(in srgb, var(--wel-accent) 40%, #fbbf24));
+  pointer-events: none;
+}
+
+.kr-shell[data-card-template="welcome"] .kiosk-person-card::after {
+  content: "";
+  position: absolute;
+  bottom: -0.55rem;
+  left: 1rem;
+  width: 1rem;
+  height: 1rem;
+  background: #fffdf8;
+  border-right: 2px solid color-mix(in srgb, var(--wel-accent) 22%, #fde68a);
+  border-bottom: 2px solid color-mix(in srgb, var(--wel-accent) 22%, #fde68a);
+  transform: rotate(45deg);
+  border-bottom-right-radius: 0.25rem;
+  pointer-events: none;
+}
+
+.kr-shell[data-card-template="welcome"] .kiosk-person-name {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #431407;
+}
+
+.kr-shell[data-card-template="welcome"] .kiosk-person-sub {
+  font-size: 0.84rem;
+  color: #9a3412;
+  font-weight: 550;
+}
+
+/* —— Playground —— */
+.kr-shell[data-card-template="playground"] .kiosk-people-grid {
+  max-width: 56rem;
+  margin-inline: auto;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 195px), 1fr));
+  gap: 1rem;
+}
+
+.kr-shell[data-card-template="playground"] .kiosk-person-card {
+  --pg-a: #f472b6;
+  --pg-b: #38bdf8;
+  --pg-c: #a78bfa;
+  position: relative;
+  background: #fff;
+  border: 2px solid #e2e8f0;
+  border-radius: 0.55rem 0.55rem 0.85rem 0.85rem;
+  box-shadow: 0 8px 0 color-mix(in srgb, var(--pg-c) 22%, #cbd5e1);
+  padding: 1.45rem 0.85rem 1rem;
+  min-height: 9rem;
+  gap: 0.4rem;
+  overflow: hidden;
+}
+
+.kr-shell[data-card-template="playground"] .kiosk-person-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 0.55rem;
+  pointer-events: none;
+  background: linear-gradient(90deg, var(--pg-a) 0 33%, var(--pg-b) 33% 66%, var(--pg-c) 66% 100%);
+}
+
+.kr-shell[data-card-template="playground"] .kiosk-person-card::after {
+  content: "";
+  position: absolute;
+  top: 0.75rem;
+  right: 0.65rem;
+  width: 0.65rem;
+  height: 0.65rem;
+  background: var(--pg-b);
+  border-radius: 0.12rem;
+  transform: rotate(8deg);
+  box-shadow:
+    -0.55rem 0.35rem 0 var(--pg-a),
+    0.35rem 0.55rem 0 var(--pg-c);
+  pointer-events: none;
+}
+
+.kr-shell[data-card-template="playground"] .kiosk-person-name {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #312e81;
+}
+
+.kr-shell[data-card-template="playground"] .kiosk-person-sub {
+  font-size: 0.8rem;
+  font-weight: 650;
+  color: #4338ca;
+}
+
+/* —— Active —— */
+.kr-shell[data-card-template="active"] .kiosk-people-grid {
+  max-width: 56rem;
+  margin-inline: auto;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 205px), 1fr));
+  gap: 1rem;
+}
+
+.kr-shell[data-card-template="active"] .kiosk-person-card {
+  --act-accent: color-mix(in srgb, var(--kr-accent, #dc2626) 82%, #0f172a);
+  position: relative;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.45rem;
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.1);
+  padding: 1.15rem 0.95rem 1rem;
+  min-height: 8.25rem;
+  gap: 0.45rem;
+  overflow: hidden;
+}
+
+.kr-shell[data-card-template="active"] .kiosk-person-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--act-accent), color-mix(in srgb, var(--act-accent) 45%, #f97316));
+  pointer-events: none;
+}
+
+.kr-shell[data-card-template="active"] .kiosk-person-card::after {
+  content: "";
+  position: absolute;
+  top: -15%;
+  right: 6%;
+  width: 38%;
+  height: 130%;
+  background: color-mix(in srgb, var(--act-accent) 10%, transparent);
+  transform: skewX(-16deg);
+  pointer-events: none;
+}
+
+.kr-shell[data-card-template="active"] .kiosk-person-name {
+  position: relative;
+  z-index: 1;
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: #0f172a;
+}
+
+.kr-shell[data-card-template="active"] .kiosk-person-sub {
+  position: relative;
+  z-index: 1;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #475569;
+  letter-spacing: 0.04em;
+}
+
+/* —— Pass —— */
+.kr-shell[data-card-template="pass"] .kiosk-people-grid {
+  max-width: 54rem;
+  margin-inline: auto;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 215px), 1fr));
+  gap: 0.95rem;
+}
+
+.kr-shell[data-card-template="pass"] .kiosk-person-card {
+  --pass-accent: color-mix(in srgb, var(--kr-accent, #0284c7) 80%, #0ea5e9);
+  display: grid;
+  grid-template-columns: 2.75rem 1fr;
+  align-items: stretch;
+  gap: 0 0.75rem;
+  text-align: left;
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.55rem;
+  box-shadow: 0 12px 26px rgba(15, 23, 42, 0.1);
+  padding: 0.85rem 0.85rem 0.85rem 0;
+  min-height: 8.5rem;
+  overflow: hidden;
+}
+
+.kr-shell[data-card-template="pass"] .kiosk-person-card::before {
+  content: "";
+  grid-row: 1 / span 4;
+  align-self: stretch;
+  background:
+    repeating-linear-gradient(
+      180deg,
+      #0f172a 0,
+      #0f172a 2px,
+      transparent 2px,
+      transparent 5px
+    ),
+    linear-gradient(180deg, color-mix(in srgb, var(--pass-accent) 14%, #f8fafc), #fff);
+  border-right: 1px dashed color-mix(in srgb, var(--pass-accent) 35%, #cbd5e1);
+  border-radius: 0.55rem 0 0 0.55rem;
+  pointer-events: none;
+}
+
+.kr-shell[data-card-template="pass"] .kiosk-person-avatar {
+  display: grid;
+  grid-column: 2;
+  width: 2rem;
+  height: 2rem;
+  font-size: 0.8rem;
+}
+
+.kr-shell[data-card-template="pass"] .kiosk-person-content {
+  grid-column: 2;
+  align-items: flex-start;
+}
+
+.kr-shell[data-card-template="pass"] .kiosk-person-name {
+  font-size: 1rem;
+  font-weight: 750;
+  color: #0f172a;
+  letter-spacing: -0.01em;
+}
+
+.kr-shell[data-card-template="pass"] .kiosk-person-sub {
+  font-size: 0.76rem;
+  font-weight: 650;
+  color: var(--pass-accent);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+/* —— Victory —— */
+.kr-shell[data-card-template="victory"] .kiosk-people-grid {
+  max-width: 56rem;
+  margin-inline: auto;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
+  gap: 1.05rem;
+}
+
+.kr-shell[data-card-template="victory"] .kiosk-person-card {
+  --vic-accent: color-mix(in srgb, var(--kr-accent, #ca8a04) 78%, #f59e0b);
+  position: relative;
+  background: linear-gradient(180deg, #fff 0%, #fffbeb 100%);
+  border: 2px solid color-mix(in srgb, var(--vic-accent) 32%, #fde68a);
+  border-radius: 1rem;
+  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.1);
+  padding: 1.25rem 0.95rem 1.05rem;
+  min-height: 8.75rem;
+  gap: 0.45rem;
+  overflow: hidden;
+}
+
+.kr-shell[data-card-template="victory"] .kiosk-person-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 12% 18%, color-mix(in srgb, var(--vic-accent) 35%, transparent) 0 0.12rem, transparent 0.14rem),
+    radial-gradient(circle at 88% 22%, color-mix(in srgb, #f97316 28%, transparent) 0 0.1rem, transparent 0.12rem),
+    radial-gradient(circle at 78% 82%, color-mix(in srgb, var(--vic-accent) 25%, transparent) 0 0.11rem, transparent 0.13rem);
+}
+
+.kr-shell[data-card-template="victory"] .kiosk-person-card::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--vic-accent), color-mix(in srgb, var(--vic-accent) 50%, #fbbf24));
+  pointer-events: none;
+}
+
+.kr-shell[data-card-template="victory"] .kiosk-person-name {
+  position: relative;
+  z-index: 1;
+  font-size: 1.08rem;
+  font-weight: 800;
+  color: #78350f;
+}
+
+.kr-shell[data-card-template="victory"] .kiosk-person-sub {
+  position: relative;
+  z-index: 1;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #92400e;
+}
+
+/* —— Bare —— */
+.kr-shell[data-card-template="bare"] .kiosk-people-grid {
+  max-width: 52rem;
+  margin-inline: auto;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
+  gap: 0.65rem;
+}
+
+.kr-shell[data-card-template="bare"] .kiosk-person-card {
+  --bare-accent: color-mix(in srgb, var(--kr-accent, #475569) 70%, #64748b);
+  position: relative;
+  background: color-mix(in srgb, #ffffff 88%, transparent);
+  border: 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--bare-accent) 35%, #cbd5e1);
+  border-radius: 0;
+  box-shadow: none;
+  padding: 1.05rem 0.35rem 0.95rem;
+  min-height: 6.5rem;
+  gap: 0.3rem;
+}
+
+.kr-shell[data-card-template="bare"] .kiosk-person-card::before {
+  content: "";
+  position: absolute;
+  top: 0.55rem;
+  left: 0;
+  width: 1.75rem;
+  height: 1px;
+  background: var(--bare-accent);
+  pointer-events: none;
+}
+
+.kr-shell[data-card-template="bare"] .kiosk-person-avatar {
+  display: none;
+}
+
+.kr-shell[data-card-template="bare"] .kiosk-person-name {
+  font-size: 1.15rem;
+  font-weight: 650;
+  letter-spacing: -0.025em;
+  color: #0f172a;
+}
+
+.kr-shell[data-card-template="bare"] .kiosk-person-sub {
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: #64748b;
+}
+
+.kr-shell[data-card-template="bare"] .kiosk-person-card:hover,
+.kr-shell[data-card-template="bare"] .kiosk-person-card:focus-visible {
+  background: color-mix(in srgb, var(--bare-accent) 6%, #ffffff);
+  border-bottom-color: var(--bare-accent);
+  outline: none;
+}
+
+.kr-shell[data-card-template="pure"] .kiosk-person-card:hover,
+.kr-shell[data-card-template="pure"] .kiosk-person-card:focus-visible,
+.kr-shell[data-card-template="executive"] .kiosk-person-card:hover,
+.kr-shell[data-card-template="executive"] .kiosk-person-card:focus-visible,
+.kr-shell[data-card-template="welcome"] .kiosk-person-card:hover,
+.kr-shell[data-card-template="welcome"] .kiosk-person-card:focus-visible,
+.kr-shell[data-card-template="playground"] .kiosk-person-card:hover,
+.kr-shell[data-card-template="playground"] .kiosk-person-card:focus-visible,
+.kr-shell[data-card-template="active"] .kiosk-person-card:hover,
+.kr-shell[data-card-template="active"] .kiosk-person-card:focus-visible,
+.kr-shell[data-card-template="pass"] .kiosk-person-card:hover,
+.kr-shell[data-card-template="pass"] .kiosk-person-card:focus-visible,
+.kr-shell[data-card-template="victory"] .kiosk-person-card:hover,
+.kr-shell[data-card-template="victory"] .kiosk-person-card:focus-visible {
+  transform: translateY(-1px);
+  outline: none;
+}
+
+.kr-shell[data-card-template="playground"] .kiosk-person-card:active {
+  transform: translateY(2px);
+  box-shadow: 0 4px 0 color-mix(in srgb, var(--pg-c) 22%, #cbd5e1);
+}

@@ -1,15 +1,18 @@
 import KioskFooter from "./KioskFooter.jsx";
 import KioskHeader from "./KioskHeader.jsx";
 import KioskMain from "./KioskMain.jsx";
-import {
-  inputTemplateAccent,
-  resolveInputTemplate,
-} from "./inputTemplates.js";
+import { resolveInputTemplate } from "./inputTemplates.js";
+import { resolveCardTemplate } from "./cardTemplates.js";
+import { flowTemplateAccent, resolveFlowTemplate } from "./flowTemplate.js";
 import { resolveKioskMediaUrl } from "./kioskMedia.js";
 import "./kioskFonts.css";
 import "./kioskRenderer.css";
 import "./kioskPresets.css";
 import "./inputTemplates.css";
+import "./kioskFlowStages.css";
+import "./cardTemplates.css";
+import "./templateFamiliesCard.css";
+import "./templateFamiliesInput.css";
 
 /**
  * Shared visual kiosk renderer.
@@ -20,12 +23,14 @@ import "./inputTemplates.css";
  *
  * Header, Main, and Footer always render. Content may be empty.
  *
- * Component accent (--kr-accent) comes from the Input template (or default),
+ * Component accent (--kr-accent) comes from the active flow template
+ * (Card template on card kiosks, Input template on input kiosks),
  * never from Header background — sections own their colors independently.
  */
 export default function KioskRenderer({
   design,
   mode = "live",
+  kioskBehavior,
   showExit = false,
   onExit,
   children,
@@ -35,7 +40,10 @@ export default function KioskRenderer({
 
   const layout = config.main?.layout_preset || "centered";
   const inputTemplate = resolveInputTemplate(config.main || {});
-  const accent = inputTemplateAccent(inputTemplate);
+  const cardTemplate = resolveCardTemplate(config.main || {});
+  const kioskMode = kioskBehavior?.mode || "card";
+  const flowTemplate = resolveFlowTemplate(config.main || {}, kioskMode);
+  const accent = flowTemplateAccent(flowTemplate);
   const allowBlob = mode === "editor";
   const headerLogoUrl = resolveKioskMediaUrl(design.header_logo_url, { allowBlob });
   const footerLogoUrl = resolveKioskMediaUrl(design.footer_logo_url, { allowBlob });
@@ -47,8 +55,11 @@ export default function KioskRenderer({
     <div
       className="kr-shell"
       data-kr-mode={mode}
+      data-kiosk-behavior={kioskMode}
       data-layout={layout}
       data-input-template={inputTemplate}
+      data-card-template={cardTemplate}
+      data-flow-template={flowTemplate}
       data-button={config.main?.button_preset || "rounded"}
       data-input={config.main?.input_preset || "outlined"}
       data-card={config.main?.card_preset || "elevated"}

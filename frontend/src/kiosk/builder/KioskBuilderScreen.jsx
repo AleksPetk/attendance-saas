@@ -1,15 +1,13 @@
-import { Component, useCallback, useEffect, useRef, useState } from "react";
+import { Component, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../../api.js";
 import { LoadingState } from "../../components.jsx";
+import CardTemplatePicker from "./CardTemplatePicker.jsx";
 import ColorField from "./ColorField.jsx";
 import FloatingEditorWindow from "./FloatingEditorWindow.jsx";
 import GradientField from "./GradientField.jsx";
 import InputTemplatePicker from "./InputTemplatePicker.jsx";
 import KioskBuilderPreview from "./KioskBuilderPreview.jsx";
-import PresetPicker, {
-  CARD_OPTIONS,
-  LAYOUT_OPTIONS,
-} from "./PresetPicker.jsx";
+import { kioskEditorSections } from "./kioskEditorSections.js";
 import TextStyleEditor from "./TextStyleEditor.jsx";
 import { EMPTY_MEDIA, useEditorHistory } from "./useEditorHistory.js";
 import {
@@ -26,6 +24,10 @@ import {
   validateWorkingConfig,
 } from "./builderUtils.js";
 import { resolveKioskMediaUrl } from "../kioskMedia.js";
+import {
+  patchMainWithCardTemplate,
+  resolveCardTemplate,
+} from "../cardTemplates.js";
 import {
   patchMainWithInputTemplate,
   resolveInputTemplate,
@@ -95,8 +97,17 @@ function BackgroundEditor({ background, modes, onChange, onGestureStart, onGestu
 
 function KioskBuilderEditor({ session, groupId, initial, onNavigate }) {
   const kioskBehavior = initial.kioskBehavior || { mode: "card" };
-  const kioskMode = kioskBehavior.mode === "input" ? "input" : "card";
-  const availableSections = ["header", "main", "footer"];
+  const groupType = initial.groupType === "structured" ? "structured" : "standard";
+  const kioskMode =
+    groupType === "structured"
+      ? "card"
+      : kioskBehavior.mode === "input"
+        ? "input"
+        : "card";
+  const availableSections = useMemo(
+    () => kioskEditorSections({ mode: kioskMode, groupType }),
+    [kioskMode, groupType],
+  );
   const filesRef = useRef(new Map());
   const [savedLogoUrl, setSavedLogoUrl] = useState(
     () => resolveKioskMediaUrl(initial.header_logo_url),
@@ -163,9 +174,9 @@ function KioskBuilderEditor({ session, groupId, initial, onNavigate }) {
 
   useEffect(() => {
     if (!availableSections.includes(activeSection)) {
-      setActiveSection("main");
+      setActiveSection("header");
     }
-  }, [activeSection]);
+  }, [activeSection, availableSections]);
 
   const rememberFile = useCallback((file) => {
     const key = `${file.name}-${file.size}-${Date.now()}`;
@@ -737,62 +748,54 @@ function KioskBuilderEditor({ session, groupId, initial, onNavigate }) {
                     onGestureStart={beginGesture}
                     onGestureEnd={endGesture}
                   />
-                  {kioskMode === "input" ? (
-                    <InputTemplatePicker
-                      value={resolveInputTemplate(main)}
-                      onChange={(id) =>
-                        apply((next) => {
-                          next.config.main = patchMainWithInputTemplate(next.config.main, id);
-                        })
-                      }
-                    />
-                  ) : null}
-                  {kioskMode === "card" ? (
-                    <>
-                      <EditorGroup title="Test participants">
-                        <p className="kb-hint">
-                          Fake participants used only in the editor. Not saved.
-                        </p>
-                        <div
-                          className="kb-chip-row"
-                          role="group"
-                          aria-label="Fake participant count"
+                </section>
+              ) : null}
+
+              {activeSection === "cards" ? (
+                <section className="kb-panel">
+                  <EditorGroup title="Test participants">
+                    <p className="kb-hint">
+                      Fake participants used only in the editor. Not saved.
+                    </p>
+                    <div
+                      className="kb-chip-row"
+                      role="group"
+                      aria-label="Fake participant count"
+                    >
+                      {FAKE_PARTICIPANT_COUNTS.map((count) => (
+                        <button
+                          key={count}
+                          type="button"
+                          className={`kb-chip ${fakeParticipantCount === count ? "active" : ""}`}
+                          aria-pressed={fakeParticipantCount === count}
+                          onClick={() => setFakeParticipantCount(count)}
                         >
-                          {FAKE_PARTICIPANT_COUNTS.map((count) => (
-                            <button
-                              key={count}
-                              type="button"
-                              className={`kb-chip ${fakeParticipantCount === count ? "active" : ""}`}
-                              aria-pressed={fakeParticipantCount === count}
-                              onClick={() => setFakeParticipantCount(count)}
-                            >
-                              {count}
-                            </button>
-                          ))}
-                        </div>
-                      </EditorGroup>
-                      <PresetPicker
-                        label="Layout"
-                        value={main.layout_preset}
-                        options={LAYOUT_OPTIONS}
-                        onChange={(id) =>
-                          apply((next) => {
-                            next.config.main.layout_preset = id;
-                          })
-                        }
-                      />
-                      <PresetPicker
-                        label="Card style"
-                        value={main.card_preset}
-                        options={CARD_OPTIONS}
-                        onChange={(id) =>
-                          apply((next) => {
-                            next.config.main.card_preset = id;
-                          })
-                        }
-                      />
-                    </>
-                  ) : null}
+                          {count}
+                        </button>
+                      ))}
+                    </div>
+                  </EditorGroup>
+                  <CardTemplatePicker
+                    value={resolveCardTemplate(main)}
+                    onChange={(id) =>
+                      apply((next) => {
+                        next.config.main = patchMainWithCardTemplate(next.config.main, id);
+                      })
+                    }
+                  />
+                </section>
+              ) : null}
+
+              {activeSection === "input" ? (
+                <section className="kb-panel">
+                  <InputTemplatePicker
+                    value={resolveInputTemplate(main)}
+                    onChange={(id) =>
+                      apply((next) => {
+                        next.config.main = patchMainWithInputTemplate(next.config.main, id);
+                      })
+                    }
+                  />
                 </section>
               ) : null}
 
@@ -997,8 +1000,14 @@ export default function KioskBuilderScreen({ session, groupId, onNavigate }) {
           footer_logo_url: resolveKioskMediaUrl(data.footer_logo_url),
           main_background_image_url: resolveKioskMediaUrl(data.main_background_image_url),
           groupName: groupResult.data?.name || "Group",
+          groupType: groupResult.data?.group_type === "structured" ? "structured" : "standard",
           kioskBehavior: {
-            mode: settings.mode === "input" ? "input" : "card",
+            mode:
+              groupResult.data?.group_type === "structured"
+                ? "card"
+                : settings.mode === "input"
+                  ? "input"
+                  : "card",
             use_pin: Boolean(settings.use_pin),
             input_field_count: settings.input_field_count || 1,
             input_second_field: settings.input_second_field || null,

@@ -223,3 +223,28 @@ class MicrosoftProvider(EmailSenderProvider):
                 diagnostic_summary,
             )
             raise EmailSenderProviderError(public, diagnostic=exc.diagnostic) from None
+
+    def send_messages_batch(self, sender, *, messages):
+        self.validate_configuration(sender)
+        microsoft_email = (sender.from_email or "").strip().lower()
+        host = resolve_microsoft_smtp_host(microsoft_email)
+        password = sender.get_smtp_password()
+        results = transport.send_smtp_messages_batch(
+            host=host,
+            port=MICROSOFT_SMTP_PORT,
+            security=MICROSOFT_SMTP_SECURITY,
+            username=microsoft_email,
+            password=password,
+            from_email=microsoft_email,
+            from_name=sender.from_name,
+            messages=messages,
+            group_id=sender.group_id,
+        )
+        for item in results:
+            if not item["ok"] and item["error"] is not None:
+                exc = item["error"]
+                public = _map_microsoft_public_error(exc.public_message, exc.diagnostic)
+                item["error"] = EmailSenderProviderError(
+                    public, diagnostic=exc.diagnostic
+                )
+        return results

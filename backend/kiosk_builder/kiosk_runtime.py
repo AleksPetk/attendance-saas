@@ -70,6 +70,17 @@ def kiosk_settings_payload(group: Group, settings: KioskSettings):
     return payload
 
 
+def membership_kiosk_photo_url(*, request, membership, absolute_file_url):
+    """Effective Member photo for kiosk cards (override, then Member profile)."""
+    if membership.has_override_photo:
+        url = absolute_file_url(request, membership.override_photo)
+        if url:
+            return url
+    if membership.member.has_photo:
+        return absolute_file_url(request, membership.member.photo)
+    return None
+
+
 def participant_card_payload(*, request, settings, membership=None, participant=None, absolute_file_url):
     if membership:
         code = membership.group_participant_code
@@ -83,6 +94,11 @@ def participant_card_payload(*, request, settings, membership=None, participant=
             "email": membership_participation_email(membership)
             if settings.card_show_email
             else None,
+            "photo_url": membership_kiosk_photo_url(
+                request=request,
+                membership=membership,
+                absolute_file_url=absolute_file_url,
+            ),
             "requires_pin": settings.use_pin,
         }
     code = participant.group_participant_code
@@ -93,6 +109,7 @@ def participant_card_payload(*, request, settings, membership=None, participant=
         "name": participant.name if settings.card_show_name else None,
         "participant_code": code if settings.card_show_participant_code else None,
         "email": participant.email if settings.card_show_email else None,
+        "photo_url": None,
         "requires_pin": settings.use_pin,
     }
 

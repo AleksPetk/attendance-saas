@@ -585,7 +585,7 @@ Only log decisions supported by approved product planning. Do not invent decisio
 | **Reason** | Separates platform auth mail from customer attendance mail, makes sender readiness explicit, protects working senders from unverified drafts, and keeps attendance history independent of SMTP reliability. |
 | **Status** | confirmed |
 | **Clarifies** | DEC-021, DEC-042, DEC-055, DEC-056 |
-| **Clarified by** | [DEC-060](#dec-060--group-gmail-app-password-email-sender), [DEC-061](#dec-061--group-outlook--microsoft-365-smtp-email-sender), [DEC-062](#dec-062--group-yahoo-mail-app-password-email-sender) |
+| **Clarified by** | [DEC-060](#dec-060--group-gmail-app-password-email-sender), [DEC-061](#dec-061--group-outlook--microsoft-365-smtp-email-sender), [DEC-062](#dec-062--group-yahoo-mail-app-password-email-sender), [DEC-068](#dec-068--group-forward-emails) |
 
 ### DEC-060 — Group Gmail App Password email sender
 
@@ -669,6 +669,27 @@ Only log decisions supported by approved product planning. Do not invent decisio
 | **Status** | confirmed |
 | **Clarifies** | DEC-065 |
 
+### DEC-068 — Group Forward Emails
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-08-24 |
+| **Decision** | Groups may configure up to **3** optional **Forward Emails** under Advanced. These are Group configuration recipients (not Email Sender credentials). When after-action email runs for an enabled action, all configured participation emails remain `recipient_kind=participant`; each configured forward address also receives the **same** message (same sender/provider/From/subject/body) as a **separate** delivery so addresses stay private. Duplicates (including overlap with participation addresses) are normalized to a unique recipient set. Forwarding does not bypass Require email, does not allow forward-only sends without a participation email, does not invalidate sender Ready state, and applies to Standard and Structured Groups at the parent Group (not per Class). Each delivery is audited on `GroupEmailDelivery` with `recipient_kind` (`participant` \| `forward` \| `test`). Forwarding failures never roll back ActionRecords. |
+| **Reason** | Lets offices/teachers receive attendance copies without exposing recipients to parents/participants or changing provider setup. |
+| **Status** | confirmed |
+| **Clarifies** | DEC-059 |
+| **Clarified by** | [DEC-069](#dec-069--multiple-participation-emails) |
+
+### DEC-069 — Multiple participation emails
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-08-24 |
+| **Decision** | Each Group/Class participation (`GroupMembership` / `GroupOnlyParticipant`) may store up to **3** notification emails in canonical JSON `participation_emails`. Legacy scalars (`participation_email` / visitor `email`) mirror the first address for compatibility. Member profile email remains separate and may prefill participation email #1 on add only; edits never write back to Member profile. When Group Require email is ON, at least one participation email is required. After-action delivery sends the same message to all configured participation emails plus Group Forward Emails, as separate private deliveries with global dedupe. All participation deliveries use `recipient_kind=participant`. Standard Group → Class snapshot import copies the full participation email list. Applies equally inside Structured Classes; parent Group Require email remains authoritative. |
+| **Reason** | Guardians (mother/father/other) often need the same attendance notification without sharing a mailbox or exposing addresses to each other. |
+| **Status** | confirmed |
+| **Clarifies** | DEC-053, DEC-059, DEC-068 |
+
 ---
 
 ## Open Decisions
@@ -681,7 +702,7 @@ Unresolved questions requiring explicit approval before implementation.
 | OPEN-003 | Configurable field types and MVP scope | Which field types and how many per Group |
 | OPEN-004 | Kiosk security and session model | Device credentials remain open. Group-owned **kiosk exit code** (hashed, 4–10 alphanumeric) replaces owner-password exit for real launch (DEC-057). Interim app-session kiosk lock remains until device credentials are designed. |
 | OPEN-005 | Organization role capability matrix | Role names remain owner (paying User), admin/staff (WorkspaceStaffAccount); exact capabilities and permission differences per role undecided |
-| OPEN-006 | Notification engine architecture | Group after-action senders implemented for Custom SMTP, Gmail App Password, Outlook/Microsoft 365 SMTP, and Yahoo Mail App Password (DEC-059–062). Broader templates/triggers/recipients/channels and Gmail/Microsoft/Yahoo OAuth remain open. No further dedicated MVP mailbox providers planned. |
+| OPEN-006 | Notification engine architecture | Group after-action senders implemented for Custom SMTP, Gmail App Password, Outlook/Microsoft 365 SMTP, and Yahoo Mail App Password (DEC-059–062). Multiple participation emails (max 3) confirmed in DEC-069. Group Forward Emails (max 3 private copies) confirmed in DEC-068. Broader templates/triggers/channels and Gmail/Microsoft/Yahoo OAuth remain open. No further dedicated MVP mailbox providers planned. |
 | OPEN-007 | Plan names, pricing, and exact limits | Basic/Pro/Business and all quota numbers. Plans may later limit persistent Groups and Events on different axes (DEC-045); do not decide numbers yet. Independent workspace-level kiosk-definition counts are not the product model (DEC-044). |
 | OPEN-008 | Free trial behavior | Workspace may begin trial/unsubscribed (DEC-035). Duration (~7 days is direction only), feature access during trial, and billing state machine remain open |
 | OPEN-009 | Historical record retention policy | Archival, deletion, and compliance requirements. Event Entries may exist without Members while Action Records remain (DEC-045); how those records survive Event archival vs deletion (DEC-023) is part of this design. |

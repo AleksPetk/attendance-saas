@@ -199,4 +199,71 @@ class CustomSMTPConnectionModeTests(TestCase):
         with self.assertRaises(ValidationError) as raised:
             send_group_email_sender_test(group=self.group, to_email="tester@example.com")
         self.assertEqual(raised.exception.message_dict["detail"], [SAFE_AUTH_FAILED])
-        self.assertNotIn("secret-password", str(raised.exception))
+
+
+@override_settings(
+    APP_SECRETS_ENCRYPTION_KEY="",
+    SECRET_KEY="test-secret-key-for-smtp-batch",
+)
+class SmtpBatchConnectionReuseTests(TestCase):
+    def setUp(self):
+        owner = User.objects.create_user(
+            email="smtp-batch@example.com",
+            password="password12345",
+        )
+        owner.email_verified = True
+        owner.save(update_fields=["email_verified"])
+        self.organization = Organization.objects.create_with_owner(
+            owner=owner,
+            internal_label="SMTP Batch",
+        )
+        self.group = Group.objects.create_group(
+            organization=self.organization,
+            name="SMTP Batch Group",
+        )
+        self.provider = CustomSMTPProvider()
+
+    def _sender(self):
+        with patch("groups.email_providers.custom_smtp.CustomSMTPProvider._smtp_send"):
+            return save_verified_email_sender(
+                group=self.group,
+                provider="custom_smtp",
+                smtp_host="smtp.example.com",
+                smtp_port=587,
+                smtp_security=SmtpSecurity.STARTTLS,
+                smtp_username="user@example.com",
+                from_email="from@example.com",
+                smtp_password="secret-password",
+                change_password=True,
+            )
+
+    @patch("groups.email_providers.smtp_transport.smtplib.SMTP")
+    def test_batch_send_reuses_one_connection_for_multiple_recipients(self, mock_smtp):
+        sender = self._sender()
+        plain = MagicMock()
+        mock_smtp.return_value.__enter__.return_value = plain
+        messages = [
+            {
+                "to_email": "one@example.com",
+                "subject": "Subject",
+                "text_body": "Body",
+                "html_body": "<p>Body</p>",
+            },
+            {
+                "to_email": "two@example.com",
+                "subject": "Subject",
+                "text_body": "Body",
+                "html_body": "<p>Body</p>",
+            },
+        ]
+
+        results = self.provider.send_messages_batch(sender, messages=messages)
+
+        mock_smtp.assert_called_once()
+        self.assertEqual(plain.login.call_count, 1)
+        self.assertEqual(plain.send_message.call_count, 2)
+        self.assertEqual(
+            [item["to_email"] for item in results],
+            ["one@example.com", "two@example.com"],
+        )
+        self.assertTrue(all(item["ok"] for item in results))

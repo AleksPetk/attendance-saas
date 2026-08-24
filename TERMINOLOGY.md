@@ -106,7 +106,7 @@ Group-specific overrides belong to **Group Membership**, not to the canonical Me
 
 ### Group **(confirmed)**
 
-A **long-lived, reusable** Organization-defined **participation and activity configuration**, not merely a folder of people, and not a temporary Event. Basic settings: name, check-in, check-out, breaks, maximum breaks (1–3 when enabled), Group participation email/PIN requirements, relevant after-action behavior, and Advanced (Group outgoing email sender). Visible **Group #ID** uses the Django Group PK. Every Group automatically has kiosk capability and its own kiosk design foundation. **Setup incomplete** is an active derived state when participation requirements are unsatisfied. **Archive** hides a Group from normal use while retaining configuration, memberships, and kiosk design. **Restore** reactivates the same Group. **Permanent delete** is archive-only and preserves ActionRecord snapshots.
+A **long-lived, reusable** Organization-defined **participation and activity configuration**, not merely a folder of people, and not a temporary Event. Basic settings: name, check-in, check-out, breaks, maximum breaks (1–3 when enabled), Group participation email/PIN requirements, relevant after-action behavior, and Advanced (Group outgoing email sender and optional Forward Emails). Visible **Group #ID** uses the Django Group PK. Every Group automatically has kiosk capability and its own kiosk design foundation. **Setup incomplete** is an active derived state when participation requirements are unsatisfied. **Archive** hides a Group from normal use while retaining configuration, memberships, and kiosk design. **Restore** reactivates the same Group. **Permanent delete** is archive-only and preserves ActionRecord snapshots.
 
 **Group types:** **Standard Group** (participants belong directly to the Group) and **Structured Group** (participants belong to Classes inside the Group). Type is immutable after creation.
 
@@ -144,11 +144,11 @@ Visual appearance of a Group-owned kiosk (colors, typography, images, section st
 
 ### Group Membership **(confirmed)**
 
-The relationship attaching a Member to a Group. Holds Group participant code, Group participation email, Group participation PIN, and optional legacy overrides. Member profile values are separate; Member email may prefill participation email on add only.
+The relationship attaching a Member to a Group. Holds Group participant code, Group participation emails (up to 3 notification addresses), Group participation PIN, and optional legacy overrides. Member profile values are separate; Member email may prefill participation email #1 on add only.
 
 Architecture entity name: **GroupMembership**. See [ARCHITECTURE.md](./ARCHITECTURE.md).
 
-**Example:** Canonical email `abc@gmail.com` vs Employee Group email `john@company.com`.
+**Example:** Canonical Member profile email `abc@gmail.com` vs Group participation emails `mother@example.com`, `father@example.com`.
 
 ### Group-only Participant **(confirmed)**
 
@@ -254,7 +254,15 @@ A configured trigger or **predefined outcome** after an Action (for example succ
 
 **Platform account email** (verification, password reset) uses the platform Resend path and must work without customer DNS.
 
-**Group after-action attendance email** uses the Group’s configured **email sender** (Custom SMTP, Gmail App Password, Outlook / Microsoft 365 SMTP, or Yahoo Mail App Password). Sender must be verified (Ready) before after-action emails can be enabled. Recipient is the Group participation email. Attendance success does not depend on email delivery success. Broader notification-engine features (extra recipients, non-email channels, OAuth providers) remain undesigned.
+**Group after-action attendance email** uses the Group’s configured **email sender** (Custom SMTP, Gmail App Password, Outlook / Microsoft 365 SMTP, or Yahoo Mail App Password). Sender must be verified (Ready) before after-action emails can be enabled. Recipients are all configured **participation emails** on that participation (up to 3), plus optional **Forward Emails** (max 3 Group-level addresses). Each address receives a private copy via a separate delivery; duplicates across participant and forward lists are sent once. Forward Emails do not replace participation recipients and are not configured per Class. Attendance success does not depend on email delivery success. Broader notification-engine features (non-email channels, OAuth providers, arbitrary scripting) remain undesigned.
+
+### Participation emails **(confirmed)**
+
+Up to **3** notification addresses stored on each Group/Class participation (`GroupMembership.participation_emails` / `GroupOnlyParticipant.participation_emails`). Independent of Member profile email. When Group Require email is ON, at least one is required. All configured addresses receive after-action messages. Legacy scalar `participation_email` / visitor `email` mirror the first address.
+
+### Forward Emails **(confirmed)**
+
+Optional Group-level forwarding recipients for after-action attendance email copies. Maximum **3** addresses. Belong to Group configuration (Advanced), not to `GroupEmailSender` credentials. Same sender/provider/subject/body as the participant message. Separate deliveries keep addresses private from the participant/parent. Changing Forward Emails does not invalidate sender Ready state. Works for Standard and Structured Groups at the parent Group only.
 
 ---
 

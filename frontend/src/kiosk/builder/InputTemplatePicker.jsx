@@ -26,6 +26,7 @@ export default function InputTemplatePicker({ value, onChange }) {
                 className={`kb-template-mini kb-template-mini--${id}`}
                 aria-hidden="true"
               >
+                <span className="kb-template-mini-deco" />
                 <span className="kb-template-mini-field" />
                 <span className="kb-template-mini-btn" />
               </span>

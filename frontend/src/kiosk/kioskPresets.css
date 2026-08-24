@@ -47,7 +47,7 @@
 .kr-shell[data-layout="compact"] .kiosk-people-grid {
   max-width: 42rem;
   margin-inline: auto;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 160px), 1fr));
   gap: 0.75rem;
 }
 
@@ -92,7 +92,7 @@
 }
 
 .kr-shell[data-layout="split"] .kiosk-people-grid {
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
 }
 
 @media (max-width: 800px) {
@@ -131,7 +131,7 @@
 }
 
 .kr-shell[data-layout="large_touch"] .kiosk-people-grid {
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
   gap: 1.25rem;
 }
 
@@ -140,7 +140,7 @@
 }
 
 .kr-shell[data-layout="photo_cards"] .kiosk-people-grid {
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
   gap: 1.15rem;
 }
 

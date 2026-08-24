@@ -4,6 +4,7 @@ import {
   ConfirmDialog,
   ErrorBanner,
   Field,
+  PageHeader,
   PasswordInput,
   SectionCard,
   StatusBadge,
@@ -29,6 +30,7 @@ const EMPTY_GROUP = {
   name: "",
   group_type: "standard",
   require_class_pin: false,
+  forward_emails: [],
   actions: {
     check_in_enabled: true,
     check_out_enabled: false,
@@ -117,6 +119,8 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
   const [senderForm, setSenderForm] = useState({ ...EMPTY_SENDER_FORM });
   const [testEmail, setTestEmail] = useState("");
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [emailSenderOpen, setEmailSenderOpen] = useState(false);
+  const [forwardEmailsOpen, setForwardEmailsOpen] = useState(false);
   const [draftVerified, setDraftVerified] = useState(false);
   const [draftStatus, setDraftStatus] = useState(""); // "" | "error" | "verified"
   const [draftError, setDraftError] = useState("");
@@ -363,6 +367,51 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
     });
   }
 
+  function forwardEmailSlots() {
+    const emails = values.forward_emails || [];
+    return emails.length > 0 ? emails : [""];
+  }
+
+  function setForwardEmailSlots(nextSlots) {
+    setValues((current) => ({
+      ...current,
+      forward_emails: nextSlots,
+    }));
+  }
+
+  function updateForwardEmail(index, value) {
+    const slots = [...forwardEmailSlots()];
+    slots[index] = value;
+    setForwardEmailSlots(slots);
+  }
+
+  function addForwardEmail() {
+    const slots = [...forwardEmailSlots()];
+    if (slots.length >= 3) return;
+    slots.push("");
+    setForwardEmailSlots(slots);
+  }
+
+  function removeForwardEmail(index) {
+    const slots = [...forwardEmailSlots()];
+    if (slots.length <= 1) {
+      setForwardEmailSlots([""]);
+      return;
+    }
+    slots.splice(index, 1);
+    setForwardEmailSlots(slots.length ? slots : [""]);
+  }
+
+  const configuredForwardCount = (values.forward_emails || []).filter((email) =>
+    String(email || "").trim()
+  ).length;
+  const forwardEmailSummary =
+    configuredForwardCount === 0
+      ? "None"
+      : `${configuredForwardCount} configured`;
+  const forwardSlots = forwardEmailSlots();
+  const forwardNumbered = forwardSlots.length > 1;
+
   function enableAfterAction(path, checked) {
     if (checked && !senderReady) {
       return;
@@ -585,34 +634,38 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
   const senderDisplay = displayedSenderStatus();
 
   return (
-    <div className="page page-editor">
-      <header className="page-header page-header-stable">
-        <div className="page-header-copy">
-          <div className="editor-title-row">
-            <h2>{isEdit ? "Edit Group" : "Create Group"}</h2>
-            {isEdit ? <span className="entity-kicker">{formatGroupId(groupId)}</span> : null}
-            {isEdit && readiness && !readiness.setup_complete ? (
-              <StatusBadge status="setup_incomplete" />
-            ) : isEdit ? (
-              <StatusBadge status="active" />
-            ) : null}
-          </div>
-        </div>
-        <div className="header-actions header-actions-stable">
-          <button type="button" className="btn-secondary" onClick={handleBack}>
-            Back
-          </button>
-          <button
-            type="submit"
-            form="group-editor-form"
-            className="btn-primary"
-            disabled={isEdit ? !dirty || saving || savedBaseline === null : saving}
-            aria-disabled={isEdit ? !dirty || saving || savedBaseline === null : saving}
-          >
-            {saving ? "Saving…" : isEdit ? "Save Group" : "Create Group"}
-          </button>
-        </div>
-      </header>
+    <div className="page">
+      <PageHeader
+        title={isEdit ? "Edit Group" : "Create Group"}
+        meta={
+          isEdit ? (
+            <>
+              <span className="entity-kicker">{formatGroupId(groupId)}</span>
+              {readiness && !readiness.setup_complete ? (
+                <StatusBadge status="setup_incomplete" />
+              ) : (
+                <StatusBadge status="active" />
+              )}
+            </>
+          ) : null
+        }
+        actions={
+          <>
+            <button type="button" className="btn-secondary" onClick={handleBack}>
+              Back
+            </button>
+            <button
+              type="submit"
+              form="group-editor-form"
+              className="btn-primary"
+              disabled={isEdit ? !dirty || saving || savedBaseline === null : saving}
+              aria-disabled={isEdit ? !dirty || saving || savedBaseline === null : saving}
+            >
+              {saving ? "Saving…" : isEdit ? "Save Group" : "Create Group"}
+            </button>
+          </>
+        }
+      />
 
       {successMessage ? (
         <div className="alert alert-success kiosk-settings-save-notice" role="status">
@@ -848,11 +901,12 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
           <header className="advanced-header">
             <div>
               <h2>Advanced</h2>
-              <p>Outgoing email sender for this Group.</p>
+              <p>Outgoing email settings for this Group.</p>
             </div>
             <button
               type="button"
               className="btn-secondary btn-sm"
+              aria-expanded={advancedOpen}
               onClick={() => setAdvancedOpen((open) => !open)}
             >
               {advancedOpen ? "Hide" : "Show"}
@@ -860,15 +914,32 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
           </header>
           {advancedOpen ? (
             <div className="advanced-body compact">
-              <div className="advanced-block">
-                <header className="advanced-block-header">
-                  <h3>Email sender</h3>
-                  <p>Provider configuration for after-action emails.</p>
-                </header>
-                {!isEdit ? (
-                  <p className="hint">Save the Group first, then configure an email sender here.</p>
-                ) : (
-                  <>
+              <div className={`advanced-subsection${emailSenderOpen ? " is-open" : ""}`}>
+                <button
+                  type="button"
+                  className="advanced-subsection-toggle"
+                  aria-expanded={emailSenderOpen}
+                  onClick={() => setEmailSenderOpen((open) => !open)}
+                >
+                  <span className="advanced-subsection-copy">
+                    <span className="advanced-subsection-title">Email sender</span>
+                    <span className="advanced-subsection-hint">
+                      Provider configuration for after-action emails.
+                    </span>
+                  </span>
+                  <span className="advanced-subsection-meta">
+                    <span className="advanced-subsection-summary">{senderDisplay.label}</span>
+                    <span className="advanced-subsection-action">
+                      {emailSenderOpen ? "Hide" : "Show"}
+                    </span>
+                  </span>
+                </button>
+                {emailSenderOpen ? (
+                  <div className="advanced-subsection-body">
+                    {!isEdit ? (
+                      <p className="hint">Save the Group first, then configure an email sender here.</p>
+                    ) : (
+                      <>
                     <div className="email-sender-status-row">
                       <Field label="Provider">
                         <select
@@ -1302,8 +1373,77 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
                         {savingSender ? "Saving…" : "Save sender"}
                       </button>
                     </div>
-                  </>
-                )}
+                      </>
+                    )}
+                  </div>
+                ) : null}
+              </div>
+
+              <div className={`advanced-subsection${forwardEmailsOpen ? " is-open" : ""}`}>
+                <button
+                  type="button"
+                  className="advanced-subsection-toggle"
+                  aria-expanded={forwardEmailsOpen}
+                  onClick={() => setForwardEmailsOpen((open) => !open)}
+                >
+                  <span className="advanced-subsection-copy">
+                    <span className="advanced-subsection-title">Forward emails</span>
+                    <span className="advanced-subsection-hint">
+                      Send a copy of this Group’s after-action emails to additional addresses.
+                    </span>
+                  </span>
+                  <span className="advanced-subsection-meta">
+                    <span className="advanced-subsection-summary">{forwardEmailSummary}</span>
+                    <span className="advanced-subsection-action">
+                      {forwardEmailsOpen ? "Hide" : "Show"}
+                    </span>
+                  </span>
+                </button>
+                {forwardEmailsOpen ? (
+                  <div className="advanced-subsection-body forward-emails-body">
+                    {forwardSlots.map((email, index) => (
+                      <div key={`forward-email-${index}`} className="forward-email-row">
+                        <Field
+                          label={
+                            forwardNumbered
+                              ? `Forward email ${index + 1}`
+                              : "Forward email"
+                          }
+                        >
+                          <div className="forward-email-input-row">
+                            <input
+                              type="email"
+                              value={email}
+                              onChange={(event) =>
+                                updateForwardEmail(index, event.target.value)
+                              }
+                              placeholder="email@example.com"
+                              autoComplete="off"
+                            />
+                            {forwardNumbered && index > 0 ? (
+                              <button
+                                type="button"
+                                className="btn-text"
+                                onClick={() => removeForwardEmail(index)}
+                              >
+                                Remove
+                              </button>
+                            ) : null}
+                          </div>
+                        </Field>
+                      </div>
+                    ))}
+                    {forwardSlots.length < 3 ? (
+                      <button
+                        type="button"
+                        className="btn-secondary btn-sm"
+                        onClick={addForwardEmail}
+                      >
+                        + Add another email
+                      </button>
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
             </div>
           ) : null}

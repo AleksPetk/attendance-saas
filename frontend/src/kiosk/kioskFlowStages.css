@@ -1,0 +1,269 @@
+/* Flow stage variants — selection vs action/processing/confirmation.
+   Action-stage panels must not inherit input-form decorative blocks (e.g. Polaroid frame). */
+
+.kr-shell[data-flow-template] .kiosk-flow--action::before,
+.kr-shell[data-flow-template] .kiosk-flow--action::after,
+.kr-shell[data-flow-template] .kiosk-flow--pin::before,
+.kr-shell[data-flow-template] .kiosk-flow--pin::after {
+  content: none !important;
+  display: none !important;
+}
+
+.kr-shell[data-flow-template] .kiosk-flow--action,
+.kr-shell[data-flow-template] .kiosk-flow--pin {
+  --kr-tpl-flow-pad: 1.1rem 1rem;
+  --kr-tpl-flow-gap: 0.85rem;
+  max-width: min(var(--kr-tpl-max-w, 28rem), 28rem);
+  position: relative;
+}
+
+.kr-shell[data-flow-template] .kiosk-flow--identify::before,
+.kr-shell[data-flow-template] .kiosk-flow--identify::after {
+  /* Decorative pseudo-elements remain on identify forms only. */
+}
+
+/* Pre-identification generic visual — photo-capable Input families only. */
+.kiosk-identify-generic {
+  display: none;
+  place-items: center;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  pointer-events: none;
+  color: var(--kr-accent, #2563eb);
+}
+
+.kiosk-identify-generic-svg {
+  display: none;
+}
+
+.kr-shell[data-flow-template="polaroid"] .kiosk-flow--identify .kiosk-identify-generic,
+.kr-shell[data-flow-template="id_badge"] .kiosk-flow--identify .kiosk-identify-generic,
+.kr-shell[data-flow-template="kids_bubble"] .kiosk-flow--identify .kiosk-identify-generic {
+  display: grid;
+}
+
+.kr-shell[data-flow-template="polaroid"] .kiosk-flow--identify .kiosk-identify-generic-svg--polaroid,
+.kr-shell[data-flow-template="id_badge"] .kiosk-flow--identify .kiosk-identify-generic-svg--id_badge,
+.kr-shell[data-flow-template="kids_bubble"] .kiosk-flow--identify .kiosk-identify-generic-svg--kids_bubble {
+  display: block;
+}
+
+.kr-shell[data-flow-template="polaroid"] .kiosk-flow--identify .kiosk-identify-generic {
+  max-height: 6.25rem;
+  aspect-ratio: 4 / 3;
+  border-radius: 0.1rem;
+  border: 1px solid #cbd5e1;
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--kr-accent, #2563eb) 16%, #e2e8f0),
+    #f1f5f9
+  );
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35);
+  overflow: hidden;
+}
+
+.kr-shell[data-flow-template="polaroid"] .kiosk-flow--identify .kiosk-identify-generic-svg--polaroid {
+  width: 72%;
+  height: auto;
+  max-height: 5.2rem;
+}
+
+.kr-shell[data-flow-template="id_badge"] .kiosk-flow--identify .kiosk-identify-generic {
+  width: 3.5rem;
+  height: 3.5rem;
+  margin: 0.35rem auto 0.15rem;
+  border-radius: 999px;
+  border: 2px solid color-mix(in srgb, var(--kr-accent, #2563eb) 35%, #e2e8f0);
+  background: color-mix(in srgb, var(--kr-accent, #2563eb) 12%, #e2e8f0);
+}
+
+.kr-shell[data-flow-template="id_badge"] .kiosk-flow--identify .kiosk-identify-generic-svg--id_badge {
+  width: 2.4rem;
+  height: 2.4rem;
+}
+
+.kr-shell[data-flow-template="kids_bubble"] .kiosk-flow--identify .kiosk-identify-generic {
+  width: 3.4rem;
+  height: 3.4rem;
+  margin: 0 auto 0.1rem;
+  border-radius: 999px;
+  border: 3px solid color-mix(in srgb, #67e8f9 50%, #fff);
+  background: color-mix(in srgb, #c084fc 22%, #fff);
+  box-shadow: 0 3px 0 color-mix(in srgb, #f9a8d4 32%, transparent);
+}
+
+.kr-shell[data-flow-template="kids_bubble"] .kiosk-flow--identify .kiosk-identify-generic-svg--kids_bubble {
+  width: 2.4rem;
+  height: 2.4rem;
+}
+
+/* Compact participant summary (Choose Action / Processing) */
+.kiosk-participant-summary {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid color-mix(in srgb, var(--kr-tpl-flow-border, #e2e8f0) 55%, var(--kr-accent, #2563eb));
+  border-radius: calc(var(--kr-tpl-flow-radius, 1rem) * 0.55);
+  background: color-mix(in srgb, var(--kr-tpl-flow-bg, #fff) 92%, var(--kr-accent, #2563eb) 8%);
+  min-width: 0;
+  max-width: 100%;
+}
+
+.kiosk-participant-summary-text {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.kiosk-participant-summary-name {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 700;
+}
+
+.kiosk-participant-summary-status {
+  margin-top: 0.15rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Compact avatar — always visible in flow stages (not gated by selection template CSS) */
+.kr-shell .kiosk-person-avatar--compact {
+  display: grid !important;
+  width: 3rem;
+  height: 3rem;
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+
+.kr-shell .kiosk-participant-summary .kiosk-person-avatar--compact {
+  margin: 0;
+}
+
+/* —— Photo-capable family compact treatments —— */
+
+.kr-shell[data-flow-template="photo"] .kiosk-flow--action {
+  border-radius: 0.85rem;
+}
+
+.kr-shell[data-flow-template="photo"] .kiosk-participant-summary {
+  border-radius: 0.65rem;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
+}
+
+.kr-shell[data-flow-template="photo"] .kiosk-person-avatar--compact {
+  width: 3.25rem;
+  height: 3.25rem;
+  border-radius: 999px;
+}
+
+.kr-shell[data-flow-template="polaroid"] .kiosk-flow--action {
+  --kr-tpl-flow-pad: 0.85rem 0.8rem 1rem;
+  border-radius: 0.2rem;
+}
+
+.kr-shell[data-flow-template="polaroid"] .kiosk-participant-summary {
+  border-radius: 0.15rem;
+  background: #fff;
+  border-color: #cbd5e1;
+}
+
+.kr-shell[data-flow-template="polaroid"] .kiosk-person-avatar--compact {
+  width: 3.15rem;
+  height: 3.15rem;
+  border-radius: 0.1rem;
+  border: 1px solid #cbd5e1;
+}
+
+.kr-shell[data-flow-template="id_badge"] .kiosk-flow--action {
+  --kr-tpl-flow-pad: 1rem 0.95rem 0.95rem;
+  text-align: left;
+}
+
+.kr-shell[data-flow-template="id_badge"] .kiosk-participant-summary {
+  border-radius: 0.45rem;
+  border-width: 2px;
+}
+
+.kr-shell[data-flow-template="id_badge"] .kiosk-person-avatar--compact {
+  width: 3.1rem;
+  height: 3.1rem;
+  border-radius: 999px;
+  border: 2px solid color-mix(in srgb, var(--kr-accent, #2563eb) 35%, #e2e8f0);
+}
+
+.kr-shell[data-flow-template="kids_bubble"] .kiosk-participant-summary {
+  border-radius: 1.2rem 0.9rem 1.1rem 1rem;
+  border-width: 2px;
+  border-color: color-mix(in srgb, #c084fc 40%, #fff);
+}
+
+.kr-shell[data-flow-template="kids_bubble"] .kiosk-person-avatar--compact {
+  width: 3.2rem;
+  height: 3.2rem;
+  border: 3px solid color-mix(in srgb, #67e8f9 45%, #fff);
+}
+
+.kr-shell[data-flow-template="ticket"] .kiosk-participant-summary {
+  border-radius: 0.35rem;
+  border-style: dashed;
+}
+
+.kr-shell[data-flow-template="ticket"] .kiosk-person-avatar--compact {
+  width: 2.85rem;
+  height: 2.85rem;
+  border-radius: 0.35rem;
+}
+
+.kr-shell[data-flow-template="executive"] .kiosk-participant-summary {
+  border-left: 4px solid var(--kr-accent, #2563eb);
+  border-radius: 0.35rem;
+  background: #f8fafc;
+}
+
+.kr-shell[data-flow-template="executive"] .kiosk-person-avatar--compact {
+  width: 2.75rem;
+  height: 2.75rem;
+  font-size: 0.9rem;
+}
+
+.kr-shell[data-flow-template="pass"] .kiosk-participant-summary {
+  border-radius: 0.45rem;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--kr-accent, #0284c7) 10%, #f8fafc),
+    #fff
+  );
+}
+
+.kr-shell[data-flow-template="pass"] .kiosk-person-avatar--compact {
+  width: 2.75rem;
+  height: 2.75rem;
+}
+
+/* Processing compact summary */
+.kiosk-processing--unified .kiosk-participant-summary {
+  margin-bottom: 0.35rem;
+  justify-self: center;
+  width: 100%;
+  max-width: 18rem;
+}
+
+@media (max-width: 640px) {
+  .kr-shell[data-flow-template] .kiosk-flow--action,
+  .kr-shell[data-flow-template] .kiosk-flow--pin {
+    max-width: 100%;
+  }
+
+  .kr-shell .kiosk-person-avatar--compact {
+    width: 2.75rem;
+    height: 2.75rem;
+    font-size: 0.92rem;
+  }
+}

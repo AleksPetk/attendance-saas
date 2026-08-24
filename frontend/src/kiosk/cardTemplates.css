@@ -1,0 +1,1648 @@
+/* Complete Card Templates — shared by editor + live kiosk via data-card-template. */
+
+/* —— Shared containment foundation (all templates inherit; do not disable) —— */
+.kr-shell .kiosk-people-grid {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.kr-shell .kiosk-person-card {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.kr-shell .kiosk-person-content {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.35rem;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.kr-shell .kiosk-person-name {
+  box-sizing: border-box;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  /* Name stays visible; secondary fields truncate first under pressure */
+  flex: 0 1 auto;
+}
+
+.kr-shell .kiosk-person-sub,
+.kr-shell .kiosk-person-code,
+.kr-shell .kiosk-person-email,
+.kr-shell .kiosk-person-meta {
+  box-sizing: border-box;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kr-shell .kiosk-person-email {
+  flex: 0 1 auto;
+  min-height: 0;
+}
+
+.kr-shell .kiosk-person-avatar {
+  display: none;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 999px;
+  overflow: hidden;
+  background: color-mix(
+    in srgb,
+    var(--kr-accent, #2563eb) calc(16% + (var(--avatar-tone-step, 0) * 5%)),
+    #e2e8f0
+  );
+  color: #0f172a;
+  font-weight: 800;
+  font-size: 0.95rem;
+  flex-shrink: 0;
+  --avatar-tone-step: 0;
+}
+
+.kr-shell .kiosk-person-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.kr-shell .kiosk-person-initials {
+  line-height: 1;
+  user-select: none;
+}
+
+/* Structured Class cards — group framing, not person portrait semantics. */
+.kr-shell .kiosk-class-avatar {
+  border-radius: 0.75rem;
+  background: color-mix(in srgb, var(--kr-accent, #2563eb) 20%, #f1f5f9);
+  border: 2px solid color-mix(in srgb, var(--kr-accent, #2563eb) 38%, #cbd5e1);
+  color: #0f172a;
+}
+
+.kr-shell .kiosk-class-avatar-inner {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+}
+
+.kr-shell .kiosk-class-avatar .kiosk-person-initials {
+  font-size: 0.92em;
+  letter-spacing: 0.05em;
+  font-weight: 800;
+}
+
+/* —— Clean —— */
+.kr-shell[data-card-template="clean"] .kiosk-people-grid {
+  max-width: 58rem;
+  margin-inline: auto;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
+  gap: 1rem;
+}
+
+.kr-shell[data-card-template="clean"] .kiosk-person-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.9rem;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+  padding: 1.15rem 1rem;
+  min-height: 9.5rem;
+  gap: 0.55rem;
+}
+
+.kr-shell[data-card-template="clean"] .kiosk-person-name {
+  font-size: 1.12rem;
+  font-weight: 750;
+}
+
+.kr-shell[data-card-template="clean"] .kiosk-person-sub {
+  font-size: 0.88rem;
+  color: #64748b;
+}
+
+/* —— Compact —— */
+.kr-shell[data-card-template="compact"] .kiosk-people-grid {
+  max-width: 44rem;
+  margin-inline: auto;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 148px), 1fr));
+  gap: 0.55rem;
+}
+
+.kr-shell[data-card-template="compact"] .kiosk-person-card {
+  background: #f8fafc;
+  border: 0;
+  border-radius: 0.55rem;
+  box-shadow: none;
+  padding: 0.65rem 0.5rem;
+  min-height: 0;
+  gap: 0.25rem;
+}
+
+.kr-shell[data-card-template="compact"] .kiosk-person-name {
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.kr-shell[data-card-template="compact"] .kiosk-person-sub {
+  font-size: 0.75rem;
+}
+
+/* —— Business —— */
+.kr-shell[data-card-template="business"] .kiosk-people-grid {
+  max-width: 54rem;
+  margin-inline: auto;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  gap: 0.85rem;
+}
+
+.kr-shell[data-card-template="business"] .kiosk-person-card {
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-left: 4px solid var(--kr-accent, #2563eb);
+  border-radius: 0.45rem;
+  box-shadow: none;
+  padding: 0.95rem 1rem;
+  min-height: 7.5rem;
+  text-align: left;
+  justify-items: stretch;
+  gap: 0.35rem;
+}
+
+.kr-shell[data-card-template="business"] .kiosk-person-name {
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.kr-shell[data-card-template="business"] .kiosk-person-sub {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #475569;
+}
+
+/* —— Large Touch —— */
+.kr-shell[data-card-template="large_touch"] .kiosk-people-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  gap: 1.15rem;
+}
+
+.kr-shell[data-card-template="large_touch"] .kiosk-person-card {
+  background: #fff;
+  border: 2px solid #e2e8f0;
+  border-radius: 1.1rem;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.1);
+  padding: 1.45rem 1.1rem;
+  min-height: 7.5rem;
+  gap: 0.65rem;
+}
+
+.kr-shell[data-card-template="large_touch"] .kiosk-person-name {
+  font-size: 1.35rem;
+  font-weight: 800;
+}
+
+.kr-shell[data-card-template="large_touch"] .kiosk-person-sub {
+  font-size: 1.05rem;
+}
+
+@media (max-width: 640px) {
+  .kr-shell[data-card-template="large_touch"] .kiosk-people-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .kr-shell[data-card-template="large_touch"] .kiosk-person-card {
+    min-height: 5.5rem;
+    padding: 1.1rem 0.95rem;
+  }
+}
+
+/* —— Photo —— */
+.kr-shell[data-card-template="photo"] .kiosk-people-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr));
+  gap: 1.1rem;
+}
+
+.kr-shell[data-card-template="photo"] .kiosk-person-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 1rem;
+  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.1);
+  padding: 1.35rem 1rem 1.15rem;
+  min-height: 13.5rem;
+  gap: 0.55rem;
+}
+
+.kr-shell[data-card-template="photo"] .kiosk-person-avatar {
+  display: grid;
+  width: 5.75rem;
+  height: 5.75rem;
+  font-size: 1.55rem;
+  margin-bottom: 0.25rem;
+}
+
+.kr-shell[data-card-template="photo"] .kiosk-person-avatar--fallback {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--kr-accent, #2563eb) 22%, #cbd5e1);
+}
+
+.kr-shell[data-card-template="photo"] .kiosk-class-avatar {
+  border-radius: 1rem;
+}
+
+.kr-shell[data-card-template="photo"] .kiosk-person-content {
+  min-width: 0;
+  width: 100%;
+}
+
+.kr-shell[data-card-template="photo"] .kiosk-person-name {
+  font-size: 1.15rem;
+  font-weight: 800;
+}
+
+/* —— Minimal —— */
+.kr-shell[data-card-template="minimal"] .kiosk-people-grid {
+  max-width: 48rem;
+  margin-inline: auto;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
+  gap: 1.15rem;
+}
+
+.kr-shell[data-card-template="minimal"] .kiosk-person-card {
+  background: color-mix(in srgb, #ffffff 38%, transparent);
+  border: 0;
+  border-bottom: 1px solid color-mix(in srgb, #64748b 42%, transparent);
+  border-radius: 0.55rem;
+  box-shadow: none;
+  padding: 1.05rem 0.85rem 1rem;
+  min-height: 0;
+  gap: 0.4rem;
+  color: #0f172a;
+  transition:
+    background-color 0.15s ease,
+    border-bottom-color 0.15s ease,
+    transform 0.15s ease;
+}
+
+.kr-shell[data-card-template="minimal"] .kiosk-person-card:hover,
+.kr-shell[data-card-template="minimal"] .kiosk-person-card:focus-visible {
+  background: color-mix(in srgb, #ffffff 62%, transparent);
+  border-bottom-color: var(--kr-accent, #2563eb);
+  box-shadow: none;
+  transform: none;
+}
+
+.kr-shell[data-card-template="minimal"] .kiosk-person-card:active {
+  background: color-mix(in srgb, var(--kr-accent, #2563eb) 12%, #ffffff);
+  border-bottom-color: var(--kr-accent, #2563eb);
+}
+
+.kr-shell[data-card-template="minimal"] .kiosk-person-name {
+  font-size: 1.12rem;
+  font-weight: 750;
+  letter-spacing: -0.015em;
+  color: #0f172a;
+}
+
+.kr-shell[data-card-template="minimal"] .kiosk-person-sub {
+  font-size: 0.8rem;
+  font-weight: 550;
+  color: #475569;
+}
+
+/* —— Bold —— */
+.kr-shell[data-card-template="bold"] .kiosk-people-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr));
+  gap: 1rem;
+}
+
+.kr-shell[data-card-template="bold"] .kiosk-person-card {
+  background: #1e293b;
+  border: 1px solid color-mix(in srgb, #94a3b8 28%, transparent);
+  border-left: 4px solid var(--kr-accent, #38bdf8);
+  border-radius: 0.75rem;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.22);
+  padding: 1.2rem 1.05rem;
+  min-height: 8.25rem;
+  color: #e2e8f0;
+  gap: 0.5rem;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.15s ease;
+}
+
+.kr-shell[data-card-template="bold"] .kiosk-person-name {
+  font-size: 1.2rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  text-transform: none;
+  color: #f8fafc;
+}
+
+.kr-shell[data-card-template="bold"] .kiosk-person-sub {
+  color: #cbd5e1;
+  font-weight: 550;
+  font-size: 0.88rem;
+}
+
+.kr-shell[data-card-template="bold"] .kiosk-person-card:hover,
+.kr-shell[data-card-template="bold"] .kiosk-person-card:focus-visible {
+  background: #243447;
+  border-color: color-mix(in srgb, var(--kr-accent, #38bdf8) 55%, #64748b);
+  border-left-color: var(--kr-accent, #38bdf8);
+  box-shadow:
+    0 12px 28px rgba(15, 23, 42, 0.28),
+    0 0 0 2px color-mix(in srgb, var(--kr-accent, #38bdf8) 45%, transparent);
+  transform: translateY(-1px);
+  outline: none;
+}
+
+.kr-shell[data-card-template="bold"] .kiosk-person-card:active {
+  background: #172033;
+  transform: none;
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.24);
+}
+
+/* —— Glass —— */
+.kr-shell[data-card-template="glass"] .kiosk-people-grid {
+  max-width: 56rem;
+  margin-inline: auto;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr));
+  gap: 1rem;
+}
+
+.kr-shell[data-card-template="glass"] .kiosk-person-card {
+  background: rgba(255, 255, 255, 0.55);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  border-radius: 1.15rem;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.12);
+  padding: 1.2rem 1rem;
+  min-height: 9rem;
+  gap: 0.45rem;
+}
+
+.kr-shell[data-card-template="glass"] .kiosk-person-name {
+  font-size: 1.12rem;
+  font-weight: 750;
+  color: #0f172a;
+}
+
+.kr-shell[data-card-template="glass"] .kiosk-person-sub {
+  color: #334155;
+}
+
+/* —— Outline —— */
+.kr-shell[data-card-template="outline"] .kiosk-people-grid {
+  max-width: 56rem;
+  margin-inline: auto;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr));
+  gap: 0.95rem;
+}
+
+.kr-shell[data-card-template="outline"] .kiosk-person-card {
+  background: color-mix(in srgb, #ffffff 72%, transparent);
+  border: 2.5px solid var(--kr-accent, #2563eb);
+  border-radius: 0.85rem;
+  box-shadow: none;
+  padding: 1.1rem 0.95rem;
+  min-height: 8.5rem;
+  gap: 0.45rem;
+  color: #0f172a;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.15s ease;
+}
+
+.kr-shell[data-card-template="outline"] .kiosk-person-name {
+  font-size: 1.12rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.kr-shell[data-card-template="outline"] .kiosk-person-sub {
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: #334155;
+}
+
+.kr-shell[data-card-template="outline"] .kiosk-person-card:hover,
+.kr-shell[data-card-template="outline"] .kiosk-person-card:focus-visible {
+  background: color-mix(in srgb, #ffffff 88%, var(--kr-accent, #2563eb));
+  border-color: color-mix(in srgb, var(--kr-accent, #2563eb) 82%, #0f172a);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--kr-accent, #2563eb) 35%, transparent);
+  transform: none;
+}
+
+.kr-shell[data-card-template="outline"] .kiosk-person-card:active {
+  background: color-mix(in srgb, var(--kr-accent, #2563eb) 16%, #ffffff);
+  border-color: var(--kr-accent, #2563eb);
+}
+
+/* —— Soft —— */
+.kr-shell[data-card-template="soft"] .kiosk-people-grid {
+  max-width: 58rem;
+  margin-inline: auto;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr));
+  gap: 1.25rem;
+}
+
+.kr-shell[data-card-template="soft"] .kiosk-person-card {
+  background: #fff;
+  border: 0;
+  border-radius: 1.6rem;
+  box-shadow: 0 18px 40px rgba(37, 99, 235, 0.12);
+  padding: 1.55rem 1.2rem;
+  min-height: 10.5rem;
+  gap: 0.65rem;
+}
+
+.kr-shell[data-card-template="soft"] .kiosk-person-name {
+  font-size: 1.18rem;
+  font-weight: 750;
+}
+
+.kr-shell[data-card-template="soft"] .kiosk-person-sub {
+  font-size: 0.9rem;
+  color: #64748b;
+}
+
+/* —— Kids Bubble —— */
+.kr-shell[data-card-template="kids_bubble"] .kiosk-people-grid {
+  max-width: 54rem;
+  margin-inline: auto;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
+  gap: 1.15rem;
+}
+
+.kr-shell[data-card-template="kids_bubble"] .kiosk-person-card {
+  --kb-pink: color-mix(in srgb, #f472b6 55%, var(--kr-accent, #2563eb));
+  --kb-cyan: color-mix(in srgb, #22d3ee 50%, var(--kr-accent, #2563eb));
+  --kb-lilac: color-mix(in srgb, #c084fc 55%, var(--kr-accent, #2563eb));
+  position: relative;
+  isolation: isolate;
+  background:
+    radial-gradient(circle at 18% 20%, color-mix(in srgb, var(--kb-pink) 35%, #fff) 0 28%, transparent 32%),
+    radial-gradient(circle at 88% 18%, color-mix(in srgb, var(--kb-cyan) 32%, #fff) 0 24%, transparent 28%),
+    linear-gradient(160deg, #fff 0%, color-mix(in srgb, var(--kb-lilac) 14%, #fff) 100%);
+  border: 2px solid color-mix(in srgb, var(--kb-pink) 35%, #fff);
+  border-radius: 2.4rem 1.6rem 2.2rem 1.8rem / 1.8rem 2.4rem 1.6rem 2.2rem;
+  box-shadow: 0 12px 26px color-mix(in srgb, var(--kb-lilac) 22%, transparent);
+  padding: 1.2rem 1rem 1.1rem;
+  min-height: 10rem;
+  gap: 0.45rem;
+  color: #312e81;
+}
+
+.kr-shell[data-card-template="kids_bubble"] .kiosk-person-card::before,
+.kr-shell[data-card-template="kids_bubble"] .kiosk-person-card::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+  z-index: 0;
+  background-repeat: no-repeat;
+}
+
+.kr-shell[data-card-template="kids_bubble"] .kiosk-person-card::before {
+  inset: 0.35rem;
+  opacity: 0.9;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' fill='none'%3E%3Ccircle cx='14' cy='18' r='3' fill='%23f9a8d4'/%3E%3Ccircle cx='104' cy='28' r='2.4' fill='%2367e8f9'/%3E%3Ccircle cx='22' cy='98' r='2' fill='%23c4b5fd'/%3E%3Cpath d='M96 92l2.1 5.1 5.5.2-4.3 3.4 1.5 5.2-4.8-3.1-4.8 3.1 1.5-5.2-4.3-3.4 5.5-.2z' fill='%23fcd34d'/%3E%3C/svg%3E");
+  background-size: 100% 100%;
+}
+
+.kr-shell[data-card-template="kids_bubble"] .kiosk-person-card::after {
+  width: 0.7rem;
+  height: 0.7rem;
+  right: 1rem;
+  bottom: 1rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--kb-cyan) 70%, #fff);
+  box-shadow:
+    -1.1rem -0.35rem 0 0 color-mix(in srgb, var(--kb-pink) 65%, #fff),
+    0.55rem -0.9rem 0 -0.1rem color-mix(in srgb, var(--kb-lilac) 70%, #fff);
+}
+
+.kr-shell[data-card-template="kids_bubble"] .kiosk-person-avatar,
+.kr-shell[data-card-template="kids_bubble"] .kiosk-person-content {
+  position: relative;
+  z-index: 1;
+}
+
+.kr-shell[data-card-template="kids_bubble"] .kiosk-person-avatar--fallback {
+  border: 3px solid color-mix(in srgb, var(--kb-pink) 50%, #fff);
+  background: color-mix(
+    in srgb,
+    var(--kb-lilac) calc(22% + (var(--avatar-tone-step, 0) * 4%)),
+    #fff
+  );
+}
+
+.kr-shell[data-card-template="kids_bubble"] .kiosk-person-avatar {
+  display: grid;
+  width: 3.4rem;
+  height: 3.4rem;
+  border: 3px solid color-mix(in srgb, var(--kb-cyan) 45%, #fff);
+  background: color-mix(in srgb, var(--kb-lilac) 22%, #fff);
+  font-size: 1.05rem;
+  box-shadow: 0 4px 0 color-mix(in srgb, var(--kb-pink) 28%, transparent);
+}
+
+.kr-shell[data-card-template="polaroid"] .kiosk-class-avatar {
+  border-radius: 0.1rem;
+}
+
+.kr-shell[data-card-template="id_badge"] .kiosk-class-avatar {
+  border-radius: 999px;
+}
+
+.kr-shell[data-card-template="kids_bubble"] .kiosk-person-name {
+  font-size: 1.22rem;
+  font-weight: 800;
+  color: #312e81;
+}
+
+.kr-shell[data-card-template="kids_bubble"] .kiosk-person-sub {
+  font-size: 0.8rem;
+  color: #5b21b6;
+  opacity: 0.82;
+}
+
+.kr-shell[data-card-template="kids_bubble"] .kiosk-person-card:hover,
+.kr-shell[data-card-template="kids_bubble"] .kiosk-person-card:focus-visible {
+  transform: translateY(-3px);
+  box-shadow: 0 16px 30px color-mix(in srgb, var(--kb-lilac) 30%, transparent);
+}
+
+.kr-shell[data-card-template="kids_bubble"] .kiosk-person-card:active {
+  transform: translateY(-1px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kr-shell[data-card-template="kids_bubble"] .kiosk-person-card:hover,
+  .kr-shell[data-card-template="kids_bubble"] .kiosk-person-card:focus-visible,
+  .kr-shell[data-card-template="kids_bubble"] .kiosk-person-card:active {
+    transform: none;
+  }
+}
+
+/* —— Heart Pop —— */
+.kr-shell[data-card-template="heart_pop"] .kiosk-people-grid {
+  max-width: 52rem;
+  margin-inline: auto;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr));
+  gap: 1.05rem;
+}
+
+.kr-shell[data-card-template="heart_pop"] .kiosk-person-card {
+  --hp-rose: color-mix(in srgb, #fb7185 60%, var(--kr-accent, #2563eb));
+  --hp-cream: #fff7ed;
+  position: relative;
+  background:
+    linear-gradient(180deg, #fff 0%, var(--hp-cream) 100%);
+  border: 1px solid color-mix(in srgb, var(--hp-rose) 35%, #fed7aa);
+  border-radius: 1.35rem 1.35rem 1.1rem 1.7rem;
+  box-shadow: 0 12px 24px color-mix(in srgb, var(--hp-rose) 16%, transparent);
+  padding: 1.15rem 1rem 1rem;
+  min-height: 9.25rem;
+  gap: 0.35rem;
+  color: #7f1d1d;
+}
+
+.kr-shell[data-card-template="heart_pop"] .kiosk-person-card::before {
+  content: "";
+  position: absolute;
+  top: 0.55rem;
+  right: 0.65rem;
+  width: 1.35rem;
+  height: 1.2rem;
+  pointer-events: none;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 22'%3E%3Cpath fill='%23fb7185' d='M12 20.4S2.5 14.2 2.5 8.4C2.5 5.1 5 2.8 8.1 2.8c1.8 0 3.3.9 3.9 2.2.6-1.3 2.1-2.2 3.9-2.2 3.1 0 5.6 2.3 5.6 5.6 0 5.8-9.5 12-9.5 12z'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+  opacity: 0.9;
+}
+
+.kr-shell[data-card-template="heart_pop"] .kiosk-person-card::after {
+  content: "";
+  position: absolute;
+  left: 0.7rem;
+  bottom: 0.55rem;
+  width: 0.55rem;
+  height: 0.5rem;
+  pointer-events: none;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 22'%3E%3Cpath fill='%23fda4af' d='M12 20.4S2.5 14.2 2.5 8.4C2.5 5.1 5 2.8 8.1 2.8c1.8 0 3.3.9 3.9 2.2.6-1.3 2.1-2.2 3.9-2.2 3.1 0 5.6 2.3 5.6 5.6 0 5.8-9.5 12-9.5 12z'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+  opacity: 0.75;
+}
+
+.kr-shell[data-card-template="heart_pop"] .kiosk-person-content {
+  position: relative;
+  z-index: 1;
+  gap: 0.45rem;
+}
+
+.kr-shell[data-card-template="heart_pop"] .kiosk-person-name {
+  font-size: 1.18rem;
+  font-weight: 800;
+  color: #9f1239;
+  padding-inline: 0.35rem;
+}
+
+.kr-shell[data-card-template="heart_pop"] .kiosk-person-sub {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #9a3412;
+  background: color-mix(in srgb, var(--hp-rose) 10%, #fff);
+  border-radius: 999px;
+  padding: 0.22rem 0.55rem;
+  margin-inline: auto;
+  max-width: 100%;
+}
+
+.kr-shell[data-card-template="heart_pop"] .kiosk-person-card:hover,
+.kr-shell[data-card-template="heart_pop"] .kiosk-person-card:focus-visible {
+  border-color: color-mix(in srgb, var(--hp-rose) 55%, #fda4af);
+  box-shadow: 0 14px 28px color-mix(in srgb, var(--hp-rose) 24%, transparent);
+  transform: translateY(-2px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kr-shell[data-card-template="heart_pop"] .kiosk-person-card:hover,
+  .kr-shell[data-card-template="heart_pop"] .kiosk-person-card:focus-visible {
+    transform: none;
+  }
+}
+
+/* —— Ticket —— */
+.kr-shell[data-card-template="ticket"] .kiosk-people-grid {
+  max-width: 56rem;
+  margin-inline: auto;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  gap: 1rem;
+}
+
+.kr-shell[data-card-template="ticket"] .kiosk-person-card {
+  --tk-ink: #1e293b;
+  --tk-paper: color-mix(in srgb, #fff 88%, var(--kr-accent, #2563eb));
+  position: relative;
+  display: grid;
+  grid-template-columns: 4.6rem minmax(0, 1fr);
+  align-items: stretch;
+  justify-items: stretch;
+  text-align: left;
+  gap: 0;
+  padding: 0;
+  min-height: 7.5rem;
+  background: var(--tk-paper);
+  border: 1px solid color-mix(in srgb, var(--kr-accent, #2563eb) 35%, #cbd5e1);
+  border-radius: 0.35rem;
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.12);
+  color: var(--tk-ink);
+  /* Side notches along the perforation */
+  -webkit-mask-image:
+    radial-gradient(circle 0.55rem at 4.6rem 50%, #0000 98%, #000 100%);
+  mask-image:
+    radial-gradient(circle 0.55rem at 4.6rem 50%, #0000 98%, #000 100%);
+}
+
+.kr-shell[data-card-template="ticket"] .kiosk-person-avatar {
+  display: grid;
+  width: 2.85rem;
+  height: 2.85rem;
+  margin: auto;
+  border-radius: 0.35rem;
+  background: color-mix(in srgb, var(--kr-accent, #2563eb) 18%, #e2e8f0);
+  border: 1px dashed color-mix(in srgb, var(--kr-accent, #2563eb) 40%, #94a3b8);
+}
+
+.kr-shell[data-card-template="ticket"] .kiosk-person-content {
+  min-width: 0;
+  padding: 0.85rem 0.95rem 0.85rem 1.05rem;
+  border-left: 2px dashed color-mix(in srgb, var(--kr-accent, #2563eb) 40%, #94a3b8);
+  justify-content: center;
+  gap: 0.28rem;
+  text-align: left;
+}
+
+.kr-shell[data-card-template="ticket"] .kiosk-person-name {
+  font-size: 1.08rem;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  color: var(--tk-ink);
+}
+
+.kr-shell[data-card-template="ticket"] .kiosk-person-sub {
+  font-size: 0.78rem;
+  font-weight: 650;
+  color: #475569;
+  font-variant-numeric: tabular-nums;
+}
+
+.kr-shell[data-card-template="ticket"] .kiosk-person-card:hover,
+.kr-shell[data-card-template="ticket"] .kiosk-person-card:focus-visible {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 26px rgba(15, 23, 42, 0.16);
+  border-color: var(--kr-accent, #2563eb);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kr-shell[data-card-template="ticket"] .kiosk-person-card:hover,
+  .kr-shell[data-card-template="ticket"] .kiosk-person-card:focus-visible {
+    transform: none;
+  }
+}
+
+@media (max-width: 420px) {
+  .kr-shell[data-card-template="ticket"] .kiosk-person-card {
+    grid-template-columns: 3.75rem minmax(0, 1fr);
+    -webkit-mask-image:
+      radial-gradient(circle 0.45rem at 3.75rem 50%, #0000 98%, #000 100%);
+    mask-image:
+      radial-gradient(circle 0.45rem at 3.75rem 50%, #0000 98%, #000 100%);
+  }
+}
+
+/* —— ID Badge —— */
+.kr-shell[data-card-template="id_badge"] .kiosk-people-grid {
+  max-width: 48rem;
+  margin-inline: auto;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 160px), 1fr));
+  gap: 1.15rem;
+}
+
+.kr-shell[data-card-template="id_badge"] .kiosk-person-card {
+  position: relative;
+  background: linear-gradient(180deg, #f8fafc 0%, #fff 38%, #fff 100%);
+  border: 1px solid #cbd5e1;
+  border-radius: 0.7rem;
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.1);
+  padding: 1.85rem 0.85rem 0.95rem;
+  min-height: 12.5rem;
+  gap: 0.45rem;
+  color: #0f172a;
+}
+
+.kr-shell[data-card-template="id_badge"] .kiosk-person-card::before {
+  content: "";
+  position: absolute;
+  top: 0.35rem;
+  left: 50%;
+  width: 2.4rem;
+  height: 1.15rem;
+  transform: translateX(-50%);
+  pointer-events: none;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 24' fill='none'%3E%3Crect x='16' y='2' width='16' height='8' rx='2' fill='%2394a3b8'/%3E%3Cpath d='M18 10h12v4c0 2.2-1.8 4-4 4h-4c-2.2 0-4-1.8-4-4v-4z' fill='%23cbd5e1'/%3E%3Crect x='20' y='0' width='8' height='3' rx='1' fill='%2364748b'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+}
+
+.kr-shell[data-card-template="id_badge"] .kiosk-person-card::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 1.55rem;
+  height: 0.45rem;
+  pointer-events: none;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--kr-accent, #2563eb) 75%, #0f172a),
+    color-mix(in srgb, var(--kr-accent, #2563eb) 35%, #38bdf8)
+  );
+}
+
+.kr-shell[data-card-template="id_badge"] .kiosk-person-avatar {
+  display: grid;
+  width: 4.1rem;
+  height: 4.1rem;
+  margin-top: 0.35rem;
+  border: 2px solid color-mix(in srgb, var(--kr-accent, #2563eb) 35%, #e2e8f0);
+  background: #e2e8f0;
+}
+
+.kr-shell[data-card-template="id_badge"] .kiosk-person-content {
+  min-width: 0;
+  width: 100%;
+  gap: 0.28rem;
+}
+
+.kr-shell[data-card-template="id_badge"] .kiosk-person-name {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.kr-shell[data-card-template="id_badge"] .kiosk-person-code {
+  font-size: 0.78rem;
+  font-weight: 750;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--kr-accent, #2563eb) 70%, #0f172a);
+}
+
+.kr-shell[data-card-template="id_badge"] .kiosk-person-sub {
+  font-size: 0.76rem;
+  color: #475569;
+}
+
+.kr-shell[data-card-template="id_badge"] .kiosk-person-card:hover,
+.kr-shell[data-card-template="id_badge"] .kiosk-person-card:focus-visible {
+  border-color: var(--kr-accent, #2563eb);
+  box-shadow: 0 14px 28px rgba(15, 23, 42, 0.14);
+}
+
+/* —— Cyber Hex —— */
+.kr-shell[data-card-template="cyber_hex"] .kiosk-people-grid {
+  max-width: 56rem;
+  margin-inline: auto;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
+  gap: 1rem;
+}
+
+.kr-shell[data-card-template="cyber_hex"] .kiosk-person-card {
+  --cx: color-mix(in srgb, #22d3ee 55%, var(--kr-accent, #2563eb));
+  position: relative;
+  background:
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, #0f172a 92%, var(--cx)) 0%,
+      color-mix(in srgb, #1e293b 88%, var(--cx)) 100%
+    );
+  border: 1px solid color-mix(in srgb, var(--cx) 55%, transparent);
+  border-radius: 0.2rem;
+  clip-path: polygon(
+    0.7rem 0,
+    calc(100% - 0.7rem) 0,
+    100% 0.7rem,
+    100% calc(100% - 0.7rem),
+    calc(100% - 0.7rem) 100%,
+    0.7rem 100%,
+    0 calc(100% - 0.7rem),
+    0 0.7rem
+  );
+  box-shadow:
+    0 12px 28px rgba(2, 6, 23, 0.35),
+    inset 0 0 0 1px color-mix(in srgb, var(--cx) 18%, transparent);
+  padding: 1.2rem 1rem;
+  min-height: 8.75rem;
+  gap: 0.45rem;
+  color: #e2e8f0;
+}
+
+.kr-shell[data-card-template="cyber_hex"] .kiosk-person-card::before {
+  content: "";
+  position: absolute;
+  inset: 0.45rem;
+  pointer-events: none;
+  background:
+    linear-gradient(var(--cx), var(--cx)) top left / 0.7rem 1.5px no-repeat,
+    linear-gradient(var(--cx), var(--cx)) top left / 1.5px 0.7rem no-repeat,
+    linear-gradient(var(--cx), var(--cx)) top right / 0.7rem 1.5px no-repeat,
+    linear-gradient(var(--cx), var(--cx)) top right / 1.5px 0.7rem no-repeat,
+    linear-gradient(var(--cx), var(--cx)) bottom left / 0.7rem 1.5px no-repeat,
+    linear-gradient(var(--cx), var(--cx)) bottom left / 1.5px 0.7rem no-repeat,
+    linear-gradient(var(--cx), var(--cx)) bottom right / 0.7rem 1.5px no-repeat,
+    linear-gradient(var(--cx), var(--cx)) bottom right / 1.5px 0.7rem no-repeat;
+  opacity: 0.85;
+}
+
+.kr-shell[data-card-template="cyber_hex"] .kiosk-person-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.12;
+  background:
+    repeating-linear-gradient(
+      0deg,
+      transparent 0 9px,
+      color-mix(in srgb, var(--cx) 50%, transparent) 9px 10px
+    );
+}
+
+.kr-shell[data-card-template="cyber_hex"] .kiosk-person-content {
+  position: relative;
+  z-index: 1;
+}
+
+.kr-shell[data-card-template="cyber_hex"] .kiosk-person-name {
+  font-size: 1.12rem;
+  font-weight: 750;
+  letter-spacing: 0.02em;
+  color: #f8fafc;
+}
+
+.kr-shell[data-card-template="cyber_hex"] .kiosk-person-sub {
+  font-size: 0.8rem;
+  font-weight: 550;
+  color: color-mix(in srgb, var(--cx) 55%, #cbd5e1);
+}
+
+.kr-shell[data-card-template="cyber_hex"] .kiosk-person-card:hover,
+.kr-shell[data-card-template="cyber_hex"] .kiosk-person-card:focus-visible {
+  border-color: var(--cx);
+  box-shadow:
+    0 14px 30px rgba(2, 6, 23, 0.42),
+    0 0 0 1px color-mix(in srgb, var(--cx) 45%, transparent);
+  outline: none;
+}
+
+.kr-shell[data-card-template="cyber_hex"] .kiosk-person-card:focus-visible {
+  box-shadow:
+    0 14px 30px rgba(2, 6, 23, 0.42),
+    0 0 0 2px color-mix(in srgb, var(--cx) 70%, transparent);
+}
+
+/* —— Polaroid —— */
+.kr-shell[data-card-template="polaroid"] .kiosk-people-grid {
+  max-width: 52rem;
+  margin-inline: auto;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr));
+  gap: 1.2rem;
+}
+
+.kr-shell[data-card-template="polaroid"] .kiosk-person-card {
+  position: relative;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.2rem;
+  box-shadow: 0 14px 28px rgba(15, 23, 42, 0.14);
+  padding: 0.65rem 0.65rem 0.85rem;
+  min-height: 13rem;
+  gap: 0.55rem;
+  color: #0f172a;
+}
+
+.kr-shell[data-card-template="polaroid"] .kiosk-person-card::before,
+.kr-shell[data-card-template="polaroid"] .kiosk-person-card::after {
+  content: "";
+  position: absolute;
+  width: 1.55rem;
+  height: 0.7rem;
+  pointer-events: none;
+  background: color-mix(in srgb, #fde68a 70%, #fff);
+  opacity: 0.9;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.12);
+}
+
+.kr-shell[data-card-template="polaroid"] .kiosk-person-card::before {
+  top: 0.35rem;
+  left: 0.45rem;
+  transform: rotate(-18deg);
+}
+
+.kr-shell[data-card-template="polaroid"] .kiosk-person-card::after {
+  top: 0.4rem;
+  right: 0.45rem;
+  transform: rotate(16deg);
+  background: color-mix(in srgb, #e2e8f0 55%, #fff);
+}
+
+.kr-shell[data-card-template="polaroid"] .kiosk-person-avatar {
+  display: grid;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  height: auto;
+  aspect-ratio: 1;
+  border-radius: 0.1rem;
+  background: color-mix(in srgb, var(--kr-accent, #2563eb) 16%, #e2e8f0);
+  border: 1px solid #cbd5e1;
+  font-size: 1.65rem;
+}
+
+.kr-shell[data-card-template="polaroid"] .kiosk-person-content {
+  min-width: 0;
+  width: 100%;
+  padding: 0.15rem 0.2rem 0.1rem;
+  gap: 0.22rem;
+  text-align: left;
+}
+
+.kr-shell[data-card-template="polaroid"] .kiosk-person-name {
+  font-size: 1.02rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.kr-shell[data-card-template="polaroid"] .kiosk-person-sub {
+  font-size: 0.76rem;
+  color: #64748b;
+}
+
+.kr-shell[data-card-template="polaroid"] .kiosk-person-card:hover,
+.kr-shell[data-card-template="polaroid"] .kiosk-person-card:focus-visible {
+  transform: translateY(-2px) rotate(-0.4deg);
+  box-shadow: 0 18px 32px rgba(15, 23, 42, 0.18);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kr-shell[data-card-template="polaroid"] .kiosk-person-card:hover,
+  .kr-shell[data-card-template="polaroid"] .kiosk-person-card:focus-visible {
+    transform: none;
+  }
+}
+
+/* —— Sticker Pack —— */
+.kr-shell[data-card-template="sticker_pack"] .kiosk-people-grid {
+  max-width: 52rem;
+  margin-inline: auto;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
+  gap: 1.2rem;
+}
+
+.kr-shell[data-card-template="sticker_pack"] .kiosk-person-card {
+  --st-accent: color-mix(in srgb, #f59e0b 45%, var(--kr-accent, #2563eb));
+  position: relative;
+  isolation: isolate;
+  background: #fffef8;
+  border: 2px solid color-mix(in srgb, var(--st-accent) 40%, #e2e8f0);
+  border-radius: 1.35rem 1.05rem 1.45rem 1.15rem / 1.15rem 1.4rem 1.05rem 1.35rem;
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, #fff 80%, var(--st-accent)),
+    4px 6px 0 color-mix(in srgb, var(--st-accent) 28%, transparent),
+    0 12px 22px rgba(15, 23, 42, 0.1);
+  padding: 1.15rem 0.95rem 1rem;
+  min-height: 9.25rem;
+  gap: 0.45rem;
+  color: #1e293b;
+  transform: rotate(-0.6deg);
+}
+
+.kr-shell[data-card-template="sticker_pack"] .kiosk-person-card::before,
+.kr-shell[data-card-template="sticker_pack"] .kiosk-person-card::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.kr-shell[data-card-template="sticker_pack"] .kiosk-person-card::before {
+  top: -0.2rem;
+  left: 0.85rem;
+  width: 1.7rem;
+  height: 0.55rem;
+  background: color-mix(in srgb, #fde68a 75%, var(--st-accent));
+  transform: rotate(-12deg);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.12);
+  opacity: 0.92;
+}
+
+.kr-shell[data-card-template="sticker_pack"] .kiosk-person-card::after {
+  top: 0.55rem;
+  right: 0.55rem;
+  width: 0.7rem;
+  height: 0.7rem;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%23fbbf24' d='M12 2.4l2.4 6.1 6.6.4-5.1 4.1 1.7 6.3L12 15.8 6.4 19.3l1.7-6.3L3 8.9l6.6-.4z'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+  opacity: 0.9;
+}
+
+.kr-shell[data-card-template="sticker_pack"] .kiosk-person-content {
+  position: relative;
+  z-index: 1;
+  gap: 0.4rem;
+}
+
+.kr-shell[data-card-template="sticker_pack"] .kiosk-person-name {
+  font-size: 1.2rem;
+  font-weight: 850;
+  color: #0f172a;
+  letter-spacing: -0.02em;
+}
+
+.kr-shell[data-card-template="sticker_pack"] .kiosk-person-code {
+  align-self: center;
+  max-width: 100%;
+  width: fit-content;
+  font-size: 0.72rem;
+  font-weight: 750;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #9a3412;
+  background: color-mix(in srgb, var(--st-accent) 18%, #fff7ed);
+  border: 1px dashed color-mix(in srgb, var(--st-accent) 55%, #fdba74);
+  border-radius: 999px;
+  padding: 0.2rem 0.55rem;
+}
+
+.kr-shell[data-card-template="sticker_pack"] .kiosk-person-email,
+.kr-shell[data-card-template="sticker_pack"] .kiosk-person-meta {
+  font-size: 0.76rem;
+  color: #64748b;
+}
+
+.kr-shell[data-card-template="sticker_pack"] .kiosk-person-card:hover,
+.kr-shell[data-card-template="sticker_pack"] .kiosk-person-card:focus-visible {
+  transform: rotate(-0.6deg) translateY(-2px);
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, #fff 85%, var(--st-accent)),
+    5px 8px 0 color-mix(in srgb, var(--st-accent) 34%, transparent),
+    0 14px 26px rgba(15, 23, 42, 0.14);
+}
+
+.kr-shell[data-card-template="sticker_pack"] .kiosk-person-card:active {
+  transform: rotate(-0.6deg) translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kr-shell[data-card-template="sticker_pack"] .kiosk-person-card:hover,
+  .kr-shell[data-card-template="sticker_pack"] .kiosk-person-card:focus-visible,
+  .kr-shell[data-card-template="sticker_pack"] .kiosk-person-card:active {
+    transform: rotate(-0.6deg);
+  }
+}
+
+/* —— Terminal —— */
+.kr-shell[data-card-template="terminal"] .kiosk-people-grid {
+  max-width: 54rem;
+  margin-inline: auto;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr));
+  gap: 0.95rem;
+}
+
+.kr-shell[data-card-template="terminal"] .kiosk-person-card {
+  --tm-accent: color-mix(in srgb, #4ade80 55%, var(--kr-accent, #2563eb));
+  position: relative;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  justify-items: stretch;
+  text-align: left;
+  background: #0b1220;
+  border: 1px solid color-mix(in srgb, var(--tm-accent) 35%, #334155);
+  border-radius: 0.45rem;
+  box-shadow: 0 12px 26px rgba(2, 6, 23, 0.4);
+  padding: 0;
+  min-height: 8.5rem;
+  gap: 0;
+  color: #d1fae5;
+  overflow: hidden;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+}
+
+.kr-shell[data-card-template="terminal"] .kiosk-person-card::before {
+  content: "";
+  display: block;
+  height: 1.35rem;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 0.7rem 50%, #f87171 0 0.18rem, transparent 0.2rem),
+    radial-gradient(circle at 1.35rem 50%, #fbbf24 0 0.18rem, transparent 0.2rem),
+    radial-gradient(circle at 2rem 50%, #4ade80 0 0.18rem, transparent 0.2rem),
+    linear-gradient(180deg, #1e293b, #111827);
+  border-bottom: 1px solid color-mix(in srgb, var(--tm-accent) 25%, #334155);
+}
+
+.kr-shell[data-card-template="terminal"] .kiosk-person-card::after {
+  content: "";
+  position: absolute;
+  inset: 1.35rem 0 0;
+  pointer-events: none;
+  opacity: 0.08;
+  background:
+    repeating-linear-gradient(
+      0deg,
+      transparent 0 3px,
+      color-mix(in srgb, var(--tm-accent) 40%, transparent) 3px 4px
+    );
+}
+
+.kr-shell[data-card-template="terminal"] .kiosk-person-avatar {
+  display: none;
+}
+
+.kr-shell[data-card-template="terminal"] .kiosk-person-content {
+  position: relative;
+  z-index: 1;
+  padding: 0.85rem 0.95rem 0.95rem;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.kr-shell[data-card-template="terminal"] .kiosk-person-name {
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--tm-accent);
+}
+
+.kr-shell[data-card-template="terminal"] .kiosk-person-name::before {
+  content: "> ";
+  color: color-mix(in srgb, var(--tm-accent) 70%, #94a3b8);
+  font-weight: 650;
+}
+
+.kr-shell[data-card-template="terminal"] .kiosk-person-name::after {
+  content: "";
+  display: inline-block;
+  width: 0.45rem;
+  height: 0.95em;
+  margin-left: 0.2rem;
+  vertical-align: -0.1em;
+  background: color-mix(in srgb, var(--tm-accent) 75%, #fff);
+  opacity: 0.55;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .kr-shell[data-card-template="terminal"] .kiosk-person-name::after {
+    animation: kr-terminal-cursor 1.35s steps(1, end) infinite;
+  }
+}
+
+@keyframes kr-terminal-cursor {
+  0%,
+  49% {
+    opacity: 0.7;
+  }
+  50%,
+  100% {
+    opacity: 0.15;
+  }
+}
+
+.kr-shell[data-card-template="terminal"] .kiosk-person-sub {
+  font-size: 0.78rem;
+  font-weight: 550;
+  color: #94a3b8;
+}
+
+.kr-shell[data-card-template="terminal"] .kiosk-person-card:hover,
+.kr-shell[data-card-template="terminal"] .kiosk-person-card:focus-visible {
+  border-color: var(--tm-accent);
+  box-shadow:
+    0 14px 28px rgba(2, 6, 23, 0.48),
+    0 0 0 1px color-mix(in srgb, var(--tm-accent) 40%, transparent);
+  outline: none;
+}
+
+.kr-shell[data-card-template="terminal"] .kiosk-person-card:focus-visible {
+  box-shadow:
+    0 14px 28px rgba(2, 6, 23, 0.48),
+    0 0 0 2px color-mix(in srgb, var(--tm-accent) 65%, transparent);
+}
+
+.kr-shell[data-card-template="terminal"] .kiosk-person-card:active {
+  background: #080e18;
+}
+
+/* —— Ribbon —— */
+.kr-shell[data-card-template="ribbon"] .kiosk-people-grid {
+  max-width: 54rem;
+  margin-inline: auto;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
+  gap: 1.15rem;
+}
+
+.kr-shell[data-card-template="ribbon"] .kiosk-person-card {
+  --rb-accent: color-mix(in srgb, #a855f7 40%, var(--kr-accent, #2563eb));
+  position: relative;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  border: 1px solid #e2e8f0;
+  border-radius: 0.65rem 0.65rem 0.85rem 0.85rem;
+  box-shadow: 0 12px 26px rgba(15, 23, 42, 0.1);
+  padding: 0.95rem 0.75rem 1.05rem;
+  min-height: 9.5rem;
+  gap: 0.45rem;
+  color: #0f172a;
+  overflow: hidden;
+}
+
+.kr-shell[data-card-template="ribbon"] .kiosk-person-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 3.1rem;
+  height: 3.1rem;
+  pointer-events: none;
+  background: linear-gradient(
+    225deg,
+    color-mix(in srgb, var(--rb-accent) 88%, #0f172a) 0 50%,
+    transparent 50.5%
+  );
+  opacity: 0.95;
+}
+
+.kr-shell[data-card-template="ribbon"] .kiosk-person-card::after {
+  content: "";
+  position: absolute;
+  top: 2.55rem;
+  right: 0;
+  width: 0.55rem;
+  height: 0.55rem;
+  pointer-events: none;
+  background: color-mix(in srgb, var(--rb-accent) 45%, #0f172a);
+  clip-path: polygon(0 0, 100% 0, 100% 100%);
+  opacity: 0.9;
+}
+
+.kr-shell[data-card-template="ribbon"] .kiosk-person-avatar {
+  display: none;
+}
+
+.kr-shell[data-card-template="ribbon"] .kiosk-person-content {
+  position: relative;
+  z-index: 1;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.kr-shell[data-card-template="ribbon"] .kiosk-person-name {
+  margin: 0 -0.15rem 0.15rem;
+  padding: 0.45rem 0.7rem;
+  font-size: 1.02rem;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  color: #fff;
+  text-align: center;
+  text-shadow: 0 1px 1px rgba(15, 23, 42, 0.22);
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--rb-accent) 88%, #0f172a),
+    color-mix(in srgb, var(--rb-accent) 62%, #38bdf8)
+  );
+  clip-path: polygon(0 0, 100% 0, 96.5% 100%, 3.5% 100%);
+  box-shadow: 0 4px 10px color-mix(in srgb, var(--rb-accent) 24%, transparent);
+  -webkit-line-clamp: 1;
+  line-clamp: 1;
+}
+
+.kr-shell[data-card-template="ribbon"] .kiosk-person-sub {
+  font-size: 0.84rem;
+  color: #475569;
+  padding-inline: 0.2rem;
+}
+
+.kr-shell[data-card-template="ribbon"] .kiosk-person-code {
+  font-weight: 700;
+  color: color-mix(in srgb, var(--rb-accent) 55%, #0f172a);
+}
+
+.kr-shell[data-card-template="ribbon"] .kiosk-person-card:hover,
+.kr-shell[data-card-template="ribbon"] .kiosk-person-card:focus-visible {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--rb-accent) 45%, #cbd5e1);
+  box-shadow: 0 16px 30px rgba(15, 23, 42, 0.14);
+}
+
+.kr-shell[data-card-template="ribbon"] .kiosk-person-card:active {
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kr-shell[data-card-template="ribbon"] .kiosk-person-card:hover,
+  .kr-shell[data-card-template="ribbon"] .kiosk-person-card:focus-visible {
+    transform: none;
+  }
+}
+
+/* —— Comic —— */
+.kr-shell[data-card-template="comic"] .kiosk-people-grid {
+  max-width: 52rem;
+  margin-inline: auto;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr));
+  gap: 1.25rem;
+}
+
+.kr-shell[data-card-template="comic"] .kiosk-person-card {
+  --cm-accent: color-mix(in srgb, #f97316 50%, var(--kr-accent, #2563eb));
+  position: relative;
+  background:
+    radial-gradient(circle at 12% 18%, color-mix(in srgb, var(--cm-accent) 18%, transparent) 0 0.12rem, transparent 0.14rem),
+    radial-gradient(circle at 78% 22%, color-mix(in srgb, var(--cm-accent) 16%, transparent) 0 0.1rem, transparent 0.12rem),
+    radial-gradient(circle at 28% 78%, color-mix(in srgb, var(--cm-accent) 14%, transparent) 0 0.11rem, transparent 0.13rem),
+    #fffbeb;
+  border: 3px solid #0f172a;
+  border-radius: 1.35rem 1.35rem 1.35rem 0.35rem;
+  box-shadow:
+    4px 4px 0 #0f172a,
+    0 12px 22px rgba(15, 23, 42, 0.08);
+  padding: 1.15rem 1rem 1.35rem;
+  min-height: 9.5rem;
+  gap: 0.4rem;
+  color: #0f172a;
+}
+
+.kr-shell[data-card-template="comic"] .kiosk-person-card::before {
+  content: "";
+  position: absolute;
+  left: 0.85rem;
+  bottom: -0.72rem;
+  width: 1.1rem;
+  height: 0.85rem;
+  pointer-events: none;
+  background: #fffbeb;
+  border-left: 3px solid #0f172a;
+  border-bottom: 3px solid #0f172a;
+  transform: skewX(-28deg);
+  box-shadow: 3px 3px 0 #0f172a;
+  z-index: 0;
+}
+
+.kr-shell[data-card-template="comic"] .kiosk-person-card::after {
+  content: "";
+  position: absolute;
+  top: 0.45rem;
+  right: 0.5rem;
+  width: 1.1rem;
+  height: 1.1rem;
+  pointer-events: none;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%23fbbf24' stroke='%230f172a' stroke-width='2' d='M16 2l3.2 8.4H28l-7 5.4 2.6 8.2L16 19.4l-7.6 4.6 2.6-8.2-7-5.4h8.8z'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+  opacity: 0.95;
+}
+
+.kr-shell[data-card-template="comic"] .kiosk-person-content {
+  position: relative;
+  z-index: 1;
+  gap: 0.35rem;
+}
+
+.kr-shell[data-card-template="comic"] .kiosk-person-name {
+  font-size: 1.28rem;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  text-transform: uppercase;
+  color: #0f172a;
+}
+
+.kr-shell[data-card-template="comic"] .kiosk-person-sub {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #334155;
+  background: color-mix(in srgb, #fff 70%, var(--cm-accent));
+  border: 2px solid #0f172a;
+  border-radius: 0.35rem;
+  padding: 0.18rem 0.4rem;
+  max-width: 100%;
+}
+
+.kr-shell[data-card-template="comic"] .kiosk-person-card:hover,
+.kr-shell[data-card-template="comic"] .kiosk-person-card:focus-visible {
+  background-color: #fff7ed;
+  border-color: color-mix(in srgb, var(--cm-accent) 45%, #0f172a);
+  box-shadow:
+    5px 5px 0 #0f172a,
+    0 14px 24px rgba(15, 23, 42, 0.12);
+  transform: translateY(-1px);
+}
+
+.kr-shell[data-card-template="comic"] .kiosk-person-card:active {
+  transform: none;
+  box-shadow:
+    2px 2px 0 #0f172a,
+    0 8px 16px rgba(15, 23, 42, 0.1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kr-shell[data-card-template="comic"] .kiosk-person-card:hover,
+  .kr-shell[data-card-template="comic"] .kiosk-person-card:focus-visible {
+    transform: none;
+  }
+}
+
+/* Shared focus for cards inside templates */
+.kr-shell[data-card-template] .kiosk-person-card:focus-visible {
+  outline: 3px solid var(--kr-accent, #2563eb);
+  outline-offset: 3px;
+}
+
+/* Bold / Cyber Hex / Terminal use accent rings instead of the shared outline. */
+.kr-shell[data-card-template="bold"] .kiosk-person-card:focus-visible,
+.kr-shell[data-card-template="cyber_hex"] .kiosk-person-card:focus-visible,
+.kr-shell[data-card-template="terminal"] .kiosk-person-card:focus-visible {
+  outline: none;
+}
+
+/* —— Card-mode action / flow panels (Choose Action, class PIN, etc.) ——
+   Scoped to data-kiosk-behavior="card" so Input-mode forms keep Input-template flow CSS. */
+
+.kr-shell[data-kiosk-behavior="card"][data-flow-template="business"] .kiosk-flow {
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-left: 4px solid var(--kr-accent, #2563eb);
+  border-radius: 0.45rem;
+  box-shadow: none;
+}
+
+.kr-shell[data-kiosk-behavior="card"][data-flow-template="business"] .kiosk-flow h2 {
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: #0f172a;
+}
+
+.kr-shell[data-kiosk-behavior="card"][data-flow-template="business"] .kiosk-flow .hint,
+.kr-shell[data-kiosk-behavior="card"][data-flow-template="business"] .kiosk-flow .kiosk-hint {
+  color: #475569;
+  font-weight: 600;
+}
+
+.kr-shell[data-kiosk-behavior="card"][data-flow-template="business"] .kiosk-flow .kiosk-selected-person {
+  border-left: 4px solid var(--kr-accent, #2563eb);
+  border-radius: 0.4rem;
+  background: #f8fafc;
+}
+
+.kr-shell[data-kiosk-behavior="card"][data-flow-template="photo"] .kiosk-flow {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 1rem;
+  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.1);
+}
+
+.kr-shell[data-kiosk-behavior="card"][data-flow-template="photo"] .kiosk-flow .kiosk-selected-person {
+  border-radius: 0.85rem;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
+}
+
+.kr-shell[data-kiosk-behavior="card"][data-flow-template="bold"] .kiosk-flow {
+  background: #1e293b;
+  border: 1px solid color-mix(in srgb, #94a3b8 28%, transparent);
+  border-left: 4px solid var(--kr-accent, #38bdf8);
+  border-radius: 0.75rem;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.22);
+  color: #e2e8f0;
+}
+
+.kr-shell[data-kiosk-behavior="card"][data-flow-template="bold"] .kiosk-flow h2 {
+  color: #f8fafc;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.kr-shell[data-kiosk-behavior="card"][data-flow-template="bold"] .kiosk-flow .hint,
+.kr-shell[data-kiosk-behavior="card"][data-flow-template="bold"] .kiosk-flow .kiosk-hint {
+  color: #cbd5e1;
+}
+
+.kr-shell[data-kiosk-behavior="card"][data-flow-template="bold"] .kiosk-flow .kiosk-selected-person {
+  background: #243447;
+  border-color: color-mix(in srgb, var(--kr-accent, #38bdf8) 45%, #64748b);
+  border-left-color: var(--kr-accent, #38bdf8);
+  color: #f8fafc;
+}
+
+.kr-shell[data-kiosk-behavior="card"][data-flow-template="bold"] .kiosk-flow .kiosk-selected-person .hint {
+  color: #cbd5e1;
+}
+
+.kr-shell[data-kiosk-behavior="card"][data-flow-template="bold"] .kiosk-action-choice {
+  background: #243447;
+  color: #f8fafc;
+  border-color: var(--kr-accent, #38bdf8);
+}
+
+.kr-shell[data-kiosk-behavior="card"][data-flow-template="bold"] .kiosk-action-choice:hover {
+  background: color-mix(in srgb, var(--kr-accent, #38bdf8) 18%, #243447);
+}
+
+.kr-shell[data-kiosk-behavior="card"][data-flow-template="bold"] .btn-secondary.kiosk-submit {
+  background: transparent;
+  color: #e2e8f0;
+  border-color: color-mix(in srgb, var(--kr-accent, #38bdf8) 55%, #64748b);
+}
+
+.kr-shell[data-kiosk-behavior="card"][data-flow-template="bold"] .btn-secondary.kiosk-submit:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--kr-accent, #38bdf8) 12%, #243447);
+  color: #f8fafc;
+  border-color: var(--kr-accent, #38bdf8);
+}
+
+.kr-shell[data-kiosk-behavior="card"][data-flow-template="glass"] .kiosk-flow {
+  background: rgba(255, 255, 255, 0.55);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  border-radius: 1.15rem;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.12);
+}
+
+.kr-shell[data-kiosk-behavior="card"][data-flow-template="glass"] .kiosk-flow .kiosk-selected-person {
+  background: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.65);
+}
+

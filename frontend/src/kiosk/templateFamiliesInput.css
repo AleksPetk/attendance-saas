@@ -1,0 +1,496 @@
+/* Confirmation-inspired Input / flow template families (Stage 1). Scoped by data-flow-template. */
+
+/* —— Pure —— */
+.kr-shell[data-flow-template="pure"] {
+  --kr-accent: #64748b;
+  --kr-tpl-flow-bg: #ffffff;
+  --kr-tpl-flow-border: color-mix(in srgb, var(--kr-accent) 22%, #e2e8f0);
+  --kr-tpl-flow-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
+  --kr-tpl-flow-radius: 1rem;
+  --kr-tpl-flow-pad: 1.65rem 1.45rem 1.5rem;
+  --kr-tpl-flow-gap: 1.05rem;
+  --kr-tpl-btn-bg: #334155;
+  --kr-tpl-btn-border: #334155;
+  --kr-tpl-btn-radius: 0.75rem;
+}
+
+.kr-shell[data-flow-template="pure"] .kiosk-flow {
+  position: relative;
+  overflow: hidden;
+}
+
+.kr-shell[data-flow-template="pure"] .kiosk-flow::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 1.45rem;
+  right: 1.45rem;
+  height: 2px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent, var(--kr-accent), transparent);
+  pointer-events: none;
+}
+
+.kr-shell[data-flow-template="pure"] .kiosk-flow h2 {
+  font-size: 1.32rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  color: #0f172a;
+}
+
+.kr-shell[data-flow-template="pure"] .kiosk-flow .hint,
+.kr-shell[data-flow-template="pure"] .kiosk-flow .kiosk-hint {
+  color: #64748b;
+}
+
+/* —— Executive —— */
+.kr-shell[data-flow-template="executive"] {
+  --kr-accent: #1e40af;
+  --kr-tpl-flow-bg: #ffffff;
+  --kr-tpl-flow-border: #cbd5e1;
+  --kr-tpl-flow-shadow: 0 10px 24px rgba(15, 23, 42, 0.1);
+  --kr-tpl-flow-radius: 0.45rem;
+  --kr-tpl-flow-pad: 0;
+  --kr-tpl-flow-gap: 0;
+  --kr-tpl-max-w: 34rem;
+  --kr-tpl-btn-bg: #1e40af;
+  --kr-tpl-btn-border: #1e40af;
+  --kr-tpl-btn-radius: 0.35rem;
+}
+
+.kr-shell[data-flow-template="executive"] .kiosk-flow {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  overflow: hidden;
+  padding: 0;
+  gap: 0;
+}
+
+.kr-shell[data-flow-template="executive"] .kiosk-flow::before {
+  content: "";
+  grid-row: 1 / span 20;
+  width: 4px;
+  background: linear-gradient(180deg, var(--kr-accent), color-mix(in srgb, var(--kr-accent) 55%, #38bdf8));
+  pointer-events: none;
+}
+
+.kr-shell[data-flow-template="executive"] .kiosk-flow > * {
+  grid-column: 2;
+  margin-inline: 1.15rem;
+}
+
+.kr-shell[data-flow-template="executive"] .kiosk-flow h2 {
+  margin-top: 1.15rem;
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: #0f172a;
+}
+
+.kr-shell[data-flow-template="executive"] .kiosk-flow h2::before {
+  content: "CHECK-IN";
+  display: block;
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  color: var(--kr-accent);
+  margin-bottom: 0.25rem;
+}
+
+.kr-shell[data-flow-template="executive"] .kiosk-flow .hint,
+.kr-shell[data-flow-template="executive"] .kiosk-flow .kiosk-hint {
+  color: #475569;
+  font-weight: 550;
+}
+
+.kr-shell[data-flow-template="executive"] .kiosk-actions,
+.kr-shell[data-flow-template="executive"] .kiosk-submit {
+  margin-bottom: 1.15rem;
+}
+
+/* —— Welcome —— */
+.kr-shell[data-flow-template="welcome"] {
+  --kr-accent: #ea580c;
+  --kr-tpl-flow-bg: #fffdf8;
+  --kr-tpl-flow-border: color-mix(in srgb, var(--kr-accent) 28%, #fde68a);
+  --kr-tpl-flow-shadow: 0 10px 22px rgba(15, 23, 42, 0.09);
+  --kr-tpl-flow-radius: 1.45rem 1.45rem 1.45rem 0.55rem;
+  --kr-tpl-flow-pad: 1.35rem 1.25rem 1.45rem;
+  --kr-tpl-input-bg: #fff7ed;
+  --kr-tpl-input-border: color-mix(in srgb, var(--kr-accent) 30%, #fed7aa);
+  --kr-tpl-btn-bg: var(--kr-accent);
+  --kr-tpl-btn-border: var(--kr-accent);
+  --kr-tpl-btn-radius: 999px;
+}
+
+.kr-shell[data-flow-template="welcome"] .kiosk-flow {
+  position: relative;
+}
+
+.kr-shell[data-flow-template="welcome"] .kiosk-flow::before {
+  content: "";
+  position: absolute;
+  top: 0.65rem;
+  left: 1.25rem;
+  right: 1.25rem;
+  height: 3px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--kr-accent), #fbbf24);
+  pointer-events: none;
+}
+
+.kr-shell[data-flow-template="welcome"] .kiosk-flow::after {
+  content: "";
+  position: absolute;
+  bottom: -0.65rem;
+  left: 1.15rem;
+  width: 1rem;
+  height: 1rem;
+  background: #fffdf8;
+  border-right: 2px solid color-mix(in srgb, var(--kr-accent) 22%, #fde68a);
+  border-bottom: 2px solid color-mix(in srgb, var(--kr-accent) 22%, #fde68a);
+  transform: rotate(45deg);
+  pointer-events: none;
+}
+
+.kr-shell[data-flow-template="welcome"] .kiosk-flow h2 {
+  color: #431407;
+  font-weight: 750;
+}
+
+.kr-shell[data-flow-template="welcome"] .kiosk-flow .hint,
+.kr-shell[data-flow-template="welcome"] .kiosk-flow .kiosk-hint {
+  color: #9a3412;
+}
+
+/* —— Playground —— */
+.kr-shell[data-flow-template="playground"] {
+  --kr-accent: #7c3aed;
+  --kr-tpl-flow-bg: #fff;
+  --kr-tpl-flow-border: #e2e8f0;
+  --kr-tpl-flow-shadow: 0 8px 0 color-mix(in srgb, #a78bfa 25%, #cbd5e1);
+  --kr-tpl-flow-radius: 0.55rem 0.55rem 0.85rem 0.85rem;
+  --kr-tpl-flow-pad: 1.5rem 1.1rem 1.15rem;
+  --kr-tpl-input-bg: #faf5ff;
+  --kr-tpl-input-border: #c4b5fd;
+  --kr-tpl-btn-bg: #7c3aed;
+  --kr-tpl-btn-border: #7c3aed;
+  --kr-tpl-btn-radius: 0.45rem;
+}
+
+.kr-shell[data-flow-template="playground"] .kiosk-flow {
+  position: relative;
+  overflow: hidden;
+}
+
+.kr-shell[data-flow-template="playground"] .kiosk-flow::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 0.55rem;
+  background: linear-gradient(90deg, #f472b6 0 33%, #38bdf8 33% 66%, #a78bfa 66% 100%);
+  pointer-events: none;
+}
+
+.kr-shell[data-flow-template="playground"] .kiosk-flow::after {
+  content: "";
+  position: absolute;
+  top: 0.85rem;
+  right: 0.85rem;
+  width: 0.55rem;
+  height: 0.55rem;
+  background: #38bdf8;
+  border-radius: 0.1rem;
+  transform: rotate(10deg);
+  box-shadow: -0.45rem 0.3rem 0 #f472b6, 0.3rem 0.45rem 0 #a78bfa;
+  pointer-events: none;
+}
+
+.kr-shell[data-flow-template="playground"] .kiosk-flow > * {
+  position: relative;
+  z-index: 1;
+}
+
+.kr-shell[data-flow-template="playground"] .kiosk-flow h2 {
+  color: #312e81;
+  font-weight: 800;
+}
+
+/* —— Active —— */
+.kr-shell[data-flow-template="active"] {
+  --kr-accent: #dc2626;
+  --kr-tpl-flow-bg: #ffffff;
+  --kr-tpl-flow-border: #e2e8f0;
+  --kr-tpl-flow-shadow: 0 12px 26px rgba(15, 23, 42, 0.1);
+  --kr-tpl-flow-radius: 0.45rem;
+  --kr-tpl-flow-pad: 1.25rem 1.15rem 1.15rem;
+  --kr-tpl-btn-bg: var(--kr-accent);
+  --kr-tpl-btn-border: var(--kr-accent);
+  --kr-tpl-btn-radius: 0.3rem;
+}
+
+.kr-shell[data-flow-template="active"] .kiosk-flow {
+  position: relative;
+  overflow: hidden;
+}
+
+.kr-shell[data-flow-template="active"] .kiosk-flow::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--kr-accent), #f97316);
+  pointer-events: none;
+}
+
+.kr-shell[data-flow-template="active"] .kiosk-flow::after {
+  content: "";
+  position: absolute;
+  top: -20%;
+  right: 8%;
+  width: 36%;
+  height: 140%;
+  background: color-mix(in srgb, var(--kr-accent) 10%, transparent);
+  transform: skewX(-16deg);
+  pointer-events: none;
+}
+
+.kr-shell[data-flow-template="active"] .kiosk-flow > * {
+  position: relative;
+  z-index: 1;
+}
+
+.kr-shell[data-flow-template="active"] .kiosk-flow h2 {
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  font-size: 1.15rem;
+  color: #0f172a;
+}
+
+.kr-shell[data-flow-template="active"] .kiosk-submit:not(.btn-secondary) {
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 800;
+}
+
+/* —— Pass —— */
+.kr-shell[data-flow-template="pass"] {
+  --kr-accent: #0284c7;
+  --kr-tpl-flow-bg: #ffffff;
+  --kr-tpl-flow-border: #cbd5e1;
+  --kr-tpl-flow-shadow: 0 12px 26px rgba(15, 23, 42, 0.1);
+  --kr-tpl-flow-radius: 0.55rem;
+  --kr-tpl-flow-pad: 0;
+  --kr-tpl-flow-gap: 0;
+  --kr-tpl-max-w: 34rem;
+  --kr-tpl-btn-bg: var(--kr-accent);
+  --kr-tpl-btn-border: var(--kr-accent);
+}
+
+.kr-shell[data-flow-template="pass"] .kiosk-flow {
+  display: grid;
+  grid-template-columns: 2.75rem 1fr;
+  overflow: hidden;
+  padding: 0;
+  gap: 0;
+}
+
+.kr-shell[data-flow-template="pass"] .kiosk-flow::before {
+  content: "";
+  grid-row: 1 / span 20;
+  background:
+    repeating-linear-gradient(
+      180deg,
+      #0f172a 0,
+      #0f172a 2px,
+      transparent 2px,
+      transparent 5px
+    ),
+    linear-gradient(180deg, color-mix(in srgb, var(--kr-accent) 12%, #f8fafc), #fff);
+  border-right: 1px dashed color-mix(in srgb, var(--kr-accent) 35%, #cbd5e1);
+  pointer-events: none;
+}
+
+.kr-shell[data-flow-template="pass"] .kiosk-flow > * {
+  grid-column: 2;
+  margin-inline: 1.1rem;
+}
+
+.kr-shell[data-flow-template="pass"] .kiosk-flow h2 {
+  margin-top: 1.1rem;
+  font-weight: 750;
+  color: #0f172a;
+}
+
+.kr-shell[data-flow-template="pass"] .kiosk-flow h2::after {
+  content: "ACCESS";
+  display: block;
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: var(--kr-accent);
+  margin-top: 0.2rem;
+}
+
+.kr-shell[data-flow-template="pass"] .kiosk-actions,
+.kr-shell[data-flow-template="pass"] .kiosk-submit {
+  margin-bottom: 1.1rem;
+}
+
+/* —— Victory —— */
+.kr-shell[data-flow-template="victory"] {
+  --kr-accent: #ca8a04;
+  --kr-tpl-flow-bg: linear-gradient(180deg, #fff 0%, #fffbeb 100%);
+  --kr-tpl-flow-border: color-mix(in srgb, var(--kr-accent) 32%, #fde68a);
+  --kr-tpl-flow-shadow: 0 14px 30px rgba(15, 23, 42, 0.1);
+  --kr-tpl-flow-radius: 1rem;
+  --kr-tpl-flow-pad: 1.45rem 1.25rem 1.25rem;
+  --kr-tpl-input-bg: #fff;
+  --kr-tpl-input-border: color-mix(in srgb, var(--kr-accent) 35%, #fde68a);
+  --kr-tpl-btn-bg: var(--kr-accent);
+  --kr-tpl-btn-border: var(--kr-accent);
+  --kr-tpl-btn-radius: 0.65rem;
+}
+
+.kr-shell[data-flow-template="victory"] .kiosk-flow {
+  position: relative;
+  overflow: hidden;
+}
+
+.kr-shell[data-flow-template="victory"] .kiosk-flow::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 10% 15%, color-mix(in srgb, var(--kr-accent) 30%, transparent) 0 0.12rem, transparent 0.14rem),
+    radial-gradient(circle at 90% 20%, color-mix(in srgb, #f97316 25%, transparent) 0 0.1rem, transparent 0.12rem),
+    radial-gradient(circle at 82% 85%, color-mix(in srgb, var(--kr-accent) 22%, transparent) 0 0.11rem, transparent 0.13rem);
+}
+
+.kr-shell[data-flow-template="victory"] .kiosk-flow::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--kr-accent), #fbbf24);
+  pointer-events: none;
+}
+
+.kr-shell[data-flow-template="victory"] .kiosk-flow > * {
+  position: relative;
+  z-index: 1;
+}
+
+.kr-shell[data-flow-template="victory"] .kiosk-flow h2 {
+  color: #78350f;
+  font-weight: 800;
+}
+
+.kr-shell[data-flow-template="victory"] .kiosk-flow .hint,
+.kr-shell[data-flow-template="victory"] .kiosk-flow .kiosk-hint {
+  color: #92400e;
+}
+
+/* —— Bare —— */
+.kr-shell[data-flow-template="bare"] {
+  --kr-accent: #475569;
+  --kr-tpl-flow-bg: color-mix(in srgb, #ffffff 90%, transparent);
+  --kr-tpl-flow-border: transparent;
+  --kr-tpl-flow-shadow: none;
+  --kr-tpl-flow-radius: 0;
+  --kr-tpl-flow-pad: 0.35rem 0.15rem 1rem;
+  --kr-tpl-flow-gap: 0.75rem;
+  --kr-tpl-input-bg: transparent;
+  --kr-tpl-input-border: transparent;
+  --kr-tpl-input-radius: 0;
+  --kr-tpl-btn-bg: #0f172a;
+  --kr-tpl-btn-border: #0f172a;
+  --kr-tpl-btn-radius: 0;
+}
+
+.kr-shell[data-flow-template="bare"] .kiosk-flow {
+  border-bottom: 1px solid color-mix(in srgb, var(--kr-accent) 35%, #cbd5e1);
+}
+
+.kr-shell[data-flow-template="bare"] .kiosk-flow h2 {
+  font-size: 1.45rem;
+  font-weight: 650;
+  letter-spacing: -0.03em;
+  color: #0f172a;
+  padding-top: 0.15rem;
+}
+
+.kr-shell[data-flow-template="bare"] .kiosk-flow h2::before {
+  content: "";
+  display: block;
+  width: 1.75rem;
+  height: 1px;
+  background: var(--kr-accent);
+  margin-bottom: 0.65rem;
+}
+
+.kr-shell[data-flow-template="bare"] .kiosk-flow .hint,
+.kr-shell[data-flow-template="bare"] .kiosk-flow .kiosk-hint {
+  color: #64748b;
+  font-weight: 500;
+}
+
+.kr-shell[data-flow-template="bare"] .kiosk-flow label {
+  font-weight: 600;
+  color: #334155;
+  font-size: 0.88rem;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.kr-shell[data-flow-template="bare"] .kiosk-flow input,
+.kr-shell[data-flow-template="bare"] .kiosk-pin-input {
+  border: 0;
+  border-bottom: 1px solid #94a3b8;
+  padding-inline: 0;
+  padding-block: 0.5rem;
+  border-radius: 0;
+}
+
+.kr-shell[data-flow-template="bare"] .kiosk-flow input:focus,
+.kr-shell[data-flow-template="bare"] .kiosk-pin-input:focus {
+  border-bottom-color: #0f172a;
+  outline: none;
+  box-shadow: 0 1px 0 #0f172a;
+}
+
+.kr-shell[data-flow-template="bare"] .kiosk-submit:not(.btn-secondary) {
+  width: auto;
+  align-self: flex-start;
+  min-width: 8rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-size: 0.88rem;
+  padding-inline: 1.5rem;
+}
+
+.kr-shell[data-flow-template="bare"] .btn-secondary.kiosk-submit {
+  border: 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--kr-accent) 45%, #cbd5e1);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  width: auto;
+  align-self: flex-start;
+}
+
+@media (max-width: 640px) {
+  .kr-shell[data-flow-template="executive"] .kiosk-flow,
+  .kr-shell[data-flow-template="pass"] .kiosk-flow {
+    grid-template-columns: 2.25rem 1fr;
+  }
+}

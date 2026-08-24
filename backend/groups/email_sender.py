@@ -11,7 +11,6 @@ Unverified drafts must not replace an active Ready sender.
 import hashlib
 import json
 import logging
-from html import escape
 
 from django.core.exceptions import ValidationError
 from django.utils import timezone
@@ -36,9 +35,16 @@ from groups.email_sender_models import (
     EmailSenderStatus,
     GroupEmailDelivery,
     GroupEmailDeliveryStatus,
+    GroupEmailRecipientKind,
     GroupEmailSender,
 )
-from groups.templates import render_notification_template
+from groups.forward_emails import unique_after_action_recipients
+from groups.notification_email_render import render_after_action_notification
+from groups.participation_emails import (
+    participation_emails_for_membership,
+    participation_emails_for_visitor,
+    primary_participation_email,
+)
 
 logger = logging.getLogger("groups.email_sender")
 
@@ -825,6 +831,7 @@ def send_group_email_sender_test(
                 event_type="test",
                 status=GroupEmailDeliveryStatus.FAILED,
                 error_summary=exc.public_message,
+                recipient_kind=GroupEmailRecipientKind.TEST,
             )
             raise ValidationError({"detail": exc.public_message}) from None
 
@@ -839,6 +846,7 @@ def send_group_email_sender_test(
             event_type="test",
             status=GroupEmailDeliveryStatus.SENT,
             error_summary="",
+            recipient_kind=GroupEmailRecipientKind.TEST,
         )
         return get_group_email_sender(group)
 
@@ -873,6 +881,7 @@ def send_group_email_sender_test(
             event_type="test",
             status=GroupEmailDeliveryStatus.FAILED,
             error_summary=exc.public_message,
+            recipient_kind=GroupEmailRecipientKind.TEST,
         )
         raise ValidationError({"detail": exc.public_message}) from None
 
@@ -893,6 +902,7 @@ def send_group_email_sender_test(
         event_type="test",
         status=GroupEmailDeliveryStatus.SENT,
         error_summary="",
+        recipient_kind=GroupEmailRecipientKind.TEST,
     )
     return sender
 
@@ -906,12 +916,14 @@ def record_email_delivery(
     event_type,
     status,
     error_summary="",
+    recipient_kind=GroupEmailRecipientKind.PARTICIPANT,
 ):
     return GroupEmailDelivery.objects.create(
         organization=organization,
         group=group,
         action_record=action_record,
         recipient=(recipient or "").strip().lower(),
+        recipient_kind=recipient_kind or GroupEmailRecipientKind.PARTICIPANT,
         event_type=event_type,
         status=status,
         error_summary=(error_summary or "")[:255],
@@ -919,12 +931,21 @@ def record_email_delivery(
 
 
 def participation_email_for_after_action(*, membership=None, group_only_participant=None):
-    """Canonical recipient: Group participation email only (no Member fallback)."""
+    """Primary participation email (first of list). Prefer participation_emails_for_after_action."""
+    emails = participation_emails_for_after_action(
+        membership=membership,
+        group_only_participant=group_only_participant,
+    )
+    return primary_participation_email(emails)
+
+
+def participation_emails_for_after_action(*, membership=None, group_only_participant=None):
+    """Canonical after-action participant recipients (no Member profile fallback)."""
     if membership is not None:
-        return (membership.participation_email or "").strip().lower()
+        return participation_emails_for_membership(membership)
     if group_only_participant is not None:
-        return (group_only_participant.email or "").strip().lower()
-    return ""
+        return participation_emails_for_visitor(group_only_participant)
+    return []
 
 
 def _subject_for_kind(kind, group_name):
@@ -955,15 +976,21 @@ def send_after_action_email(
     participant_name,
     membership=None,
     group_only_participant=None,
+    timezone_name=None,
 ):
     """
-    Attempt after-action email. Never raises to callers for SMTP failures.
+    Attempt after-action email to the participant and optional forward copies.
+
+    Never raises to callers for SMTP failures. Each recipient is a separate
+    delivery so forwarding addresses stay private from the participant.
+    Forward-only sends are not allowed when the participant has no email.
     """
-    recipient = participation_email_for_after_action(
+    recipient_emails = participation_emails_for_after_action(
         membership=membership,
         group_only_participant=group_only_participant,
     )
-    if not recipient:
+    recipient = primary_participation_email(recipient_emails)
+    if not recipient_emails:
         logger.info(
             "Skipping after-action email: no participation email group_id=%s kind=%s",
             group.id,
@@ -977,6 +1004,7 @@ def send_after_action_email(
             event_type=kind,
             status=GroupEmailDeliveryStatus.FAILED,
             error_summary="No participation email on file",
+            recipient_kind=GroupEmailRecipientKind.PARTICIPANT,
         )
         return False
 
@@ -994,70 +1022,106 @@ def send_after_action_email(
             event_type=kind,
             status=GroupEmailDeliveryStatus.FAILED,
             error_summary="Email sender is not ready",
+            recipient_kind=GroupEmailRecipientKind.PARTICIPANT,
         )
         return False
 
-    performed_at = getattr(action_record, "performed_at", None) or timezone.now()
-    local_time = timezone.localtime(performed_at).strftime("%H:%M")
-    body = render_notification_template(
-        _template_for_kind(group, kind),
-        name=participant_name or "",
-        time=local_time,
-        group=group.name,
+    rendered = render_after_action_notification(
+        group=group,
+        action_record=action_record,
+        participant_name=participant_name,
+        kind=kind,
+        customer_template=_template_for_kind(group, kind),
+        brand_name=(sender.from_name or "").strip() or group.name,
+        timezone_name=timezone_name,
     )
-    html_body = f"<p>{escape(body)}</p>"
+    body = rendered["text_body"]
+    html_body = rendered["html_body"]
     subject = _subject_for_kind(kind, group.name)
 
+    deliveries = unique_after_action_recipients(
+        participant_emails=recipient_emails,
+        forward_emails=getattr(group, "forward_emails", None) or [],
+    )
     provider = get_email_sender_provider(sender.provider)
+    participant_ok = False
+
+    batch_messages = [
+        {
+            "to_email": to_email,
+            "subject": subject,
+            "text_body": body,
+            "html_body": html_body,
+        }
+        for to_email, _recipient_kind in deliveries
+    ]
     try:
-        provider.send_message(
-            sender,
-            to_email=recipient,
-            subject=subject,
-            text_body=body,
-            html_body=html_body,
-        )
+        send_results = provider.send_messages_batch(sender, messages=batch_messages)
     except EmailSenderProviderError as exc:
         logger.error(
-            "After-action email failed group_id=%s kind=%s: %s",
+            "After-action email batch failed group_id=%s kind=%s: %s",
             group.id,
             kind,
             exc.public_message,
         )
-        record_email_delivery(
-            organization=group.organization,
-            group=group,
-            action_record=action_record,
-            recipient=recipient,
-            event_type=kind,
-            status=GroupEmailDeliveryStatus.FAILED,
-            error_summary=exc.public_message,
-        )
-        return False
+        send_results = [
+            {"to_email": to_email, "ok": False, "error": exc}
+            for to_email, _recipient_kind in deliveries
+        ]
     except Exception:
         logger.exception(
-            "Unexpected after-action email failure group_id=%s kind=%s",
+            "Unexpected after-action email batch failure group_id=%s kind=%s",
             group.id,
             kind,
         )
+        send_results = [
+            {"to_email": to_email, "ok": False, "error": None}
+            for to_email, _recipient_kind in deliveries
+        ]
+
+    for (to_email, recipient_kind), result in zip(deliveries, send_results):
+        if not result.get("ok"):
+            exc = result.get("error")
+            if isinstance(exc, EmailSenderProviderError):
+                error_summary = exc.public_message
+                logger.error(
+                    "After-action email failed group_id=%s kind=%s recipient_kind=%s: %s",
+                    group.id,
+                    kind,
+                    recipient_kind,
+                    exc.public_message,
+                )
+            else:
+                error_summary = "Could not send the email"
+                logger.exception(
+                    "Unexpected after-action email failure group_id=%s kind=%s recipient_kind=%s",
+                    group.id,
+                    kind,
+                    recipient_kind,
+                )
+            record_email_delivery(
+                organization=group.organization,
+                group=group,
+                action_record=action_record,
+                recipient=to_email,
+                event_type=kind,
+                status=GroupEmailDeliveryStatus.FAILED,
+                error_summary=error_summary,
+                recipient_kind=recipient_kind,
+            )
+            continue
+
         record_email_delivery(
             organization=group.organization,
             group=group,
             action_record=action_record,
-            recipient=recipient,
+            recipient=to_email,
             event_type=kind,
-            status=GroupEmailDeliveryStatus.FAILED,
-            error_summary="Could not send the email",
+            status=GroupEmailDeliveryStatus.SENT,
+            error_summary="",
+            recipient_kind=recipient_kind,
         )
-        return False
+        if recipient_kind == GroupEmailRecipientKind.PARTICIPANT:
+            participant_ok = True
 
-    record_email_delivery(
-        organization=group.organization,
-        group=group,
-        action_record=action_record,
-        recipient=recipient,
-        event_type=kind,
-        status=GroupEmailDeliveryStatus.SENT,
-        error_summary="",
-    )
-    return True
+    return participant_ok
