@@ -4,10 +4,14 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{ title }} · Check Station</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     :root {
       --navy: #071426;
       --blue: #2563eb;
+      --blue-hover: #1d4ed8;
       --text: #0f172a;
       --muted: #64748b;
       --border: #e2e8f0;
@@ -18,9 +22,10 @@
     body {
       margin: 0;
       min-height: 100vh;
-      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
       background: #f6f9fc;
       color: var(--text);
+      -webkit-font-smoothing: antialiased;
     }
     .wrap {
       max-width: 32rem;
@@ -28,10 +33,21 @@
       padding: 0 1.25rem 3rem;
     }
     .brand {
-      font-weight: 700;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.65rem;
+      font-weight: 800;
       letter-spacing: -0.02em;
       color: var(--navy);
       margin-bottom: 1.5rem;
+    }
+    .brand-mark {
+      width: 1.75rem;
+      height: 1.75rem;
+      border-radius: 8px;
+      background: linear-gradient(135deg, #2563eb 0%, #22d3ee 55%, #22c55e 100%);
+      box-shadow: 0 4px 12px rgba(37, 99, 235, 0.35);
+      flex-shrink: 0;
     }
     .card {
       background: var(--surface);
@@ -83,6 +99,9 @@
       text-decoration: none;
       display: inline-block;
     }
+    button:hover, .button:hover {
+      background: var(--blue-hover);
+    }
     button.secondary, a.secondary {
       background: transparent;
       color: var(--blue);
@@ -133,7 +152,10 @@
 </head>
 <body>
   <div class="wrap">
-    <div class="brand">Check Station</div>
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <span>Check Station</span>
+    </div>
     <div class="card">
       {% if error %}<p class="error">{{ error }}</p>{% endif %}
       {% block content %}{% endblock %}

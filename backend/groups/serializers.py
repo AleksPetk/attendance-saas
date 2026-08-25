@@ -33,6 +33,17 @@ from groups.readiness import group_setup_status_payload, structured_group_sectio
 from groups.templates import validate_notification_template
 from kiosk_builder.models import ensure_group_kiosk_design, ensure_group_kiosk_settings
 from members.models import Member, MemberStatus, validate_member_pin
+from organizations.entitlements import (
+    FEATURE_GROUP_FORWARD_EMAILS,
+    FEATURE_STRUCTURED_GROUPS,
+    LIMIT_ACTIVE_STANDARD_GROUPS,
+    LIMIT_ACTIVE_STRUCTURED_GROUPS,
+    LIMIT_CLASSES_PER_STRUCTURED_GROUP,
+    LIMIT_PARTICIPANTS_PER_CLASS,
+    LIMIT_PARTICIPANTS_PER_STANDARD_GROUP,
+    PlanEntitlementDenied,
+)
+from organizations.entitlements.api import deny_plan_capacity, deny_plan_feature
 
 
 class ParticipationEmailsField(serializers.Field):
@@ -182,6 +193,7 @@ class GroupSerializer(serializers.ModelSerializer):
     group_only_participant_count = serializers.IntegerField(read_only=True)
     section_count = serializers.IntegerField(read_only=True)
     participant_count = serializers.IntegerField(read_only=True)
+    is_plan_locked = serializers.SerializerMethodField()
 
     class Meta:
         model = Group
@@ -190,6 +202,8 @@ class GroupSerializer(serializers.ModelSerializer):
             "name",
             "status",
             "group_type",
+            "plan_unlocked",
+            "is_plan_locked",
             "require_class_pin",
             "actions",
             "participation",
@@ -208,6 +222,7 @@ class GroupSerializer(serializers.ModelSerializer):
         read_only_fields = (
             "id",
             "status",
+            "plan_unlocked",
             "created_at",
             "updated_at",
             "archived_at",
@@ -220,8 +235,20 @@ class GroupSerializer(serializers.ModelSerializer):
             )
         return value
 
+    def get_is_plan_locked(self, instance):
+        from organizations.entitlements.plan_locks import (
+            is_group_plan_unlocked,
+        )
+
+        return not is_group_plan_unlocked(instance)
+
     def to_representation(self, instance):
+        from organizations.entitlements.plan_locks import (
+            is_group_plan_unlocked,
+        )
+
         data = super().to_representation(instance)
+        data["is_plan_locked"] = not is_group_plan_unlocked(instance)
         data["actions"] = {
             "check_in_enabled": instance.check_in_enabled,
             "check_out_enabled": instance.check_out_enabled,
@@ -376,8 +403,26 @@ class GroupSerializer(serializers.ModelSerializer):
         return attrs
 
     def create(self, validated_data):
+        from organizations.entitlements.plan_locks import (
+            require_no_unresolved_group_selection,
+        )
+
         mapped = self._mapped_fields(validated_data)
         organization = self.context["organization"]
+        try:
+            require_no_unresolved_group_selection(organization)
+        except PlanEntitlementDenied as exc:
+            from organizations.entitlements.api import raise_plan_denied
+
+            raise_plan_denied(exc)
+        group_type = mapped.get("group_type", GroupType.STANDARD)
+        if group_type == GroupType.STRUCTURED:
+            deny_plan_feature(organization, FEATURE_STRUCTURED_GROUPS)
+            deny_plan_capacity(organization, LIMIT_ACTIVE_STRUCTURED_GROUPS)
+        else:
+            deny_plan_capacity(organization, LIMIT_ACTIVE_STANDARD_GROUPS)
+        if mapped.get("forward_emails"):
+            deny_plan_feature(organization, FEATURE_GROUP_FORWARD_EMAILS)
         auto_require = mapped.pop("_require_email_enabled_for_after_action", False)
         try:
             with transaction.atomic():
@@ -400,6 +445,10 @@ class GroupSerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
         mapped = self._mapped_fields(validated_data, instance=instance)
+        if mapped.get("forward_emails"):
+            deny_plan_feature(
+                self.context["organization"], FEATURE_GROUP_FORWARD_EMAILS
+            )
         auto_require = mapped.pop("_require_email_enabled_for_after_action", False)
         for field, value in mapped.items():
             setattr(instance, field, value)
@@ -754,6 +803,19 @@ class GroupMembershipSerializer(serializers.ModelSerializer):
                 {"member_id": "This Member is already in this Group."}
             )
 
+        if group.group_type == GroupType.STANDARD:
+            deny_plan_capacity(
+                organization,
+                LIMIT_PARTICIPANTS_PER_STANDARD_GROUP,
+                group=group,
+            )
+        elif group.group_type == GroupType.STRUCTURED and section is not None:
+            deny_plan_capacity(
+                organization,
+                LIMIT_PARTICIPANTS_PER_CLASS,
+                section=section,
+            )
+
         membership = existing or GroupMembership(group=group, member=member)
         membership.organization = organization
         membership.section = section
@@ -838,6 +900,19 @@ class GroupMembershipSerializer(serializers.ModelSerializer):
         if member.status != MemberStatus.ACTIVE:
             raise serializers.ValidationError(
                 {"member_id": "Archived Members cannot be added to Groups."}
+            )
+        from organizations.entitlements.plan_locks import (
+            can_reuse_member_for_new_participation,
+        )
+
+        if not can_reuse_member_for_new_participation(organization, member):
+            raise serializers.ValidationError(
+                {
+                    "member_id": (
+                        "This Member is locked by the current plan and cannot "
+                        "be added to a new Group."
+                    )
+                }
             )
         return member
 
@@ -995,6 +1070,7 @@ class GroupOnlyParticipantSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         group = self.context["group"]
+        organization = self.context["organization"]
         section = self._resolve_section(validated_data.pop("section_id", None))
         if group.group_type == GroupType.STRUCTURED and section is None:
             raise serializers.ValidationError(
@@ -1003,6 +1079,18 @@ class GroupOnlyParticipantSerializer(serializers.ModelSerializer):
         if group.group_type == GroupType.STANDARD and section is not None:
             raise serializers.ValidationError(
                 {"section_id": "Standard Groups cannot assign Classes."}
+            )
+        if group.group_type == GroupType.STANDARD:
+            deny_plan_capacity(
+                organization,
+                LIMIT_PARTICIPANTS_PER_STANDARD_GROUP,
+                group=group,
+            )
+        elif group.group_type == GroupType.STRUCTURED and section is not None:
+            deny_plan_capacity(
+                organization,
+                LIMIT_PARTICIPANTS_PER_CLASS,
+                section=section,
             )
         pin = validated_data.pop("participation_pin", "") or validated_data.pop("pin", "")
         validated_data.pop("clear_participation_pin", None)
@@ -1200,6 +1288,11 @@ class GroupSectionSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 {"group": "Classes can only be created inside Structured Groups."}
             )
+        deny_plan_capacity(
+            self.context["organization"],
+            LIMIT_CLASSES_PER_STRUCTURED_GROUP,
+            group=group,
+        )
         pin = validated_data.pop("class_pin", None)
         validated_data.pop("clear_class_pin", None)
         try:

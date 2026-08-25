@@ -4,6 +4,7 @@ from organizations.views import (
     CurrentWorkspaceView,
     OwnerLoginView,
     OwnerRegistrationView,
+    PlanLockSelectionView,
     StaffLoginView,
     StaffLogoutView,
     CsrfTokenView,
@@ -23,6 +24,11 @@ urlpatterns = [
     path("auth/logout/", StaffLogoutView.as_view(), name="logout"),
     path("auth/csrf/", CsrfTokenView.as_view(), name="csrf-token"),
     path("auth/reauth/", ReauthView.as_view(), name="reauth"),
+    path(
+        "plan-locks/selection/",
+        PlanLockSelectionView.as_view(),
+        name="plan-lock-selection",
+    ),
     path("workspace-staff/", WorkspaceStaffListCreateView.as_view(), name="workspace-staff-list"),
     path("workspace-staff/<int:staff_id>/", WorkspaceStaffDetailView.as_view(), name="workspace-staff-detail"),
     path(

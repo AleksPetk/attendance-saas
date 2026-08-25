@@ -5,6 +5,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import path, reverse
 
 from accounts.deletion import PermanentDeletionError, permanently_delete_customer_account
+from organizations.entitlements.transitions import apply_effective_plan
 from organizations.models import Organization, WorkspaceStaffAccount
 
 
@@ -37,21 +38,38 @@ class OrganizationAdmin(admin.ModelAdmin):
         "workspace_id",
         "owner",
         "internal_label",
+        "plan",
         "status",
         "created_at",
         "archived_at",
     )
-    list_filter = ("status",)
+    list_filter = ("status", "plan")
     search_fields = ("workspace_id", "owner__email", "internal_label")
     autocomplete_fields = ("owner",)
-    readonly_fields = ("workspace_id", "created_at", "updated_at", "archived_at")
+    readonly_fields = (
+        "workspace_id",
+        "active_standard_groups_slots_resolved",
+        "archived_groups_slots_resolved",
+        "members_slots_resolved",
+        "workspace_admins_slots_resolved",
+        "workspace_staff_slots_resolved",
+        "created_at",
+        "updated_at",
+        "archived_at",
+    )
     inlines = (OrganizationStaffAccountInline,)
     ordering = ("workspace_id",)
     fields = (
         "owner",
         "workspace_id",
         "internal_label",
+        "plan",
         "status",
+        "active_standard_groups_slots_resolved",
+        "archived_groups_slots_resolved",
+        "members_slots_resolved",
+        "workspace_admins_slots_resolved",
+        "workspace_staff_slots_resolved",
         "created_at",
         "updated_at",
         "archived_at",
@@ -82,6 +100,23 @@ class OrganizationAdmin(admin.ModelAdmin):
             ),
         ]
         return extra + urls
+
+    def save_model(self, request, obj, form, change):
+        """Manual plan edits are entitlement operations, not paid transactions."""
+        if change and "plan" in form.changed_data:
+            target_plan = obj.plan
+            previous_plan = form.initial.get("plan")
+            if previous_plan is None:
+                previous_plan = (
+                    Organization.objects.filter(pk=obj.pk)
+                    .values_list("plan", flat=True)
+                    .first()
+                )
+            obj.plan = previous_plan
+            super().save_model(request, obj, form, change)
+            apply_effective_plan(obj, target_plan, source="platform_admin")
+            return
+        super().save_model(request, obj, form, change)
 
     def change_view(self, request, object_id, form_url="", extra_context=None):
         extra_context = extra_context or {}
@@ -200,7 +235,12 @@ class WorkspaceStaffAccountAdmin(admin.ModelAdmin):
         "organization__internal_label",
     )
     autocomplete_fields = ("organization",)
-    readonly_fields = ("created_at", "updated_at", "deactivated_at")
+    readonly_fields = (
+        "plan_unlocked",
+        "created_at",
+        "updated_at",
+        "deactivated_at",
+    )
     ordering = ("organization", "username")
 
     def get_readonly_fields(self, request, obj=None):

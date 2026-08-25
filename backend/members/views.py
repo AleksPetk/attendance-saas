@@ -9,11 +9,33 @@ from members.deletion import (
 )
 from members.models import Member, MemberStatus
 from members.serializers import MemberListQuerySerializer, MemberSerializer
+from organizations.entitlements import LIMIT_MEMBERS
+from organizations.entitlements.api import deny_plan_capacity, raise_plan_denied
+from organizations.entitlements.exceptions import PlanEntitlementDenied
+from organizations.entitlements.plan_locks import (
+    order_members_queryset_by_plan_availability,
+    require_member_plan_unlocked,
+    require_no_unresolved_member_selection,
+)
 from organizations.permissions import (
     CanManageWorkspace,
     CanViewWorkspace,
     get_active_workspace_organization,
 )
+
+
+def _deny_locked_member(member):
+    try:
+        require_member_plan_unlocked(member)
+    except PlanEntitlementDenied as exc:
+        raise_plan_denied(exc)
+
+
+def _deny_unresolved_member_selection(organization):
+    try:
+        require_no_unresolved_member_selection(organization)
+    except PlanEntitlementDenied as exc:
+        raise_plan_denied(exc)
 
 
 class MemberViewSet(viewsets.ModelViewSet):
@@ -48,6 +70,8 @@ class MemberViewSet(viewsets.ModelViewSet):
             if id_token.isdigit():
                 lookup |= Q(pk=int(id_token))
             queryset = queryset.filter(lookup)
+        if self.action == "list":
+            queryset = order_members_queryset_by_plan_availability(queryset)
         return queryset
 
     def get_serializer_context(self):
@@ -55,8 +79,19 @@ class MemberViewSet(viewsets.ModelViewSet):
         context["organization"] = self.organization
         return context
 
+    def retrieve(self, request, *args, **kwargs):
+        member = self.get_object()
+        if member.status == MemberStatus.ACTIVE:
+            _deny_locked_member(member)
+        return super().retrieve(request, *args, **kwargs)
+
+    def create(self, request, *args, **kwargs):
+        _deny_unresolved_member_selection(self.organization)
+        return super().create(request, *args, **kwargs)
+
     def update(self, request, *args, **kwargs):
         member = self.get_object()
+        _deny_unresolved_member_selection(self.organization)
         if member.status == MemberStatus.ARCHIVED:
             return Response(
                 {
@@ -67,6 +102,7 @@ class MemberViewSet(viewsets.ModelViewSet):
                 },
                 status=status.HTTP_409_CONFLICT,
             )
+        _deny_locked_member(member)
         return super().update(request, *args, **kwargs)
 
     def perform_destroy(self, instance):
@@ -74,6 +110,8 @@ class MemberViewSet(viewsets.ModelViewSet):
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
+        _deny_unresolved_member_selection(self.organization)
+        _deny_locked_member(instance)
         if instance.status == MemberStatus.ARCHIVED:
             return Response(
                 {
@@ -91,6 +129,8 @@ class MemberViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["post"])
     def archive(self, request, pk=None):
         member = self.get_object()
+        _deny_unresolved_member_selection(self.organization)
+        _deny_locked_member(member)
         if member.status == MemberStatus.ARCHIVED:
             return Response(
                 {
@@ -106,6 +146,7 @@ class MemberViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["post"])
     def restore(self, request, pk=None):
         member = self.get_object()
+        _deny_unresolved_member_selection(self.organization)
         if member.status != MemberStatus.ARCHIVED:
             return Response(
                 {
@@ -114,6 +155,9 @@ class MemberViewSet(viewsets.ModelViewSet):
                 },
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        deny_plan_capacity(self.organization, LIMIT_MEMBERS)
+        member.plan_unlocked = True
+        member.save(update_fields=["plan_unlocked", "updated_at"])
         member.restore()
         serializer = self.get_serializer(member)
         return Response(serializer.data)

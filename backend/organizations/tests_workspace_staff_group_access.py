@@ -8,6 +8,7 @@ from groups.models import Group, GroupStatus, GroupType
 from members.models import Member, MemberStatus
 from organizations.models import (
     Organization,
+    OrganizationPlan,
     WorkspaceStaffAccount,
     WorkspaceStaffGroupAccess,
     WorkspaceStaffRole,
@@ -52,6 +53,8 @@ class WorkspaceStaffGroupAccessBase(TestCase):
     def setUp(self):
         self.owner = create_user("owner@example.com")
         self.organization = Organization.objects.create_with_owner(owner=self.owner)
+        self.organization.plan = OrganizationPlan.PLUS
+        self.organization.save(update_fields=["plan"])
         self.group_a = Group.objects.create_group(
             organization=self.organization,
             name="English Class",

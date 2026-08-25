@@ -12,9 +12,11 @@ from rest_framework import status
 from rest_framework.test import APIClient
 
 from accounts.testing import force_platform_admin_login
+from organizations.entitlements.transitions import apply_effective_plan
 from organizations.models import (
     WORKSPACE_ID_PATTERN,
     Organization,
+    OrganizationPlan,
     OrganizationStatus,
     WorkspaceStaffAccount,
     WorkspaceStaffRole,
@@ -640,6 +642,11 @@ class SessionAuthEndpointsTests(TestCase):
         self.owner_password = "secure-password"
         self.owner = create_user(self.owner_email, password=self.owner_password)
         self.organization = Organization.objects.create_with_owner(owner=self.owner)
+        apply_effective_plan(
+            self.organization,
+            OrganizationPlan.PLUS,
+            source="test",
+        )
 
         self.staff_username = "natsumi"
         self.staff_password = "staff-password"

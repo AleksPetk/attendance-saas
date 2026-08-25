@@ -183,7 +183,7 @@ def recovery_view(request):
             messages.warning(
                 request,
                 "Signed in with a recovery code. "
-                "If you lost your authenticator, use Platform account security below.",
+                "If you lost your authenticator, use Platform security below.",
             )
             return HttpResponseRedirect(next_url)
         else:

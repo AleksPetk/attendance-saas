@@ -44,10 +44,18 @@ export default function MemberProfileScreen({ session, memberId, onNavigate }) {
         onNavigate({ name: "members", status: "archived", replace: true });
         return;
       }
+      if (result.data.is_plan_locked || result.data.plan_unlocked === false) {
+        setMember(result.data);
+        setError("This Member is locked by the current plan.");
+        setLoading(false);
+        return;
+      }
       setMember(result.data);
       setValues(valuesFromMember(result.data));
     } catch (loadError) {
-      setError(errorMessage(loadError));
+      const message = errorMessage(loadError);
+      setError(message);
+      setMember(null);
       setLoading(false);
       return;
     }
@@ -156,6 +164,16 @@ export default function MemberProfileScreen({ session, memberId, onNavigate }) {
 
       {loading ? <LoadingState label="Loading Member…" /> : null}
       <ErrorBanner message={error} />
+
+      {!loading && error && !member ? (
+        <div className="plan-locked-banner" role="status">
+          <strong>Member profile unavailable</strong>
+          <p>{error}</p>
+          <button type="button" className="btn-secondary" onClick={() => onNavigate({ name: "members" })}>
+            Back to Members
+          </button>
+        </div>
+      ) : null}
 
       {!loading && member ? (
         <form className="member-profile" onSubmit={handleSave}>

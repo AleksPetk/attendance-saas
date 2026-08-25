@@ -42,15 +42,23 @@ Retired. Workspace admin/staff are no longer global Users linked through Organiz
 - **admin** — a WorkspaceStaffAccount in that Organization
 - **staff** — a WorkspaceStaffAccount in that Organization
 
-Exact capability and permission differences remain **undecided**.
+Exact capability and permission differences: **Admin frozen (DEC-070)**; **Staff frozen (DEC-071)**.
 
-### Plan **(confirmed concept, details provisional)**
+### Plan **(confirmed)**
 
-A subscription tier (e.g., Basic, Pro, Business) defining feature access and usage limits. Exact names, prices, and limits are **not finalized**.
+A subscription tier defining feature access and usage limits. Canonical V1 names: **Basic**, **Plus**, **Business**. Full matrix and USD prices: [PRODUCT.md — Subscriptions and Plans](./PRODUCT.md#subscriptions-and-plans), DEC-072, DEC-077. Do not use Free / Pro / Enterprise for V1.
 
-### Subscription **(confirmed concept, details provisional)**
+### Entitlement **(confirmed; implemented)**
 
-An Organization workspace's billing relationship with the Platform. Tied to a Plan. Belongs to the **Organization**, not to Members. Implementation details undecided. Subscription/billing status is separate from Organization identity.
+Server-side plan/feature/limit/usage evaluation for a workspace, separate from role authorization. Must pass alongside role checks when both apply (DEC-073, DEC-076). Commercial billing state is separate and feeds entitlement via `Organization.plan`.
+
+### Purchase source **(confirmed; persistence implemented)**
+
+Origin of the workspace subscription: `none`, `stripe`, or `apple`. Account Subscription/Billing flows must respect it (DEC-075, DEC-081). Stripe/Apple checkout are not implemented yet.
+
+### Subscription **(confirmed concept; internal billing implemented)**
+
+An Organization workspace's billing relationship with the Platform. Tied to a Plan. Belongs to the **Organization**, not to Members. V1 plan matrix, prices, commercial lifecycle rules, and Account Security/Subscription/Billing IA are frozen; Stripe/Apple checkout remain open. Subscription/billing status is separate from Organization identity and from the effective entitlement plan.
 
 ---
 
@@ -64,7 +72,7 @@ The real-world legal form of the customer (company, school, gym, individual busi
 
 One paying customer User owns **one** workspace and may use it for **any mix** of real-world activities (businesses, schools, hobbies, teams, one-time Events) as Groups and Events inside that Organization. Separate User accounts are for **separate workspaces**, not for each activity type.
 
-A workspace may begin in trial or unsubscribed state and later activate through subscription. An Organization may be in trial, actively subscribed, cancelled, suspended, or another billing state. Billing/subscription status is **separate** from the identity of the Organization itself. An Organization is not defined by currently paying.
+A workspace currently begins as **Basic** at registration. A Business trial is a later billing action (payment method required; duration TBD). An Organization may be in trial, actively subscribed, scheduled to cancel, in payment-failure grace, or after paid access has ended. Billing/subscription status is **separate** from the identity of the Organization itself and from the current effective entitlement plan. An Organization is not defined by currently paying.
 
 Tenant isolation remains fundamental: all Organization data is strictly separated from other Organizations.
 
@@ -324,7 +332,7 @@ Action (performed)
 |------|-----------------|
 | Kiosk Session | May need refinement once security model is designed |
 | Kiosk storage shape | Fields on Group/Event vs separate entity (OPEN-027); ownership is confirmed |
-| Organization role capabilities | Role names: owner is the paying User; admin/staff are WorkspaceStaffAccount; permission matrix undecided |
+| Organization role capabilities | Role names: owner is the paying User; admin/staff are WorkspaceStaffAccount; **Admin/Staff matrices frozen (DEC-070/071)** |
 | User ↔ Member explicit linking | Same real person may be both; any explicit link/deduplication mechanism undecided |
-| Plan tier names | Basic / Pro / Business are examples only |
+| Plan prices / Event quotas | V1 names, limits, and USD prices frozen (DEC-072, DEC-077); Event axes open; trial duration TBD (DEC-078) |
 | Event sub-concepts | Whether some Events later need separate Reservation and Attendee structures remains undecided |

@@ -21,7 +21,7 @@ from attendance.report_export.fonts import font_for_text
 from groups.deletion import permanently_delete_group
 from groups.models import Group, GroupStatus
 from members.models import Member
-from organizations.models import Organization
+from organizations.models import Organization, OrganizationPlan
 
 User = get_user_model()
 
@@ -146,8 +146,12 @@ class AttendanceReportExportApiTests(TestCase):
         self.org = Organization.objects.create_with_owner(
             owner=self.owner, internal_label="Export Org"
         )
+        self.org.plan = OrganizationPlan.PLUS
+        self.org.save(update_fields=["plan"])
         self.other_owner = create_user("export-other@example.com")
         self.other_org = Organization.objects.create_with_owner(owner=self.other_owner)
+        self.other_org.plan = OrganizationPlan.PLUS
+        self.other_org.save(update_fields=["plan"])
         self.client = APIClient()
         self.client.credentials(
             HTTP_AUTHORIZATION=basic_auth_header(self.owner.email, "secure-password")

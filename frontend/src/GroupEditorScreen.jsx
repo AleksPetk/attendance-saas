@@ -20,6 +20,10 @@ import {
   setWorkspaceLeaveChecker,
   skipNextWorkspaceLeaveCheck,
 } from "./kiosk/builder/workspaceLeaveGuard.js";
+import {
+  canCreateStructuredGroups,
+  canUseGroupForwardEmails,
+} from "./workspaceEntitlements.js";
 
 const PROVIDER_CUSTOM_SMTP = "custom_smtp";
 const PROVIDER_GMAIL = "gmail";
@@ -113,6 +117,8 @@ function senderStatusLabel(sender) {
 
 export default function GroupEditorScreen({ session, groupId, onNavigate }) {
   const isEdit = Boolean(groupId);
+  const structuredAllowed = canCreateStructuredGroups(session);
+  const forwardEmailsAllowed = canUseGroupForwardEmails(session);
   const [values, setValues] = useState(cloneGroup(EMPTY_GROUP));
   const [readiness, setReadiness] = useState(null);
   const [emailSender, setEmailSender] = useState(EMPTY_SENDER);
@@ -138,6 +144,7 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
   const [savedBaseline, setSavedBaseline] = useState(null);
   const [successMessage, setSuccessMessage] = useState("");
   const [leaveDialogOpen, setLeaveDialogOpen] = useState(false);
+  const [planAccessDenied, setPlanAccessDenied] = useState(false);
   const skipLeaveConfirmRef = useRef(false);
 
   const dirty = useMemo(() => {
@@ -295,6 +302,7 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
       return;
     }
     setError("");
+    setPlanAccessDenied(false);
     setSuccessMessage("");
     api
       .getGroup(session, groupId)
@@ -311,7 +319,13 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
         setReadiness(group.readiness || null);
         applyPersistedSender(group.advanced?.email_sender);
       })
-      .catch((loadError) => setError(errorMessage(loadError)));
+      .catch((loadError) => {
+        if (loadError?.status === 403 && loadError?.data?.code === "plan_resource_locked") {
+          setPlanAccessDenied(true);
+          return;
+        }
+        setError(errorMessage(loadError));
+      });
   }, [groupId, onNavigate, session]);
 
   useEffect(() => {
@@ -633,6 +647,31 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
   const afterActionDisabled = !senderReady;
   const senderDisplay = displayedSenderStatus();
 
+  if (isEdit && planAccessDenied) {
+    return (
+      <div className="page">
+        <div className="plan-locked-banner plan-locked-page" role="alert">
+          <span className="plan-locked-badge">Plan locked</span>
+          <strong>This Group is not available on the current plan</strong>
+          <p className="hint">
+            Configuration stays preserved. Unlock the Group during capacity selection or upgrade
+            the plan before editing.
+          </p>
+          <button
+            type="button"
+            className="btn-secondary"
+            onClick={() => {
+              skipNextWorkspaceLeaveCheck();
+              onNavigate({ name: "groups" });
+            }}
+          >
+            Back to Groups
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="page">
       <PageHeader
@@ -712,19 +751,30 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
               </button>
               <button
                 type="button"
-                className="group-type-option"
+                className={`group-type-option${structuredAllowed ? "" : " is-plan-locked"}`}
                 role="radio"
                 aria-checked={values.group_type === "structured"}
                 data-selected={values.group_type === "structured" ? "true" : "false"}
-                onClick={() =>
+                disabled={!structuredAllowed}
+                title={
+                  structuredAllowed
+                    ? undefined
+                    : "Structured Groups require the Business plan"
+                }
+                onClick={() => {
+                  if (!structuredAllowed) return;
                   setValues((current) => ({
                     ...current,
                     group_type: "structured",
-                  }))
-                }
+                  }));
+                }}
               >
                 <strong>Structured Group</strong>
-                <span>Organize participants inside Classes/Sections.</span>
+                <span>
+                  {structuredAllowed
+                    ? "Organize participants inside Classes/Sections."
+                    : "Business plan feature — locked on your current plan."}
+                </span>
               </button>
             </div>
           </SectionCard>
@@ -1389,11 +1439,15 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
                   <span className="advanced-subsection-copy">
                     <span className="advanced-subsection-title">Forward emails</span>
                     <span className="advanced-subsection-hint">
-                      Send a copy of this Group’s after-action emails to additional addresses.
+                      {forwardEmailsAllowed
+                        ? "Send a copy of this Group’s after-action emails to additional addresses."
+                        : "Forward emails require Plus or Business."}
                     </span>
                   </span>
                   <span className="advanced-subsection-meta">
-                    <span className="advanced-subsection-summary">{forwardEmailSummary}</span>
+                    <span className="advanced-subsection-summary">
+                      {forwardEmailsAllowed ? forwardEmailSummary : "Locked"}
+                    </span>
                     <span className="advanced-subsection-action">
                       {forwardEmailsOpen ? "Hide" : "Show"}
                     </span>
@@ -1401,47 +1455,56 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
                 </button>
                 {forwardEmailsOpen ? (
                   <div className="advanced-subsection-body forward-emails-body">
-                    {forwardSlots.map((email, index) => (
-                      <div key={`forward-email-${index}`} className="forward-email-row">
-                        <Field
-                          label={
-                            forwardNumbered
-                              ? `Forward email ${index + 1}`
-                              : "Forward email"
-                          }
-                        >
-                          <div className="forward-email-input-row">
-                            <input
-                              type="email"
-                              value={email}
-                              onChange={(event) =>
-                                updateForwardEmail(index, event.target.value)
+                    {!forwardEmailsAllowed ? (
+                      <p className="plan-lock-note" role="status">
+                        Forward emails are not included on the Basic plan. Existing empty
+                        configuration is unchanged; upgrades unlock this setting.
+                      </p>
+                    ) : (
+                      <>
+                        {forwardSlots.map((email, index) => (
+                          <div key={`forward-email-${index}`} className="forward-email-row">
+                            <Field
+                              label={
+                                forwardNumbered
+                                  ? `Forward email ${index + 1}`
+                                  : "Forward email"
                               }
-                              placeholder="email@example.com"
-                              autoComplete="off"
-                            />
-                            {forwardNumbered && index > 0 ? (
-                              <button
-                                type="button"
-                                className="btn-text"
-                                onClick={() => removeForwardEmail(index)}
-                              >
-                                Remove
-                              </button>
-                            ) : null}
+                            >
+                              <div className="forward-email-input-row">
+                                <input
+                                  type="email"
+                                  value={email}
+                                  onChange={(event) =>
+                                    updateForwardEmail(index, event.target.value)
+                                  }
+                                  placeholder="email@example.com"
+                                  autoComplete="off"
+                                />
+                                {forwardNumbered && index > 0 ? (
+                                  <button
+                                    type="button"
+                                    className="btn-text"
+                                    onClick={() => removeForwardEmail(index)}
+                                  >
+                                    Remove
+                                  </button>
+                                ) : null}
+                              </div>
+                            </Field>
                           </div>
-                        </Field>
-                      </div>
-                    ))}
-                    {forwardSlots.length < 3 ? (
-                      <button
-                        type="button"
-                        className="btn-secondary btn-sm"
-                        onClick={addForwardEmail}
-                      >
-                        + Add another email
-                      </button>
-                    ) : null}
+                        ))}
+                        {forwardSlots.length < 3 ? (
+                          <button
+                            type="button"
+                            className="btn-secondary btn-sm"
+                            onClick={addForwardEmail}
+                          >
+                            + Add another email
+                          </button>
+                        ) : null}
+                      </>
+                    )}
                   </div>
                 ) : null}
               </div>

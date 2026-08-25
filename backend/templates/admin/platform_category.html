@@ -1,0 +1,66 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static %}
+
+{% block extrastyle %}
+{{ block.super }}
+{% endblock %}
+
+{% block bodyclass %}{{ block.super }} app-{{ app_label }} platform-category platform-category-{{ category_key }}{% endblock %}
+
+{% if not is_popup %}
+{% block nav-breadcrumbs %}
+<nav aria-label="{% translate 'Breadcrumbs' %}">
+  <div class="breadcrumbs">
+    <a href="{% url 'admin:index' %}">{% translate 'Home' %}</a>
+    &rsaquo;
+    {{ category_label }}
+  </div>
+</nav>
+{% endblock %}
+{% endif %}
+
+{% block content %}
+<div id="content-main" class="cs-category">
+  <header class="cs-category-header">
+    <p class="cs-category-eyebrow">Platform admin</p>
+    <h1>{{ category_title }}</h1>
+    {% if category_description %}
+    <p class="cs-category-lead">{{ category_description }}</p>
+    {% endif %}
+  </header>
+
+  {% if category_cards %}
+  <section class="cs-category-grid" aria-label="{{ category_label }} models">
+    {% for card in category_cards %}
+    <article class="cs-category-card">
+      <a class="cs-category-card-hit" href="{{ card.open_url }}">
+        <span class="visually-hidden">Open {{ card.label }}</span>
+      </a>
+      <div class="cs-category-card-body">
+        <h2 class="cs-category-card-title">{{ card.label }}</h2>
+        <p class="cs-category-card-desc">{{ card.description }}</p>
+        <div class="cs-category-card-meta">
+          {% if card.count != None %}
+          <span class="cs-category-count">{{ card.count }} total</span>
+          {% endif %}
+          {% for stat in card.stats %}
+          <span class="cs-category-stat">{{ stat.label }}: {{ stat.value }}</span>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="cs-category-card-actions">
+        <a class="button cs-category-open" href="{{ card.open_url }}">Open</a>
+        {% if card.add_url %}
+        <a class="cs-category-add" href="{{ card.add_url }}">Add</a>
+        {% endif %}
+      </div>
+    </article>
+    {% endfor %}
+  </section>
+  {% else %}
+  <p class="cs-empty">No models available in this category.</p>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block sidebar %}{% endblock %}

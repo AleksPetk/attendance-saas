@@ -124,7 +124,7 @@ def install_platform_2fa():
 
     register(check_platform_2fa_encryption_key, Tags.security)
     admin.site.login = platform_admin_login
-    admin.site.index_template = "admin/two_factor/index.html"
+    # Index template is owned by core.admin_branding (platform dashboard).
     _original_each_context = admin.site.each_context
     admin.site.each_context = _each_context
     _INSTALLED = True

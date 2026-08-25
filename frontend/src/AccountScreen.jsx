@@ -1,6 +1,17 @@
 import { useCallback, useEffect, useState } from "react";
+import { Navigate, useParams, useSearchParams } from "react-router-dom";
 import { api, errorMessage } from "./api.js";
 import { AccountSettingsSection } from "./accountAccordion.js";
+import {
+  accountSectionMeta,
+  isAccountSectionId,
+  resolveAccountSection,
+} from "./accountNavigation.js";
+import {
+  AccountBillingPanel,
+  AccountSubNav,
+  AccountSubscriptionPanel,
+} from "./accountPanels.js";
 import {
   Badge,
   CodeBadge,
@@ -41,10 +52,23 @@ function EmailActionRow({ label, email, status, children }) {
   );
 }
 
-export default function AccountScreen({ onAccountDeleted }) {
+export default function AccountScreen({ session, setSession, onAccountDeleted }) {
+  const { section: sectionParam } = useParams();
+  const section = resolveAccountSection(sectionParam);
+  const sectionMeta = accountSectionMeta(section);
+  const [searchParams, setSearchParams] = useSearchParams();
+
   const [loading, setLoading] = useState(true);
   const [account, setAccount] = useState(null);
   const [error, setError] = useState("");
+  const [subscriptionSession, setSubscriptionSession] = useState(session);
+  const [billing, setBilling] = useState(null);
+  const [billingLoading, setBillingLoading] = useState(false);
+  const [billingError, setBillingError] = useState("");
+  const [billingBusy, setBillingBusy] = useState("");
+  const [confirmingCheckout, setConfirmingCheckout] = useState(false);
+  const [checkoutNotice, setCheckoutNotice] = useState("");
+  const [portalNotice, setPortalNotice] = useState("");
   const [emailSuccess, setEmailSuccess] = useState("");
   const [emailError, setEmailError] = useState("");
 
@@ -120,6 +144,243 @@ export default function AccountScreen({ onAccountDeleted }) {
       setLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    setSubscriptionSession(session);
+  }, [session]);
+
+  const refreshWorkspaceSession = useCallback(async () => {
+    try {
+      const result = await api.loadWorkspace(null);
+      const next = { workspace: result.data };
+      setSubscriptionSession(next);
+      if (typeof setSession === "function") {
+        setSession(next);
+      }
+      return next;
+    } catch {
+      return null;
+    }
+  }, [setSession]);
+
+  const loadBilling = useCallback(async () => {
+    setBillingLoading(true);
+    setBillingError("");
+    try {
+      const result = await api.getBilling();
+      setBilling(result.data);
+      return result.data;
+    } catch (err) {
+      setBillingError(errorMessage(err));
+      return null;
+    } finally {
+      setBillingLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (section !== "subscription" && section !== "billing") return undefined;
+    let cancelled = false;
+    async function refresh() {
+      await refreshWorkspaceSession();
+      if (cancelled) return;
+      await loadBilling();
+    }
+    refresh();
+    return () => {
+      cancelled = true;
+    };
+  }, [section, refreshWorkspaceSession, loadBilling]);
+
+  useEffect(() => {
+    if (section !== "subscription" && section !== "billing") return undefined;
+    const checkout = searchParams.get("checkout");
+    const portal = searchParams.get("portal");
+    if (!checkout && !portal) return undefined;
+
+    let cancelled = false;
+    let timer = null;
+    let attempts = 0;
+
+    async function handleReturn() {
+      if (checkout === "cancelled") {
+        setCheckoutNotice("Checkout was cancelled. Your plan was not changed.");
+        setSearchParams({}, { replace: true });
+        return;
+      }
+      if (portal === "return") {
+        setPortalNotice("Returned from Stripe Customer Portal. Refreshing billing state…");
+        await refreshWorkspaceSession();
+        if (cancelled) return;
+        await loadBilling();
+        if (cancelled) return;
+        setPortalNotice("Billing state refreshed from the server.");
+        setSearchParams({}, { replace: true });
+        return;
+      }
+      if (checkout === "success") {
+        setConfirmingCheckout(true);
+        setCheckoutNotice("");
+        const poll = async () => {
+          if (cancelled) return;
+          attempts += 1;
+          await refreshWorkspaceSession();
+          if (cancelled) return;
+          const state = await loadBilling();
+          if (cancelled) return;
+          const activated =
+            state &&
+            (state.status === "active" ||
+              state.status === "trialing" ||
+              state.status === "past_due");
+          if (activated || attempts >= 8) {
+            setConfirmingCheckout(false);
+            setCheckoutNotice(
+              activated
+                ? "Subscription confirmed from Stripe."
+                : "Still confirming with Stripe. Refresh this page in a moment if your plan has not updated.",
+            );
+            setSearchParams({}, { replace: true });
+            return;
+          }
+          timer = window.setTimeout(poll, 1500);
+        };
+        poll();
+      }
+    }
+
+    handleReturn();
+    return () => {
+      cancelled = true;
+      if (timer) window.clearTimeout(timer);
+    };
+  }, [section, searchParams, setSearchParams, refreshWorkspaceSession, loadBilling]);
+
+  async function handleStartCheckout(plan, interval) {
+    setBillingBusy("checkout");
+    setBillingError("");
+    try {
+      await api.csrf();
+      const result = await api.startBillingCheckout({ plan, interval });
+      const url = result.data?.checkout_url;
+      if (!url) throw { data: { detail: "Checkout URL was not returned." } };
+      window.location.assign(url);
+    } catch (err) {
+      setBillingError(errorMessage(err));
+      setBillingBusy("");
+    }
+  }
+
+  async function handleStartTrial(interval) {
+    setBillingBusy("trial");
+    setBillingError("");
+    try {
+      await api.csrf();
+      const result = await api.startBillingTrialCheckout({ interval });
+      const url = result.data?.checkout_url;
+      if (!url) throw { data: { detail: "Checkout URL was not returned." } };
+      window.location.assign(url);
+    } catch (err) {
+      setBillingError(errorMessage(err));
+      setBillingBusy("");
+    }
+  }
+
+  async function handlePreviewUpgrade() {
+    setBillingBusy("preview");
+    setBillingError("");
+    try {
+      await api.csrf();
+      const result = await api.previewBillingUpgrade();
+      return result.data;
+    } finally {
+      setBillingBusy("");
+    }
+  }
+
+  async function handleConfirmUpgrade() {
+    setBillingBusy("upgrade");
+    setBillingError("");
+    try {
+      await api.csrf();
+      const result = await api.applyBillingUpgrade();
+      setBilling(result.data);
+      await refreshWorkspaceSession();
+    } finally {
+      setBillingBusy("");
+    }
+  }
+
+  async function handleScheduleDowngrade() {
+    setBillingBusy("downgrade");
+    setBillingError("");
+    try {
+      await api.csrf();
+      const result = await api.scheduleBillingDowngrade();
+      setBilling(result.data);
+      await refreshWorkspaceSession();
+    } finally {
+      setBillingBusy("");
+    }
+  }
+
+  async function handleCancelSubscription() {
+    setBillingBusy("cancel");
+    setBillingError("");
+    try {
+      await api.csrf();
+      const result = await api.cancelBillingSubscription();
+      setBilling(result.data);
+      await refreshWorkspaceSession();
+    } finally {
+      setBillingBusy("");
+    }
+  }
+
+  async function handleResumeSubscription() {
+    setBillingBusy("resume");
+    setBillingError("");
+    try {
+      await api.csrf();
+      const result = await api.resumeBillingSubscription();
+      setBilling(result.data);
+      await refreshWorkspaceSession();
+    } catch (err) {
+      setBillingError(errorMessage(err));
+    } finally {
+      setBillingBusy("");
+    }
+  }
+
+  async function handleCancelScheduledDowngrade() {
+    setBillingBusy("cancel-downgrade");
+    setBillingError("");
+    try {
+      await api.csrf();
+      const result = await api.cancelScheduledBillingDowngrade();
+      setBilling(result.data);
+      await refreshWorkspaceSession();
+    } catch (err) {
+      setBillingError(errorMessage(err));
+    } finally {
+      setBillingBusy("");
+    }
+  }
+
+  async function handleOpenPortal() {
+    setBillingBusy("portal");
+    setBillingError("");
+    try {
+      await api.csrf();
+      const result = await api.openBillingPortal();
+      const url = result.data?.portal_url;
+      if (!url) throw { data: { detail: "Portal URL was not returned." } };
+      window.location.assign(url);
+    } catch (err) {
+      setBillingError(errorMessage(err));
+      setBillingBusy("");
+    }
+  }
 
   useEffect(() => {
     loadAccount();
@@ -328,6 +589,48 @@ export default function AccountScreen({ onAccountDeleted }) {
     }
   }
 
+  if (sectionParam && !isAccountSectionId(sectionParam)) {
+    return <Navigate to="/account/security" replace />;
+  }
+
+  if (section === "subscription" || section === "billing") {
+    return (
+      <div className="page account-page">
+        <PageHeader title="Account" description={sectionMeta.description} />
+        <AccountSubNav />
+        {section === "subscription" ? (
+          <AccountSubscriptionPanel
+            session={subscriptionSession || session}
+            billing={billing}
+            billingLoading={billingLoading}
+            billingError={billingError}
+            confirmingCheckout={confirmingCheckout}
+            checkoutNotice={checkoutNotice}
+            busyAction={billingBusy}
+            onStartCheckout={handleStartCheckout}
+            onStartTrial={handleStartTrial}
+            onPreviewUpgrade={handlePreviewUpgrade}
+            onConfirmUpgrade={handleConfirmUpgrade}
+            onScheduleDowngrade={handleScheduleDowngrade}
+            onCancelSubscription={handleCancelSubscription}
+            onResumeSubscription={handleResumeSubscription}
+            onCancelScheduledDowngrade={handleCancelScheduledDowngrade}
+          />
+        ) : null}
+        {section === "billing" ? (
+          <AccountBillingPanel
+            billing={billing}
+            billingLoading={billingLoading}
+            billingError={billingError}
+            portalNotice={portalNotice}
+            busyAction={billingBusy}
+            onOpenPortal={handleOpenPortal}
+          />
+        ) : null}
+      </div>
+    );
+  }
+
   if (loading) {
     return (
       <div className="page">
@@ -348,10 +651,8 @@ export default function AccountScreen({ onAccountDeleted }) {
 
   return (
     <div className="page account-page">
-      <PageHeader
-        title="Account"
-        description="Owner email, verification status, and password."
-      />
+      <PageHeader title="Account" description={sectionMeta.description} />
+      <AccountSubNav />
       <div className="account-settings-stack">
         <AccountSettingsSection
           id="email"

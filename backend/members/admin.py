@@ -14,9 +14,10 @@ class MemberAdmin(admin.ModelAdmin):
         "email",
         "phone",
         "status",
+        "plan_unlocked",
         "created_at",
     )
-    list_filter = ("status", "organization")
+    list_filter = ("status", "plan_unlocked", "organization")
     search_fields = (
         "name",
         "email",
@@ -29,6 +30,7 @@ class MemberAdmin(admin.ModelAdmin):
     readonly_fields = (
         "pin_hash",
         "check_in_identifier",
+        "plan_unlocked",
         "created_at",
         "updated_at",
         "archived_at",
@@ -46,6 +48,7 @@ class MemberAdmin(admin.ModelAdmin):
         "check_in_identifier",
         "pin_hash",
         "status",
+        "plan_unlocked",
         "created_at",
         "updated_at",
         "archived_at",

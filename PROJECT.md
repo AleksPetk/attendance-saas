@@ -17,7 +17,7 @@ Current architectural direction (not permission to implement until explicitly in
 | Web frontend | React |
 | Mobile (later) | React Native / Expo |
 | Deployment (later) | Docker, Linux, Nginx, Gunicorn, Cloudflare where appropriate |
-| Billing (later) | Recurring SaaS subscriptions; web billing likely via Stripe |
+| Billing (later provider) | Recurring SaaS; V1 plans **Basic / Plus / Business** and USD prices frozen in PRODUCT.md; internal billing domain feeds entitlements; web checkout likely Stripe |
 
 Native/desktop applications (macOS, Windows) and mobile app store billing are **future considerations** requiring separate research and approval.
 

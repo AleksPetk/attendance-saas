@@ -44,12 +44,31 @@ from groups.standard_group_import import (
     list_standard_import_sources,
 )
 from members.models import Member, MemberStatus
+from organizations.entitlements import (
+    FEATURE_STRUCTURED_GROUPS,
+    FEATURE_STRUCTURED_SNAPSHOT_IMPORT,
+    LIMIT_ACTIVE_STANDARD_GROUPS,
+    LIMIT_ACTIVE_STRUCTURED_GROUPS,
+    LIMIT_ARCHIVED_GROUPS,
+    LIMIT_CLASSES_PER_STRUCTURED_GROUP,
+)
+from organizations.entitlements.api import (
+    deny_plan_capacity,
+    deny_plan_feature,
+    raise_plan_denied,
+)
+from organizations.entitlements.plan_locks import (
+    order_groups_queryset_by_plan_availability,
+    require_group_plan_unlocked,
+)
+from organizations.entitlements.exceptions import PlanEntitlementDenied
 from organizations.permissions import (
     CanManageGroupParticipants,
     CanManageWorkspace,
     CanViewAssignedGroup,
     can_access_group,
     get_active_workspace_organization,
+    is_workspace_staff_operator,
     scope_groups_queryset,
 )
 
@@ -57,6 +76,13 @@ class OwnedWorkspaceMixin:
     def initial(self, request, *args, **kwargs):
         super().initial(request, *args, **kwargs)
         self.organization = get_active_workspace_organization(request.user)
+
+
+def _deny_locked_group(group):
+    try:
+        require_group_plan_unlocked(group)
+    except PlanEntitlementDenied as exc:
+        raise_plan_denied(exc)
 
 
 class GroupViewSet(OwnedWorkspaceMixin, viewsets.ModelViewSet):
@@ -116,15 +142,24 @@ class GroupViewSet(OwnedWorkspaceMixin, viewsets.ModelViewSet):
         search = (query.validated_data.get("search") or "").strip()
         if search and self.action == "list":
             queryset = queryset.filter(name__icontains=search)
-        return scope_groups_queryset(self.request.user, queryset)
+        queryset = scope_groups_queryset(self.request.user, queryset)
+        return order_groups_queryset_by_plan_availability(
+            queryset, self.organization
+        )
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
         context["organization"] = self.organization
         return context
 
+    def retrieve(self, request, *args, **kwargs):
+        group = self.get_object()
+        _deny_locked_group(group)
+        return super().retrieve(request, *args, **kwargs)
+
     def update(self, request, *args, **kwargs):
         group = self.get_object()
+        _deny_locked_group(group)
         if group.status == GroupStatus.ARCHIVED:
             return Response(
                 group_archived_error_payload(),
@@ -137,6 +172,7 @@ class GroupViewSet(OwnedWorkspaceMixin, viewsets.ModelViewSet):
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
+        _deny_locked_group(instance)
         if instance.status == GroupStatus.ARCHIVED:
             return Response(
                 group_archived_error_payload(
@@ -151,6 +187,7 @@ class GroupViewSet(OwnedWorkspaceMixin, viewsets.ModelViewSet):
     @action(detail=True, methods=["post"])
     def archive(self, request, pk=None):
         group = self.get_object()
+        _deny_locked_group(group)
         if group.status == GroupStatus.ARCHIVED:
             return Response(
                 {
@@ -159,6 +196,7 @@ class GroupViewSet(OwnedWorkspaceMixin, viewsets.ModelViewSet):
                 },
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        deny_plan_capacity(self.organization, LIMIT_ARCHIVED_GROUPS)
         group.archive()
         serializer = self.get_serializer(group)
         return Response(serializer.data)
@@ -166,6 +204,7 @@ class GroupViewSet(OwnedWorkspaceMixin, viewsets.ModelViewSet):
     @action(detail=True, methods=["post"])
     def restore(self, request, pk=None):
         group = self.get_object()
+        _deny_locked_group(group)
         if group.status != GroupStatus.ARCHIVED:
             return Response(
                 {
@@ -174,6 +213,11 @@ class GroupViewSet(OwnedWorkspaceMixin, viewsets.ModelViewSet):
                 },
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        if group.group_type == GroupType.STRUCTURED:
+            deny_plan_feature(self.organization, FEATURE_STRUCTURED_GROUPS)
+            deny_plan_capacity(self.organization, LIMIT_ACTIVE_STRUCTURED_GROUPS)
+        else:
+            deny_plan_capacity(self.organization, LIMIT_ACTIVE_STANDARD_GROUPS)
         try:
             group.restore()
         except (DjangoValidationError, IntegrityError):
@@ -214,6 +258,10 @@ class GroupScopedMixin(OwnedWorkspaceMixin):
             raise NotFound("Group not found in this workspace.")
         if not can_access_group(request.user, self.group):
             raise NotFound("Group not found in this workspace.")
+        if request.method not in ("GET", "HEAD", "OPTIONS") or is_workspace_staff_operator(
+            request.user
+        ):
+            _deny_locked_group(self.group)
         if self.group.status == GroupStatus.ARCHIVED and request.method not in (
             "GET",
             "HEAD",
@@ -381,6 +429,7 @@ class GroupAvailableMembersView(GroupScopedMixin, ListAPIView):
         return Member.objects.filter(
             organization=self.organization,
             status=MemberStatus.ACTIVE,
+            plan_unlocked=True,
         ).exclude(pk__in=already_in_group)
 
     def list(self, request, *args, **kwargs):
@@ -523,6 +572,12 @@ class GroupSectionImportStandardGroupView(GroupScopedMixin, APIView):
         serializer = StandardGroupImportSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
+        deny_plan_feature(self.organization, FEATURE_STRUCTURED_SNAPSHOT_IMPORT)
+        deny_plan_capacity(
+            self.organization,
+            LIMIT_CLASSES_PER_STRUCTURED_GROUP,
+            group=self.group,
+        )
         try:
             result = import_standard_group_as_class(
                 organization=self.organization,

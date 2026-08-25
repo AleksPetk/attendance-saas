@@ -27,6 +27,14 @@ env = environ.Env(
     RESEND_TIMEOUT_SECONDS=(int, 15),
     PLATFORM_2FA_ENCRYPTION_KEY=(str, ""),
     APP_SECRETS_ENCRYPTION_KEY=(str, ""),
+    STRIPE_SECRET_KEY=(str, ""),
+    STRIPE_WEBHOOK_SECRET=(str, ""),
+    STRIPE_PRICE_PLUS_MONTHLY=(str, ""),
+    STRIPE_PRICE_PLUS_YEARLY=(str, ""),
+    STRIPE_PRICE_BUSINESS_MONTHLY=(str, ""),
+    STRIPE_PRICE_BUSINESS_YEARLY=(str, ""),
+    BUSINESS_TRIAL_DAYS=(int, 0),
+    BILLING_PROVIDER=(str, "stripe"),
 )
 
 env_file = REPO_ROOT / ".env"
@@ -48,6 +56,7 @@ INSTALLED_APPS = [
     "rest_framework",
     "accounts.apps.AccountsConfig",
     "organizations",
+    "billing.apps.BillingConfig",
     "members",
     "groups",
     "core.apps.CoreConfig",
@@ -84,7 +93,7 @@ ROOT_URLCONF = "config.urls"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [],
+        "DIRS": [BASE_DIR / "templates"],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
@@ -206,3 +215,15 @@ PLATFORM_2FA_ENCRYPTION_KEY = env("PLATFORM_2FA_ENCRYPTION_KEY", default="")
 # Optional Fernet key for reversible app secrets (Group SMTP passwords, etc.).
 # Local DEBUG may derive a key from SECRET_KEY when this is empty.
 APP_SECRETS_ENCRYPTION_KEY = env("APP_SECRETS_ENCRYPTION_KEY", default="")
+
+# Stripe TEST-mode billing. Empty placeholders until credentials exist.
+# Never commit live keys. Permanent list prices stay in billing.catalog.
+STRIPE_SECRET_KEY = env("STRIPE_SECRET_KEY", default="")
+STRIPE_WEBHOOK_SECRET = env("STRIPE_WEBHOOK_SECRET", default="")
+STRIPE_PRICE_PLUS_MONTHLY = env("STRIPE_PRICE_PLUS_MONTHLY", default="")
+STRIPE_PRICE_PLUS_YEARLY = env("STRIPE_PRICE_PLUS_YEARLY", default="")
+STRIPE_PRICE_BUSINESS_MONTHLY = env("STRIPE_PRICE_BUSINESS_MONTHLY", default="")
+STRIPE_PRICE_BUSINESS_YEARLY = env("STRIPE_PRICE_BUSINESS_YEARLY", default="")
+# 0 / unset = Business trial is not offered. Do not invent a duration.
+BUSINESS_TRIAL_DAYS = env("BUSINESS_TRIAL_DAYS")
+BILLING_PROVIDER = env("BILLING_PROVIDER", default="stripe")

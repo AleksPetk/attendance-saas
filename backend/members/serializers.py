@@ -1,6 +1,13 @@
 from rest_framework import serializers
 
 from members.models import MEMBER_ADDRESS_MAX_LENGTH, Member, MemberStatus
+from organizations.entitlements import LIMIT_MEMBERS
+from organizations.entitlements.api import deny_plan_capacity, raise_plan_denied
+from organizations.entitlements.exceptions import PlanEntitlementDenied
+from organizations.entitlements.plan_locks import (
+    is_member_plan_unlocked,
+    require_no_unresolved_member_selection,
+)
 
 
 class MemberSerializer(serializers.ModelSerializer):
@@ -8,6 +15,8 @@ class MemberSerializer(serializers.ModelSerializer):
     has_photo = serializers.BooleanField(read_only=True)
     photo_url = serializers.SerializerMethodField()
     date_of_birth = serializers.DateField(required=False, allow_null=True)
+    plan_unlocked = serializers.BooleanField(read_only=True)
+    is_plan_locked = serializers.SerializerMethodField()
 
     class Meta:
         model = Member
@@ -24,6 +33,8 @@ class MemberSerializer(serializers.ModelSerializer):
             "address",
             "notes",
             "status",
+            "plan_unlocked",
+            "is_plan_locked",
             "created_at",
             "updated_at",
             "archived_at",
@@ -31,6 +42,7 @@ class MemberSerializer(serializers.ModelSerializer):
         read_only_fields = (
             "id",
             "status",
+            "plan_unlocked",
             "created_at",
             "updated_at",
             "archived_at",
@@ -53,6 +65,9 @@ class MemberSerializer(serializers.ModelSerializer):
             return request.build_absolute_uri(url)
         return url
 
+    def get_is_plan_locked(self, obj):
+        return not is_member_plan_unlocked(obj)
+
     def to_internal_value(self, data):
         if hasattr(data, "copy"):
             data = data.copy()
@@ -74,8 +89,14 @@ class MemberSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         validated_data.pop("clear_photo", None)
         organization = self.context["organization"]
+        try:
+            require_no_unresolved_member_selection(organization)
+        except PlanEntitlementDenied as exc:
+            raise_plan_denied(exc)
+        deny_plan_capacity(organization, LIMIT_MEMBERS)
         return Member.objects.create_member(
             organization=organization,
+            plan_unlocked=True,
             **validated_data,
         )
 
@@ -102,6 +123,7 @@ class MemberSerializer(serializers.ModelSerializer):
     def to_representation(self, instance):
         data = super().to_representation(instance)
         data.pop("photo", None)
+        data["is_plan_locked"] = not is_member_plan_unlocked(instance)
         return data
 
 

@@ -9,6 +9,7 @@ from groups.models import Group, GroupStatus
 from members.models import Member, MemberStatus
 from organizations.models import (
     Organization,
+    OrganizationPlan,
     WorkspaceStaffAccount,
     WorkspaceStaffRole,
     WorkspaceStaffStatus,
@@ -52,6 +53,8 @@ class WorkspaceAdminPermissionBase(TestCase):
     def setUp(self):
         self.owner = create_user("owner@example.com")
         self.organization = Organization.objects.create_with_owner(owner=self.owner)
+        self.organization.plan = OrganizationPlan.PLUS
+        self.organization.save(update_fields=["plan"])
         self.admin = WorkspaceStaffAccount.objects.create_account(
             organization=self.organization,
             username="jane.admin",

@@ -30,9 +30,13 @@ export default function GroupDetailScreen({ session, groupId, onNavigate }) {
   const [editingClassPin, setEditingClassPin] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [planAccessDenied, setPlanAccessDenied] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   async function load() {
     setError("");
+    setPlanAccessDenied(false);
+    setLoading(true);
     try {
       const groupResult = await api.getGroup(session, groupId);
       const nextGroup = groupResult.data;
@@ -69,7 +73,14 @@ export default function GroupDetailScreen({ session, groupId, onNavigate }) {
         setImportSources([]);
       }
     } catch (loadError) {
-      setError(errorMessage(loadError));
+      if (loadError?.status === 403 && loadError?.data?.code === "plan_resource_locked") {
+        setPlanAccessDenied(true);
+        setGroup(null);
+      } else {
+        setError(errorMessage(loadError));
+      }
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -77,7 +88,47 @@ export default function GroupDetailScreen({ session, groupId, onNavigate }) {
     load();
   }, [groupId]);
 
+  if (loading) {
+    return (
+      <div className="page">
+        <LoadingState label="Loading Group…" />
+      </div>
+    );
+  }
+
+  if (planAccessDenied) {
+    return (
+      <div className="page">
+        <div className="plan-locked-banner plan-locked-page" role="alert">
+          <span className="plan-locked-badge">Plan locked</span>
+          <strong>This Group is not available on the current plan</strong>
+          <p className="hint">
+            The Group and its history remain preserved. Open it again after the owner unlocks it
+            during capacity selection or upgrades the plan. Structured Groups require Business.
+          </p>
+          <button type="button" className="btn-secondary" onClick={() => onNavigate({ name: "groups" })}>
+            Back to Groups
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!group) {
+    return (
+      <div className="page">
+        <ErrorBanner message={error || "Group not found."} />
+        <button type="button" className="btn-secondary" onClick={() => onNavigate({ name: "groups" })}>
+          Back to Groups
+        </button>
+      </div>
+    );
+  }
+
   const setupIncomplete = group?.readiness && !group.readiness.setup_complete;
+  const planLocked = Boolean(group?.is_plan_locked || group?.plan_unlocked === false);
+  const canConfigureUnlocked = canConfigure && !planLocked;
+  const canLaunchUnlocked = canLaunch && !planLocked;
   const structured = isStructuredGroup(group);
   const kioskNeedsSetup = kioskReadiness && !kioskReadiness.ready;
   const launchBlocked = setupIncomplete || (canConfigure && kioskNeedsSetup);
@@ -187,15 +238,6 @@ export default function GroupDetailScreen({ session, groupId, onNavigate }) {
     }
   }
 
-  if (!group) {
-    return (
-      <div className="page">
-        <ErrorBanner message={error} />
-        <LoadingState label="Loading Group…" />
-      </div>
-    );
-  }
-
   return (
     <div className="page page-detail">
       <header className="page-header">
@@ -213,7 +255,7 @@ export default function GroupDetailScreen({ session, groupId, onNavigate }) {
           <p>{actionSummary(group.actions)}</p>
         </div>
         <div className="header-actions">
-          {canConfigure ? (
+          {canConfigureUnlocked ? (
             <>
               <button
                 type="button"
@@ -259,7 +301,7 @@ export default function GroupDetailScreen({ session, groupId, onNavigate }) {
         </div>
       ) : null}
 
-      {canConfigure && kioskNeedsSetup && !setupIncomplete ? (
+      {canConfigureUnlocked && kioskNeedsSetup && !setupIncomplete && !planLocked ? (
         <div className="setup-incomplete-banner">
           <div>
             <strong>Kiosk settings need attention</strong>
@@ -338,7 +380,7 @@ export default function GroupDetailScreen({ session, groupId, onNavigate }) {
           </p>
         </div>
         <div className="kiosk-action-row">
-          {canConfigure ? (
+          {canConfigureUnlocked ? (
             <>
               <button
                 type="button"
@@ -356,7 +398,7 @@ export default function GroupDetailScreen({ session, groupId, onNavigate }) {
               </button>
             </>
           ) : null}
-          {canLaunch ? (
+          {canLaunchUnlocked ? (
             <button
               type="button"
               className="btn-success kiosk-action-launch"
@@ -398,7 +440,7 @@ export default function GroupDetailScreen({ session, groupId, onNavigate }) {
                   >
                     Open
                   </button>
-                  {canConfigure ? (
+                  {canConfigureUnlocked ? (
                     <>
                       <button
                         type="button"
@@ -426,7 +468,7 @@ export default function GroupDetailScreen({ session, groupId, onNavigate }) {
             {classes.length === 0 ? <p className="hint">No Classes yet.</p> : null}
           </div>
 
-          {canConfigure && editingClassId ? (
+          {canConfigureUnlocked && editingClassId ? (
             <form className="panel-form card-surface panel-form-edit" onSubmit={saveClassRename}>
               <h3>Edit Class</h3>
               <Field label="Name">
@@ -465,7 +507,7 @@ export default function GroupDetailScreen({ session, groupId, onNavigate }) {
             </form>
           ) : null}
 
-          {canConfigure ? (
+          {canConfigureUnlocked ? (
           <form
             className="add-participant-card"
             onSubmit={addClassMode === "import" ? copyStandardGroupAsClass : addClass}
@@ -600,6 +642,7 @@ export default function GroupDetailScreen({ session, groupId, onNavigate }) {
           groupId={groupId}
           onError={setError}
           onChanged={load}
+          operationsDisabled={planLocked}
         />
       )}
     </div>

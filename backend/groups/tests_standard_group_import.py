@@ -19,7 +19,7 @@ from groups.readiness import compute_group_setup_status
 from kiosk_builder.models import ensure_group_kiosk_design, ensure_group_kiosk_settings
 from kiosk_builder.testing import configure_group_kiosk_for_launch
 from members.models import Member, MemberStatus
-from organizations.models import Organization
+from organizations.models import Organization, OrganizationPlan
 
 User = get_user_model()
 
@@ -36,6 +36,8 @@ class StandardGroupImportTests(TestCase):
         self.organization = Organization.objects.create_with_owner(
             owner=create_user("import-owner@example.com")
         )
+        self.organization.plan = OrganizationPlan.BUSINESS
+        self.organization.save(update_fields=["plan"])
         self.other_org = Organization.objects.create_with_owner(
             owner=create_user("import-other@example.com")
         )

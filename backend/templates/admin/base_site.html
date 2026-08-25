@@ -1,0 +1,28 @@
+{% extends "admin/base.html" %}
+{% load i18n static %}
+
+{% block title %}
+  {% if subtitle %}{{ subtitle }} | {% endif %}{{ title }} | Check Station
+{% endblock %}
+
+{% block branding %}
+<div id="site-name">
+  <a href="{% url 'admin:index' %}" class="cs-admin-brand">
+    <span class="cs-admin-mark" aria-hidden="true"></span>
+    <span class="cs-admin-wordmark">
+      <span class="cs-admin-wordmark-main">Check Station</span>
+      <span class="cs-admin-wordmark-sub">Platform admin</span>
+    </span>
+  </a>
+</div>
+{% endblock %}
+
+{% block extrastyle %}
+{{ block.super }}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{% static 'admin/css/checkstation_admin.css' %}">
+{% endblock %}
+
+{% block nav-global %}{% endblock %}

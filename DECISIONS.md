@@ -173,6 +173,7 @@ Only log decisions supported by approved product planning. Do not invent decisio
 | **Decision** | Product is sold as recurring subscription SaaS with plan-based limits. Web billing likely via Stripe (subject to later design). |
 | **Reason** | Standard SaaS business model with natural usage-based limit enforcement. |
 | **Status** | confirmed |
+| **Clarified by** | [DEC-072](#dec-072--v1-plan-tiers-basic-plus-business) (V1 plan names/limits), [DEC-076](#dec-076--internal-entitlement-layer-before-stripe) (entitlement before Stripe), [DEC-077](#dec-077--v1-paid-usd-pricing-and-billing-intervals)–[DEC-081](#dec-081--internal-billing-domain-and-purchase-sources) |
 
 ### DEC-019 — Storage quotas focus on media, not history
 
@@ -209,7 +210,7 @@ Only log decisions supported by approved product planning. Do not invent decisio
 | **Decision** | Subscription limits should distinguish **configuration** from **simultaneously active kiosk/device sessions**. Do not treat concurrent sessions as the same axis as “how many kiosks exist.” |
 | **Reason** | An Organization may have several Group/Event kiosk configurations while only operating a limited number of devices at once. |
 | **Status** | confirmed |
-| **Clarified by** | [DEC-044](#dec-044--group-and-event-own-kiosk-configuration) — kiosk configuration is owned by Group/Event, not an independent workspace-level definition list. Exact limit numbers remain OPEN-007. |
+| **Clarified by** | [DEC-044](#dec-044--group-and-event-own-kiosk-configuration) — kiosk configuration is owned by Group/Event, not an independent workspace-level definition list. **V1 Group/Member/staff/feature limits frozen (DEC-072)**; **USD prices frozen (DEC-077)**; Event axes remain OPEN-007. |
 
 ### DEC-023 — Event deletion requires warning and export option
 
@@ -330,9 +331,10 @@ Only log decisions supported by approved product planning. Do not invent decisio
 | Field | Value |
 |-------|-------|
 | **Date** | 2026-08-18 |
-| **Decision** | An Organization workspace is the **subscription boundary**. It may begin in a **trial or unsubscribed** state and later activate through subscription. Organization identity exists independently of currently paying. Trial duration, feature access during trial, and the billing state machine remain undesigned. |
+| **Decision** | An Organization workspace is the **subscription boundary**. It may begin unsubscribed (currently **Basic** at registration) or later enter a Business trial / paid subscription. Organization identity exists independently of currently paying. |
 | **Reason** | Onboarding should not require a paid subscription before a workspace exists. Billing implementation stays a separate design. |
 | **Status** | confirmed |
+| **Clarified by** | [DEC-078](#dec-078--business-trial-commercial-rules) (trial access and conversion rules; duration still TBD), [DEC-081](#dec-081--internal-billing-domain-and-purchase-sources). Current registration creates Basic and does **not** auto-start a trial. |
 
 ### DEC-036 — Controlled workspace UI; constrained kiosk branding
 
@@ -426,7 +428,7 @@ Only log decisions supported by approved product planning. Do not invent decisio
 | Field | Value |
 |-------|-------|
 | **Date** | 2026-08-18 |
-| **Decision** | **Group** and **Event** are similar as participation/check-in contexts (identification, Actions, owned kiosk configuration, outcomes) but have different **lifecycles**: Group is **long-lived and reusable**; Event is **temporary or one-time**. Do not collapse them into one entity. One paying customer User owns **one** Organization workspace and may use that workspace for **any mix** of real-world activities (businesses, schools, hobbies, teams, one-time Events) as Groups and Events. Separate User accounts remain required only when the same person operates **separate Organization workspaces** (DEC-033), not for each activity inside one workspace. Event Entries may represent temporary people **without** creating reusable Members; **Action Records** for those people still remain. Event deletion remains a warned, export-offered action (DEC-023). Plan limits may later treat persistent Groups and Events differently (for example more Groups than active Events); **actual limit numbers are not decided** (OPEN-007). |
+| **Decision** | **Group** and **Event** are similar as participation/check-in contexts (identification, Actions, owned kiosk configuration, outcomes) but have different **lifecycles**: Group is **long-lived and reusable**; Event is **temporary or one-time**. Do not collapse them into one entity. One paying customer User owns **one** Organization workspace and may use that workspace for **any mix** of real-world activities (businesses, schools, hobbies, teams, one-time Events) as Groups and Events. Separate User accounts remain required only when the same person operates **separate Organization workspaces** (DEC-033), not for each activity inside one workspace. Event Entries may represent temporary people **without** creating reusable Members; **Action Records** for those people still remain. Event deletion remains a warned, export-offered action (DEC-023). Plan limits may treat persistent Groups and Events differently; **V1 Group/Member/staff/feature limits are frozen (DEC-072)**; **Event-specific plan axes remain open (OPEN-007)**. |
 | **Reason** | Customers should not need multiple tenants to run different activities. Groups and Events share a participation-context role but differ in persistence and likely billing/limit treatment. |
 | **Status** | confirmed |
 | **Clarifies** | DEC-008, DEC-033 |
@@ -710,6 +712,131 @@ Only log decisions supported by approved product planning. Do not invent decisio
 | **Status** | confirmed |
 | **Clarifies** | OPEN-005 (Staff matrix frozen) |
 
+### DEC-072 — V1 plan tiers: Basic, Plus, Business
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-08-25 |
+| **Decision** | Canonical V1 plan names are **Basic**, **Plus**, and **Business** only (not Free / Pro / Enterprise). Full capability and quota matrix is frozen in [PRODUCT.md — Subscriptions and Plans](./PRODUCT.md#subscriptions-and-plans). Summary: **Basic** is free forever with ads, tight Standard-only quotas, Staff page locked (0 Admin / 0 Staff), full Kiosk Builder with **all** Card/Input kiosk templates, full Settings/History/Reports, no CSV/Excel/PDF export, Group email senders + after-action/participation emails allowed, Forward Emails locked. **Plus** is paid, no ads, larger Standard-only quotas, 2 Admin / 5 Staff, full Kiosk Builder with all templates, full exports, full Group email including Forward Emails, Staff Group assignments, Structured Groups still locked. **Business** is paid, no ads, includes Plus plus Structured Groups (active Structured quotas, Classes/participants per Class), larger Standard/Member/staff quotas, Standard → Structured Class snapshot import, and the full current product feature set for those capabilities. Kiosk template access does **not** differ by plan. Event-specific plan axes remain open. |
+| **Reason** | Product, marketing, entitlement, and future billing must share one frozen V1 tier definition. |
+| **Status** | confirmed |
+| **Clarifies** | DEC-018, OPEN-007 (names and V1 Group/Member/staff/feature limits) |
+| **Clarified by** | [DEC-077](#dec-077--v1-paid-usd-pricing-and-billing-intervals) (permanent USD prices) |
+| **Product source** | [PRODUCT.md](./PRODUCT.md#subscriptions-and-plans) |
+
+### DEC-073 — Plan entitlement semantics and non-destructive downgrade
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-08-25 |
+| **Decision** | Active and archived limits are separate where listed; archived resources do not consume active limits. Plan restrictions are enforced **server-side**, not UI-only. Role authorization and plan entitlement are **separate** checks; when both apply the actor must pass **both** (example: Workspace Admin may have role permission to create Structured Groups, but Plus does not entitle Structured Groups → deny). **Downgrading never automatically deletes customer data.** If usage exceeds the destination plan after downgrade: existing data remains; records stay readable/operational where safe; creation/reactivation/configuration that would increase over-limit usage is blocked; UI shows over-limit state; customer may reduce usage or upgrade. Do not silently archive or delete to force compliance. |
+| **Reason** | Protects customers from data loss while keeping entitlement enforceable and distinct from RBAC. |
+| **Status** | confirmed |
+| **Clarifies** | DEC-070, DEC-072 |
+| **Clarified by** | [DEC-079](#dec-079--immediate-upgrades-scheduled-downgrades-and-cancellations) (locks run only when the effective plan actually changes) |
+
+### DEC-074 — Basic ads policy
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-08-25 |
+| **Updated** | 2026-08-25 |
+| **Decision** | **Basic** may show ads in these frozen **web** placements: **Dashboard banner**, **Groups banner**, **before kiosk launch** (interstitial), **after kiosk exit** (interstitial), and **when leaving Kiosk Builder** (interstitial). Ads are **not** allowed during **live participant kiosk operation**. **Plus** and **Business** have **no ads**. A platform-operator global kill switch can hide all advertising without changing workspace plans. Local/web development uses a mock provider; a real provider is deferred until deployment. Ad/provider failure must never block application functionality. |
+| **Reason** | Monetize Basic without interrupting participant check-in UX. |
+| **Status** | confirmed |
+| **Clarifies** | DEC-072 |
+
+### DEC-075 — Owner Account area: Security, Subscription, Billing
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-08-25 |
+| **Decision** | Owner Account UI architecture uses three top-level sections/pages: **Security** (primary/login email, backup email, password, optional Owner TOTP 2FA, Danger Zone / permanent deletion), **Subscription** (current plan, status, limits/usage, upgrade/downgrade/cancellation, renewal, purchase-source-aware management), and **Billing** (payment summary + Stripe Customer Portal for invoices/payment method when Stripe-managed; no invented invoice store). Subscription ownership may come from different **purchase sources** (`none`, Stripe/web, Apple/app). Account UI respects purchase source (Apple-managed subscriptions do not show Stripe portal/change actions). Owner Account Subscription/Billing UIs are wired to owner billing APIs (Phase 2). |
+| **Reason** | Separates identity/security from commercial subscription and payment surfaces before billing implementation. |
+| **Status** | confirmed |
+| **Clarifies** | DEC-052, OPEN-024 (Account IA; commercial lifecycle rules frozen in DEC-077–080) |
+
+### DEC-076 — Internal entitlement layer before Stripe
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-08-25 |
+| **Decision** | Next billing-related implementation stage is an **internal entitlement / usage system** that answers: workspace plan; enabled features; per-resource limits; current usage; whether an operation may proceed; whether the workspace is over limit. Plan checks must not be scattered through Stripe-specific code. Stripe (and other purchase sources) later update subscription state that **feeds** this entitlement system. Stripe checkout/webhooks/portal remain undesigned (OPEN-011). |
+| **Reason** | Keeps product entitlement portable across purchase sources and implementable before any payment provider. |
+| **Status** | confirmed |
+| **Clarifies** | DEC-018, DEC-072, DEC-073, OPEN-011 |
+| **Followed by** | [DEC-081](#dec-081--internal-billing-domain-and-purchase-sources) (commercial billing state that feeds this layer) |
+
+### DEC-077 — V1 paid USD pricing and billing intervals
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-08-25 |
+| **Decision** | Permanent V1 paid prices are **USD only**: Plus **$9.99/month** and **$99.90/year**; Business **$14.99/month** and **$149.90/year**. Yearly = **10 × monthly** (effectively two months free). Basic remains free. Both **monthly** and **yearly** are V1 launch intervals for paid plans. The application does not invent proration arithmetic; the payment provider calculates amounts. Interval-change execution (monthly ↔ yearly) is deferred to provider integration. |
+| **Reason** | Marketing, catalog, and future Stripe Price objects must share one frozen list price. |
+| **Status** | confirmed |
+| **Clarifies** | DEC-018, DEC-072, OPEN-007 (prices; Event axes remain open) |
+
+### DEC-078 — Business trial commercial rules
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-08-25 |
+| **Decision** | V1 trial, when started, provides **Business** access. A payment method/card is required **before** the trial starts. If the customer does nothing, the trial automatically continues into **paid Business**. The customer may cancel immediately after starting; cancellation does **not** remove Business access until **trial end**. If canceled correctly before trial end, it must **not** convert to paid Business, then the workspace becomes **Basic**. **Exact trial duration is not frozen** (TBD / later configurable). Architecture stores explicit trial start/end. Registration does **not** auto-start a trial (workspaces still default to Basic until checkout exists). |
+| **Reason** | Card-required trial reduces unpaid abuse while still letting customers evaluate Business. Duration can be tuned without changing conversion rules. |
+| **Status** | confirmed |
+| **Clarifies** | DEC-035, OPEN-008 (behavior frozen; duration still open) |
+
+### DEC-079 — Immediate upgrades; scheduled downgrades and cancellations
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-08-25 |
+| **Decision** | **Paid upgrades are immediate** (Plus → Business, including yearly → yearly). Unused paid value is credited and the remaining prorated difference is charged **by the provider**; the billing-cycle anchor is preserved where supported. Do not charge a full new Business year on top of already-paid Plus time. Subscription UI should later show a provider-calculated immediate charge before confirm (Phase 2; do not fabricate preview amounts). **Paid downgrades are scheduled** for current paid period end (Business → Plus): current plan stays fully available; **no plan locks at request time**; at period end, `Organization.plan` changes and existing plan-lock behavior runs. **Cancellation** is scheduled for paid period end or trial end: access remains until then; then paid/trial access ends and the workspace becomes **Basic**. Cancellation is not account/data deletion (DEC-052). |
+| **Reason** | Customers keep paid value they already bought; entitlement locks only when the effective plan actually changes. |
+| **Status** | confirmed |
+| **Clarifies** | DEC-052, DEC-073, OPEN-024 |
+
+### DEC-083 — Reverse scheduled cancellation and downgrade before effective date
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-08-25 |
+| **Decision** | While a Stripe-managed cancellation is still pending (`cancel_at_period_end`) and access has not ended, the Owner may **resume** the subscription: Stripe clears cancel-at-period-end on the **existing** subscription; internal pending Basic transition is cleared; `Organization.plan` is unchanged; billing cycle / renewal date is preserved; no new Checkout and no immediate resubscribe charge. The same resume applies to a canceled Business trial still within the trial window (trial end unchanged; auto-conversion to paid Business is restored). While a Business→Plus downgrade is scheduled and not yet effective, the Owner may **cancel the downgrade**: Stripe releases the schedule; Business price/subscription continues; pending Plus is cleared; cycle preserved; no Checkout/charge. Reversals require successful provider confirmation before local pending state is cleared. Apple-managed sources do not use these Stripe actions. |
+| **Reason** | Owners need a way to reverse a change of mind before period end without recreating billing. |
+| **Status** | confirmed |
+| **Clarifies** | DEC-079, OPEN-024 |
+
+### DEC-080 — Payment-failure grace
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-08-25 |
+| **Decision** | The first failed recurring payment does **not** immediately downgrade. Current paid entitlement is preserved for a **3-day** grace. A warning email is intended **once per day** during grace (existing platform email later; not sent in this phase). If payment recovers, failure/grace state is cleared. If billing remains unresolved after the final provider outcome/grace handling, paid access ends and the workspace transitions to **Basic**. The app does **not** implement an independent payment retry engine; Stripe retry/webhooks coordinate with this internal grace state in Phase 2. |
+| **Reason** | Short recovery window without instantly collapsing a paid workspace. |
+| **Status** | confirmed |
+| **Clarifies** | OPEN-024 |
+
+### DEC-081 — Internal billing domain and purchase sources
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-08-25 |
+| **Decision** | Commercial subscription state lives in a dedicated **billing** domain, one current `WorkspaceSubscription` per Organization. `Organization.plan` remains the entitlement plan; `organizations.entitlements` remains the capability system. Billing **feeds** entitlement only through the canonical `apply_effective_plan()` transition (which preserves plan-lock sync). Purchase sources are **`none`**, **`stripe`**, and **`apple`**. Basic/free workspaces have no paid purchase source. Platform-admin plan edits are manual entitlement operations (no charges) and use the same effective transition path. Stripe Checkout, webhooks, Customer Portal, and Apple IAP are not implemented in this decision. |
+| **Reason** | Keeps provider objects out of the entitlement catalog and gives Stripe/Apple one safe plan-mutation entry point. |
+| **Status** | confirmed |
+| **Clarifies** | DEC-076, DEC-075, OPEN-011 (internal state; provider integration still open) |
+
+### DEC-082 — Launch promotion separate from permanent pricing
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-08-25 |
+| **Decision** | A public-launch discount is planned **separately** from the frozen permanent catalog. Current direction only: approximately **30–50%** off, approximately **1–2 weeks**, at **actual public product launch** (after intended app/platform releases are ready — not merely the first server deployment). Exact percentage and campaign dates are **not** frozen. Launch discounts must not change permanent catalog plan definitions; they will be implemented through the billing provider/promotion mechanism later. |
+| **Reason** | Launch marketing must not rewrite the durable price list. |
+| **Status** | confirmed |
+| **Clarifies** | DEC-077 |
+
 ---
 
 ## Open Decisions
@@ -723,24 +850,24 @@ Unresolved questions requiring explicit approval before implementation.
 | OPEN-004 | Kiosk security and session model | Device credentials remain open. Group-owned **kiosk exit code** (hashed, 4–10 alphanumeric) replaces owner-password exit for real launch (DEC-057). Interim app-session kiosk lock remains until device credentials are designed. |
 | OPEN-005 | Organization role capability matrix | **Frozen (DEC-070 Admin, DEC-071 Staff).** Owner/Admin/Staff role names unchanged |
 | OPEN-006 | Notification engine architecture | Group after-action senders implemented for Custom SMTP, Gmail App Password, Outlook/Microsoft 365 SMTP, and Yahoo Mail App Password (DEC-059–062). Multiple participation emails (max 3) confirmed in DEC-069. Group Forward Emails (max 3 private copies) confirmed in DEC-068. Broader templates/triggers/channels and Gmail/Microsoft/Yahoo OAuth remain open. No further dedicated MVP mailbox providers planned. |
-| OPEN-007 | Plan names, pricing, and exact limits | Basic/Pro/Business and all quota numbers. Plans may later limit persistent Groups and Events on different axes (DEC-045); do not decide numbers yet. Independent workspace-level kiosk-definition counts are not the product model (DEC-044). |
-| OPEN-008 | Free trial behavior | Workspace may begin trial/unsubscribed (DEC-035). Duration (~7 days is direction only), feature access during trial, and billing state machine remain open |
+| OPEN-007 | Plan prices and Event plan axes | **V1 prices frozen (DEC-077).** Remaining open: Event-specific quotas vs Group axes |
+| OPEN-008 | Free trial duration | Business trial **behavior** frozen (DEC-078). **Exact duration still TBD** / later configurable. Do not invent 7 or 14 days. |
 | OPEN-009 | Historical record retention policy | Archival, deletion, and compliance requirements. Event Entries may exist without Members while Action Records remain (DEC-045); how those records survive Event archival vs deletion (DEC-023) is part of this design. |
 | OPEN-010 | Database implementation and API design | Organization owner + WorkspaceStaffAccount models, constraints, and a minimal current-workspace API now exist. Remaining tenant/person models, broader REST/API design, and tenant-enforcement mechanisms (e.g. RLS) remain undecided |
-| OPEN-011 | Stripe integration design | Checkout, webhooks, plan sync, billing portal |
+| OPEN-011 | Stripe live configuration & remaining provider gaps | **Architecture implemented (Phase 2):** Checkout Session, Customer Portal, upgrade preview/apply, period-end downgrade, cancel-at-period-end, resume cancellation, cancel scheduled downgrade, signed webhooks + `ProviderEvent` idempotency, owner billing APIs/UI, fake provider for tests. **Still open:** creating the real Stripe account; supplying TEST `STRIPE_SECRET_KEY` / webhook secret / Price IDs; live end-to-end verification; **monthly↔yearly interval-change execution** (capabilities expose `can_change_interval: false` until product/provider semantics are frozen); production webhook URL + Customer Portal branding in Stripe Dashboard |
 | OPEN-012 | Image optimization specifications | Max dimensions, formats, thumbnail strategy |
 | OPEN-013 | MVP feature final checklist | Which candidate features are in vs out |
 | OPEN-014 | Group-only participant to Member linking | Conversion workflow and duplicate detection |
-| OPEN-015 | App store billing for mobile | Apple/Google requirements research needed |
+| OPEN-015 | App store billing for mobile | Apple/Google requirements research needed; purchase-source persistence exists (DEC-075, DEC-081); Account UI hides Stripe controls for `purchase_source=apple` |
 | OPEN-016 | Platform administration tooling scope | What platform operators need at launch vs later |
-| OPEN-017 | Export formats for MVP | Attendance Report exports PDF, Excel (.xlsx), and CSV from the shared report payload (DEC-063). |
+| OPEN-017 | Export formats for MVP | Attendance Report exports PDF, Excel (.xlsx), and CSV from the shared report payload (DEC-063). **Plan gating:** Basic has no CSV/Excel/PDF export; Plus/Business have full export (DEC-072). |
 | OPEN-018 | Manual correction and audit workflow | How corrections interact with historical integrity |
 | OPEN-019 | Event integration with Members/Groups | Advanced optional linking behavior |
 | OPEN-020 | Kiosk/Group/Event identification methods for MVP | Product allows different predefined methods per Group/Event owned kiosk (DEC-038, DEC-044). Which methods belong in MVP is still open. DEC-041 (workspace kiosk assigned to Groups/Events) is superseded. |
 | OPEN-021 | Minimum Member data | **Resolved by DEC-053.** Name is the only universally required Organization-level Member field. Email, date of birth, phone, address, photo, and notes are optional. Member-level PIN/identifier are not profile fields. Contextual Group/Event requirements remain (DEC-046). |
 | OPEN-022 | Event Entry future structure | Whether future architecture will split generic Event Entries into separate concepts such as Reservation → Attendees, and under what circumstances. |
 | OPEN-023 | Action Record source/context implementation | Product-level sources confirmed: kiosk, staff/admin, automatic/preset (DEC-040). Exact fields, whether a kiosk reference is always stored, and other sources remain undesigned |
-| OPEN-024 | Organization billing lifecycle | Workspace-before-paid-subscription is confirmed (DEC-035). How trial, subscribed, cancelled, suspended, and other states relate to Subscription and access remains undesigned |
+| OPEN-024 | Organization billing lifecycle | Workspace-before-paid-subscription is confirmed (DEC-035). Commercial rules for trial conversion, immediate upgrades, scheduled downgrade/cancel, **reversal of scheduled cancel/downgrade before effective end** (DEC-083), and 3-day payment grace are frozen (DEC-078–080, DEC-083). Stripe execution path exists (OPEN-011 narrowed). Remaining: trial **duration**, launch promo (OPEN-related DEC-082), Apple IAP execution, interval-change proration execution |
 | OPEN-025 | User/staff ↔ Member explicit linking | Same real-world person may later be both a WorkspaceStaffAccount and a Member (or a paying User and a Member). Any explicit link, deduplication, or conversion mechanism remains undecided. Do not invent a required link during foundation implementation. |
 | OPEN-027 | Kiosk data model | **Partially resolved (2026-08-20).** Group behavioral kiosk settings live in `KioskSettings` (OneToOne Group). Visual design stays in `KioskDesign`. See DEC-057. Event kiosk storage and device credentials remain future work. |
 | OPEN-028 | Multiple kiosk variants per Group or Event | Explicitly **not** an MVP requirement. Future decision. Initial product direction is one owned configuration per Group and per Event (DEC-044). |

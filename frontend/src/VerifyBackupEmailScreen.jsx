@@ -51,7 +51,7 @@ export default function VerifyBackupEmailScreen() {
         lead="Your Check Station backup email is confirmed."
         footnote={
           <p>
-            <Link to="/account">Return to account</Link>
+            <Link to="/account/security">Return to account</Link>
             {" · "}
             <Link to="/login">Go to login</Link>
           </p>
@@ -59,7 +59,7 @@ export default function VerifyBackupEmailScreen() {
       >
         <div className="auth-status-panel">
           <SuccessBanner message={message} />
-          <Link className="btn-primary btn-block" to="/account">
+          <Link className="btn-primary btn-block" to="/account/security">
             Return to account
           </Link>
         </div>
@@ -86,7 +86,7 @@ export default function VerifyBackupEmailScreen() {
       lead={lead}
       footnote={
         <p>
-          <Link to="/account">Return to account</Link>
+          <Link to="/account/security">Return to account</Link>
           {" · "}
           <Link to="/login">Return to login</Link>
         </p>

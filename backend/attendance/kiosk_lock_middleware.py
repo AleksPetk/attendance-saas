@@ -54,6 +54,8 @@ def _is_allowed_during_kiosk_lock(request):
         return True
     if path == "/api/workspace" and method == "GET":
         return True
+    if path in {"/api/billing/webhooks/stripe"} and method == "POST":
+        return True
 
     match = KIOSK_GROUP_API_RE.match(path)
     if match and group_id is not None:

@@ -46,7 +46,7 @@ These directions describe **approach and discipline**, not a finalized feature c
 | Initial product direction: **one** owned kiosk configuration per Group and per Event; multiple variants are future, not MVP | Confirmed |
 | Event Entries may be temporary people without creating reusable Members; Action Records still remain | Confirmed |
 | Participant field requirements are **contextual** to a Group/Event workflow, not globally mandatory on all Members | Confirmed |
-| Plan limits may later treat persistent Groups and Events differently; actual numbers are not decided | Confirmed |
+| Plan limits may treat Groups vs Events on different axes; **V1 Group/Member/staff/feature limits are frozen** (Basic / Plus / Business) | Confirmed |
 | Action Records preserve creation source (kiosk, staff/admin, automatic/preset) and stay accurate after later config changes | Confirmed |
 | Public site (marketing/SEO/pricing/auth) is distinct from Organization workspace and Kiosk Mode | Confirmed |
 | Workspace UI uses platform design system; kiosks may have more constrained branding | Confirmed |
@@ -147,18 +147,25 @@ Verified custom sending domains remain **Post-MVP / future**.
 ### Reporting & Export
 
 - [x] Basic reporting/history views (Activity Log + Attendance Report by Group/date)
-- [x] CSV / Excel / PDF export of the visible Attendance Report
+- [x] CSV / Excel / PDF export of the visible Attendance Report (**plan-gated:** Basic no export; Plus/Business full — DEC-072)
 
-Excel and PDF advanced layout variants remain refinable; basic production exports ship with Attendance Report.
+Excel and PDF advanced layout variants remain refinable; production exports ship with Attendance Report and will be entitlement-gated.
 
 ### Subscriptions & Billing
 
-- [ ] Recurring subscription model (Organization is the subscription boundary)
-- [ ] Workspace may start trial/unsubscribed (exact trial rules undecided)
-- [ ] Plan-based limits enforcement (exact limits undecided; Groups and Events may be limited on different axes)
-- [ ] Web billing integration (Stripe likely — not confirmed)
+- [x] Recurring subscription model (Organization is the subscription boundary)
+- [x] Registration creates Basic (unsubscribed/free); Business trial is a later billing action (DEC-078; duration TBD)
+- [x] **V1 plans frozen:** Basic / Plus / Business matrix in PRODUCT.md (DEC-072)
+- [x] Permanent V1 USD prices and monthly/yearly intervals (DEC-077)
+- [x] Internal entitlement / usage system **before** Stripe (DEC-076)
+- [x] Internal billing domain feeding entitlements (DEC-081)
+- [x] Plan-based limits enforcement (server-side; role + entitlement both required — DEC-073)
+- [x] Owner Account areas: Security / Subscription / Billing (DEC-075; Stripe Checkout/portal wired in Phase 2; live Stripe credentials not configured)
+- [x] Web billing integration architecture (Stripe Checkout/webhooks/portal provider boundary — OPEN-011 narrowed; live Stripe account still required)
+- [x] Purchase-source persistence (`none` / `stripe` / `apple` — DEC-075, DEC-081)
+- [ ] Apple/app-store billing execution (OPEN-015)
 
-Do not treat Stripe as confirmed implementation. Do not design billing architecture in this file.
+Do not treat live Stripe TEST/production credentials as configured. Do not redesign the frozen V1 plan matrix or permanent price catalog in this file.
 
 ### Storage
 
@@ -180,13 +187,13 @@ Features explicitly described as future or later-phase. **Not MVP.**
 - Light/dark/system mode and visual themes for admin/workspace UI
 - Additional kiosk identification methods (QR code, etc.)
 - Simple preset/automatic attendance beyond whatever is confirmed for MVP
-- Excel and PDF report exports
+- Excel and PDF report exports (capability exists; V1 plan gating applies — Basic excluded)
 - Hours calculations and attendance summaries
 - Manual corrections with audit history
 - Advanced notification recipients and rules
 - Native/desktop applications (macOS, Windows)
 - Platform administration tooling (full scope)
-- Role-based permissions beyond basic owner/admin/staff capability matrix
+- Role-based permissions beyond Owner/Admin/Staff matrices (Admin/Staff frozen in DEC-070/071)
 
 **Note:** Full Platform administration tooling is outside current MVP scope. That does **not** mean the launch product will have zero platform-operator controls. The minimum Platform administration capabilities required for launch remain an open design question.
 
@@ -217,19 +224,19 @@ Items requiring explicit design and approval before categorization.
 | Minimum Member data | **Resolved by DEC-053.** Name is required and not unique. Email, date of birth, phone, address, photo, and notes are optional. Member-level PIN/identifier are not profile fields. Contextual Group/Event requirements remain (DEC-046). |
 | Kiosk security and session model | Device credentials, session management, authentication. Distinct from Group/Event-owned kiosk configuration (DEC-044). |
 | Kiosk data model | Whether kiosk configuration is stored as fields on Group/Event or as a separate entity; exact fields. Ownership is confirmed; schema is not. |
-| Permission/role capability matrix | Exact capabilities for owner, admin, and staff undecided |
+| Permission/role capability matrix | **Admin frozen (DEC-070). Staff frozen (DEC-071).** |
 | Notification engine architecture | Templates, triggers, variables, delivery pipeline; which predefined outcomes ship in MVP |
-| Plan names, pricing, and exact limits | Basic/Pro/Business examples are illustrative. Groups and Events may later be limited differently; do not decide numbers yet. |
-| Free trial duration and behavior | Workspace may start trial/unsubscribed; ~7 days is direction only |
+| Plan prices and Event plan axes | **V1 names, limits, and USD prices frozen (DEC-072 / DEC-077).** Event quotas remain open |
+| Free trial duration | Business trial **behavior** frozen (DEC-078). Exact duration **TBD** |
 | Action Record retention policy | Archival, deletion, and compliance requirements; separate from media storage quotas |
 | Action Record source/context implementation | Product sources confirmed (kiosk, staff/admin, automatic/preset); exact fields undesigned |
 | Database implementation and API design | Organization owner + WorkspaceStaffAccount models and a minimal current-workspace API exist. Remaining tenant/person models, broader APIs, and tenant-enforcement mechanisms remain undecided |
 | MVP feature final checklist | Requires explicit approval session |
-| Stripe integration details | Subject to later design/research; not confirmed implementation |
+| Stripe integration details | Internal billing domain exists (DEC-081). Checkout/webhooks/portal remain OPEN-011 |
 | Image optimization specifications | Dimensions, formats, variants |
 | MVP Event identification methods | Which identification pattern(s) belong in MVP |
 | Event Entry future structure | Whether Event Entries later split into Reservation → Attendees |
-| Organization billing lifecycle | How trial, subscribed, cancelled, suspended, and other states relate to Subscription and access |
+| Organization billing lifecycle | Commercial rules frozen (DEC-078–080). Remaining: trial duration, provider execution, interval-change proration |
 | Minimum Platform administration for launch | Required operator controls at launch vs full tooling deferred Post-MVP |
 
 ---

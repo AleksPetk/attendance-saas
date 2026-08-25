@@ -149,6 +149,13 @@ export const api = {
   /* Workspace data endpoints (cookie session auth; `auth` arg kept for compatibility) */
   loadWorkspace: (_auth) => request("/api/workspace/"),
   dashboard: (_auth) => request("/api/dashboard/"),
+  getPlanLockSelection: (_auth, kind) =>
+    request(`/api/plan-locks/selection/?kind=${encodeURIComponent(kind)}`),
+  putPlanLockSelection: (_auth, { kind, selected_ids }) =>
+    request("/api/plan-locks/selection/", {
+      method: "PUT",
+      json: { kind, selected_ids },
+    }),
 
   listMembers: (_auth, params = "") => request(`/api/members/${params}`),
   getMember: (_auth, id) => request(`/api/members/${id}/`),
@@ -291,6 +298,28 @@ export const api = {
     request(`/api/history/attendance-report/${params}`),
   exportAttendanceReport: (_auth, params = "") =>
     requestBlob(`/api/history/attendance-report/export/${params}`),
+
+  /* Owner billing (Stripe Checkout / portal). Secrets never leave the server. */
+  getBilling: () => request("/api/billing/"),
+  getBillingCatalog: () => request("/api/billing/catalog/"),
+  startBillingCheckout: (json) =>
+    request("/api/billing/checkout/", { method: "POST", json }),
+  startBillingTrialCheckout: (json) =>
+    request("/api/billing/trial-checkout/", { method: "POST", json }),
+  previewBillingUpgrade: (json = {}) =>
+    request("/api/billing/upgrade/preview/", { method: "POST", json }),
+  applyBillingUpgrade: (json = {}) =>
+    request("/api/billing/upgrade/", { method: "POST", json }),
+  scheduleBillingDowngrade: (json = {}) =>
+    request("/api/billing/downgrade/", { method: "POST", json }),
+  cancelBillingSubscription: (json = {}) =>
+    request("/api/billing/cancel/", { method: "POST", json }),
+  resumeBillingSubscription: (json = {}) =>
+    request("/api/billing/resume/", { method: "POST", json }),
+  cancelScheduledBillingDowngrade: (json = {}) =>
+    request("/api/billing/downgrade/cancel/", { method: "POST", json }),
+  openBillingPortal: (json = {}) =>
+    request("/api/billing/portal/", { method: "POST", json }),
 
   /* Workspace staff/admin management (owner-only) */
   listWorkspaceStaff: (_auth) => request("/api/workspace-staff/"),

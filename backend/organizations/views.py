@@ -33,8 +33,22 @@ from organizations.serializers import (
     WorkspaceStaffAccountUpdateSerializer,
 )
 from attendance.kiosk_lock import attach_kiosk_status
+from organizations.entitlements.advertising import attach_workspace_advertising
+from organizations.entitlements import (
+    FEATURE_STAFF_MANAGEMENT,
+    LIMIT_WORKSPACE_ADMINS,
+    LIMIT_WORKSPACE_STAFF,
+    build_entitlement_payload,
+    apply_slot_selection,
+    get_plan_limit,
+    is_staff_account_plan_unlocked,
+    list_selection_candidates,
+    order_staff_queryset_by_plan_availability,
+)
+from organizations.entitlements.api import deny_plan_capacity, deny_plan_feature
 from organizations.permissions import (
     CanManageStaffAccounts,
+    IsWorkspaceOwner,
     get_active_workspace_organization,
     get_workspace_operator_role,
     staff_account_manageable_by_actor,
@@ -66,6 +80,17 @@ class CurrentWorkspaceView(APIView):
     def get(self, request):
         actor = request.user
         if isinstance(actor, WorkspaceStaffAccount):
+            if not is_staff_account_plan_unlocked(actor):
+                return Response(
+                    {
+                        "code": "plan_account_locked",
+                        "detail": "This workspace account is locked by the current plan.",
+                        "workspace_id": actor.organization.workspace_id,
+                        "username": actor.username,
+                        "role": actor.role,
+                    },
+                    status=403,
+                )
             payload = {
                 "account_kind": "workspace_staff",
                 "role": actor.role,
@@ -73,7 +98,9 @@ class CurrentWorkspaceView(APIView):
                 "is_platform_operator": False,
                 "workspace_id": actor.organization.workspace_id,
                 "capabilities": workspace_capabilities(actor),
+                "entitlements": build_entitlement_payload(actor.organization),
             }
+            attach_workspace_advertising(payload, actor.organization)
             return Response(CurrentWorkspaceSerializer(attach_kiosk_status(request, payload)).data)
 
         if customer_must_verify_email(actor):
@@ -93,7 +120,9 @@ class CurrentWorkspaceView(APIView):
                 "is_platform_operator": is_platform_operator,
                 "workspace_id": organization.workspace_id,
                 "capabilities": workspace_capabilities(actor),
+                "entitlements": build_entitlement_payload(organization),
             }
+            attach_workspace_advertising(payload, organization)
             return Response(CurrentWorkspaceSerializer(attach_kiosk_status(request, payload)).data)
 
         if is_platform_operator:
@@ -220,7 +249,9 @@ class OwnerLoginView(APIView):
             "is_platform_operator": bool(user.is_staff or user.is_superuser),
             "workspace_id": organization.workspace_id,
             "capabilities": workspace_capabilities(user),
+            "entitlements": build_entitlement_payload(organization),
         }
+        attach_workspace_advertising(payload, organization)
         return Response(CurrentWorkspaceSerializer(attach_kiosk_status(request, payload)).data)
 
 
@@ -246,6 +277,17 @@ class StaffLoginView(APIView):
 
         if staff.status != WorkspaceStaffStatus.ACTIVE:
             return Response({"detail": "Invalid workspace staff credentials."}, status=401)
+        if not is_staff_account_plan_unlocked(staff):
+            return Response(
+                {
+                    "code": "plan_account_locked",
+                    "detail": "This workspace account is locked by the current plan.",
+                    "workspace_id": staff.organization.workspace_id,
+                    "username": staff.username,
+                    "role": staff.role,
+                },
+                status=403,
+            )
 
         # Ensure we're not leaving an owner session around.
         try:
@@ -262,8 +304,59 @@ class StaffLoginView(APIView):
             "is_platform_operator": False,
             "workspace_id": staff.organization.workspace_id,
             "capabilities": workspace_capabilities(staff),
+            "entitlements": build_entitlement_payload(staff.organization),
         }
+        attach_workspace_advertising(payload, staff.organization)
         return Response(CurrentWorkspaceSerializer(attach_kiosk_status(request, payload)).data)
+
+
+class PlanLockSelectionView(APIView):
+    """Owner-only plan-lock candidate listing and slot selection."""
+
+    permission_classes = [IsWorkspaceOwner]
+
+    def _organization(self, request):
+        return get_active_workspace_organization(request.user)
+
+    def get(self, request):
+        organization = self._organization(request)
+        kind = request.query_params.get("kind", "")
+        candidates = list_selection_candidates(organization, kind)
+        return Response(
+            {
+                "kind": kind,
+                "limit": get_plan_limit(organization, kind),
+                "current_unlocked": [
+                    item["id"] for item in candidates if item["plan_unlocked"]
+                ],
+                "candidates": candidates,
+            }
+        )
+
+    def put(self, request):
+        organization = self._organization(request)
+        kind = request.data.get("kind", "")
+        selected_ids = request.data.get("selected_ids")
+        if not isinstance(selected_ids, list):
+            from rest_framework.exceptions import ValidationError
+
+            raise ValidationError({"selected_ids": "Expected a list of IDs."})
+        candidates = apply_slot_selection(
+            organization,
+            kind,
+            selected_ids,
+            actor_user=request.user,
+        )
+        return Response(
+            {
+                "kind": kind,
+                "limit": get_plan_limit(organization, kind),
+                "current_unlocked": [
+                    item["id"] for item in candidates if item["plan_unlocked"]
+                ],
+                "candidates": candidates,
+            }
+        )
 
 
 class StaffLogoutView(APIView):
@@ -337,17 +430,24 @@ class WorkspaceStaffListCreateView(APIView):
         if organization is None:
             return Response(status=404)
 
+        deny_plan_feature(organization, FEATURE_STAFF_MANAGEMENT)
+
         qs = WorkspaceStaffAccount.objects.filter(organization=organization)
         if self._actor_role(request) == WorkspaceStaffRole.ADMIN:
             qs = qs.filter(role=WorkspaceStaffRole.STAFF)
 
-        payload = WorkspaceStaffAccountListSerializer(qs.order_by("username"), many=True).data
+        payload = WorkspaceStaffAccountListSerializer(
+            order_staff_queryset_by_plan_availability(qs),
+            many=True,
+        ).data
         return Response(payload)
 
     def post(self, request):
         organization = self._organization(request)
         if organization is None:
             return Response(status=404)
+
+        deny_plan_feature(organization, FEATURE_STAFF_MANAGEMENT)
 
         actor_role = self._actor_role(request)
         ser = WorkspaceStaffAccountCreateSerializer(
@@ -356,12 +456,18 @@ class WorkspaceStaffListCreateView(APIView):
         )
         ser.is_valid(raise_exception=True)
 
+        role = ser.validated_data["role"]
+        if role == WorkspaceStaffRole.ADMIN:
+            deny_plan_capacity(organization, LIMIT_WORKSPACE_ADMINS)
+        else:
+            deny_plan_capacity(organization, LIMIT_WORKSPACE_STAFF)
+
         account = WorkspaceStaffAccount.objects.create_account(
             organization=organization,
             username=ser.validated_data["username"],
             email=ser.validated_data.get("email") or "",
             password=ser.validated_data["password"],
-            role=ser.validated_data["role"],
+            role=role,
         )
 
         out = WorkspaceStaffAccountListSerializer(account).data
@@ -384,6 +490,7 @@ class WorkspaceStaffDetailView(APIView):
         staff = self._get_scoped_staff(request, staff_id)
         if staff is None:
             return Response(status=404)
+        deny_plan_feature(staff.organization, FEATURE_STAFF_MANAGEMENT)
         if not staff_account_manageable_by_actor(request.user, staff):
             return Response(
                 {"detail": "Only the workspace owner can manage admin accounts."},
@@ -403,6 +510,22 @@ class WorkspaceStaffDetailView(APIView):
         ser.is_valid(raise_exception=True)
 
         previous_role = staff.role
+        next_status = ser.validated_data.get("status", staff.status)
+        next_role = ser.validated_data.get("role", staff.role)
+        reactivating = (
+            staff.status != WorkspaceStaffStatus.ACTIVE
+            and next_status == WorkspaceStaffStatus.ACTIVE
+        )
+        role_to_admin = (
+            previous_role != WorkspaceStaffRole.ADMIN
+            and next_role == WorkspaceStaffRole.ADMIN
+        )
+        if reactivating or role_to_admin:
+            if next_role == WorkspaceStaffRole.ADMIN:
+                deny_plan_capacity(staff.organization, LIMIT_WORKSPACE_ADMINS)
+            else:
+                deny_plan_capacity(staff.organization, LIMIT_WORKSPACE_STAFF)
+
         for field, value in ser.validated_data.items():
             if field == "status":
                 staff.status = value
@@ -433,6 +556,8 @@ class WorkspaceStaffResetPasswordView(APIView):
         organization = get_active_workspace_organization(request.user)
         if organization is None:
             return Response(status=404)
+
+        deny_plan_feature(organization, FEATURE_STAFF_MANAGEMENT)
 
         staff = WorkspaceStaffAccount.objects.filter(
             organization=organization,
@@ -504,6 +629,7 @@ class WorkspaceStaffGroupAccessView(APIView):
         organization, staff = self._get_scoped_staff(request, staff_id)
         if staff is None:
             return Response(status=404)
+        deny_plan_feature(organization, FEATURE_STAFF_MANAGEMENT)
         if not staff_account_manageable_by_actor(request.user, staff):
             return Response(
                 {"detail": "Only the workspace owner can manage admin accounts."},

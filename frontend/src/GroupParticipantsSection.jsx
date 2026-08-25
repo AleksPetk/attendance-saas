@@ -39,6 +39,7 @@ export default function GroupParticipantsSection({
   classId = null,
   onError,
   onChanged,
+  operationsDisabled = false,
 }) {
   const [memberships, setMemberships] = useState([]);
   const [participants, setParticipants] = useState([]);
@@ -257,6 +258,12 @@ export default function GroupParticipantsSection({
       ) : null}
 
       <div className="participant-add-grid">
+        {operationsDisabled ? (
+          <p className="plan-locked-copy">
+            Participant changes are blocked while this Group is locked by the current plan.
+          </p>
+        ) : (
+          <>
         <form className="add-participant-card add-participant-card-member" onSubmit={addMember}>
           <header className="add-participant-card-head">
             <span className="add-participant-icon" aria-hidden="true">
@@ -356,6 +363,8 @@ export default function GroupParticipantsSection({
             Add visitor
           </button>
         </form>
+          </>
+        )}
       </div>
     </SectionCard>
   );

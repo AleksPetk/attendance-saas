@@ -7,6 +7,8 @@ class CoreConfig(AppConfig):
     name = "core"
 
     def ready(self):
+        from core.admin_branding import install_admin_branding
         from core.crypto import check_app_secrets_encryption_key
 
+        install_admin_branding()
         checks.register(check_app_secrets_encryption_key, checks.Tags.security)

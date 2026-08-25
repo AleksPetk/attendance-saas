@@ -36,7 +36,7 @@ from groups.readiness import compute_group_setup_status
 from groups.standard_group_import import import_standard_group_as_class
 from kiosk_builder.testing import configure_group_kiosk_for_launch
 from members.models import Member
-from organizations.models import Organization
+from organizations.models import Organization, OrganizationPlan
 from accounts.models import User
 
 
@@ -100,6 +100,8 @@ class ParticipationEmailApiTests(TestCase):
         self.organization = Organization.objects.create_with_owner(
             owner=create_user("owner-part-emails@example.com")
         )
+        self.organization.plan = OrganizationPlan.BUSINESS
+        self.organization.save(update_fields=["plan"])
         self.user = self.organization.owner
         self.client = APIClient()
         force_platform_admin_login(self.client, self.user)

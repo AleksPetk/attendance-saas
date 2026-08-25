@@ -48,6 +48,14 @@ import {
   canViewGlobalMembers,
 } from "./workspaceSession.js";
 import { confirmWorkspaceLeave } from "./kiosk/builder/workspaceLeaveGuard.js";
+import AdInterstitial from "./advertising/AdInterstitial.jsx";
+import { mockProvider } from "./advertising/mockProvider.js";
+import {
+  PLACEMENT_KIOSK_BUILDER_EXIT,
+  PLACEMENT_KIOSK_EXIT,
+  PLACEMENT_KIOSK_LAUNCH,
+} from "./advertising/placements.js";
+import { resolveInterstitialDecision } from "./advertising/state.js";
 
 const SESSION_KEY = "attendance-saas-local-session";
 
@@ -152,6 +160,29 @@ function RequireSession({ loadingSession, session, children }) {
   return children;
 }
 
+function isPublicMarketingPath(pathname) {
+  if (pathname === "/") return true;
+  return (
+    pathname.startsWith("/features") ||
+    pathname.startsWith("/how-it-works") ||
+    pathname.startsWith("/pricing")
+  );
+}
+
+function isPublicAuthPath(pathname) {
+  return (
+    pathname.startsWith("/login") ||
+    pathname.startsWith("/staff-login") ||
+    pathname.startsWith("/register") ||
+    pathname.startsWith("/check-email") ||
+    pathname.startsWith("/verify-email") ||
+    pathname.startsWith("/verify-backup-email") ||
+    pathname.startsWith("/verify-primary-email") ||
+    pathname.startsWith("/forgot-password") ||
+    pathname.startsWith("/reset-password")
+  );
+}
+
 function RedirectIfSignedIn({ session, children }) {
   if (session?.workspace?.kiosk_locked) {
     return <Navigate to={kioskTargetPath(session.workspace)} replace />;
@@ -164,21 +195,27 @@ function RedirectIfSignedIn({ session, children }) {
 
 function KioskLockGate({ loadingSession, session, children }) {
   const location = useLocation();
-  if (loadingSession) {
+  const path = location.pathname;
+  const publicPath = isPublicMarketingPath(path) || isPublicAuthPath(path);
+
+  // Marketing + auth pages must render immediately — do not wait on workspace hydrate.
+  if (loadingSession && !publicPath) {
     return (
       <div className="page">
         <LoadingState label="Loading workspace…" />
       </div>
     );
   }
+
   const locked = Boolean(session?.workspace?.kiosk_locked);
-  if (locked) {
+  if (locked && !loadingSession) {
     const target = kioskTargetPath(session.workspace);
-    if (!location.pathname.startsWith("/kiosk/")) {
+    // Keep kiosk devices off the workspace; public marketing pages stay viewable.
+    if (!path.startsWith("/kiosk/") && !isPublicMarketingPath(path)) {
       return <Navigate to={target} replace />;
     }
     const lockedId = session.workspace.kiosk_group_id;
-    const match = location.pathname.match(/^\/kiosk\/([^/]+)/);
+    const match = path.match(/^\/kiosk\/([^/]+)/);
     if (lockedId && match && match[1] !== "locked" && match[1] !== String(lockedId)) {
       return <Navigate to={`/kiosk/${lockedId}`} replace />;
     }
@@ -186,7 +223,13 @@ function KioskLockGate({ loadingSession, session, children }) {
   return children;
 }
 
-function WorkspaceRoutes({ session, setSession, onKioskEntered, onKioskUnlockedLocally }) {
+function WorkspaceRoutes({
+  session,
+  setSession,
+  onKioskEntered,
+  onKioskUnlockedLocally,
+  requestInterstitial,
+}) {
   const kioskLocked = Boolean(session.workspace.kiosk_locked);
   const canUseKiosk = canLaunchKiosk(session) || kioskLocked;
   const nav = useNavigate();
@@ -204,16 +247,15 @@ function WorkspaceRoutes({ session, setSession, onKioskEntered, onKioskUnlockedL
     return { name: "members" };
   })();
 
-  function onNavigate(route) {
-    if (!route || !route.name) return;
-    if (!confirmWorkspaceLeave()) return;
+  function applyWorkspaceRoute(route) {
     if (route.name === "members") {
       nav(route.status === "archived" ? "/members?status=archived" : "/members", {
         replace: Boolean(route.replace),
       });
+      return;
     }
     if (route.name === "dashboard") nav("/dashboard");
-    if (route.name === "account") nav("/account");
+    if (route.name === "account") nav("/account/security");
     if (route.name === "staff") nav("/staff");
     if (route.name === "member-editor" || route.name === "member-create") {
       if (route.memberId) nav(`/members/${route.memberId}`);
@@ -239,6 +281,22 @@ function WorkspaceRoutes({ session, setSession, onKioskEntered, onKioskUnlockedL
     if (route.name === "kiosk") nav(`/kiosk/${route.groupId}`);
   }
 
+  function onNavigate(route) {
+    if (!route || !route.name) return;
+    if (!confirmWorkspaceLeave()) return;
+    const leavingBuilder = location.pathname.includes("/kiosk-builder");
+    const stayingInBuilder = route.name === "kiosk-builder";
+    if (route.name === "kiosk") {
+      requestInterstitial(PLACEMENT_KIOSK_LAUNCH, () => applyWorkspaceRoute(route));
+      return;
+    }
+    if (leavingBuilder && !stayingInBuilder) {
+      requestInterstitial(PLACEMENT_KIOSK_BUILDER_EXIT, () => applyWorkspaceRoute(route));
+      return;
+    }
+    applyWorkspaceRoute(route);
+  }
+
   function onKioskUnlocked({ groupAvailable, lockPayload } = {}) {
     const match = location.pathname.match(/^\/kiosk\/(\d+)/);
     const groupId = match ? Number(match[1]) : session.workspace.kiosk_group_id;
@@ -246,11 +304,14 @@ function WorkspaceRoutes({ session, setSession, onKioskEntered, onKioskUnlockedL
     flushSync(() => {
       onKioskUnlockedLocally(lockPayload);
     });
-    if (groupAvailable && groupId) {
-      nav(`/groups/${groupId}`, { replace: true });
-    } else {
-      nav("/groups", { replace: true });
-    }
+    const goToWorkspace = () => {
+      if (groupAvailable && groupId) {
+        nav(`/groups/${groupId}`, { replace: true });
+      } else {
+        nav("/groups", { replace: true });
+      }
+    };
+    requestInterstitial(PLACEMENT_KIOSK_EXIT, goToWorkspace);
   }
 
   if (location.pathname.startsWith("/kiosk/")) {
@@ -309,11 +370,14 @@ function WorkspaceRoutes({ session, setSession, onKioskEntered, onKioskUnlockedL
     >
       <Routes>
         <Route path="/dashboard" element={<DashboardScreen session={session} />} />
+        <Route path="/account" element={<Navigate to="/account/security" replace />} />
         <Route
-          path="/account"
+          path="/account/:section"
           element={
             canManageOwnerAccount(session) ? (
               <AccountScreen
+                session={session}
+                setSession={setSession}
                 onAccountDeleted={() => {
                   setSession(null);
                   nav("/login?deleted=1");
@@ -328,7 +392,11 @@ function WorkspaceRoutes({ session, setSession, onKioskEntered, onKioskUnlockedL
           path="/members"
           element={
             canViewGlobalMembers(session) ? (
-              <MembersScreen session={session} onNavigate={onNavigate} />
+              <MembersScreen
+                session={session}
+                setSession={setSession}
+                onNavigate={onNavigate}
+              />
             ) : (
               <Navigate to="/dashboard" replace />
             )
@@ -354,7 +422,12 @@ function WorkspaceRoutes({ session, setSession, onKioskEntered, onKioskUnlockedL
             )
           }
         />
-        <Route path="/groups" element={<GroupsScreen session={session} onNavigate={onNavigate} />} />
+        <Route
+          path="/groups"
+          element={
+            <GroupsScreen session={session} setSession={setSession} onNavigate={onNavigate} />
+          }
+        />
         <Route
           path="/groups/new"
           element={
@@ -391,7 +464,10 @@ function WorkspaceRoutes({ session, setSession, onKioskEntered, onKioskUnlockedL
         />
         <Route path="/groups/:groupId" element={<GroupDetailByParam session={session} onNavigate={onNavigate} />} />
         <Route path="/history" element={<HistoryScreen session={session} />} />
-        <Route path="/staff" element={<StaffManagementScreen session={session} />} />
+        <Route
+          path="/staff"
+          element={<StaffManagementScreen session={session} setSession={setSession} />}
+        />
       </Routes>
     </WorkspaceLayout>
   );
@@ -400,7 +476,31 @@ function WorkspaceRoutes({ session, setSession, onKioskEntered, onKioskUnlockedL
 export default function App() {
   const [session, setSession] = useState(readSession);
   const [loadingSession, setLoadingSession] = useState(true);
+  const [adGate, setAdGate] = useState(null);
   const sessionIdentity = session?.workspace?.identity;
+
+  function requestInterstitial(placement, onContinue) {
+    try {
+      const decision = resolveInterstitialDecision(session, placement, mockProvider);
+      if (!decision.show || !decision.model) {
+        onContinue();
+        return;
+      }
+      setAdGate({ placement, model: decision.model, onContinue });
+    } catch {
+      onContinue();
+    }
+  }
+
+  function finishAdGate() {
+    const pending = adGate;
+    setAdGate(null);
+    try {
+      pending?.onContinue?.();
+    } catch {
+      /* Advertising must never trap navigation. */
+    }
+  }
 
   useEffect(() => {
     if (session) {
@@ -486,7 +586,7 @@ export default function App() {
           <Route path="/" element={<PublicHomeScreen />} />
           <Route path="/features" element={<PublicFeaturesScreen />} />
           <Route path="/how-it-works" element={<PublicHowItWorksScreen />} />
-          <Route path="/pricing" element={<PublicPricingScreen />} />
+          <Route path="/pricing" element={<PublicPricingScreen session={session} />} />
           <Route
             path="/login"
             element={
@@ -543,11 +643,19 @@ export default function App() {
                   setSession={setSession}
                   onKioskEntered={markKioskLocked}
                   onKioskUnlockedLocally={clearKioskLockLocally}
+                  requestInterstitial={requestInterstitial}
                 />
               </RequireSession>
             }
           />
         </Routes>
+        {adGate ? (
+          <AdInterstitial
+            placement={adGate.placement}
+            model={adGate.model}
+            onContinue={finishAdGate}
+          />
+        ) : null}
       </KioskLockGate>
     </BrowserRouter>
   );

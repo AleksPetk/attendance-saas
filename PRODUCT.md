@@ -20,7 +20,7 @@ An **Organization** is the customer **workspace**, **tenant**, and **subscriptio
 
 One paying customer User owns **one** workspace and may use that workspace for **any mix** of real-world activities — businesses, schools, hobbies, teams, one-time Events, and so on — as **Groups** and **Events** inside that same Organization. Separate User accounts are required only when the same person operates **separate workspaces** (separate tenants / subscriptions), not for each activity type inside one workspace.
 
-Billing and subscription state belong to the Organization workspace and are **separate** from Organization identity. A workspace may **begin in a trial or unsubscribed state** and later activate through subscription. An Organization may exist while trialing, subscribed, cancelled, suspended, or in another future billing state. The billing state machine is not defined here.
+Billing and subscription state belong to the Organization workspace and are **separate** from Organization identity. Registration currently creates a **Basic** workspace; a Business trial is a later billing action that requires a payment method and is **not** started automatically at signup. An Organization may exist while on Basic, trialing Business, actively subscribed, scheduled to cancel, in payment-failure grace, or after paid access has ended. Effective entitlement is `Organization.plan`; commercial lifecycle lives in the billing domain.
 
 ---
 
@@ -299,13 +299,9 @@ Events can define actions such as **Arrived** or **Confirm Attendance**, and not
 
 ### Event Limits (Subscription)
 
-Plan limits may later treat **persistent Groups** and **Events** differently — for example allowing a certain number of Groups and a smaller number of active Events. **Do not treat example numbers as requirements.** Exact names, prices, and limits are not decided.
+**V1 Group/Member/staff limits are frozen** in [Subscriptions and Plans](#subscriptions-and-plans). **Event**-specific plan limits (how many Events vs Groups) remain **not decided** and may later differ from Group axes. Do not invent Event quota numbers here.
 
-Illustrative only, not finalized:
-
-- A plan might allow several persistent Groups and fewer concurrent/stored Events
-
-When at an Event limit, the product may require deleting an old Event or upgrading.
+When at an Event limit (once defined), the product may require deleting an old Event or upgrading.
 
 Before deleting an Event:
 
@@ -357,18 +353,17 @@ Historical integrity is important. The system must **not** merely store a partic
 
 - Action Records must preserve **how** they were created. Sources include at least: **kiosk**, **staff/admin**, and **automatic/preset**. Exact source/context fields are undesigned.
 - History must remain **historically accurate** when later Group, Kiosk, or Action **configuration changes**. Changing a Group’s allowed Actions or a Kiosk’s identification method must not rewrite or falsify existing Action Records.
-- Workspace **History** includes an **Activity Log** (raw Action Records) and an **Attendance Report** (one Group at a time; participant × day; Structured Groups also show historical Class and use participant × Class × day grain; columns from historical Action Records; archived and deleted Groups remain selectable via immutable `source_group_id`). CSV / Excel / PDF export downloads the currently visible Attendance Report.
+- Workspace **History** includes an **Activity Log** (raw Action Records) and an **Attendance Report** (one Group at a time; participant × day; Structured Groups also show historical Class and use participant × Class × day grain; columns from historical Action Records; archived and deleted Groups remain selectable via immutable `source_group_id`). CSV / Excel / PDF export downloads the currently visible Attendance Report when the workspace plan entitles exports (**Basic:** no CSV/Excel/PDF export; **Plus** / **Business:** full export — see [Subscriptions and Plans](#subscriptions-and-plans)).
 
 **Future requirements include:**
 
 - Broader filtering, search, and cross-Group report matrices
 - Per-member and Event history views
-- CSV, Excel, and PDF human-readable exports of the visible report
 - Attendance summaries
 - Hours calculations where appropriate
 - Manual corrections with audit history
 
-Word/DOCX export is **not** currently a priority. Exact historical and audit architecture is not yet designed.
+CSV / Excel / PDF exports of the visible Attendance Report are **implemented product capabilities** and are **plan-gated** under V1 plans (not Post-MVP ideas). Word/DOCX export is **not** currently a priority. Exact historical and audit architecture is not yet designed.
 
 **Important:** Do not use **Event** for Action Records. **Event** is the temporary/one-time check-in context; **Action Record** is the historical record of a performed Action.
 
@@ -508,7 +503,7 @@ Student Check In → `"{student_name} arrived at school at {time}."`
 
 **Yahoo Mail:** guided App Password provider — Yahoo email + App Password + optional From name. Technical SMTP is applied internally (`smtp.mail.yahoo.com`, SSL/TLS port 465). Normal Yahoo account passwords are never accepted. Email addresses are validated generically (not restricted to `@yahoo.com`). Yahoo OAuth is **not** implemented.
 
-**MVP provider list (complete):** Custom SMTP, Gmail, Outlook / Microsoft 365, Yahoo Mail. No additional dedicated provider integrations are planned for the current MVP. OAuth-based variants remain undesigned. Plan placement / billing enforcement remain undecided.
+**MVP provider list (complete):** Custom SMTP, Gmail, Outlook / Microsoft 365, Yahoo Mail. No additional dedicated provider integrations are planned for the current MVP. OAuth-based variants remain undesigned. **Plan placement** for Group email features is frozen in [Subscriptions and Plans](#subscriptions-and-plans) (Basic allows Custom SMTP / Gmail / Outlook / Yahoo and after-action / participation emails; Group Forward Emails are Plus/Business).
 
 The exact broader notification engine (non-email channels, OAuth providers, arbitrary workflow scripting) remains undesigned. Group-level Forward Emails (max 3 private copies) are implemented as a fixed building block. Outcomes must remain **predefined building blocks**, not arbitrary workflow scripting.
 
@@ -518,25 +513,176 @@ The exact broader notification engine (non-email channels, OAuth providers, arbi
 
 Recurring subscription SaaS product. **Subscriptions belong to the Organization workspace**, not to individual Members. The Organization is the **subscription boundary**.
 
-A workspace may **begin in trial or unsubscribed state** and later activate through subscription. Exact trial duration, feature access during trial, and the billing state machine remain undecided.
+**Canonical V1 plan names (use exactly):** **Basic**, **Plus**, **Business**. Do **not** use Free, Pro, or Enterprise for V1 tiers.
 
-**Potential plans:** Basic, Pro, Business — exact names, prices, and limits are **not finalized**.
+Registration currently creates a **Basic** workspace. A Business trial is **not** started at signup; it is a billing action that will require payment-method setup in the Stripe/checkout phase.
 
-A free trial around **7 days** is currently only a direction.
+**V1 plan names, limits, ads policy, non-destructive downgrade semantics, Owner Account area structure, entitlement architecture, permanent USD prices, monthly/yearly intervals, trial commercial rules (duration still TBD), upgrade/downgrade/cancellation timing, and payment-failure grace are frozen** (see below and [DECISIONS.md](./DECISIONS.md) DEC-072–082). Stripe Checkout/webhooks/Customer Portal **architecture and Account UI are implemented** (provider boundary + owner APIs); live Stripe account/credentials and Apple billing remain open (OPEN-011 narrowed, OPEN-015).
 
-**Natural SaaS limits may include:**
+Do **not** treat kiosks as a separately assigned workspace resource for plan limits. Do **not** artificially disable essential operational functionality only to invent pricing tiers beyond the frozen matrix.
 
-- Number of persistent Groups
-- Number of Events (possibly a smaller active-Event allowance than Groups)
-- Organization Members
-- Participants per Group
-- Simultaneously active kiosk sessions/devices
-- Notification volume
-- Storage/media usage
-- Number of admins/staff
-- Advanced features
+### Permanent V1 prices (USD)
 
-Do **not** treat kiosks as a separately assigned workspace resource for plan limits. Exact names, prices, and numbers are **not finalized**. Do **not** artificially disable essential functionality only to create pricing tiers.
+| Plan | Monthly | Yearly |
+|------|---------|--------|
+| **Basic** | Free forever (ads) | Free forever (ads) |
+| **Plus** | USD $9.99 | USD $99.90 |
+| **Business** | USD $14.99 | USD $149.90 |
+
+Yearly price = **10 × monthly** (effectively two months free). Both **monthly** and **yearly** are V1 billing intervals for paid plans, from launch. V1 currency is **USD**. The application must **not** invent its own proration arithmetic; the payment provider calculates amounts.
+
+A public-launch promotion (~30–50% off, ~1–2 weeks at **actual public product launch** after intended app/platform releases — not merely first server deployment) is planned **separately** from this catalog. Exact discount and dates are **not** frozen. Promotions must not mutate these permanent prices.
+
+### V1 plan matrix
+
+| Capability | Basic | Plus | Business |
+|------------|-------|------|----------|
+| Price posture | Free forever | Paid | Paid |
+| Ads | Yes (see Basic ads policy) | No | No |
+| Active Standard Groups | 2 | 10 | 30 |
+| Active Structured Groups | Locked (0) | Locked (0) | 15 |
+| Archived Groups | 2 | 10 | 50 total (current Group archive model) |
+| Members | 10 | 50 | 300 |
+| Participants per Standard Group | 10 | 50 | 150 |
+| Classes per Structured Group | — | — | 30 |
+| Participants per Class | — | — | 150 |
+| Workspace Admin accounts | 0 (Staff page locked) | 2 | 5 |
+| Workspace Staff accounts | 0 (Staff page locked) | 5 | 25 |
+| Owner as only workspace manager | Yes | No | No |
+| Kiosk Builder | Full | Full | Full |
+| Kiosk templates | All Card/Input templates | All Card/Input templates | All Card/Input templates |
+| Kiosk Settings | Full | Full | Full |
+| Activity Log / History | Full | Full | Full |
+| Attendance Reports | Full | Full | Full |
+| CSV / Excel / PDF export | No | Full | Full |
+| Custom SMTP / Gmail / Outlook / Yahoo | Allowed | Full | Full |
+| After-action email | Allowed | Full | Full |
+| Participation notification emails | Allowed | Full | Full |
+| Group Forward Emails | Locked | Full | Full |
+| Staff Group assignments | N/A (no staff) | Available | Available |
+| Standard → Structured Class snapshot import | Locked | Locked | Enabled |
+| Attendance Reset / normal Kiosk Settings | Available | Available | Available |
+
+**Plus** effectively unlocks all current Standard Group features except Structured Groups.
+
+**Business** includes all Plus features plus Structured Groups and the full current product feature set for those capabilities.
+
+### Limit semantics
+
+- **Active** and **archived** limits are separate where the matrix lists both.
+- Archived resources do **not** consume active limits.
+- Plan restrictions must be enforced **server-side**, not UI-only.
+- **Role authorization** and **plan entitlement** are separate checks. Where both apply, the actor must pass **both**.
+
+Example: a Workspace Admin may have role permission to create a Structured Group, but **Plus** does not include Structured Groups → the operation is denied by the entitlement layer.
+
+### Downgrade rule
+
+**Downgrading never automatically deletes customer data.**
+
+If a workspace exceeds the destination plan’s limits after **effective** downgrade (when `Organization.plan` actually changes):
+
+- existing data remains
+- existing records remain readable/operational where safe
+- creation, reactivation, or configuration that would **increase** over-limit usage is blocked
+- UI clearly shows over-limit state
+- the customer can reduce usage or upgrade
+
+Do **not** silently archive or delete data to force compliance.
+
+Plan-lock / slot-selection runs only when the **effective** entitlement plan changes. Scheduling a future downgrade or cancellation must **not** lock the workspace early.
+
+### Billing lifecycle (frozen commercial rules)
+
+`Organization.plan` is the **current effective entitlement plan**. Billing subscription state is the **commercial/payment lifecycle**. They must stay separate until an effective transition runs.
+
+**Business trial** (duration **TBD**, not frozen):
+
+- Trial provides **Business** entitlement
+- A payment method/card is required **before** the trial starts
+- If the customer does nothing, the trial **automatically continues into paid Business**
+- The customer may cancel immediately after starting the trial
+- Cancellation does **not** remove Business access immediately
+- A canceled trial continues until **trial end**
+- If canceled correctly before trial end, it must **not** convert to a paid Business subscription
+- After a properly canceled trial ends, the workspace transitions to **Basic**
+
+**Paid upgrades are immediate** (including yearly Plus → yearly Business):
+
+- Customer receives the higher entitlement immediately after a successful billing adjustment
+- Unused paid value is credited and the customer pays the remaining prorated difference **as calculated by the provider**
+- The existing billing-cycle anchor is preserved where the provider supports it
+- Do **not** charge an entirely new full Business year on top of already-paid Plus time
+- Before confirming an upgrade, Subscription UI shows a provider-calculated immediate charge from the upgrade preview API (do not fabricate amounts)
+
+**Paid downgrades are scheduled for period end** (example: Business → Plus):
+
+- Request now; current paid plan remains fully available until the current paid period ends
+- No plan locks at request time
+- Before the effective date, the Owner may **cancel the scheduled downgrade**; Business continues on the existing subscription/billing cycle with no new Checkout or immediate charge
+- At period end (if not reversed), billing applies the destination plan to `Organization.plan`, and **then** existing downgrade/plan-lock behavior runs
+
+**Cancellation is scheduled for period end** (paid) or trial end (trial):
+
+- Customer may cancel now; current access remains through the paid period or trial end
+- Cancellation is **not** account, workspace, or data deletion (DEC-052)
+- Before the effective end, the Owner may **resume** the subscription: cancel-at-period-end is cleared on the existing Stripe subscription, pending Basic transition is cleared, the billing cycle is preserved, and no new Checkout or immediate resubscribe charge is required
+- The same resume path applies to a canceled Business trial still within the trial window (trial end is unchanged; auto-conversion to paid Business is restored)
+- At paid period end (if not resumed), paid access ends and the workspace transitions to **Basic**; existing Basic entitlement/plan-lock behavior handles over-limit data non-destructively
+- At trial end for a properly canceled (not resumed) trial, the workspace transitions to **Basic** without converting to paid Business
+
+**Payment failure grace:** the first failed recurring payment does **not** immediately downgrade. Current paid entitlement is preserved for **3 days**. A warning email is sent **once per day** during grace via the platform email path (`send_billing_payment_warnings` management command; schedule daily in deployment). If payment recovers, failure/grace state is cleared. If billing remains unresolved after the final provider outcome/grace handling, paid access ends and the workspace transitions to **Basic**. Stripe webhooks coordinate with this internal grace state; the app does not implement an independent payment retry engine.
+
+**Billing interval changes** (monthly ↔ yearly): intervals are first-class V1 values. Conversion/proration **execution** is deferred to provider integration (OPEN-011).
+
+**Purchase sources:** `none` (Basic / no paid relationship), `stripe`, `apple`. Basic/free workspaces have no paid purchase source. Account Subscription/Billing UI must later respect the source (Apple-managed subscriptions go to Apple for applicable management).
+
+Platform-admin changes to `Organization.plan` are **manual entitlement operations**, not paid transactions, and must use the same canonical effective plan-transition path.
+
+### Basic ads policy
+
+**Basic** may show ads in these **web workspace** placements:
+
+- Dashboard banner
+- Groups banner
+- before kiosk launch (interstitial)
+- after kiosk exit (interstitial)
+- when leaving Kiosk Builder (interstitial)
+
+**Ads are not allowed during live participant kiosk operation.** That includes the participant flow, action chooser, loading/sending screens, confirmation, and the shared live kiosk renderer.
+
+**Plus** and **Business** have **no ads**.
+
+A platform-operator **global kill switch** can hide all advertising without changing workspace plans or subscriptions.
+
+The current web implementation uses a **development mock provider**. A real ad provider is deferred until deployment. Provider or render failure must never block Dashboard, Groups, kiosk launch, kiosk exit, or Kiosk Builder navigation.
+
+### Owner Account area (architecture)
+
+The Owner Account area is organized into three top-level sections/pages:
+
+1. **Security** — primary/login email, backup email, password, optional Owner TOTP 2FA, Danger Zone / permanent account deletion
+2. **Subscription** — current plan, plan status, limits/usage, upgrade/downgrade/cancellation, renewal, purchase-source-aware management (Stripe/web, Apple, etc.). Owner Checkout and plan-change actions call billing APIs; browser return URLs are UX only
+3. **Billing** — Stripe Customer Portal for invoices/payment method when Stripe-managed; lightweight summary otherwise; purchase-source awareness
+
+### Purchase source
+
+Subscription ownership may come from different **purchase sources** (`none`, `stripe`, `apple`). Account UI and business logic respect the purchase source (for example, Apple-managed subscriptions do not open Stripe Customer Portal). Live Stripe credentials are not configured in-repo; Apple IAP execution remains open.
+
+### Entitlement layer
+
+Plan checks go through the **internal entitlement / usage system** (`organizations.entitlements`). Commercial billing state lives in the **billing** domain and **feeds** entitlement by changing `Organization.plan` through a canonical effective plan transition.
+
+The entitlement layer answers:
+
+- What plan is this workspace on?
+- What features are enabled?
+- What is the limit for this resource?
+- What is current usage?
+- May this operation proceed?
+- Is the workspace currently over limit?
+
+Plan checks must **not** be scattered through Stripe-specific code. Stripe (and other sources) update billing subscription state that **feeds** this entitlement system.
 
 ---
 

@@ -35,6 +35,12 @@ class OrganizationStatus(models.TextChoices):
     ARCHIVED = "archived", "Archived"
 
 
+class OrganizationPlan(models.TextChoices):
+    BASIC = "basic", "Basic"
+    PLUS = "plus", "Plus"
+    BUSINESS = "business", "Business"
+
+
 class WorkspaceStaffRole(models.TextChoices):
     ADMIN = "admin", "Admin"
     STAFF = "staff", "Staff"
@@ -95,6 +101,22 @@ class Organization(models.Model):
         choices=OrganizationStatus.choices,
         default=OrganizationStatus.ACTIVE,
     )
+    plan = models.CharField(
+        max_length=20,
+        choices=OrganizationPlan.choices,
+        default=OrganizationPlan.BASIC,
+        db_index=True,
+        help_text=(
+            "Internal V1 entitlement plan (basic / plus / business). "
+            "Defaults to Basic until billing updates this field. "
+            "Not customer-mutable via workspace APIs."
+        ),
+    )
+    active_standard_groups_slots_resolved = models.BooleanField(default=True)
+    archived_groups_slots_resolved = models.BooleanField(default=True)
+    members_slots_resolved = models.BooleanField(default=True)
+    workspace_admins_slots_resolved = models.BooleanField(default=True)
+    workspace_staff_slots_resolved = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     archived_at = models.DateTimeField(null=True, blank=True)
@@ -107,6 +129,10 @@ class Organization(models.Model):
             models.CheckConstraint(
                 condition=models.Q(status__in=OrganizationStatus.values),
                 name="organizations_organization_status_valid",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(plan__in=OrganizationPlan.values),
+                name="organizations_organization_plan_valid",
             ),
             models.CheckConstraint(
                 condition=models.Q(workspace_id__regex=WORKSPACE_ID_PATTERN),
@@ -123,6 +149,13 @@ class Organization(models.Model):
         return self.workspace_id
 
     def save(self, *args, **kwargs):
+        previous_plan = None
+        if self.pk:
+            previous_plan = (
+                Organization.objects.filter(pk=self.pk)
+                .values_list("plan", flat=True)
+                .first()
+            )
         self.internal_label = (self.internal_label or "").strip()
         self.workspace_id = normalize_workspace_id(self.workspace_id)
         self._prevent_workspace_id_change()
@@ -134,6 +167,15 @@ class Organization(models.Model):
         else:
             self.archived_at = None
         super().save(*args, **kwargs)
+        if previous_plan is not None and previous_plan != self.plan:
+            from organizations.entitlements.plan_locks import (
+                sync_plan_locks_after_plan_change,
+            )
+
+            # Safety net for instance.save(). Canonical callers should use
+            # apply_effective_plan(); QuerySet.update(plan=...) still bypasses this
+            # and is repaired later by ensure_plan_locks_consistent().
+            sync_plan_locks_after_plan_change(self)
 
     def archive(self):
         if self.status == OrganizationStatus.ARCHIVED:
@@ -211,6 +253,7 @@ class WorkspaceStaffAccount(models.Model):
         choices=WorkspaceStaffStatus.choices,
         default=WorkspaceStaffStatus.ACTIVE,
     )
+    plan_unlocked = models.BooleanField(default=True, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     deactivated_at = models.DateTimeField(null=True, blank=True)

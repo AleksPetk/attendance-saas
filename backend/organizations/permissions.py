@@ -1,3 +1,4 @@
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import BasePermission, SAFE_METHODS
 
 from accounts.exceptions import EmailNotVerified
@@ -63,6 +64,20 @@ def get_active_workspace_organization(user):
         return None
 
     if isinstance(user, WorkspaceStaffAccount):
+        from organizations.entitlements.plan_locks import (
+            is_staff_account_plan_unlocked,
+        )
+
+        if not is_staff_account_plan_unlocked(user):
+            raise PermissionDenied(
+                detail={
+                    "code": "plan_account_locked",
+                    "detail": "This workspace account is locked by the current plan.",
+                    "workspace_id": user.organization.workspace_id,
+                    "username": user.username,
+                    "role": user.role,
+                }
+            )
         if getattr(user, "status", None) != WorkspaceStaffStatus.ACTIVE:
             if hasattr(user, "is_active") and not user.is_active:
                 return None

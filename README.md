@@ -31,7 +31,7 @@ Approved product concepts currently include:
 - **Action Records** — historical records created when an Action is performed
 - **Kiosks** — participant-facing check-in interfaces owned by a Group or Event, not a global workspace resource
 - **Notifications** — action-triggered messages (initial direction: transactional email)
-- **Subscriptions / Plans** — recurring SaaS billing tied to Organization workspaces (details not finalized; Groups and Events may later be limited on different axes)
+- **Subscriptions / Plans** — recurring SaaS billing tied to Organization workspaces; V1 tiers **Basic / Plus / Business** with frozen USD prices (DEC-072, DEC-077); Event quota axes remain open; internal entitlement + billing domain before Stripe (DEC-076, DEC-081)
 
 Participants (Members, Group-only participants, Event Entries) generally do not need User or WorkspaceStaffAccount logins. Platform operator admin accounts are separate from workspace owner/admin/staff.
 
@@ -51,7 +51,7 @@ Later stages, when explicitly in scope:
 - Desktop: macOS and Windows applications
 - Deployment: Docker, Linux, Nginx, Gunicorn, and Cloudflare where appropriate
 
-Web billing is likely to use Stripe; that design is not finalized. Native app store billing requires separate research before implementation.
+Web billing uses a Stripe provider boundary (Checkout redirect, webhooks, Customer Portal, upgrade preview). Live Stripe TEST credentials are not committed; supply them locally after creating a Stripe account. Native app store billing requires separate research before implementation; purchase-source persistence is frozen (`none` / `stripe` / `apple`).
 
 ## Development Order
 

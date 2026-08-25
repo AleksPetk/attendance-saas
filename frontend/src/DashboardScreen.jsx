@@ -8,6 +8,8 @@ import {
   PageHeader,
   StatCard,
 } from "./components.jsx";
+import AdBanner from "./advertising/AdBanner.jsx";
+import { PLACEMENT_DASHBOARD_BANNER } from "./advertising/placements.js";
 import { canManageGroupConfiguration, canViewGlobalMembers } from "./workspaceSession.js";
 
 function ActivityRow({ item }) {
@@ -87,6 +89,7 @@ export default function DashboardScreen({ session }) {
         title="Dashboard"
         description="Your workspace at a glance — real counts and recent check-in activity."
       />
+      <AdBanner session={session} placement={PLACEMENT_DASHBOARD_BANNER} />
 
       <div className="dashboard-metrics">
         {showMembers ? (

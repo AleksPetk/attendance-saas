@@ -1,5 +1,6 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { api } from "./api.js";
 import PublicPageShell from "./PublicPageShell.jsx";
 
 function PageTitle({ title, description }) {
@@ -16,67 +17,152 @@ function PageTitle({ title, description }) {
   return null;
 }
 
-const PLANS = [
-  {
-    tier: "Starter",
-    price: "TBD",
-    note: "Pricing not yet finalized",
-    featured: false,
-    features: [
-      "Core Members & Groups",
-      "Kiosk check-in flows",
-      "Action history",
-      "Owner + limited staff",
-    ],
+const FALLBACK_CATALOG = {
+  currency: "usd",
+  basic: { key: "basic", display_name: "Basic", formatted: "Free" },
+  plans: {
+    plus: {
+      key: "plus",
+      display_name: "Plus",
+      intervals: {
+        monthly: { interval: "monthly", cents: 999, formatted: "$9.99" },
+        yearly: { interval: "yearly", cents: 9990, formatted: "$99.90" },
+      },
+    },
+    business: {
+      key: "business",
+      display_name: "Business",
+      intervals: {
+        monthly: { interval: "monthly", cents: 1499, formatted: "$14.99" },
+        yearly: { interval: "yearly", cents: 14990, formatted: "$149.90" },
+      },
+    },
   },
-  {
-    tier: "Pro",
-    price: "TBD",
-    note: "Most popular — details coming soon",
-    featured: true,
-    features: [
-      "Everything in Starter",
-      "More Groups & Members",
-      "Advanced Group settings",
-      "Automatic check-in (planned)",
-      "Priority support (planned)",
-    ],
-  },
-  {
-    tier: "Business",
-    price: "TBD",
-    note: "For larger organizations",
-    featured: false,
-    features: [
-      "Everything in Pro",
-      "Custom email sender (planned)",
-      "Extended staff roles (planned)",
-      "Dedicated onboarding (planned)",
-    ],
-  },
-];
+  trial_available: false,
+};
 
-export default function PublicPricingScreen() {
+const FEATURES = {
+  basic: [
+    "2 active Groups",
+    "10 Members",
+    "Kiosk check-in",
+    "Action history",
+    "Ads supported",
+  ],
+  plus: [
+    "Everything in Basic",
+    "10 active Groups / 50 Members",
+    "Workspace Staff management",
+    "Attendance Report export",
+    "Group Forward Emails",
+    "No ads",
+  ],
+  business: [
+    "Everything in Plus",
+    "Structured Groups",
+    "Higher Group / Member limits",
+    "More Admin and Staff seats",
+    "Structured snapshot import",
+  ],
+};
+
+export default function PublicPricingScreen({ session = null }) {
+  const [interval, setInterval] = useState("monthly");
+  const [catalog, setCatalog] = useState(FALLBACK_CATALOG);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      try {
+        const result = await api.getBillingCatalog();
+        if (!cancelled && result?.data) {
+          setCatalog({ ...FALLBACK_CATALOG, ...result.data });
+        }
+      } catch {
+        /* keep frozen fallback catalog */
+      }
+    }
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const signedIn = Boolean(session?.workspace);
+  const ctaTo = signedIn ? "/account/subscription" : "/register";
+  const ctaLabel = signedIn ? "Manage subscription" : "Create free workspace";
+
+  const cards = [
+    {
+      key: "basic",
+      tier: catalog.basic?.display_name || "Basic",
+      price: catalog.basic?.formatted || "Free",
+      note: "Start free — no card required",
+      featured: false,
+      features: FEATURES.basic,
+    },
+    {
+      key: "plus",
+      tier: catalog.plans?.plus?.display_name || "Plus",
+      price:
+        catalog.plans?.plus?.intervals?.[interval]?.formatted ||
+        (interval === "yearly" ? "$99.90" : "$9.99"),
+      note: interval === "yearly" ? "Billed yearly" : "Billed monthly",
+      featured: true,
+      features: FEATURES.plus,
+    },
+    {
+      key: "business",
+      tier: catalog.plans?.business?.display_name || "Business",
+      price:
+        catalog.plans?.business?.intervals?.[interval]?.formatted ||
+        (interval === "yearly" ? "$149.90" : "$14.99"),
+      note: catalog.trial_available
+        ? "Business trial available"
+        : interval === "yearly"
+          ? "Billed yearly"
+          : "Billed monthly",
+      featured: false,
+      features: FEATURES.business,
+    },
+  ];
+
   return (
     <PublicPageShell>
       <PageTitle
         title="Pricing — Check Station"
-        description="Starter, Pro, and Business tiers. Pricing and limits are not yet finalized."
+        description="Basic, Plus, and Business plans with monthly or yearly billing."
       />
 
       <section className="public-section">
         <h1>Pricing</h1>
         <p className="public-lead">
-          Plan structure is defined, but prices and limits are not final. Explore the workspace
-          journey today — billing integration comes later.
+          V1 plans are Basic, Plus, and Business. Paid checkout starts after you create a
+          workspace — there are no anonymous paid workspaces.
         </p>
+        <div className="pricing-interval-toggle" role="group" aria-label="Billing interval">
+          <button
+            type="button"
+            className={interval === "monthly" ? "btn-secondary is-selected" : "btn-secondary"}
+            onClick={() => setInterval("monthly")}
+          >
+            Monthly
+          </button>
+          <button
+            type="button"
+            className={interval === "yearly" ? "btn-secondary is-selected" : "btn-secondary"}
+            onClick={() => setInterval("yearly")}
+          >
+            Yearly
+          </button>
+        </div>
       </section>
 
       <section className="public-section">
         <div className="pricing-grid">
-          {PLANS.map((plan) => (
+          {cards.map((plan) => (
             <article
-              key={plan.tier}
+              key={plan.key}
               className={
                 plan.featured ? "pricing-card pricing-card-featured" : "pricing-card"
               }
@@ -89,6 +175,9 @@ export default function PublicPricingScreen() {
                   <li key={feature}>{feature}</li>
                 ))}
               </ul>
+              <Link className="btn-primary" to={ctaTo}>
+                {plan.key === "basic" ? ctaLabel : signedIn ? "Choose in Account" : "Register to subscribe"}
+              </Link>
             </article>
           ))}
         </div>
@@ -97,10 +186,11 @@ export default function PublicPricingScreen() {
       <section className="public-section public-section-muted">
         <h2>Ready when you are</h2>
         <p className="public-lead">
-          Create an account and your workspace will be created automatically. No billing required during early access.
+          Registration creates a Basic workspace. Upgrade to Plus or Business from Account →
+          Subscription after you sign in.
         </p>
-        <Link className="btn-primary" to="/register">
-          Register free
+        <Link className="btn-primary" to={ctaTo}>
+          {ctaLabel}
         </Link>
       </section>
     </PublicPageShell>

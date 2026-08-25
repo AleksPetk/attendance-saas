@@ -17,7 +17,7 @@ from groups.models import (
 )
 from groups.readiness import compute_group_setup_status
 from members.models import Member, MemberStatus
-from organizations.models import Organization
+from organizations.models import Organization, OrganizationPlan
 
 User = get_user_model()
 
@@ -34,6 +34,8 @@ class StructuredGroupFoundationTests(TestCase):
         self.organization = Organization.objects.create_with_owner(
             owner=create_user("structured-owner@example.com")
         )
+        self.organization.plan = OrganizationPlan.BUSINESS
+        self.organization.save(update_fields=["plan"])
         self.user = self.organization.owner
         self.client = APIClient()
         force_platform_admin_login(self.client, self.user)

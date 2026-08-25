@@ -1,0 +1,213 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static %}
+
+{% block extrastyle %}
+{{ block.super }}
+<link rel="stylesheet" href="{% static 'admin/css/dashboard.css' %}">
+{% endblock %}
+
+{% block coltype %}colM{% endblock %}
+
+{% block bodyclass %}{{ block.super }} dashboard platform-dashboard{% endblock %}
+
+{% block nav-breadcrumbs %}{% endblock %}
+
+{% block content %}
+<div id="content-main" class="cs-dashboard">
+  <header class="cs-dash-header">
+    <div>
+      <p class="cs-dash-eyebrow">Check Station</p>
+      <h1>Platform dashboard</h1>
+      <p class="cs-dash-lead">SaaS overview for platform operators. Open any model from the sidebar or quick links.</p>
+    </div>
+  </header>
+
+  <section class="cs-metric-grid" aria-label="Summary metrics">
+    <article class="cs-metric-card">
+      <p class="cs-metric-label">Customer accounts</p>
+      <p class="cs-metric-value">{{ dashboard_metrics.customer_owners }}</p>
+      <p class="cs-metric-hint">Owners</p>
+    </article>
+    <article class="cs-metric-card">
+      <p class="cs-metric-label">Active workspaces</p>
+      <p class="cs-metric-value">{{ dashboard_metrics.active_workspaces }}</p>
+      <p class="cs-metric-hint">Not archived</p>
+    </article>
+    <article class="cs-metric-card">
+      <p class="cs-metric-label">Workspace staff</p>
+      <p class="cs-metric-value">{{ dashboard_metrics.workspace_staff }}</p>
+      <p class="cs-metric-hint">Admin &amp; staff</p>
+    </article>
+    <article class="cs-metric-card">
+      <p class="cs-metric-label">Groups</p>
+      <p class="cs-metric-value">{{ dashboard_metrics.groups }}</p>
+      <p class="cs-metric-hint">Active</p>
+    </article>
+    <article class="cs-metric-card">
+      <p class="cs-metric-label">Members</p>
+      <p class="cs-metric-value">{{ dashboard_metrics.members }}</p>
+      <p class="cs-metric-hint">Active</p>
+    </article>
+    <article class="cs-metric-card cs-metric-card-growth">
+      <p class="cs-metric-label">New registrations</p>
+      <p class="cs-metric-value">{{ dashboard_metrics.registrations_today }}</p>
+      <p class="cs-metric-hint">Today · {{ dashboard_metrics.registrations_week }} this week</p>
+    </article>
+  </section>
+
+  <section class="cs-ads-card" aria-labelledby="cs-ads-heading">
+    <div class="cs-ads-copy">
+      <h2 id="cs-ads-heading">Advertising</h2>
+      <p>
+        <span class="cs-pill {% if dashboard_advertising.enabled %}cs-pill-ok{% else %}cs-pill-warn{% endif %}">
+          {{ dashboard_advertising.label }}
+        </span>
+        Global kill switch for workspace advertising. Plans and subscriptions are not changed.
+      </p>
+    </div>
+    <div class="cs-ads-actions">
+      {% if dashboard_advertising.toggle_url %}
+      <a class="button{% if dashboard_advertising.enabled %} default{% endif %}" href="{{ dashboard_advertising.toggle_url }}">
+        {{ dashboard_advertising.action_label }}
+      </a>
+      {% endif %}
+      {% if dashboard_advertising.change_url %}
+      <a class="button" href="{{ dashboard_advertising.change_url }}">History</a>
+      {% endif %}
+    </div>
+  </section>
+
+  <section class="cs-plan-strip" aria-label="Plan metrics">
+    <div class="cs-plan-strip-copy">
+      <h2>Plans</h2>
+      <p>{{ dashboard_plans.note }}</p>
+    </div>
+    <div class="cs-plan-tiers">
+      {% for tier in dashboard_plans.tiers %}
+      <div class="cs-plan-tier">
+        <span class="cs-plan-name">{{ tier.label }}</span>
+        <span class="cs-plan-count">—</span>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="cs-quick-links" aria-label="Quick admin links">
+    {% for link in dashboard_quick_links %}
+    <a class="cs-quick-link" href="{{ link.url }}">
+      <span class="cs-quick-label">{{ link.label }}</span>
+      <span class="cs-quick-desc">{{ link.description }}</span>
+    </a>
+    {% endfor %}
+  </section>
+
+  <div class="cs-dash-columns">
+    <section class="cs-panel" aria-labelledby="cs-activity-heading">
+      <div class="cs-panel-header">
+        <h2 id="cs-activity-heading">Recent platform activity</h2>
+      </div>
+      {% if dashboard_activity %}
+      <ul class="cs-activity-list">
+        {% for event in dashboard_activity %}
+        <li class="cs-activity-item">
+          {% if event.url %}
+          <a href="{{ event.url }}" class="cs-activity-main">
+            <span class="cs-activity-title">{{ event.title }}</span>
+            {% if event.detail %}<span class="cs-activity-detail">{{ event.detail }}</span>{% endif %}
+          </a>
+          {% else %}
+          <div class="cs-activity-main">
+            <span class="cs-activity-title">{{ event.title }}</span>
+            {% if event.detail %}<span class="cs-activity-detail">{{ event.detail }}</span>{% endif %}
+          </div>
+          {% endif %}
+          <time class="cs-activity-when" datetime="{{ event.when|date:'c' }}">{{ event.when|date:"M j, H:i" }}</time>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="cs-empty">No recent platform activity yet.</p>
+      {% endif %}
+    </section>
+
+    <section class="cs-panel" aria-labelledby="cs-reg-heading">
+      <div class="cs-panel-header">
+        <h2 id="cs-reg-heading">New registrations</h2>
+        <a class="cs-panel-link" href="{% url 'admin:accounts_user_changelist' %}">All users</a>
+      </div>
+      {% if dashboard_registrations %}
+      <div class="cs-table-wrap">
+        <table class="cs-reg-table">
+          <thead>
+            <tr>
+              <th scope="col">Owner</th>
+              <th scope="col">Registered</th>
+              <th scope="col">Verified</th>
+              <th scope="col">Workspace</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in dashboard_registrations %}
+            <tr>
+              <td>
+                {% if row.url %}
+                <a href="{{ row.url }}">{{ row.email }}</a>
+                {% else %}
+                {{ row.email }}
+                {% endif %}
+              </td>
+              <td>{{ row.date_joined|date:"M j, Y H:i" }}</td>
+              <td>
+                {% if row.email_verified %}
+                <span class="cs-pill cs-pill-ok">Verified</span>
+                {% else %}
+                <span class="cs-pill cs-pill-warn">Pending</span>
+                {% endif %}
+              </td>
+              <td>{% if row.workspace_id %}{{ row.workspace_id }}{% else %}—{% endif %}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <p class="cs-empty">No customer registrations yet.</p>
+      {% endif %}
+    </section>
+  </div>
+
+  {% if platform_2fa_replace_url or platform_2fa_recovery_remaining != None %}
+  <section class="cs-security-card" aria-labelledby="cs-security-heading">
+    <div class="cs-security-copy">
+      <h2 id="cs-security-heading">Platform security</h2>
+      {% if platform_2fa_replacement_in_progress %}
+      <p>TOTP: Replacement in progress</p>
+      {% elif platform_2fa_replace_url %}
+      <p>
+        TOTP: Enabled
+        {% if platform_2fa_recovery_remaining != None %}
+        · Recovery codes: {{ platform_2fa_recovery_remaining }} remaining
+        {% endif %}
+      </p>
+      {% if platform_2fa_recovery_auth %}
+      <p class="cs-security-note">
+        Recovery authorization active for {{ platform_2fa_recovery_auth_remaining_label }}.
+      </p>
+      {% endif %}
+      {% else %}
+      <p>Complete platform 2FA setup to manage recovery codes here.</p>
+      {% endif %}
+    </div>
+    <div class="cs-security-actions">
+      {% if platform_2fa_replacement_in_progress and platform_2fa_replace_url %}
+      <a class="button" href="{{ platform_2fa_replace_url }}">Finish enrolling</a>
+      {% elif platform_2fa_replace_url %}
+      <a class="button" href="{{ platform_2fa_replace_url }}">Manage security</a>
+      {% endif %}
+    </div>
+  </section>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block sidebar %}{% endblock %}

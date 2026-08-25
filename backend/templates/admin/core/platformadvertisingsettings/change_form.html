@@ -1,0 +1,11 @@
+{% extends "admin/change_form.html" %}
+{% load i18n %}
+
+{% block submit_buttons_bottom %}
+<div class="submit-row cs-ads-submit-row">
+  <a class="button" href="{{ toggle_url }}">
+    {% if original.ads_globally_enabled %}Disable advertising{% else %}Enable advertising{% endif %}
+  </a>
+  <a class="button" href="{% url 'admin:index' %}">Back to dashboard</a>
+</div>
+{% endblock %}

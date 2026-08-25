@@ -29,7 +29,12 @@ from accounts.two_factor import (
     verify_totp_code,
 )
 from accounts.two_factor_models import PlatformRecoveryCode, PlatformTOTPDevice
-from organizations.models import Organization, WorkspaceStaffAccount, WorkspaceStaffRole
+from organizations.models import (
+    Organization,
+    OrganizationPlan,
+    WorkspaceStaffAccount,
+    WorkspaceStaffRole,
+)
 
 User = get_user_model()
 
@@ -52,6 +57,9 @@ class PlatformAdminTwoFactorTests(TestCase):
         )
         self.owner.mark_email_verified()
         self.organization = Organization.objects.create_with_owner(owner=self.owner)
+        # Basic has zero Staff seats; Plus keeps staff-login regression coverage valid.
+        self.organization.plan = OrganizationPlan.PLUS
+        self.organization.save(update_fields=["plan", "updated_at"])
         self.workspace_staff = WorkspaceStaffAccount.objects.create_account(
             organization=self.organization,
             username="natsumi",
@@ -359,6 +367,9 @@ class PlatformAdminLostAuthenticatorRecoveryTests(TestCase):
         )
         self.owner.mark_email_verified()
         self.organization = Organization.objects.create_with_owner(owner=self.owner)
+        # Basic has zero Staff seats; Plus keeps staff-login regression coverage valid.
+        self.organization.plan = OrganizationPlan.PLUS
+        self.organization.save(update_fields=["plan", "updated_at"])
         self.workspace_staff = WorkspaceStaffAccount.objects.create_account(
             organization=self.organization,
             username="natsumi",
@@ -397,18 +408,18 @@ class PlatformAdminLostAuthenticatorRecoveryTests(TestCase):
         self.assertContains(page, "You signed in with a recovery code")
         self.assertNotContains(page, "Current 6-digit authenticator code")
         home = self.client.get("/admin/")
-        self.assertContains(home, "Replace authenticator")
-        self.assertContains(home, "platform-security-card")
-        self.assertContains(home, "Platform account security")
+        self.assertContains(home, "Manage security")
+        self.assertContains(home, "cs-security-card")
+        self.assertContains(home, "Platform security")
         html = home.content.decode()
-        start = html.find("platform-security-card")
+        start = html.find("cs-security-card")
         end = html.find("</section>", start)
         self.assertGreater(start, -1)
         card = html[start:end]
         self.assertNotIn("<table", card)
-        self.assertIn("<dt>Recovery authorization</dt>", card)
-        self.assertIn("<dt>Recovery codes</dt>", card)
-        self.assertIn("<dt>Authenticator</dt>", card)
+        self.assertIn("TOTP: Enabled", card)
+        self.assertIn("Recovery codes:", card)
+        self.assertIn("Recovery authorization active", card)
 
     def test_recovery_auth_state_expires(self):
         _secret, codes = self._setup_operator()

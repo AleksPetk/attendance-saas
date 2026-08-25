@@ -9,6 +9,10 @@ import {
 } from "../components.jsx";
 import { HistorySelect } from "./historyFormControls.jsx";
 import { browserReportTimezone } from "./reportTimezone.js";
+import {
+  canExportAnyReport,
+  canExportReportFormat,
+} from "../workspaceEntitlements.js";
 
 const DATE_PRESETS = [
   { value: "today", label: "Today" },
@@ -114,7 +118,9 @@ export default function AttendanceReportPanel({ session }) {
   const hasSections = report && Array.isArray(report.sections) && report.sections.length > 0;
   const columns = report?.columns || [];
   const showClassColumn = report?.group_type === "structured";
-  const canExport = Boolean(hasSections) && filtersReady && !loadingReport && !exporting;
+  const exportsAllowed = canExportAnyReport(session);
+  const canExport =
+    Boolean(hasSections) && filtersReady && !loadingReport && !exporting && exportsAllowed;
 
   function reportQueryParams(extra = {}) {
     const params = new URLSearchParams({
@@ -300,27 +306,40 @@ export default function AttendanceReportPanel({ session }) {
           <div className="export-menu" ref={exportMenuRef}>
             <button
               type="button"
-              className="export-menu-trigger"
-              onClick={() => setExportOpen((open) => !open)}
-              disabled={!canExport}
+              className={`export-menu-trigger${exportsAllowed ? "" : " is-plan-locked"}`}
+              onClick={() => {
+                if (!exportsAllowed) {
+                  setExportError(
+                    "CSV, Excel, and PDF export require Plus or Business.",
+                  );
+                  return;
+                }
+                setExportOpen((open) => !open);
+              }}
+              disabled={exportsAllowed ? !canExport : false}
               aria-haspopup="menu"
               aria-expanded={exportOpen}
-              aria-disabled={!canExport}
+              aria-disabled={exportsAllowed ? !canExport : false}
               title={
-                canExport
-                  ? "Export the currently visible attendance report"
-                  : "Select a group and date range to enable export"
+                !exportsAllowed
+                  ? "Report export requires Plus or Business"
+                  : canExport
+                    ? "Export the currently visible attendance report"
+                    : "Select a group and date range to enable export"
               }
             >
               <ExportIcon />
-              <span>{exporting ? "Exporting…" : "Export"}</span>
+              <span>
+                {exporting ? "Exporting…" : exportsAllowed ? "Export" : "Export locked"}
+              </span>
               <span className="export-menu-caret" aria-hidden="true">
                 ▾
               </span>
             </button>
             {exportOpen && canExport ? (
               <div className="export-menu-panel" role="menu">
-                {EXPORT_OPTIONS.map((opt) => (
+                {EXPORT_OPTIONS.filter((opt) => canExportReportFormat(session, opt.value)).map(
+                  (opt) => (
                   <button
                     key={opt.value}
                     type="button"

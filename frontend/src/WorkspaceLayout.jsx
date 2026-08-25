@@ -7,6 +7,10 @@ import {
   workspaceRoleLabel,
   workspaceTopbarNotice,
 } from "./workspaceSession.js";
+import {
+  canAccessStaffManagement,
+  shouldShowLockedStaffNav,
+} from "./workspaceEntitlements.js";
 
 const NAV_ITEMS = [
   { name: "dashboard", label: "Dashboard", icon: "▦" },
@@ -55,9 +59,13 @@ export default function WorkspaceLayout({ session, route, onNavigate, onSignOut,
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const pageTitle = PAGE_TITLES[route.name] || "Workspace";
 
+  const roleCanManageStaff = canManageStaffAccounts(session);
+  const staffUnlocked = canAccessStaffManagement(session, roleCanManageStaff);
+  const staffLocked = shouldShowLockedStaffNav(session, roleCanManageStaff);
+
   const visibleNavItems = NAV_ITEMS.filter((item) => {
     if (item.requiresOwnerAccount) return canManageOwnerAccount(session);
-    if (item.requiresStaffManagement) return canManageStaffAccounts(session);
+    if (item.requiresStaffManagement) return staffUnlocked || staffLocked;
     if (item.requiresGlobalMembers) return canViewGlobalMembers(session);
     return true;
   });
@@ -77,22 +85,33 @@ export default function WorkspaceLayout({ session, route, onNavigate, onSignOut,
           <Wordmark subtitle="Workspace" />
         </div>
         <nav className="sidebar-nav" aria-label="Workspace">
-          {visibleNavItems.map((item) => (
-            <button
-              key={item.name}
-              type="button"
-              className={`nav-link ${isNavActive(route.name, item.name) ? "active" : ""}`}
-              onClick={() => {
-                onNavigate({ name: item.name });
-                setSidebarOpen(false);
-              }}
-            >
-              <span className="nav-icon" aria-hidden="true">
-                {item.icon}
-              </span>
-              {item.label}
-            </button>
-          ))}
+          {visibleNavItems.map((item) => {
+            const lockedStaff = item.name === "staff" && staffLocked && !staffUnlocked;
+            return (
+              <button
+                key={item.name}
+                type="button"
+                className={`nav-link${isNavActive(route.name, item.name) ? " active" : ""}${
+                  lockedStaff ? " is-plan-locked" : ""
+                }`}
+                title={lockedStaff ? "Staff management requires Plus or Business" : undefined}
+                onClick={() => {
+                  onNavigate({ name: item.name });
+                  setSidebarOpen(false);
+                }}
+              >
+                <span className="nav-icon" aria-hidden="true">
+                  {item.icon}
+                </span>
+                {item.label}
+                {lockedStaff ? (
+                  <span className="nav-lock-badge" aria-label="Upgrade required">
+                    Locked
+                  </span>
+                ) : null}
+              </button>
+            );
+          })}
         </nav>
         <div className="sidebar-account">
           <div className="account-chip">
@@ -136,7 +155,15 @@ export function EmptyState({ title, body, action }) {
   return <EmptyStateComponent title={title} body={body} action={action} />;
 }
 
-export function PersonRow({ person, subtitle, status, onOpen, actions, inactive = false }) {
+export function PersonRow({
+  person,
+  subtitle,
+  status,
+  onOpen,
+  actions,
+  inactive = false,
+  planLocked = false,
+}) {
   const identity = (
     <>
       <PhotoThumb url={person.photo_url} name={person.name} />
@@ -147,7 +174,11 @@ export function PersonRow({ person, subtitle, status, onOpen, actions, inactive 
     </>
   );
   return (
-    <article className={`person-row${inactive ? " person-row-inactive" : ""}`}>
+    <article
+      className={`person-row${inactive ? " person-row-inactive" : ""}${
+        planLocked ? " person-row-plan-locked" : ""
+      }`}
+    >
       {onOpen ? (
         <button type="button" className="person-main" onClick={onOpen}>
           {identity}
@@ -157,6 +188,7 @@ export function PersonRow({ person, subtitle, status, onOpen, actions, inactive 
       )}
       <div className="person-meta">
         {status ? <StatusBadge status={status} /> : null}
+        {planLocked ? <span className="plan-locked-badge">Plan locked</span> : null}
         {actions}
       </div>
     </article>

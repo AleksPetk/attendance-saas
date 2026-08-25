@@ -19,10 +19,10 @@ from django.db import models, transaction
 from accounts.sessions import invalidate_owner_sessions
 from attendance.models import ActionRecord
 from groups.email_sender_models import GroupEmailDelivery, GroupEmailSender
-from groups.models import Group, GroupMembership, GroupOnlyParticipant
+from groups.models import Group, GroupMembership, GroupOnlyParticipant, GroupSection
 from kiosk_builder.models import KioskDesign, KioskSettings
 from members.models import Member
-from organizations.models import Organization, WorkspaceStaffAccount
+from organizations.models import Organization, WorkspaceStaffAccount, WorkspaceStaffGroupAccess
 
 STAFF_BACKEND = "organizations.authentication.WorkspaceStaffSessionAuthenticationBackend"
 
@@ -164,8 +164,16 @@ def permanently_delete_customer_account(user):
             hard_delete_queryset(
                 GroupOnlyParticipant.objects.filter(organization_id=organization_id)
             )
+            hard_delete_queryset(
+                GroupSection.objects.filter(organization_id=organization_id)
+            )
             hard_delete_queryset(KioskDesign.objects.filter(organization_id=organization_id))
             hard_delete_queryset(KioskSettings.objects.filter(organization_id=organization_id))
+            hard_delete_queryset(
+                WorkspaceStaffGroupAccess.objects.filter(
+                    staff_account__organization_id=organization_id
+                )
+            )
             hard_delete_queryset(Group.objects.filter(organization_id=organization_id))
             hard_delete_queryset(Member.objects.filter(organization_id=organization_id))
             hard_delete_queryset(

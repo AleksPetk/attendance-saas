@@ -1,0 +1,24 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block content %}
+<div id="content-main" class="cs-ads-confirm">
+  <h1>{{ confirm_title }}</h1>
+  <p>{{ confirm_body }}</p>
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="confirm" value="1">
+    <div class="submit-row">
+      <input
+        type="submit"
+        value="{{ confirm_label }}"
+        class="default {% if not enabling %}deletelink{% endif %}"
+      >
+      <a href="{{ cancel_url }}" class="button cancel-link">{% translate "Cancel" %}</a>
+    </div>
+  </form>
+  <p class="cs-ads-confirm-note">
+    <a href="{{ change_url }}">View advertising history</a>
+  </p>
+</div>
+{% endblock %}

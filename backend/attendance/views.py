@@ -25,6 +25,15 @@ from attendance.kiosk_lock import (
     kiosk_status_payload,
     lock_kiosk_session,
 )
+from organizations.entitlements import (
+    FEATURE_REPORT_EXPORT_CSV,
+    FEATURE_REPORT_EXPORT_EXCEL,
+    FEATURE_REPORT_EXPORT_PDF,
+)
+from organizations.entitlements.api import deny_plan_feature
+from organizations.entitlements.api import raise_plan_denied
+from organizations.entitlements.exceptions import PlanEntitlementDenied
+from organizations.entitlements.plan_locks import require_group_plan_unlocked
 from attendance.models import ActionRecord, ActionSource, ActionType
 from attendance.serializers import (
     ActionRecordSerializer,
@@ -73,6 +82,26 @@ from groups.models import (
 )
 
 
+def _authorize_attendance_report_source(request, organization, source_group_id: int):
+    """
+    Live Groups use can_access_group. Permanently deleted Groups remain
+    reportable for owner/admin via ActionRecord snapshots; group-scoped Staff
+    cannot open deleted Groups they no longer have an assignment for.
+    """
+    group = Group.objects.filter(
+        pk=source_group_id,
+        organization=organization,
+    ).first()
+    if group is not None:
+        if not can_access_group(request.user, group):
+            raise NotFound("Group not found for attendance report in this workspace.")
+        if get_staff_assigned_group_ids(request.user) is not None:
+            _deny_locked_group(group)
+        return
+    if get_staff_assigned_group_ids(request.user) is not None:
+        raise NotFound("Group not found for attendance report in this workspace.")
+
+
 def _kiosk_start_payload(request, group, payload):
     payload["group_id"] = group.pk
     payload["group_name"] = group.name
@@ -90,6 +119,13 @@ def _kiosk_start_payload(request, group, payload):
         ),
     }
     return payload
+
+
+def _deny_locked_group(group):
+    try:
+        require_group_plan_unlocked(group)
+    except PlanEntitlementDenied as exc:
+        raise_plan_denied(exc)
 
 
 class OwnedWorkspaceMixin:
@@ -118,6 +154,7 @@ class GroupKioskStartView(OwnedWorkspaceMixin, APIView):
             raise NotFound("Group not found in this workspace.")
         if not can_access_group(self.request.user, group):
             raise NotFound("Group not found in this workspace.")
+        _deny_locked_group(group)
         return group
 
     def post(self, request, group_pk):
@@ -209,6 +246,7 @@ class GroupKioskClassPeopleView(OwnedWorkspaceMixin, APIView):
         )
         if group is None:
             raise NotFound("Group not found in this workspace.")
+        _deny_locked_group(group)
         blocked = ensure_kiosk_launch_ready(group)
         if blocked:
             return Response(blocked, status=status.HTTP_409_CONFLICT)
@@ -264,6 +302,7 @@ class GroupKioskClassVerifyPinView(OwnedWorkspaceMixin, APIView):
         )
         if group is None:
             raise NotFound("Group not found in this workspace.")
+        _deny_locked_group(group)
         blocked = ensure_kiosk_launch_ready(group)
         if blocked:
             return Response(blocked, status=status.HTTP_409_CONFLICT)
@@ -370,6 +409,7 @@ class GroupKioskIdentifyView(OwnedWorkspaceMixin, APIView):
         )
         if group is None:
             raise NotFound("Group not found in this workspace.")
+        _deny_locked_group(group)
         blocked = ensure_kiosk_launch_ready(group)
         if blocked:
             return Response(blocked, status=status.HTTP_409_CONFLICT)
@@ -470,6 +510,7 @@ class GroupKioskPerformView(OwnedWorkspaceMixin, APIView):
         )
         if group is None:
             raise NotFound("Group not found in this workspace.")
+        _deny_locked_group(group)
         blocked = ensure_kiosk_launch_ready(group)
         if blocked:
             return Response(blocked, status=status.HTTP_409_CONFLICT)
@@ -608,7 +649,12 @@ class WorkspaceHistoryListView(OwnedWorkspaceMixin, APIView):
         if assigned_ids is not None:
             if not assigned_ids:
                 return Response({"items": []})
-            qs = qs.filter(group_id__in=assigned_ids)
+            unlocked_ids = Group.objects.filter(
+                organization=self.organization,
+                pk__in=assigned_ids,
+                plan_unlocked=True,
+            ).values_list("id", flat=True)
+            qs = qs.filter(group_id__in=unlocked_ids)
 
         group_id = data.get("group_id")
         if group_id:
@@ -649,6 +695,14 @@ class WorkspaceHistoryReportGroupsView(OwnedWorkspaceMixin, APIView):
 
     def get(self, request):
         assigned_ids = get_staff_assigned_group_ids(request.user)
+        if assigned_ids is not None:
+            assigned_ids = set(
+                Group.objects.filter(
+                    organization=self.organization,
+                    pk__in=assigned_ids,
+                    plan_unlocked=True,
+                ).values_list("id", flat=True)
+            )
         return Response(
             {
                 "items": list_report_groups(
@@ -672,14 +726,9 @@ class WorkspaceAttendanceReportView(OwnedWorkspaceMixin, APIView):
         data = query.validated_data
 
         source_group_id = data["source_group_id"]
-        group = Group.objects.filter(
-            pk=source_group_id,
-            organization=self.organization,
-        ).first()
-        if group is None:
-            raise NotFound("Group not found for attendance report in this workspace.")
-        if not can_access_group(request.user, group):
-            raise NotFound("Group not found for attendance report in this workspace.")
+        _authorize_attendance_report_source(
+            request, self.organization, source_group_id
+        )
 
         try:
             report = build_attendance_report(
@@ -711,15 +760,18 @@ class WorkspaceAttendanceReportExportView(OwnedWorkspaceMixin, APIView):
         query.is_valid(raise_exception=True)
         data = query.validated_data
 
+        export_feature = {
+            "csv": FEATURE_REPORT_EXPORT_CSV,
+            "xlsx": FEATURE_REPORT_EXPORT_EXCEL,
+            "pdf": FEATURE_REPORT_EXPORT_PDF,
+        }.get(data["export_format"])
+        if export_feature is not None:
+            deny_plan_feature(self.organization, export_feature)
+
         source_group_id = data["source_group_id"]
-        group = Group.objects.filter(
-            pk=source_group_id,
-            organization=self.organization,
-        ).first()
-        if group is None:
-            raise NotFound("Group not found for attendance report in this workspace.")
-        if not can_access_group(request.user, group):
-            raise NotFound("Group not found for attendance report in this workspace.")
+        _authorize_attendance_report_source(
+            request, self.organization, source_group_id
+        )
 
         try:
             report = build_attendance_report(

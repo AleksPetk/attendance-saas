@@ -8,6 +8,7 @@ from rest_framework.test import APIClient
 
 from organizations.models import (
     Organization,
+    OrganizationPlan,
     WorkspaceStaffAccount,
     WorkspaceStaffRole,
     WorkspaceStaffStatus,
@@ -220,6 +221,8 @@ class WorkspaceStaffEmailAPITests(TestCase):
     def setUp(self):
         self.owner = create_user("owner@example.com")
         self.organization = Organization.objects.create_with_owner(owner=self.owner)
+        self.organization.plan = OrganizationPlan.PLUS
+        self.organization.save(update_fields=["plan"])
         self.api = login_owner(APIClient())
 
     def test_api_rejects_admin_without_email(self):

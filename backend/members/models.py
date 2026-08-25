@@ -117,6 +117,7 @@ class Member(models.Model):
         choices=MemberStatus.choices,
         default=MemberStatus.ACTIVE,
     )
+    plan_unlocked = models.BooleanField(default=True, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     archived_at = models.DateTimeField(null=True, blank=True)

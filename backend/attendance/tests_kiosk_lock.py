@@ -20,7 +20,13 @@ from groups.models import (
 from kiosk_builder.kiosk_settings_constants import KioskInputSecondField, KioskType
 from kiosk_builder.testing import configure_group_kiosk_for_launch
 from members.models import Member
-from organizations.models import Organization, WorkspaceStaffAccount, WorkspaceStaffRole
+from organizations.models import (
+    Organization,
+    OrganizationPlan,
+    WorkspaceStaffAccount,
+    WorkspaceStaffRole,
+)
+from organizations.staff_group_access import set_staff_group_access
 
 User = get_user_model()
 
@@ -42,8 +48,12 @@ class GroupKioskLockTests(TestCase):
         self.password = "secure-password"
         self.owner = create_user("kiosk-owner@example.com", password=self.password)
         self.org = Organization.objects.create_with_owner(owner=self.owner)
+        self.org.plan = OrganizationPlan.BUSINESS
+        self.org.save(update_fields=["plan", "updated_at"])
         self.other_owner = create_user("other-kiosk-owner@example.com", password=self.password)
         self.other_org = Organization.objects.create_with_owner(owner=self.other_owner)
+        self.other_org.plan = OrganizationPlan.BUSINESS
+        self.other_org.save(update_fields=["plan", "updated_at"])
         self.staff = WorkspaceStaffAccount.objects.create_account(
             organization=self.org,
             username="kioskstaff",
@@ -61,6 +71,11 @@ class GroupKioskLockTests(TestCase):
             kiosk_mode=KioskMode.INPUT,
             kiosk_input_field_1=KioskIdentifierField.NAME,
             kiosk_input_field_2=KioskIdentifierField.PIN,
+        )
+        set_staff_group_access(
+            staff_account=self.staff,
+            organization=self.org,
+            group_ids=[self.group.pk],
         )
         self.member = Member.objects.create_member(
             organization=self.org,

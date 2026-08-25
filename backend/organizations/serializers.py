@@ -22,6 +22,8 @@ class CurrentWorkspaceSerializer(serializers.Serializer):
     is_platform_operator = serializers.BooleanField()
     workspace_id = serializers.CharField(allow_null=True)
     capabilities = serializers.DictField(required=False)
+    entitlements = serializers.DictField(required=False)
+    advertising = serializers.DictField(required=False)
     kiosk_locked = serializers.BooleanField(required=False, default=False)
     kiosk_group_id = serializers.IntegerField(required=False, allow_null=True, default=None)
     kiosk_available = serializers.BooleanField(required=False, default=False)
@@ -78,6 +80,15 @@ class WorkspaceStaffAccountListSerializer(serializers.Serializer):
     email = serializers.EmailField(allow_blank=True, required=False)
     role = serializers.CharField()
     status = serializers.CharField()
+    plan_unlocked = serializers.BooleanField()
+    is_plan_locked = serializers.SerializerMethodField()
+
+    def get_is_plan_locked(self, obj):
+        from organizations.entitlements.plan_locks import (
+            is_staff_account_plan_unlocked,
+        )
+
+        return not is_staff_account_plan_unlocked(obj)
 
 
 class WorkspaceStaffAccountCreateSerializer(serializers.Serializer):

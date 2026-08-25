@@ -52,6 +52,8 @@ from accounts.owner_two_factor import (
 
 from accounts.verification import customer_must_verify_email
 from attendance.kiosk_lock import attach_kiosk_status
+from organizations.entitlements import build_entitlement_payload
+from organizations.entitlements.advertising import attach_workspace_advertising
 from organizations.models import Organization, OrganizationStatus
 from organizations.permissions import workspace_capabilities
 from organizations.serializers import CurrentWorkspaceSerializer
@@ -92,7 +94,9 @@ def _workspace_payload(request, user):
         "is_platform_operator": bool(getattr(user, "is_staff", False) or getattr(user, "is_superuser", False)),
         "workspace_id": org.workspace_id,
         "capabilities": workspace_capabilities(user),
+        "entitlements": build_entitlement_payload(org),
     }
+    attach_workspace_advertising(payload, org)
     return CurrentWorkspaceSerializer(attach_kiosk_status(request, payload)).data
 
 

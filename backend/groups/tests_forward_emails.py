@@ -27,7 +27,7 @@ from groups.forward_emails import (
 from groups.models import Group, GroupMembership, GroupType
 from groups.serializers import GroupSerializer
 from members.models import Member
-from organizations.models import Organization
+from organizations.models import Organization, OrganizationPlan
 
 
 @override_settings(
@@ -46,6 +46,8 @@ class ForwardEmailConfigTests(TestCase):
             owner=self.owner,
             internal_label="Forward Emails Org",
         )
+        self.organization.plan = OrganizationPlan.PLUS
+        self.organization.save(update_fields=["plan"])
         self.group = Group.objects.create_group(
             organization=self.organization,
             name="Forward Group",

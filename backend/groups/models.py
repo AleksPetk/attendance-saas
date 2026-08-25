@@ -146,6 +146,7 @@ class Group(models.Model):
             "for future kiosk class entry. Stored now; kiosk behavior deferred."
         ),
     )
+    plan_unlocked = models.BooleanField(default=True, db_index=True)
 
     check_in_enabled = models.BooleanField(default=True)
     check_out_enabled = models.BooleanField(default=False)

@@ -85,7 +85,7 @@ export default function VerifyPrimaryEmailScreen() {
       lead={lead}
       footnote={
         <p>
-          <Link to="/account">Return to account</Link>
+          <Link to="/account/security">Return to account</Link>
           {" · "}
           <Link to="/login">Return to login</Link>
         </p>

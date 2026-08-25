@@ -57,6 +57,7 @@ class GroupAdmin(admin.ModelAdmin):
         "organization",
         "group_type",
         "status",
+        "plan_unlocked",
         "check_in_enabled",
         "check_out_enabled",
         "breaks_enabled",
@@ -76,12 +77,21 @@ class GroupAdmin(admin.ModelAdmin):
         "organization__internal_label",
     )
     autocomplete_fields = ("organization",)
-    readonly_fields = ("created_at", "updated_at", "archived_at")
+    readonly_fields = ("plan_unlocked", "created_at", "updated_at", "archived_at")
     inlines = (GroupSectionInline, GroupMembershipInline, GroupOnlyParticipantInline)
     fieldsets = (
         (
             None,
-            {"fields": ("organization", "name", "group_type", "require_class_pin", "status")},
+            {
+                "fields": (
+                    "organization",
+                    "name",
+                    "group_type",
+                    "require_class_pin",
+                    "status",
+                    "plan_unlocked",
+                )
+            },
         ),
         (
             "Actions",

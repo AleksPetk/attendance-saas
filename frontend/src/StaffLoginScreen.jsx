@@ -9,11 +9,13 @@ export default function StaffLoginScreen({ onSignedIn }) {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [lockedAccount, setLockedAccount] = useState(null);
 
   async function handleSubmit(event) {
     event.preventDefault();
     setLoading(true);
     setError("");
+    setLockedAccount(null);
 
     try {
       await api.csrf();
@@ -24,10 +26,61 @@ export default function StaffLoginScreen({ onSignedIn }) {
       });
       onSignedIn({ workspace: result.data });
     } catch (err) {
-      setError(errorMessage(err));
+      if (err?.status === 403 && err?.data?.code === "plan_account_locked") {
+        setLockedAccount(err.data);
+      } else {
+        setError(errorMessage(err));
+      }
     } finally {
       setLoading(false);
     }
+  }
+
+  if (lockedAccount) {
+    return (
+      <AuthLayout
+        variant="staff"
+        title="Account unavailable"
+        lead="Your sign-in details were accepted, but this account is not available on the workspace’s current plan."
+        footnote={
+          <p>
+            Workspace owner? <Link to="/login">Customer login</Link>
+          </p>
+        }
+      >
+        <div className="plan-account-blocked" role="alert">
+          <span className="plan-locked-badge">Plan locked</span>
+          <p>
+            This workspace’s current plan does not include access for this account. Ask the
+            workspace owner to upgrade or enable your account.
+          </p>
+          {lockedAccount.workspace_id || lockedAccount.username ? (
+            <dl>
+              {lockedAccount.workspace_id ? (
+                <>
+                  <dt>Workspace ID</dt>
+                  <dd>{lockedAccount.workspace_id}</dd>
+                </>
+              ) : null}
+              {lockedAccount.username ? (
+                <>
+                  <dt>Username</dt>
+                  <dd>{lockedAccount.username}</dd>
+                </>
+              ) : null}
+            </dl>
+          ) : null}
+          <div className="plan-account-blocked-actions">
+            <button type="button" className="btn-secondary" onClick={() => setLockedAccount(null)}>
+              Try again
+            </button>
+            <Link className="btn-ghost" to="/login">
+              Owner login
+            </Link>
+          </div>
+        </div>
+      </AuthLayout>
+    );
   }
 
   return (

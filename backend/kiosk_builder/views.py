@@ -30,6 +30,9 @@ from organizations.permissions import (
     can_access_group,
     get_active_workspace_organization,
 )
+from organizations.entitlements.api import raise_plan_denied
+from organizations.entitlements.exceptions import PlanEntitlementDenied
+from organizations.entitlements.plan_locks import require_group_plan_unlocked
 
 
 ALLOWED_IMAGE_CONTENT_TYPES = {
@@ -39,6 +42,13 @@ ALLOWED_IMAGE_CONTENT_TYPES = {
     "image/webp",
 }
 MAX_IMAGE_SIZE = 10 * 1024 * 1024  # 10 MB
+
+
+def _deny_locked_group(group):
+    try:
+        require_group_plan_unlocked(group)
+    except PlanEntitlementDenied as exc:
+        raise_plan_denied(exc)
 
 
 def _validate_image_file(file_obj, field_name):
@@ -96,6 +106,7 @@ class GroupKioskDesignView(APIView):
 
     def put(self, request, group_pk):
         org, group = self._get_group(request, group_pk)
+        _deny_locked_group(group)
         design, created = KioskDesign.objects.get_or_create(
             group=group,
             defaults={"organization": org, "config": default_config()},
@@ -226,6 +237,7 @@ class GroupKioskSettingsView(APIView):
 
     def patch(self, request, group_pk):
         _org, group = self._get_group(request, group_pk)
+        _deny_locked_group(group)
         settings_obj = ensure_group_kiosk_settings(group)
         serializer = KioskSettingsSerializer(
             settings_obj,
@@ -266,6 +278,7 @@ class GroupKioskResetNowView(APIView):
 
     def post(self, request, group_pk):
         _org, group = self._get_group(request, group_pk)
+        _deny_locked_group(group)
         settings_obj = ensure_group_kiosk_settings(group)
         settings_obj.manual_reset_at = timezone.now()
         settings_obj.save(update_fields=["manual_reset_at", "updated_at"])

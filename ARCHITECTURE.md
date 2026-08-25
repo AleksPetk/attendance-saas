@@ -34,8 +34,8 @@ Do not infer implementation from this document for:
 - REST/API design
 - Event / Event Entry **database schema** (lifecycle and kiosk-ownership rules are recorded above)
 - Actions and Action Records
-- Kiosk **database fields**, launch flow, or session/security model (ownership rules are recorded above)
-- subscriptions and billing (including exact plan limits)
+- Kiosk **database fields** for Events, and Event kiosk launch/session (Group kiosk launch, cookie-session lock, and exit-code unlock are implemented)
+- subscriptions and billing **provider integration** (Stripe/Apple checkout, webhooks, Customer Portal). **V1 plan names/limits, ads, downgrade semantics, Account IA, purchase sources, entitlement layer, permanent USD prices, trial commercial rules (duration TBD), upgrade/downgrade/cancel timing, and payment-failure grace are frozen** in PRODUCT.md and DEC-072–082 — do not invent alternate tier names or silently change the matrix. Internal billing persistence is implemented in the `billing` app.
 - configurable fields and group-specific overrides (this slice implements explicit GroupMembership override fields for name, email, photo, member identifier, and PIN — not a generic field engine)
 - notification engine (Group after-action email via per-Group Custom SMTP / Gmail / Microsoft / Yahoo senders is implemented in this slice, including optional Group-level Forward Emails up to 3 private copies; broader engine channels and OAuth providers remain undesigned)
 - platform-operator administration tooling
@@ -86,7 +86,7 @@ Platform
               └── owned kiosk configuration (product rule; fields not designed)
 ```
 
-Operational customer data belongs to **Organizations**, not directly to Users. The paying customer accesses the workspace as the Organization **owner**. Additional workspace operators use **WorkspaceStaffAccount**. **Subscriptions** belong to the Organization workspace, not to Members. A workspace may begin in trial or unsubscribed state; billing implementation is not designed here.
+Operational customer data belongs to **Organizations**, not directly to Users. The paying customer accesses the workspace as the Organization **owner**. Additional workspace operators use **WorkspaceStaffAccount**. **Subscriptions** belong to the Organization workspace, not to Members. Registration currently creates **Basic** (no auto-trial). Billing commercial state is separate from Organization identity and from `Organization.plan` entitlement.
 
 **Members do not access the Organization workspace.** They are tracked operationally; participant check-in happens through **Kiosks** owned by a Group or an Event (kiosk fields and session model are not designed in this document).
 
@@ -122,7 +122,7 @@ An **Organization** is the internal **workspace**, **tenant boundary**, and **su
 - Does **not** require a customer-facing workspace name. An optional internal admin/support label may exist
 - May have additional **WorkspaceStaffAccount** rows with roles **admin** or **staff**
 - Billing and **Subscription** belong to the Organization workspace, separate from Member identity
-- A workspace may begin in trial or unsubscribed state and later activate through subscription (billing state machine undesigned)
+- Registration currently creates Basic; a Business trial is a later billing action (card required; duration TBD)
 - All Members, Groups, GroupMemberships, GroupOnlyParticipants, and WorkspaceStaffAccounts belong to exactly one Organization
 - Cross-Organization relationships are **forbidden**
 - The customer may use one workspace for any mix of real-world activities; the platform does not verify legal/business structure
@@ -150,7 +150,7 @@ A **WorkspaceStaffAccount** is a customer-created workspace **admin** or **staff
 | **admin** | A `WorkspaceStaffAccount` in that Organization with `role=admin` |
 | **staff** | A `WorkspaceStaffAccount` in that Organization with `role=staff` |
 
-**Workspace Admin** capabilities are frozen in [DEC-070](./DECISIONS.md#dec-070--workspace-admin-customer-workspace-permissions): full operational workspace management except billing, Owner account/security, Admin-account management, ownership transfer, permanent deletion, and platform admin. Central enforcement lives in `organizations.permissions` (`CanManageWorkspace`, `CanManageStaffAccounts`, `IsWorkspaceOwner`, plus capability flags on current-workspace responses). **Workspace Staff** final matrix remains open (OPEN-005).
+**Workspace Admin** capabilities are frozen in [DEC-070](./DECISIONS.md#dec-070--workspace-admin-customer-workspace-permissions): full operational workspace management except billing, Owner account/security, Admin-account management, ownership transfer, permanent deletion, and platform admin. Central enforcement lives in `organizations.permissions` (`CanManageWorkspace`, `CanManageStaffAccounts`, `IsWorkspaceOwner`, plus capability flags on current-workspace responses). **Workspace Staff** matrix is frozen in [DEC-071](./DECISIONS.md#dec-071--workspace-staff-group-scoped-permissions). Role permission does not override plan entitlements (DEC-073).
 
 Do **not** use **OrganizationMembership** to attach global Users as workspace admin/staff. That model is retired.
 
@@ -380,19 +380,136 @@ Platform operators (`accounts.User` with `is_staff` or `is_superuser`) must comp
 
 ---
 
+## Plans, entitlements, and Owner Account architecture
+
+Product matrix and policies live in [PRODUCT.md — Subscriptions and Plans](./PRODUCT.md#subscriptions-and-plans) and DEC-072–082. This section records the **technical architecture**.
+
+### Entitlement layer (implemented)
+
+Plan enforcement goes through an **internal entitlement / usage system** in `organizations.entitlements`, not through scattered Stripe checks.
+
+Canonical catalog: `organizations.entitlements.catalog` (`basic` / `plus` / `business` limits + feature flags). Workspace **effective** plan is persisted on `Organization.plan` (default **Basic**). Platform Django admin may change plan for support/testing via `apply_effective_plan()`; that is a manual entitlement operation, not a paid transaction. Customers cannot mutate plan via workspace APIs yet.
+
+Services answer for a workspace:
+
+- what plan it is on (**Basic** / **Plus** / **Business**)
+- which features are enabled
+- the limit for a given resource
+- current usage of that resource
+- whether a requested operation may proceed
+- whether the workspace is currently over limit (structured over_limit items)
+
+Authenticated workspace payloads include an `entitlements` object. Frontend consumes it for Account → Subscription and lightweight lock/usage UI; **backend remains authoritative**.
+
+**Role authorization** (Owner / Admin / Staff) and **plan entitlement** are separate. When both apply, both must pass.
+
+**Active vs archived** quotas are separate where the product matrix lists both; archived usage does not consume active limits.
+
+**Downgrade** never deletes data automatically; over-limit workspaces stay readable/operational where safe while blocking growth past the destination plan (DEC-073). **Scheduled** paid downgrades and cancellations must not change `Organization.plan` (and therefore must not run plan locks) until the effective date.
+
+Downgrade enforcement uses persistent **plan locks** on Groups, Members, and
+WorkspaceStaffAccounts without changing archive/deactivation lifecycle fields.
+When a destination plan has fewer Standard Group, archived Group, Member, Admin, or
+Staff slots than existing records, all records in that category are locked
+until the paying Owner selects the records that remain operational. Structured
+Groups are locked automatically when the feature is unavailable; Business
+over-capacity keeps the oldest Groups by database ID up to its limit. Locked
+resources remain readable to the Owner and their historical Action Records
+remain intact. Slot selection is tenant-scoped and Owner-only.
+
+**Member plan locks** control the reusable Member **profile** and future reuse
+only. Existing GroupMembership / participation in an operational Group stays
+intact (kiosk attendance, participation edits, Action Records). Locked Members
+cannot be added to a **new** Group participation.
+
+**Kiosk templates:** Card and Input template catalogs are available on every plan (Basic / Plus / Business). Template access is not a plan entitlement and must not be gated by plan. Basic still carries `ads_required`; effective advertising also requires the platform kill switch (see Basic ads below).
+
+Stripe/web and other purchase sources update billing subscription state that **feeds** this layer through `apply_effective_plan()` (DEC-076, DEC-081).
+
+### Billing domain (implemented; Stripe provider boundary ready)
+
+Commercial lifecycle lives in the `billing` app (`WorkspaceSubscription`, OneToOne to Organization). It is optional: a workspace with no billing row is valid Basic.
+
+Keep these separate:
+
+| Concept | Owner |
+|---------|--------|
+| Effective entitlement plan | `Organization.plan` + `organizations.entitlements` |
+| Commercial/payment lifecycle | `billing.WorkspaceSubscription` |
+| Stripe SDK / Checkout / Portal / webhooks | `billing.stripe_provider` (only Stripe call site) |
+| Provider selection | `billing.provider` (`stripe` or `fake` for tests) |
+
+Permanent USD list prices live in `billing.catalog` as **integer cents** (not in the entitlement catalog, not as floats, not as per-row prices). Promotions must not mutate that catalog. Stripe Price IDs map onto those plan/interval pairs via settings (`STRIPE_PRICE_*`); never infer plan from amount.
+
+Canonical effective plan mutation: `organizations.entitlements.apply_effective_plan()`. `Organization.save()` still syncs plan locks as a safety net. Billing services call `apply_effective_plan()` for upgrades, effective downgrades, trial start, and transitions to Basic. Do not scatter Stripe objects through Groups/Members/Staff/Kiosk code.
+
+Owner-only HTTP APIs under `/api/billing/` expose current billing state, Checkout, trial Checkout (only when `BUSINESS_TRIAL_DAYS` > 0), upgrade preview/apply, period-end downgrade, cancel-at-period-end, **resume scheduled cancellation**, **cancel scheduled downgrade**, and Customer Portal. Browser `?checkout=success` is UX only; paid/trial activation requires verified webhook/provider reconciliation. Reversing a pending cancellation or downgrade requires a successful provider operation first, then clears internal pending state; the existing Stripe subscription and billing cycle are preserved (no new Checkout).
+
+Webhook: `POST /api/billing/webhooks/stripe` (CSRF-exempt, no session auth, signature-verified, idempotent via `ProviderEvent`). Allowed through `KioskLockMiddleware`.
+
+Payment-failure grace emails: management command `send_billing_payment_warnings` (once per UTC day during the 3-day grace). Schedule daily in deployment; no Celery in this phase.
+
+**Live Stripe account / TEST credentials are not configured in-repo.** Apple IAP and monthly↔yearly interval-change execution remain open (OPEN-011 narrowed, OPEN-015).
+
+Internal statuses are provider-neutral: `none`, `trialing`, `active`, `past_due` (grace), `canceled`. Scheduled cancellation while access remains is `cancel_at_period_end` on an otherwise active/trialing/past_due row — not a separate “canceling” entitlement plan.
+
+### Purchase source
+
+Subscription commercial ownership may come from `none`, `stripe`, or `apple`. Account Subscription/Billing UI respects the source: Stripe portal/change actions only for Stripe; Apple shows truthful non-Stripe management copy. Basic/free workspaces have no paid purchase source.
+
+### Owner Account area
+
+Owner Account surfaces are three top-level sections/pages:
+
+| Section | Responsibility |
+|---------|----------------|
+| **Security** | Login/primary email, backup email, password, optional Owner TOTP 2FA, Danger Zone / permanent deletion |
+| **Subscription** | Plan, status, limits/usage, Checkout/upgrade/downgrade/cancel, resume scheduled cancellation, cancel scheduled downgrade, renewal, purchase-source-aware management |
+| **Billing** | Lightweight summary + Stripe Customer Portal for invoices/payment method when `purchase_source=stripe` |
+
+Public `/pricing` presents Basic / Plus / Business with catalog prices (monthly/yearly). Unauthenticated paid CTAs route through registration/login; Checkout starts only for the authenticated workspace owner.
+
+### Basic ads (placement architecture)
+
+Ads are a **Basic**-only commercial surface. Effective advertising is:
+
+`features.ads_required` (plan catalog) **AND** platform `ads_globally_enabled` (singleton `PlatformAdvertisingSettings`).
+
+Do **not** enforce ads with `require_feature` / `deny_plan_feature` — `ads_required` polarity means “eligible/required to show ads,” unlike other feature flags.
+
+Frozen **web** placements:
+
+- `dashboard_banner`
+- `groups_banner`
+- `kiosk_launch_interstitial` (workspace route, **before** `POST /api/groups/:id/kiosk/` lock)
+- `kiosk_exit_interstitial` (after successful exit-code unlock, **before** Group/Groups navigation)
+- `kiosk_builder_exit_interstitial` (after dirty-state resolution, **before** destination navigation)
+
+**Live participant kiosk sessions must never show ads.** Do not put ads in `GroupKioskScreen`, `KioskRenderer` (`mode="live"`), `KioskBuilderPreview`, Kiosk Settings, Members, History, Staff, or Account.
+
+Authenticated workspace payloads include an `advertising` object (`enabled`, `provider`, `placements`) beside `entitlements`. Fetch this **before** kiosk lock; do not add an ads request that must run while locked.
+
+Current provider is **mock** (local development). A real provider is deferred until deployment. Provider/render failure is **fail-open**: banners omit, interstitials skip, and the original navigation continues.
+
+Platform operators toggle advertising from Django admin (dashboard card + confirmation). Workspace APIs cannot change the kill switch. Django admin History/`LogEntry` records the change.
+
+Plus/Business have no ads (`ads_required=False`). Provider choice remains open beyond mock.
+
+---
+
 ## Deferred Architecture
 
-The following are confirmed **product concepts** but intentionally **excluded from this architecture document**:
+The following are confirmed **product concepts** but intentionally **excluded from detailed implementation design here**:
 
 | Area | Status |
 |------|--------|
 | Event / Event Entry schema | Product concept and lifecycle/kiosk-ownership rules approved; database/API architecture not started |
 | Action / Action Record | Product concept approved; architecture not started |
-| Kiosk fields / Kiosk Session | Ownership by Group/Event approved; database fields, launch, and session/security not started |
-| Subscriptions / Plans | Product direction approved; architecture not started. Groups and Events may later be limited on different axes; exact numbers undecided |
+| Group kiosk launch / session lock | Implemented for Groups: cookie-session kiosk lock, exit-code unlock, live start/identify/perform. Event kiosk session remains undesigned |
+| Subscriptions / Plans **provider integration** | **V1 names/limits, ads, downgrade, Account IA, entitlement layer, prices, trial rules (duration TBD), change timing, grace frozen** (PRODUCT.md, DEC-072–082). Stripe/Apple checkout, webhooks, portal, and interval-change execution remain open |
 | Configurable fields | Product direction approved; structure not started |
 | GroupMembership overrides | Explicit name/email/photo/identifier/PIN overrides implemented in the Member/Group slice; generic field engine still not started |
-| Organization role permissions | Owner is the paying User; admin/staff are WorkspaceStaffAccount. **Admin matrix frozen (DEC-070).** Staff matrix open (OPEN-005). |
+| Organization role permissions | Owner is the paying User; admin/staff are WorkspaceStaffAccount. **Admin matrix frozen (DEC-070). Staff matrix frozen (DEC-071).** |
 
 ---
 
@@ -413,6 +530,6 @@ When this document and another authoritative file conflict, **stop and resolve t
 
 | Field | Value |
 |-------|-------|
-| **Status** | Tenant/person foundation; Organization owner + WorkspaceStaffAccount + Member/Group slice implemented |
-| **Last updated** | 2026-08-20 |
-| **Next architecture work** | Events / Action Records / Kiosks |
+| **Status** | Tenant/person foundation; Organization owner + WorkspaceStaffAccount + Member/Group slice implemented; V1 entitlement layer, internal billing domain, and Stripe-ready provider/UI boundary implemented (live Stripe credentials and Apple IAP still open) |
+| **Last updated** | 2026-08-25 |
+| **Next architecture work** | Connect Stripe TEST credentials; interval-change product decision; real ad provider at deployment; Events / Action Records as otherwise prioritized |

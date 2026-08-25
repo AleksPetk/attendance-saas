@@ -1,0 +1,36 @@
+{% load i18n %}
+<button class="sticky toggle-nav-sidebar" id="toggle-nav-sidebar" aria-label="{% translate 'Toggle navigation' %}"></button>
+<nav class="sticky" id="nav-sidebar" aria-label="{% translate 'Sidebar' %}">
+  <input type="search" id="nav-filter"
+         placeholder="{% translate 'Start typing to filter…' %}"
+         aria-label="{% translate 'Filter navigation items' %}">
+
+  {% if platform_nav_groups %}
+  <div class="cs-nav-groups">
+    {% for group in platform_nav_groups %}
+    <div class="module cs-nav-module{% if group.current %} current-category{% endif %}" data-cs-nav-group="{{ group.key }}">
+      <table>
+        <caption>
+          {% if group.url %}
+          <a href="{{ group.url }}" class="cs-nav-category-link"{% if group.current %} aria-current="page"{% endif %}>{{ group.label }}</a>
+          {% else %}
+          {{ group.label }}
+          {% endif %}
+        </caption>
+        <tbody>
+          {% for item in group.items %}
+          <tr class="{% if item.current %}current-model{% endif %}">
+            <th scope="row">
+              <a href="{{ item.url }}"{% if item.current %} aria-current="page"{% endif %}>{{ item.label }}</a>
+            </th>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  {% include "admin/app_list.html" with app_list=available_apps show_changelinks=False %}
+  {% endif %}
+</nav>
