@@ -2,30 +2,98 @@ from django.db import connection
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from billing.exceptions import StripeConfigurationError, StripeProviderError
+from billing.prices import stripe_secret_key
+from billing.provider import get_billing_provider
+from core.mail import (
+    EmailConfigurationError,
+    EmailHealthUnknown,
+    EmailSendError,
+    get_email_provider,
+)
+from kiosk_builder.kiosk_health import check_kiosk_runtime_health
+
+
+def _public_health_payload(status_value):
+    return {"status": status_value}
+
 
 class HealthCheckView(APIView):
     """
-    Simple health endpoint for stack verification.
+    Minimal API liveness + PostgreSQL connectivity check.
 
-    Confirms the API is running and can reach PostgreSQL.
+    Public payload is only ``status``. HTTP 503 when the database is unreachable.
     """
 
     authentication_classes = []
     permission_classes = []
 
     def get(self, request):
-        database_status = "disconnected"
         try:
             with connection.cursor() as cursor:
                 cursor.execute("SELECT 1")
-            database_status = "connected"
         except Exception:
-            database_status = "disconnected"
+            return Response(_public_health_payload("degraded"), status=503)
+        return Response(_public_health_payload("ok"))
 
-        return Response(
-            {
-                "status": "ok" if database_status == "connected" else "degraded",
-                "service": "attendance-saas-backend",
-                "database": database_status,
-            }
-        )
+
+class KioskHealthCheckView(APIView):
+    """
+    Read-only kiosk runtime health. No customer data, no session lock, no actions.
+    """
+
+    authentication_classes = []
+    permission_classes = []
+
+    def get(self, request):
+        try:
+            check_kiosk_runtime_health()
+        except Exception:
+            return Response(_public_health_payload("degraded"), status=503)
+        return Response(_public_health_payload("ok"))
+
+
+class EmailHealthCheckView(APIView):
+    """
+    Platform Resend reachability. Does not send mail. Unconfigured is not an error.
+    """
+
+    authentication_classes = []
+    permission_classes = []
+
+    def get(self, request):
+        try:
+            result = get_email_provider().check_health()
+        except EmailConfigurationError:
+            return Response(_public_health_payload("unconfigured"))
+        except EmailHealthUnknown:
+            return Response(_public_health_payload("unknown"))
+        except EmailSendError:
+            return Response(_public_health_payload("error"), status=503)
+        except Exception:
+            return Response(_public_health_payload("error"), status=503)
+        if result == "unknown":
+            return Response(_public_health_payload("unknown"))
+        return Response(_public_health_payload("ok"))
+
+
+class StripeHealthCheckView(APIView):
+    """
+    Read-only Stripe connectivity via the billing provider. Unconfigured is not an error.
+    """
+
+    authentication_classes = []
+    permission_classes = []
+
+    def get(self, request):
+        if not stripe_secret_key():
+            return Response(_public_health_payload("unconfigured"))
+        try:
+            get_billing_provider().check_health()
+        except StripeConfigurationError:
+            return Response(_public_health_payload("unconfigured"))
+        except StripeProviderError:
+            return Response(_public_health_payload("error"), status=503)
+        except Exception:
+            return Response(_public_health_payload("error"), status=503)
+        return Response(_public_health_payload("ok"))

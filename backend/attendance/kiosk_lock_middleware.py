@@ -44,7 +44,12 @@ def _is_allowed_during_kiosk_lock(request):
     if path.startswith("/media/") and method in {"GET", "HEAD"}:
         return True
 
-    if path == "/api/health" and method == "GET":
+    if path.startswith("/api/health") and method == "GET":
+        return True
+    if path.startswith("/api/content/") and method in {"GET", "HEAD"}:
+        return True
+    # Public Contact is unauthenticated marketing/support intake — not workspace.
+    if path.startswith("/api/contact") and method in {"GET", "HEAD", "POST"}:
         return True
     if path == "/api/auth/csrf" and method == "GET":
         return True

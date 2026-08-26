@@ -108,10 +108,11 @@ class BillingPhase2ApiTests(TestCase):
             "/api/billing/",
             "/api/billing/checkout/",
             "/api/billing/portal/",
+            "/api/billing/invoices/",
             "/api/billing/resume/",
             "/api/billing/downgrade/cancel/",
         ):
-            if path == "/api/billing/":
+            if path in {"/api/billing/", "/api/billing/invoices/"}:
                 response = admin_api.get(path)
             else:
                 response = admin_api.post(path, {}, format="json")
@@ -474,6 +475,106 @@ class BillingPhase2ApiTests(TestCase):
         ok = self.api.post("/api/billing/portal/", {}, format="json")
         self.assertEqual(ok.status_code, 200)
         self.assertTrue(ok.data["portal_url"].startswith("https://billing.stripe.test/"))
+
+    def test_invoices_requires_stripe_source(self):
+        activate_paid_subscription(
+            self.org,
+            subscribed_plan="plus",
+            billing_interval="monthly",
+            purchase_source=PurchaseSource.APPLE,
+            current_period_start=timezone.now(),
+            current_period_end=timezone.now() + timedelta(days=30),
+            external_customer_id="cus_apple",
+            external_subscription_id="apple_sub",
+        )
+        response = self.api.get("/api/billing/invoices/")
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data["code"], "purchase_source_not_stripe")
+
+    def test_invoices_empty_for_stripe_customer_without_history(self):
+        billing, _snapshot = self._activate_plus()
+        response = self.api.get("/api/billing/invoices/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["invoices"], [])
+        fake = get_fake_provider()
+        self.assertEqual(len(fake.list_invoices_calls), 1)
+        self.assertEqual(
+            fake.list_invoices_calls[0]["customer_id"],
+            billing.external_customer_id,
+        )
+
+    def test_invoices_returns_recent_stripe_history(self):
+        billing, _snapshot = self._activate_plus()
+        fake = get_fake_provider()
+        fake.seed_invoice(
+            billing.external_customer_id,
+            description="Plus (monthly)",
+            amount_cents=999,
+            status="paid",
+            hosted_url="https://invoice.stripe.test/i/in_recent",
+        )
+        response = self.api.get("/api/billing/invoices/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data["invoices"]), 1)
+        row = response.data["invoices"][0]
+        self.assertEqual(row["description"], "Plus (monthly)")
+        self.assertEqual(row["amount_cents"], 999)
+        self.assertEqual(row["amount_formatted"], "$9.99")
+        self.assertEqual(row["currency"], "usd")
+        self.assertEqual(row["status"], "paid")
+        self.assertEqual(row["status_label"], "Paid")
+        self.assertEqual(row["hosted_url"], "https://invoice.stripe.test/i/in_recent")
+        self.assertTrue(row["created_at_formatted"])
+
+    def test_invoices_are_scoped_to_owner_workspace_customer(self):
+        billing_a, _snapshot_a = self._activate_plus()
+        fake = get_fake_provider()
+        fake.seed_invoice(
+            billing_a.external_customer_id,
+            description="Workspace A invoice",
+            hosted_url="https://invoice.stripe.test/i/a",
+        )
+
+        owner_b = create_user("billing-owner-b@example.com")
+        org_b = Organization.objects.create_with_owner(owner=owner_b)
+        checkout_b = fake.create_checkout_session(
+            organization=org_b,
+            owner=owner_b,
+            plan_key="plus",
+            interval="monthly",
+            success_url="http://localhost/success",
+            cancel_url="http://localhost/cancel",
+        )
+        snapshot_b = fake.complete_checkout(checkout_b.session_id)
+        activate_paid_subscription(
+            org_b,
+            subscribed_plan="plus",
+            billing_interval="monthly",
+            purchase_source=PurchaseSource.STRIPE,
+            current_period_start=snapshot_b.current_period_start,
+            current_period_end=snapshot_b.current_period_end,
+            external_customer_id=snapshot_b.customer_id,
+            external_subscription_id=snapshot_b.subscription_id,
+        )
+        fake.seed_invoice(
+            snapshot_b.customer_id,
+            description="Workspace B invoice",
+            hosted_url="https://invoice.stripe.test/i/b",
+        )
+
+        api_b = login_owner(APIClient(), "billing-owner-b@example.com")
+        response_a = self.api.get("/api/billing/invoices/")
+        response_b = api_b.get("/api/billing/invoices/")
+        self.assertEqual(response_a.data["invoices"][0]["description"], "Workspace A invoice")
+        self.assertEqual(response_b.data["invoices"][0]["description"], "Workspace B invoice")
+
+    def test_invoices_provider_failure_returns_error(self):
+        self._activate_plus()
+        fake = get_fake_provider()
+        fake.fail_next_list_invoices = True
+        response = self.api.get("/api/billing/invoices/")
+        self.assertEqual(response.status_code, 502)
+        self.assertEqual(response.data["code"], "stripe_provider_error")
 
     def test_apple_source_blocks_stripe_checkout(self):
         activate_paid_subscription(

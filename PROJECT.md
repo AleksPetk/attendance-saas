@@ -17,6 +17,10 @@ Current architectural direction (not permission to implement until explicitly in
 | Web frontend | React |
 | Mobile (later) | React Native / Expo |
 | Deployment (later) | Docker, Linux, Nginx, Gunicorn, Cloudflare where appropriate |
+| Status | Independent Status service (API-first public JSON + standalone status website; production `status.checkstation.app`) |
+| Docs / legal | Canonical Content API in Django (documents + structured FAQ) + standalone Docs website (API-first; DEC-086). Production origin `docs.checkstation.app`. Support hub is Docs self-service (DEC-087). |
+| Contact | Public `/contact` on the promotional site (`checkstation.app/contact`) + reusable `POST /api/contact/` (DEC-087, DEC-088). Not part of Docs. |
+| Production domains | Frozen public family (DEC-088): `checkstation.app`, `workspace.checkstation.app`, `docs.checkstation.app`, `status.checkstation.app`. API hostname unfrozen (OPEN-029). Local development remains localhost. |
 | Billing (later provider) | Recurring SaaS; V1 plans **Basic / Plus / Business** and USD prices frozen in PRODUCT.md; internal billing domain feeds entitlements; web checkout likely Stripe |
 
 Native/desktop applications (macOS, Windows) and mobile app store billing are **future considerations** requiring separate research and approval.

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Navigate, useParams, useSearchParams } from "react-router-dom";
 import { api, errorMessage } from "./api.js";
+import { openStripePortalSafely } from "./billingExternalLinks.js";
 import { AccountSettingsSection } from "./accountAccordion.js";
 import {
   accountSectionMeta,
@@ -65,6 +66,9 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
   const [billing, setBilling] = useState(null);
   const [billingLoading, setBillingLoading] = useState(false);
   const [billingError, setBillingError] = useState("");
+  const [billingInvoices, setBillingInvoices] = useState([]);
+  const [invoicesLoading, setInvoicesLoading] = useState(false);
+  const [invoicesError, setInvoicesError] = useState("");
   const [billingBusy, setBillingBusy] = useState("");
   const [confirmingCheckout, setConfirmingCheckout] = useState(false);
   const [checkoutNotice, setCheckoutNotice] = useState("");
@@ -168,10 +172,30 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
     setBillingError("");
     try {
       const result = await api.getBilling();
-      setBilling(result.data);
-      return result.data;
+      const state = result.data;
+      setBilling(state);
+      if (state?.purchase_source === "stripe" && state?.actions?.can_open_portal) {
+        setInvoicesLoading(true);
+        setInvoicesError("");
+        try {
+          const invoicesResult = await api.listBillingInvoices();
+          setBillingInvoices(invoicesResult.data?.invoices || []);
+        } catch (err) {
+          setBillingInvoices([]);
+          setInvoicesError(errorMessage(err));
+        } finally {
+          setInvoicesLoading(false);
+        }
+      } else {
+        setBillingInvoices([]);
+        setInvoicesError("");
+        setInvoicesLoading(false);
+      }
+      return state;
     } catch (err) {
       setBillingError(errorMessage(err));
+      setBillingInvoices([]);
+      setInvoicesError("");
       return null;
     } finally {
       setBillingLoading(false);
@@ -311,12 +335,14 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
     }
   }
 
-  async function handleScheduleDowngrade() {
+  async function handleScheduleDowngrade(interval) {
     setBillingBusy("downgrade");
     setBillingError("");
     try {
       await api.csrf();
-      const result = await api.scheduleBillingDowngrade();
+      const payload =
+        interval === "monthly" || interval === "yearly" ? { interval } : {};
+      const result = await api.scheduleBillingDowngrade(payload);
       setBilling(result.data);
       await refreshWorkspaceSession();
     } finally {
@@ -352,6 +378,34 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
     }
   }
 
+  async function handleCancelScheduledChange() {
+    setBillingBusy("cancel-schedule");
+    setBillingError("");
+    try {
+      await api.csrf();
+      const result = await api.cancelScheduledBillingDowngrade();
+      setBilling(result.data);
+      await refreshWorkspaceSession();
+    } catch (err) {
+      setBillingError(errorMessage(err));
+    } finally {
+      setBillingBusy("");
+    }
+  }
+
+  async function handleScheduleBillingChange(plan, interval) {
+    setBillingBusy("schedule-change");
+    setBillingError("");
+    try {
+      await api.csrf();
+      const result = await api.scheduleBillingChange({ plan, interval });
+      setBilling(result.data);
+      await refreshWorkspaceSession();
+    } finally {
+      setBillingBusy("");
+    }
+  }
+
   async function handleCancelScheduledDowngrade() {
     setBillingBusy("cancel-downgrade");
     setBillingError("");
@@ -372,12 +426,13 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
     setBillingError("");
     try {
       await api.csrf();
-      const result = await api.openBillingPortal();
-      const url = result.data?.portal_url;
-      if (!url) throw { data: { detail: "Portal URL was not returned." } };
-      window.location.assign(url);
+      await openStripePortalSafely(async () => {
+        const result = await api.openBillingPortal();
+        return result.data?.portal_url;
+      });
     } catch (err) {
       setBillingError(errorMessage(err));
+    } finally {
       setBillingBusy("");
     }
   }
@@ -615,6 +670,8 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
             onCancelSubscription={handleCancelSubscription}
             onResumeSubscription={handleResumeSubscription}
             onCancelScheduledDowngrade={handleCancelScheduledDowngrade}
+            onScheduleBillingChange={handleScheduleBillingChange}
+            onCancelScheduledChange={handleCancelScheduledChange}
           />
         ) : null}
         {section === "billing" ? (
@@ -623,6 +680,9 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
             billingLoading={billingLoading}
             billingError={billingError}
             portalNotice={portalNotice}
+            invoices={billingInvoices}
+            invoicesLoading={invoicesLoading}
+            invoicesError={invoicesError}
             busyAction={billingBusy}
             onOpenPortal={handleOpenPortal}
           />

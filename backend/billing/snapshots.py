@@ -40,6 +40,17 @@ class SubscriptionSnapshot:
 
 
 @dataclass(frozen=True)
+class InvoiceSnapshot:
+    invoice_id: str
+    created_at: datetime | None
+    amount_cents: int
+    currency: str
+    status: str
+    description: str
+    hosted_url: str | None
+
+
+@dataclass(frozen=True)
 class ProviderEventPayload:
     event_id: str
     event_type: str

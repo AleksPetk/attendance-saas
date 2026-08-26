@@ -21,12 +21,14 @@ from billing.exceptions import (
 )
 from billing.operations import (
     apply_upgrade_to_business,
+    list_customer_invoices,
     open_customer_portal,
     preview_upgrade_to_business,
     request_cancel_scheduled_downgrade,
     request_cancellation,
     request_downgrade_to_plus,
     request_resume_subscription,
+    request_schedule_billing_change,
     start_paid_checkout,
     start_trial_checkout,
 )
@@ -156,7 +158,10 @@ class BillingDowngradeView(APIView):
     def post(self, request):
         organization = get_owned_organization(request.user)
         try:
-            request_downgrade_to_plus(organization)
+            request_downgrade_to_plus(
+                organization,
+                interval=request.data.get("interval"),
+            )
         except (BillingStateError, StripeConfigurationError, StripeProviderError) as exc:
             return _error_response(exc)
         organization.refresh_from_db()
@@ -202,6 +207,23 @@ class BillingCancelDowngradeView(APIView):
         return Response(build_billing_state(organization))
 
 
+class BillingScheduleChangeView(APIView):
+    permission_classes = [IsAuthenticated, IsWorkspaceOwner]
+
+    def post(self, request):
+        organization = get_owned_organization(request.user)
+        try:
+            request_schedule_billing_change(
+                organization,
+                plan=request.data.get("plan"),
+                interval=request.data.get("interval"),
+            )
+        except (BillingStateError, StripeConfigurationError, StripeProviderError) as exc:
+            return _error_response(exc)
+        organization.refresh_from_db()
+        return Response(build_billing_state(organization))
+
+
 class BillingPortalView(APIView):
     permission_classes = [IsAuthenticated, IsWorkspaceOwner]
 
@@ -212,6 +234,44 @@ class BillingPortalView(APIView):
         except (BillingStateError, StripeConfigurationError, StripeProviderError) as exc:
             return _error_response(exc)
         return Response({"portal_url": result.portal_url})
+
+
+class BillingInvoicesView(APIView):
+    permission_classes = [IsAuthenticated, IsWorkspaceOwner]
+
+    def get(self, request):
+        organization = get_owned_organization(request.user)
+        try:
+            invoices = list_customer_invoices(organization)
+        except (BillingStateError, StripeConfigurationError, StripeProviderError) as exc:
+            return _error_response(exc)
+        from billing.catalog import format_money_cents, invoice_status_label
+
+        payload = []
+        for invoice in invoices:
+            created_at = invoice.created_at
+            payload.append(
+                {
+                    "id": invoice.invoice_id,
+                    "created_at": created_at.isoformat() if created_at else None,
+                    "created_at_formatted": (
+                        created_at.strftime("%b %d, %Y")
+                        if created_at
+                        else None
+                    ),
+                    "amount_cents": invoice.amount_cents,
+                    "amount_formatted": format_money_cents(
+                        invoice.amount_cents,
+                        invoice.currency,
+                    ),
+                    "currency": invoice.currency,
+                    "status": invoice.status,
+                    "status_label": invoice_status_label(invoice.status),
+                    "description": invoice.description,
+                    "hosted_url": invoice.hosted_url,
+                }
+            )
+        return Response({"invoices": payload})
 
 
 @method_decorator(csrf_exempt, name="dispatch")

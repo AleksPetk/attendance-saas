@@ -13,6 +13,7 @@ from billing.exceptions import StripeSignatureError
 from billing.prices import price_id_for
 from billing.snapshots import (
     CheckoutSessionResult,
+    InvoiceSnapshot,
     PortalSessionResult,
     ProviderEventPayload,
     SubscriptionSnapshot,
@@ -35,9 +36,16 @@ class FakeStripeProvider:
         self.resume_calls = []
         self.cancel_downgrade_calls = []
         self.scheduled_downgrades = {}
+        self.schedule_change_calls = []
+        self.invoices = {}
+        self.list_invoices_calls = []
+        self.fail_next_list_invoices = False
+        self.fail_next_schedule_change = False
         self.fail_next_upgrade = False
         self.fail_next_resume = False
         self.fail_next_cancel_downgrade = False
+        self.health_calls = []
+        self.fail_next_health = False
 
     def reset(self):
         self.__init__()
@@ -52,6 +60,8 @@ class FakeStripeProvider:
         success_url,
         cancel_url,
         trial_days=None,
+        coupon_id=None,
+        coupon_slot=None,
     ) -> CheckoutSessionResult:
         session_id = f"cs_test_{uuid4().hex[:16]}"
         customer_id = self.customers.get(organization.pk) or f"cus_test_{organization.pk}"
@@ -67,6 +77,8 @@ class FakeStripeProvider:
             "trial_days": trial_days,
             "success_url": success_url,
             "cancel_url": cancel_url,
+            "coupon_id": str(coupon_id or "").strip() or None,
+            "coupon_slot": str(coupon_slot or "").strip() or None,
         }
         return CheckoutSessionResult(
             checkout_url=f"https://checkout.stripe.test/pay/{session_id}",
@@ -109,6 +121,44 @@ class FakeStripeProvider:
         return PortalSessionResult(
             portal_url=f"https://billing.stripe.test/session/{customer_id}"
         )
+
+    def seed_invoice(self, customer_id, **kwargs) -> InvoiceSnapshot:
+        invoice_id = kwargs.get("invoice_id") or f"in_test_{uuid4().hex[:12]}"
+        snapshot = InvoiceSnapshot(
+            invoice_id=str(invoice_id),
+            created_at=kwargs.get("created_at") or timezone.now(),
+            amount_cents=int(kwargs.get("amount_cents", 999)),
+            currency=str(kwargs.get("currency") or "usd").lower(),
+            status=str(kwargs.get("status") or "paid").lower(),
+            description=str(kwargs.get("description") or "Plus (monthly)"),
+            hosted_url=kwargs.get(
+                "hosted_url",
+                f"https://invoice.stripe.test/i/{invoice_id}",
+            ),
+        )
+        self.invoices.setdefault(customer_id, []).insert(0, snapshot)
+        return snapshot
+
+    def list_invoices(self, *, customer_id, limit=10) -> list[InvoiceSnapshot]:
+        self.list_invoices_calls.append(
+            {"customer_id": customer_id, "limit": int(limit)}
+        )
+        if self.fail_next_list_invoices:
+            self.fail_next_list_invoices = False
+            from billing.exceptions import StripeProviderError
+
+            raise StripeProviderError("Stripe invoices could not be retrieved.")
+        rows = self.invoices.get(customer_id, [])
+        return list(rows[: int(limit)])
+
+    def check_health(self):
+        self.health_calls.append({"method": "balance.retrieve"})
+        if self.fail_next_health:
+            self.fail_next_health = False
+            from billing.exceptions import StripeProviderError
+
+            raise StripeProviderError("Stripe could not be reached.")
+        return True
 
     def retrieve_subscription(self, subscription_id: str) -> SubscriptionSnapshot:
         return self.subscriptions[subscription_id]
@@ -163,17 +213,34 @@ class FakeStripeProvider:
         self.subscriptions[subscription_id] = updated
         return updated
 
-    def schedule_downgrade(self, *, subscription_id, target_plan, target_interval):
-        self.downgrade_calls.append(
-            {
-                "subscription_id": subscription_id,
-                "target_plan": target_plan,
-                "target_interval": target_interval,
-            }
-        )
+    def schedule_downgrade(
+        self,
+        *,
+        subscription_id,
+        target_plan,
+        target_interval,
+        coupon_id=None,
+        coupon_slot=None,
+    ):
+        if self.fail_next_schedule_change:
+            self.fail_next_schedule_change = False
+            from billing.exceptions import StripeProviderError
+
+            raise StripeProviderError("Stripe could not schedule the billing change.")
+        record = {
+            "subscription_id": subscription_id,
+            "target_plan": target_plan,
+            "target_interval": target_interval,
+            "coupon_id": str(coupon_id or "").strip() or None,
+            "coupon_slot": str(coupon_slot or "").strip() or None,
+        }
+        self.downgrade_calls.append(record)
+        self.schedule_change_calls.append(record)
         self.scheduled_downgrades[subscription_id] = {
             "target_plan": target_plan,
             "target_interval": target_interval,
+            "coupon_id": record["coupon_id"],
+            "coupon_slot": record["coupon_slot"],
         }
         return self.retrieve_subscription(subscription_id)
 

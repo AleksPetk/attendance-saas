@@ -64,8 +64,23 @@ def _require_purchase_source(source: str) -> str:
 
 def _clear_pending(subscription: WorkspaceSubscription):
     subscription.pending_plan = ""
+    subscription.pending_interval = ""
     subscription.pending_change_effective_at = None
     subscription.cancel_at_period_end = False
+
+
+def scheduled_change_pending(billing: WorkspaceSubscription | None) -> bool:
+    if billing is None or billing.cancel_at_period_end:
+        return False
+    if not billing.pending_change_effective_at:
+        return False
+    if billing.pending_plan == PLAN_BASIC:
+        return False
+    if billing.pending_interval:
+        return True
+    if billing.pending_plan and billing.pending_plan != billing.subscribed_plan:
+        return True
+    return False
 
 
 def _clear_payment_failure(subscription: WorkspaceSubscription, *, recovered_at=None):
@@ -182,6 +197,7 @@ def start_trial(
             "current_period_end",
             "cancel_at_period_end",
             "pending_plan",
+            "pending_interval",
             "pending_change_effective_at",
             "payment_failure_started_at",
             "payment_grace_deadline",
@@ -252,6 +268,7 @@ def activate_paid_subscription(
             "current_period_end",
             "cancel_at_period_end",
             "pending_plan",
+            "pending_interval",
             "pending_change_effective_at",
             "payment_failure_started_at",
             "payment_grace_deadline",
@@ -306,6 +323,7 @@ def apply_successful_upgrade(
             "external_subscription_id",
             "cancel_at_period_end",
             "pending_plan",
+            "pending_interval",
             "pending_change_effective_at",
             "payment_failure_started_at",
             "payment_grace_deadline",
@@ -317,32 +335,83 @@ def apply_successful_upgrade(
 
 
 @transaction.atomic
+def schedule_billing_change(
+    organization,
+    *,
+    target_plan,
+    target_interval,
+    effective_at=None,
+):
+    """Schedule a plan and/or interval change at period end. No immediate charge."""
+    target = _require_paid_plan(target_plan)
+    interval = _require_interval(target_interval)
+    org, billing = lock_workspace_billing(organization)
+    if billing.status not in _PAID_STATUSES:
+        raise BillingStateError("Scheduled changes require an active paid subscription.")
+    if billing.cancel_at_period_end:
+        raise BillingStateError(
+            "Clear cancellation before scheduling a billing change.",
+            code="cancellation_pending",
+        )
+    when = effective_at or billing.current_period_end
+    if when is None:
+        raise BillingStateError("A billing change effective time is required.")
+    if (
+        target == PLAN_BUSINESS
+        and billing.subscribed_plan == PLAN_PLUS
+        and interval == billing.billing_interval
+    ):
+        raise BillingStateError(
+            "Same-interval tier upgrades use immediate upgrade.",
+            code="use_immediate_upgrade",
+        )
+    if target == billing.subscribed_plan and interval == billing.billing_interval:
+        raise BillingStateError("Target plan and interval match the current subscription.")
+
+    # Always persist the explicit target interval (including same-interval downgrades).
+    pending_interval = interval
+    if (
+        billing.pending_plan == target
+        and billing.pending_interval == pending_interval
+        and billing.pending_change_effective_at == when
+        and not billing.cancel_at_period_end
+    ):
+        return billing
+    if scheduled_change_pending(billing):
+        raise BillingStateError(
+            "A billing change is already scheduled.",
+            code="scheduled_change_pending",
+        )
+
+    billing.pending_plan = target
+    billing.pending_interval = pending_interval
+    billing.pending_change_effective_at = when
+    billing.cancel_at_period_end = False
+    return _save_billing(
+        billing,
+        [
+            "pending_plan",
+            "pending_interval",
+            "pending_change_effective_at",
+            "cancel_at_period_end",
+        ],
+    )
+
+
+@transaction.atomic
 def schedule_downgrade(organization, *, target_plan, effective_at=None):
     """Schedule a paid downgrade. Does not change Organization.plan yet."""
     target = _require_paid_plan(target_plan)
     if target != PLAN_PLUS:
         raise BillingStateError("V1 paid downgrade destination is Plus.")
     org, billing = lock_workspace_billing(organization)
-    if billing.status not in _PAID_STATUSES:
-        raise BillingStateError("Downgrades require an active paid subscription.")
     if billing.subscribed_plan != PLAN_BUSINESS or org.plan != OrganizationPlan.BUSINESS:
         raise BillingStateError("Only Business can be scheduled down to Plus.")
-    when = effective_at or billing.current_period_end
-    if when is None:
-        raise BillingStateError("A downgrade effective time is required.")
-    if (
-        billing.pending_plan == PLAN_PLUS
-        and billing.pending_change_effective_at == when
-        and not billing.cancel_at_period_end
-    ):
-        return billing
-
-    billing.pending_plan = PLAN_PLUS
-    billing.pending_change_effective_at = when
-    billing.cancel_at_period_end = False
-    return _save_billing(
-        billing,
-        ["pending_plan", "pending_change_effective_at", "cancel_at_period_end"],
+    return schedule_billing_change(
+        organization,
+        target_plan=target,
+        target_interval=billing.billing_interval,
+        effective_at=effective_at,
     )
 
 
@@ -392,10 +461,44 @@ def clear_pending_cancellation(organization):
 
 
 @transaction.atomic
+def clear_pending_scheduled_change(organization):
+    """Revoke a scheduled plan/interval change while the current subscription stays active."""
+    org, billing = lock_workspace_billing(organization)
+    if billing.cancel_at_period_end:
+        raise BillingStateError(
+            "Clear cancellation before clearing a scheduled billing change.",
+            code="cancellation_pending",
+        )
+    if not scheduled_change_pending(billing):
+        return billing
+    if billing.status not in _PAID_STATUSES:
+        raise BillingStateError(
+            "Cannot clear a scheduled change after paid access has ended."
+        )
+    billing.pending_plan = ""
+    billing.pending_interval = ""
+    billing.pending_change_effective_at = None
+    return _save_billing(
+        billing,
+        ["pending_plan", "pending_interval", "pending_change_effective_at"],
+    )
+
+
+@transaction.atomic
 def clear_pending_downgrade(organization):
     """Revoke a scheduled Business→Plus downgrade while Business remains active."""
     org, billing = lock_workspace_billing(organization)
-    if billing.pending_plan != PLAN_PLUS:
+    same_interval_downgrade = (
+        billing.pending_plan == PLAN_PLUS
+        and billing.subscribed_plan == PLAN_BUSINESS
+        and (
+            not billing.pending_interval
+            or billing.pending_interval == billing.billing_interval
+        )
+    )
+    if not same_interval_downgrade:
+        if scheduled_change_pending(billing):
+            return clear_pending_scheduled_change(organization)
         return billing
     if billing.status not in _PAID_STATUSES:
         raise BillingStateError("Cannot clear a downgrade after paid access has ended.")
@@ -408,12 +511,7 @@ def clear_pending_downgrade(organization):
             "Clear cancellation before clearing a scheduled downgrade.",
             code="cancellation_pending",
         )
-    billing.pending_plan = ""
-    billing.pending_change_effective_at = None
-    return _save_billing(
-        billing,
-        ["pending_plan", "pending_change_effective_at"],
-    )
+    return clear_pending_scheduled_change(organization)
 
 
 @transaction.atomic
@@ -512,6 +610,7 @@ def finalize_subscription_end(organization, *, ended_at=None, now=None):
             "subscribed_plan",
             "cancel_at_period_end",
             "pending_plan",
+            "pending_interval",
             "pending_change_effective_at",
             "payment_failure_started_at",
             "payment_grace_deadline",
@@ -568,13 +667,21 @@ def apply_due_billing_transitions(organization, *, now=None):
             return finalize_subscription_end(org, ended_at=moment, now=moment)
 
     if (
-        billing.pending_plan == PLAN_PLUS
-        and billing.pending_change_effective_at
+        billing.pending_change_effective_at
         and moment >= billing.pending_change_effective_at
         and not billing.cancel_at_period_end
+        and billing.pending_plan
+        and billing.pending_plan != PLAN_BASIC
     ):
-        apply_effective_plan(org, PLAN_PLUS, source="billing.apply_due_downgrade")
-        billing.subscribed_plan = PLAN_PLUS
+        target_plan = billing.pending_plan
+        target_interval = billing.pending_interval or billing.billing_interval
+        plan_changes = target_plan != billing.subscribed_plan
+        if plan_changes:
+            apply_effective_plan(
+                org, target_plan, source="billing.apply_due_scheduled_change"
+            )
+        billing.subscribed_plan = target_plan
+        billing.billing_interval = target_interval
         billing.status = BillingStatus.ACTIVE
         billing.current_period_start = billing.pending_change_effective_at
         _clear_pending(billing)
@@ -582,10 +689,12 @@ def apply_due_billing_transitions(organization, *, now=None):
             billing,
             [
                 "subscribed_plan",
+                "billing_interval",
                 "status",
                 "current_period_start",
                 "cancel_at_period_end",
                 "pending_plan",
+                "pending_interval",
                 "pending_change_effective_at",
             ],
         )

@@ -18,7 +18,12 @@ env = environ.Env(
     ALLOWED_HOSTS=(list, ["localhost", "127.0.0.1"]),
     CORS_ALLOWED_ORIGINS=(
         list,
-        ["http://localhost:5173", "http://127.0.0.1:5173"],
+        [
+            "http://localhost:5173",
+            "http://127.0.0.1:5173",
+            "http://localhost:8091",
+            "http://127.0.0.1:8091",
+        ],
     ),
     EMAIL_VERIFICATION_TIMEOUT=(int, 60 * 60 * 24),
     PASSWORD_RESET_TIMEOUT=(int, 60 * 60 * 24),
@@ -33,8 +38,22 @@ env = environ.Env(
     STRIPE_PRICE_PLUS_YEARLY=(str, ""),
     STRIPE_PRICE_BUSINESS_MONTHLY=(str, ""),
     STRIPE_PRICE_BUSINESS_YEARLY=(str, ""),
+    STRIPE_COUPON_ACQ_NORMAL_PLUS_MONTHLY=(str, ""),
+    STRIPE_COUPON_ACQ_NORMAL_BUSINESS_MONTHLY=(str, ""),
+    STRIPE_COUPON_ACQ_NORMAL_PLUS_YEARLY=(str, ""),
+    STRIPE_COUPON_ACQ_NORMAL_BUSINESS_YEARLY=(str, ""),
+    STRIPE_COUPON_ACQ_BIG_PLUS_MONTHLY=(str, ""),
+    STRIPE_COUPON_ACQ_BIG_BUSINESS_MONTHLY=(str, ""),
+    STRIPE_COUPON_ACQ_BIG_PLUS_YEARLY=(str, ""),
+    STRIPE_COUPON_ACQ_BIG_BUSINESS_YEARLY=(str, ""),
+    STRIPE_COUPON_PLUS_MONTHLY_TO_PLUS_YEARLY=(str, ""),
+    STRIPE_COUPON_BUSINESS_MONTHLY_TO_YEARLY=(str, ""),
     BUSINESS_TRIAL_DAYS=(int, 0),
     BILLING_PROVIDER=(str, "stripe"),
+    CONTACT_TO_EMAIL=(str, "contact@checkstation.alekspetk.com"),
+    TURNSTILE_SITE_KEY=(str, ""),
+    TURNSTILE_SECRET_KEY=(str, ""),
+    TURNSTILE_TIMEOUT_SECONDS=(int, 8),
 )
 
 env_file = REPO_ROOT / ".env"
@@ -62,6 +81,8 @@ INSTALLED_APPS = [
     "core.apps.CoreConfig",
     "attendance",
     "kiosk_builder",
+    "content.apps.ContentConfig",
+    "contact.apps.ContactConfig",
 ]
 
 AUTH_USER_MODEL = "accounts.User"
@@ -191,6 +212,18 @@ PRODUCT_NAME = "Check Station"
 # Never accept a user-supplied redirect target for these emails.
 FRONTEND_BASE_URL = env("FRONTEND_BASE_URL", default="http://localhost:5173").rstrip("/")
 
+# Public Docs origin used in document canonical_url metadata.
+# Browser-facing URL, not a Docker-internal hostname.
+DOCS_PUBLIC_URL = env("DOCS_PUBLIC_URL", default="http://localhost:8091").rstrip("/")
+
+# Optional legal-entity placeholders substituted into published documents.
+# Leave empty to use conservative fallbacks in the public API. Do not invent
+# a company name here.
+LEGAL_OPERATOR_NAME = env("LEGAL_OPERATOR_NAME", default="")
+LEGAL_CONTACT_EMAIL = env("LEGAL_CONTACT_EMAIL", default="")
+LEGAL_GOVERNING_LAW = env("LEGAL_GOVERNING_LAW", default="")
+LEGAL_GOVERNING_VENUE = env("LEGAL_GOVERNING_VENUE", default="")
+
 # Paying-customer email verification tokens (Django HMAC, not stored raw).
 EMAIL_VERIFICATION_TIMEOUT = env("EMAIL_VERIFICATION_TIMEOUT")
 EMAIL_VERIFICATION_RESEND_COOLDOWN = env("EMAIL_VERIFICATION_RESEND_COOLDOWN")
@@ -224,6 +257,48 @@ STRIPE_PRICE_PLUS_MONTHLY = env("STRIPE_PRICE_PLUS_MONTHLY", default="")
 STRIPE_PRICE_PLUS_YEARLY = env("STRIPE_PRICE_PLUS_YEARLY", default="")
 STRIPE_PRICE_BUSINESS_MONTHLY = env("STRIPE_PRICE_BUSINESS_MONTHLY", default="")
 STRIPE_PRICE_BUSINESS_YEARLY = env("STRIPE_PRICE_BUSINESS_YEARLY", default="")
+# Stripe sandbox coupons for eligibility-backed offers (server-only secrets).
+# Never expose these IDs on public catalog APIs or VITE_* vars.
+STRIPE_COUPON_ACQ_NORMAL_PLUS_MONTHLY = env(
+    "STRIPE_COUPON_ACQ_NORMAL_PLUS_MONTHLY", default=""
+)
+STRIPE_COUPON_ACQ_NORMAL_BUSINESS_MONTHLY = env(
+    "STRIPE_COUPON_ACQ_NORMAL_BUSINESS_MONTHLY", default=""
+)
+STRIPE_COUPON_ACQ_NORMAL_PLUS_YEARLY = env(
+    "STRIPE_COUPON_ACQ_NORMAL_PLUS_YEARLY", default=""
+)
+STRIPE_COUPON_ACQ_NORMAL_BUSINESS_YEARLY = env(
+    "STRIPE_COUPON_ACQ_NORMAL_BUSINESS_YEARLY", default=""
+)
+STRIPE_COUPON_ACQ_BIG_PLUS_MONTHLY = env(
+    "STRIPE_COUPON_ACQ_BIG_PLUS_MONTHLY", default=""
+)
+STRIPE_COUPON_ACQ_BIG_BUSINESS_MONTHLY = env(
+    "STRIPE_COUPON_ACQ_BIG_BUSINESS_MONTHLY", default=""
+)
+STRIPE_COUPON_ACQ_BIG_PLUS_YEARLY = env(
+    "STRIPE_COUPON_ACQ_BIG_PLUS_YEARLY", default=""
+)
+STRIPE_COUPON_ACQ_BIG_BUSINESS_YEARLY = env(
+    "STRIPE_COUPON_ACQ_BIG_BUSINESS_YEARLY", default=""
+)
+STRIPE_COUPON_PLUS_MONTHLY_TO_PLUS_YEARLY = env(
+    "STRIPE_COUPON_PLUS_MONTHLY_TO_PLUS_YEARLY", default=""
+)
+STRIPE_COUPON_BUSINESS_MONTHLY_TO_YEARLY = env(
+    "STRIPE_COUPON_BUSINESS_MONTHLY_TO_YEARLY", default=""
+)
 # 0 / unset = Business trial is not offered. Do not invent a duration.
 BUSINESS_TRIAL_DAYS = env("BUSINESS_TRIAL_DAYS")
 BILLING_PROVIDER = env("BILLING_PROVIDER", default="stripe")
+
+# Public Contact mailbox (Cloudflare Email Routing). Never the private
+# forwarding destination. DEBUG may use Cloudflare dummy Turnstile keys.
+CONTACT_TO_EMAIL = env(
+    "CONTACT_TO_EMAIL",
+    default="contact@checkstation.alekspetk.com",
+)
+TURNSTILE_SITE_KEY = env("TURNSTILE_SITE_KEY", default="")
+TURNSTILE_SECRET_KEY = env("TURNSTILE_SECRET_KEY", default="")
+TURNSTILE_TIMEOUT_SECONDS = env("TURNSTILE_TIMEOUT_SECONDS")

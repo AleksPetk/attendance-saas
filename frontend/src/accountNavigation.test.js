@@ -19,8 +19,12 @@ import {
   AccountBillingPanel,
   AccountSubNav,
   AccountSubscriptionPanel,
+  DowngradeConfirmPanel,
   catalogPriceWithInterval,
   isBasicPaidCheckoutCandidate,
+  scheduleChangePreviewCopy,
+  scheduledChangeSummary,
+  subscriptionAccessEndLabel,
 } from "./accountPanels.js";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -146,14 +150,13 @@ test("subscription panel shows plan option cards and catalog prices", () => {
     }),
   );
   assert.match(html, /Current plan/);
-  assert.match(html, /Plan options/);
-  assert.match(html, /data-plan="basic"/);
+  assert.match(html, /Upgrade plan|Billing interval/);
   assert.match(html, /data-plan="plus"/);
   assert.match(html, /data-plan="business"/);
-  assert.match(html, /\$9\.99\/month/);
-  assert.match(html, /\$14\.99\/month/);
-  assert.match(html, /Choose Plus/);
-  assert.match(html, /Choose Business/);
+  assert.match(html, /\$9\.99/);
+  assert.match(html, /\$14\.99/);
+  assert.match(html, /Choose Plus Monthly|Choose Plus/);
+  assert.match(html, /Choose Business Monthly|Choose Business/);
   assert.match(html, /1 \/ 2/);
   assert.match(html, /7 \/ 10/);
   assert.match(html, /Usage &amp; limits|Usage & limits/);
@@ -176,40 +179,32 @@ test("subscription panel marks Basic as current plan", () => {
       billing: basicBilling,
     }),
   );
-  assert.match(html, /data-plan="basic"[^>]*is-current|account-plan-option is-current[^>]*data-plan="basic"/);
+  assert.match(html, /Effective plan/);
   assert.match(html, /Current plan/);
-  assert.equal((html.match(/Current plan/g) || []).length >= 2, true);
+  assert.doesNotMatch(html, /account-plan-option is-current/);
+  // Basic checkout cards must not show CURRENT PLAN badge
 });
 
-test("subscription monthly yearly toggle updates displayed catalog prices", () => {
+test("subscription basic upgrade shows monthly and yearly catalog prices", () => {
   assert.equal(catalogPriceWithInterval(basicBilling, "plus", "monthly"), "$9.99/month");
   assert.equal(catalogPriceWithInterval(basicBilling, "plus", "yearly"), "$99.90/year");
   assert.equal(catalogPriceWithInterval(basicBilling, "business", "monthly"), "$14.99/month");
   assert.equal(catalogPriceWithInterval(basicBilling, "business", "yearly"), "$149.90/year");
 
-  const monthly = renderToStaticMarkup(
+  const html = renderToStaticMarkup(
     createElement(AccountSubscriptionPanel, {
       session: { workspace: { entitlements: basicEntitlements } },
       billing: basicBilling,
-      initialCheckoutInterval: "monthly",
     }),
   );
-  assert.match(monthly, /Monthly/);
-  assert.match(monthly, /Yearly/);
-  assert.match(monthly, /\$9\.99\/month/);
-  assert.match(monthly, /\$14\.99\/month/);
-  assert.doesNotMatch(monthly, /\$99\.90\/year/);
-
-  const yearly = renderToStaticMarkup(
-    createElement(AccountSubscriptionPanel, {
-      session: { workspace: { entitlements: basicEntitlements } },
-      billing: basicBilling,
-      initialCheckoutInterval: "yearly",
-    }),
-  );
-  assert.match(yearly, /\$99\.90\/year/);
-  assert.match(yearly, /\$149\.90\/year/);
-  assert.doesNotMatch(yearly, /\$9\.99\/month/);
+  assert.match(html, /Plus Monthly/);
+  assert.match(html, /Plus Yearly/);
+  assert.match(html, /Business Monthly/);
+  assert.match(html, /Business Yearly/);
+  assert.match(html, /\$9\.99/);
+  assert.match(html, /\$99\.90/);
+  assert.match(html, /\$14\.99/);
+  assert.match(html, /\$149\.90/);
 });
 
 test("subscription panel shows plans when Stripe is not configured", () => {
@@ -231,11 +226,11 @@ test("subscription panel shows plans when Stripe is not configured", () => {
       billing,
     }),
   );
-  assert.match(html, /Plan options/);
-  assert.match(html, /\$9\.99\/month/);
-  assert.match(html, /\$14\.99\/month/);
-  assert.match(html, /Choose Plus/);
-  assert.match(html, /Choose Business/);
+  assert.match(html, /Upgrade plan|Billing interval/);
+  assert.match(html, /\$9\.99/);
+  assert.match(html, /\$14\.99/);
+  assert.match(html, /Choose Plus Monthly|Choose Plus/);
+  assert.match(html, /Choose Business Monthly|Choose Business/);
   assert.match(html, /Stripe test billing is not configured yet/);
   assert.match(html, /disabled/);
   assert.doesNotMatch(html, /Start Business trial/);
@@ -309,13 +304,262 @@ test("subscription panel shows upgrade preview copy from API value", () => {
       },
     }),
   );
-  assert.match(html, /data-plan="plus"/);
+  assert.match(html, /Effective plan/);
   assert.match(html, /Current plan/);
   assert.match(html, /Upgrade to Business today for \$2\.37/);
   assert.match(html, /Business renews at \$14\.99\/month/);
   assert.match(html, /Confirm upgrade/);
+  assert.match(html, /id="account-upgrade-confirmation"/);
   assert.doesNotMatch(html, /Choose Plus/);
   assert.doesNotMatch(html, /Choose Business/);
+
+  const planOptionsIndex = (html.includes("Upgrade plan") ? html.indexOf("Upgrade plan") : html.indexOf("Billing interval"));
+  const upgradeIndex = html.indexOf("Upgrade to Business today");
+  const usageIndex = html.indexOf("Usage &amp; limits");
+  const planActionsIndex = html.indexOf("Plan actions");
+  assert.ok(planOptionsIndex >= 0);
+  assert.ok(upgradeIndex > planOptionsIndex);
+  assert.ok(usageIndex > upgradeIndex);
+  if (planActionsIndex >= 0) {
+    const planActionsSection = html.slice(planActionsIndex);
+    assert.doesNotMatch(planActionsSection, /Upgrade to Business today/);
+    assert.doesNotMatch(planActionsSection, /account-upgrade-confirmation/);
+  }
+});
+
+test("subscription panel shows upgrade preview loading below plan options", () => {
+  const billing = {
+    ...basicBilling,
+    effective_plan: { key: "plus", display_name: "Plus" },
+    subscribed_plan: { key: "plus", display_name: "Plus" },
+    purchase_source: "stripe",
+    status: "active",
+    interval: "monthly",
+    actions: {
+      ...basicBilling.actions,
+      can_checkout_plus: false,
+      can_checkout_business: false,
+      can_upgrade_to_business: true,
+    },
+  };
+  const html = renderToStaticMarkup(
+    createElement(AccountSubscriptionPanel, {
+      session: {
+        workspace: {
+          entitlements: {
+            ...basicEntitlements,
+            plan: { key: "plus", display_name: "Plus" },
+          },
+        },
+      },
+      billing,
+      busyAction: "preview",
+    }),
+  );
+  assert.match(html, /Loading upgrade preview/);
+  const planOptionsIndex = (html.includes("Upgrade plan") ? html.indexOf("Upgrade plan") : html.indexOf("Billing interval"));
+  const loadingIndex = html.indexOf("Loading upgrade preview");
+  const usageIndex = html.indexOf("Usage &amp; limits");
+  assert.ok(loadingIndex > planOptionsIndex);
+  assert.ok(usageIndex > loadingIndex);
+  assert.doesNotMatch(html, /Upgrade to Business<\/button>/);
+});
+
+test("subscription panel shows upgrade preview error below plan options", () => {
+  const billing = {
+    ...basicBilling,
+    effective_plan: { key: "plus", display_name: "Plus" },
+    subscribed_plan: { key: "plus", display_name: "Plus" },
+    purchase_source: "stripe",
+    status: "active",
+    interval: "monthly",
+    actions: {
+      ...basicBilling.actions,
+      can_checkout_plus: false,
+      can_checkout_business: false,
+      can_upgrade_to_business: true,
+    },
+  };
+  const html = renderToStaticMarkup(
+    createElement(AccountSubscriptionPanel, {
+      session: {
+        workspace: {
+          entitlements: {
+            ...basicEntitlements,
+            plan: { key: "plus", display_name: "Plus" },
+          },
+        },
+      },
+      billing,
+      initialUpgradeError: "Stripe could not preview this upgrade.",
+    }),
+  );
+  assert.match(html, /Stripe could not preview this upgrade\./);
+  const planOptionsIndex = (html.includes("Upgrade plan") ? html.indexOf("Upgrade plan") : html.indexOf("Billing interval"));
+  const errorIndex = html.indexOf("Stripe could not preview this upgrade");
+  const usageIndex = html.indexOf("Usage &amp; limits");
+  assert.ok(errorIndex > planOptionsIndex);
+  assert.ok(usageIndex > errorIndex);
+});
+
+test("subscription panel shows downgrade confirmation below plan options", () => {
+  const billing = {
+    ...basicBilling,
+    effective_plan: { key: "business", display_name: "Business" },
+    subscribed_plan: { key: "business", display_name: "Business" },
+    purchase_source: "stripe",
+    status: "active",
+    interval: "monthly",
+    current_period_end: "2026-09-25T11:59:00.000Z",
+    actions: {
+      ...basicBilling.actions,
+      can_checkout_plus: false,
+      can_checkout_business: false,
+      can_schedule_downgrade_to_plus: true,
+      can_cancel: true,
+    },
+  };
+  const html = renderToStaticMarkup(
+    createElement(AccountSubscriptionPanel, {
+      session: {
+        workspace: {
+          entitlements: {
+            ...basicEntitlements,
+            plan: { key: "business", display_name: "Business" },
+          },
+        },
+      },
+      billing,
+      initialConfirmDowngrade: true,
+      initialDowngradeExpanded: true,
+    }),
+  );
+  assert.match(html, /id="account-downgrade-confirmation"/);
+  assert.match(html, /You will keep Business until/);
+  assert.match(html, /Plus monthly begins on that date|Plus begins on that date/);
+  assert.match(html, /Keep Business/);
+  assert.match(html, /Confirm downgrade/);
+
+  const usageIndex = html.indexOf("Usage &amp; limits");
+  const downgradeIndex = html.indexOf("Downgrade plan");
+  const confirmIndex = html.indexOf("account-downgrade-confirmation");
+  const planActionsIndex = html.indexOf("Plan actions");
+  assert.ok(downgradeIndex > usageIndex);
+  assert.ok(confirmIndex > downgradeIndex);
+  assert.equal((html.match(/account-downgrade-confirmation/g) || []).length, 1);
+  assert.equal((html.match(/Confirm downgrade/g) || []).length, 1);
+  if (planActionsIndex >= 0) {
+    const planActionsSection = html.slice(planActionsIndex);
+    assert.doesNotMatch(planActionsSection, /Confirm downgrade/);
+    assert.doesNotMatch(planActionsSection, /account-downgrade-confirmation/);
+    assert.doesNotMatch(planActionsSection, /Keep Business/);
+  }
+  const keepIndex = html.indexOf("Keep Business");
+  const confirmBtnIndex = html.indexOf("Confirm downgrade");
+  assert.ok(keepIndex > 0 && confirmBtnIndex > keepIndex);
+});
+
+test("subscription panel shows downgrade loading and error near plan options", () => {
+  const billing = {
+    ...basicBilling,
+    effective_plan: { key: "business", display_name: "Business" },
+    subscribed_plan: { key: "business", display_name: "Business" },
+    purchase_source: "stripe",
+    status: "active",
+    interval: "monthly",
+    current_period_end: "2026-09-25T11:59:00.000Z",
+    actions: {
+      ...basicBilling.actions,
+      can_schedule_downgrade_to_plus: true,
+    },
+  };
+  const session = {
+    workspace: {
+      entitlements: {
+        ...basicEntitlements,
+        plan: { key: "business", display_name: "Business" },
+      },
+    },
+  };
+  const loadingHtml = renderToStaticMarkup(
+    createElement(AccountSubscriptionPanel, {
+      session,
+      billing,
+      initialConfirmDowngrade: true,
+      initialDowngradeExpanded: true,
+      busyAction: "downgrade",
+    }),
+  );
+  assert.match(loadingHtml, /Scheduling…/);
+  assert.ok(loadingHtml.indexOf("Scheduling…") > loadingHtml.indexOf("Downgrade plan"));
+  assert.ok(loadingHtml.indexOf("Scheduling…") > loadingHtml.indexOf("Usage &amp; limits"));
+
+  const errorHtml = renderToStaticMarkup(
+    createElement(AccountSubscriptionPanel, {
+      session,
+      billing,
+      initialConfirmDowngrade: true,
+      initialDowngradeExpanded: true,
+      initialDowngradeError: "Could not schedule the downgrade.",
+    }),
+  );
+  assert.match(errorHtml, /Could not schedule the downgrade\./);
+  assert.ok(
+    errorHtml.indexOf("Could not schedule the downgrade") > errorHtml.indexOf("Downgrade plan"),
+  );
+  assert.ok(
+    errorHtml.indexOf("Could not schedule the downgrade") >
+      errorHtml.indexOf("Usage &amp; limits"),
+  );
+});
+
+test("downgrade confirm panel Keep Business and Confirm call through", async () => {
+  let kept = false;
+  let confirmed = false;
+  const panel = createElement(DowngradeConfirmPanel, {
+    billing: {
+      ...basicBilling,
+      current_period_end: "2026-09-25T11:59:00.000Z",
+    },
+    targetInterval: "yearly",
+    onKeep: () => {
+      kept = true;
+    },
+    onConfirm: async () => {
+      confirmed = true;
+    },
+  });
+  const html = renderToStaticMarkup(panel);
+  assert.match(html, /Keep Business/);
+  assert.match(html, /Confirm downgrade/);
+  assert.match(html, /Plus yearly begins/);
+  assert.match(html, /\$99\.90 per year/);
+  assert.ok(html.indexOf("Keep Business") < html.indexOf("Confirm downgrade"));
+  assert.equal(typeof panel.props.onKeep, "function");
+  assert.equal(typeof panel.props.onConfirm, "function");
+  panel.props.onKeep();
+  await panel.props.onConfirm();
+  assert.equal(kept, true);
+  assert.equal(confirmed, true);
+});
+
+test("scheduled change summary for business yearly to plus yearly uses yearly price", () => {
+  const billing = {
+    ...basicBilling,
+    effective_plan: { key: "business", display_name: "Business" },
+    subscribed_plan: { key: "business", display_name: "Business" },
+    interval: "yearly",
+    pending_plan: "plus",
+    pending_interval: "yearly",
+    pending_change_effective_at: "2026-09-25T11:59:00.000Z",
+    scheduled_change: { active: true, kind: "downgrade" },
+  };
+  const summary = scheduledChangeSummary(billing);
+  assert.match(summary.lead, /Business yearly remains active/i);
+  assert.match(summary.bullets.join(" "), /Plus yearly begins/i);
+  assert.match(summary.bullets.join(" "), /\$99\.90 per year/);
+  assert.doesNotMatch(summary.bullets.join(" "), /\$9\.99/);
+  assert.doesNotMatch(summary.pendingLabel, /monthly/i);
 });
 
 test("subscription panel shows scheduled downgrade without conflicting checkout", () => {
@@ -484,6 +728,91 @@ test("subscription panel shows scheduled cancellation and trial without invented
   assert.doesNotMatch(html, /\b14[- ]day\b/i);
 });
 
+test("subscription cancellation confirmation panel shows structured copy and button order", () => {
+  const billing = {
+    ...basicBilling,
+    effective_plan: { key: "plus", display_name: "Plus" },
+    subscribed_plan: { key: "plus", display_name: "Plus" },
+    purchase_source: "stripe",
+    status: "active",
+    interval: "monthly",
+    current_period_end: "2026-09-25T11:59:00.000Z",
+    actions: {
+      ...basicBilling.actions,
+      can_checkout_plus: false,
+      can_checkout_business: false,
+      can_cancel: true,
+    },
+  };
+  const accessEnd = subscriptionAccessEndLabel(billing);
+  assert.ok(accessEnd);
+  const html = renderToStaticMarkup(
+    createElement(AccountSubscriptionPanel, {
+      session: {
+        workspace: {
+          entitlements: {
+            ...basicEntitlements,
+            plan: { key: "plus", display_name: "Plus" },
+          },
+        },
+      },
+      billing,
+      initialConfirmCancel: true,
+    }),
+  );
+  assert.match(html, /account-cancel-confirm/);
+  assert.match(html, /Cancel subscription\?/);
+  assert.match(html, /Your current plan remains active until:/);
+  assert.match(html, new RegExp(accessEnd.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  assert.match(html, /After that:/);
+  assert.match(html, /workspace moves to Basic/);
+  assert.match(html, /data is preserved/);
+  assert.match(html, /Basic limits apply/);
+  assert.match(html, /account is not deleted/);
+  assert.match(html, /btn-danger btn-sm/);
+  assert.doesNotMatch(html, /Access remains until .* Then the workspace moves to Basic\. Data is preserved/);
+  const keepIndex = html.indexOf("Keep subscription");
+  const confirmIndex = html.indexOf("Confirm cancellation");
+  assert.ok(keepIndex >= 0);
+  assert.ok(confirmIndex >= 0);
+  assert.ok(keepIndex < confirmIndex);
+});
+
+test("subscription cancellation confirmation uses trial end when trialing", () => {
+  const billing = {
+    ...basicBilling,
+    effective_plan: { key: "business", display_name: "Business" },
+    subscribed_plan: { key: "business", display_name: "Business" },
+    purchase_source: "stripe",
+    status: "trialing",
+    interval: "monthly",
+    trial_ends_at: "2026-10-10T08:30:00.000Z",
+    current_period_end: "2026-09-01T00:00:00.000Z",
+    actions: {
+      ...basicBilling.actions,
+      can_cancel: true,
+    },
+  };
+  const accessEnd = subscriptionAccessEndLabel(billing);
+  assert.ok(accessEnd);
+  assert.notEqual(accessEnd, subscriptionAccessEndLabel({ current_period_end: billing.current_period_end }));
+  const html = renderToStaticMarkup(
+    createElement(AccountSubscriptionPanel, {
+      session: {
+        workspace: {
+          entitlements: {
+            ...basicEntitlements,
+            plan: { key: "business", display_name: "Business" },
+          },
+        },
+      },
+      billing,
+      initialConfirmCancel: true,
+    }),
+  );
+  assert.match(html, new RegExp(accessEnd.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+});
+
 test("subscription panel shows payment-grace warning", () => {
   const billing = {
     ...basicBilling,
@@ -541,9 +870,10 @@ test("billing panel shows Stripe portal only when allowed", () => {
       },
     }),
   );
-  assert.match(withPortal, /Manage billing in Stripe/);
-  assert.match(withPortal, /Customer Portal/);
-  assert.doesNotMatch(withPortal, /Invoice #/);
+  assert.match(withPortal, /Open Stripe Billing Portal ↗/);
+  assert.match(withPortal, /Recent invoices &amp; receipts|Recent invoices & receipts/);
+  assert.match(withPortal, /No invoices or receipts yet\./);
+  assert.doesNotMatch(withPortal, /Manage billing in Stripe/);
 
   const apple = renderToStaticMarkup(
     createElement(AccountBillingPanel, {
@@ -556,7 +886,194 @@ test("billing panel shows Stripe portal only when allowed", () => {
     }),
   );
   assert.match(apple, /managed in Apple/);
-  assert.doesNotMatch(apple, /Manage billing in Stripe/);
+  assert.doesNotMatch(apple, /Open Stripe Billing Portal/);
+  assert.doesNotMatch(apple, /Recent invoices/);
+});
+
+test("billing panel renders invoice rows with external links", () => {
+  const html = renderToStaticMarkup(
+    createElement(AccountBillingPanel, {
+      billing: {
+        ...basicBilling,
+        purchase_source: "stripe",
+        status: "active",
+        actions: { ...basicBilling.actions, can_open_portal: true },
+      },
+      invoices: [
+        {
+          id: "in_test_1",
+          created_at_formatted: "Sep 25, 2026",
+          amount_formatted: "$9.99",
+          currency: "usd",
+          status: "paid",
+          status_label: "Paid",
+          description: "Plus (monthly)",
+          hosted_url: "https://invoice.stripe.test/i/in_test_1",
+        },
+      ],
+    }),
+  );
+  assert.match(html, /Sep 25, 2026/);
+  assert.match(html, /\$9\.99/);
+  assert.match(html, /Paid/);
+  assert.match(html, /Plus \(monthly\)/);
+  assert.match(html, /View invoice \/ receipt ↗/);
+  assert.match(html, /target="_blank"/);
+  assert.match(html, /rel="noopener noreferrer"/);
+  assert.match(html, /View all in Stripe ↗/);
+});
+
+test("subscription panel offers interval switch for active plus monthly", () => {
+  const billing = {
+    ...basicBilling,
+    effective_plan: { key: "plus", display_name: "Plus" },
+    subscribed_plan: { key: "plus", display_name: "Plus" },
+    purchase_source: "stripe",
+    status: "active",
+    interval: "monthly",
+    current_period_end: "2026-09-25T11:59:00.000Z",
+    actions: {
+      ...basicBilling.actions,
+      can_checkout_plus: false,
+      can_checkout_business: false,
+      can_change_interval: true,
+      can_schedule_billing_change: true,
+      can_upgrade_to_business: true,
+    },
+  };
+  const html = renderToStaticMarkup(
+    createElement(AccountSubscriptionPanel, {
+      session: {
+        workspace: {
+          entitlements: {
+            ...basicEntitlements,
+            plan: { key: "plus", display_name: "Plus" },
+          },
+        },
+      },
+      billing,
+      initialCheckoutInterval: "yearly",
+    }),
+  );
+  assert.match(html, /Switch to Yearly Billing|Upgrade to Plus Yearly/);
+  assert.match(html, /Upgrade to Business Yearly|Schedule Business yearly/);
+  assert.match(html, /Upgrade to Business/);
+});
+
+test("subscription panel shows scheduled interval change panel", () => {
+  const billing = {
+    ...basicBilling,
+    effective_plan: { key: "plus", display_name: "Plus" },
+    subscribed_plan: { key: "plus", display_name: "Plus" },
+    purchase_source: "stripe",
+    status: "active",
+    interval: "monthly",
+    pending_plan: "plus",
+    pending_interval: "yearly",
+    pending_change_effective_at: "2026-09-25T11:59:00.000Z",
+    scheduled_change: { active: true, kind: "interval" },
+    actions: {
+      ...basicBilling.actions,
+      can_cancel_scheduled_change: true,
+      can_change_interval: false,
+      can_upgrade_to_business: false,
+    },
+  };
+  const summary = scheduledChangeSummary(billing);
+  assert.ok(summary);
+  const html = renderToStaticMarkup(
+    createElement(AccountSubscriptionPanel, {
+      session: {
+        workspace: {
+          entitlements: {
+            ...basicEntitlements,
+            plan: { key: "plus", display_name: "Plus" },
+          },
+        },
+      },
+      billing,
+    }),
+  );
+  assert.match(html, /Cancel scheduled change/);
+  assert.match(html, /Plus yearly begins|Begins /i);
+  assert.match(html, /Plus monthly remains active/i);
+});
+
+test("schedule change preview copy explains period-end timing", () => {
+  const billing = {
+    ...basicBilling,
+    effective_plan: { key: "plus", display_name: "Plus" },
+    subscribed_plan: { key: "plus", display_name: "Plus" },
+    interval: "monthly",
+    current_period_end: "2026-09-25T11:59:00.000Z",
+  };
+  const copy = scheduleChangePreviewCopy(billing, "business", "yearly");
+  assert.match(copy.title, /Upgrade to Business Yearly/i);
+  assert.match(copy.lead, /remains active until/i);
+  assert.match(copy.bullets.join(" "), /Business yearly begins/i);
+  assert.match(copy.bullets.join(" "), /\$149\.90/);
+});
+
+test("billing panel hides Stripe invoice controls for non-Stripe source", () => {
+  const html = renderToStaticMarkup(
+    createElement(AccountBillingPanel, {
+      billing: {
+        ...basicBilling,
+        purchase_source: "none",
+        actions: { ...basicBilling.actions, can_open_portal: false },
+      },
+    }),
+  );
+  assert.doesNotMatch(html, /Recent invoices/);
+  assert.doesNotMatch(html, /Open Stripe Billing Portal/);
+  assert.doesNotMatch(html, /View invoice/);
+});
+
+test("billing panel shows invoice error without navigation markup", () => {
+  const html = renderToStaticMarkup(
+    createElement(AccountBillingPanel, {
+      billing: {
+        ...basicBilling,
+        purchase_source: "stripe",
+        actions: { ...basicBilling.actions, can_open_portal: true },
+      },
+      invoicesError: "Stripe invoices could not be retrieved.",
+    }),
+  );
+  assert.match(html, /Stripe invoices could not be retrieved\./);
+  assert.doesNotMatch(html, /window\.location/);
+});
+
+test("subscription panel hides Stripe interval controls for Apple source", () => {
+  const billing = {
+    ...basicBilling,
+    effective_plan: { key: "plus", display_name: "Plus" },
+    subscribed_plan: { key: "plus", display_name: "Plus" },
+    purchase_source: "apple",
+    status: "active",
+    interval: "monthly",
+    actions: {
+      ...basicBilling.actions,
+      can_change_interval: false,
+      can_schedule_billing_change: false,
+    },
+  };
+  const html = renderToStaticMarkup(
+    createElement(AccountSubscriptionPanel, {
+      session: {
+        workspace: {
+          entitlements: {
+            ...basicEntitlements,
+            plan: { key: "plus", display_name: "Plus" },
+          },
+        },
+      },
+      billing,
+      initialCheckoutInterval: "yearly",
+    }),
+  );
+  assert.doesNotMatch(html, /Switch to yearly billing/);
+  assert.doesNotMatch(html, /Schedule Business yearly/);
 });
 
 test("checkout confirming banner does not claim fake success", () => {

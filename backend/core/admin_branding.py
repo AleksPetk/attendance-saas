@@ -24,6 +24,8 @@ ADMIN_APP_ORDER = (
     "groups",
     "kiosk_builder",
     "billing",
+    "content",
+    "contact",
     "core",
     "auth",
 )
@@ -46,7 +48,12 @@ ADMIN_MODEL_ORDER = {
         "kioskdesign",
     ),
     "billing": ("workspacesubscription", "providerevent"),
-    "core": ("platformadvertisingsettings",),
+    "content": ("document", "faqentry"),
+    "core": (
+        "platformpromotionsettings",
+        "platformpromotionmodechange",
+        "platformadvertisingsettings",
+    ),
     "auth": (
         "group",
         "permission",

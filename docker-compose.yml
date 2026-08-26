@@ -21,6 +21,8 @@ services:
     command: >
       sh -c "python manage.py migrate --noinput &&
              python manage.py runserver 0.0.0.0:8000"
+    # Full project .env (includes TURNSTILE_SITE_KEY / TURNSTILE_SECRET_KEY).
+    # Secret must stay here — never pass it to the frontend service.
     env_file:
       - .env
     environment:
@@ -37,10 +39,15 @@ services:
   frontend:
     build:
       context: ./frontend
-    # Do not load the backend .env here — Vite only needs VITE_* values.
-    # Compose still reads VITE_API_BASE_URL from the project .env for substitution.
+    # Do not load the backend .env here — Vite only needs browser-safe VITE_*
+    # values. Contact Turnstile site key comes from the backend API
+    # (GET /api/contact/categories/), not from a VITE_TURNSTILE_* variable.
+    # Compose still reads VITE_* values from the project .env for substitution.
     environment:
       VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000}
+      VITE_STATUS_PUBLIC_URL: ${VITE_STATUS_PUBLIC_URL:-http://localhost:8090}
+      VITE_DOCS_PUBLIC_URL: ${VITE_DOCS_PUBLIC_URL:-http://localhost:8091}
+      VITE_PUBLIC_SITE_URL: ${VITE_PUBLIC_SITE_URL:-http://localhost:5173}
     ports:
       - "5173:5173"
     volumes:
@@ -49,6 +56,41 @@ services:
     depends_on:
       - backend
 
+  status:
+    build:
+      context: ./status
+    environment:
+      STATUS_HOST: 0.0.0.0
+      STATUS_PORT: 8090
+      STATUS_DATA_DIR: /data
+      STATUS_API_URL: http://backend:8000
+      STATUS_WEBSITE_URL: http://frontend:5173
+      STATUS_WORKSPACE_URL: http://frontend:5173
+      STATUS_DOCS_URL: ${STATUS_DOCS_URL:-http://docs:8091}
+      STATUS_PROBE_INTERVAL_SECONDS: ${STATUS_PROBE_INTERVAL_SECONDS:-60}
+      STATUS_STALE_THRESHOLD_SECONDS: ${STATUS_STALE_THRESHOLD_SECONDS:-180}
+      STATUS_HTTP_TIMEOUT_SECONDS: ${STATUS_HTTP_TIMEOUT_SECONDS:-8}
+      STATUS_BROWSER_POLL_SECONDS: ${STATUS_BROWSER_POLL_SECONDS:-30}
+    ports:
+      - "8090:8090"
+    volumes:
+      - status_data:/data
+
+  docs:
+    build:
+      context: ./docs
+    environment:
+      DOCS_HOST: 0.0.0.0
+      DOCS_PORT: 8091
+      DOCS_API_BASE_URL: ${DOCS_API_BASE_URL:-http://localhost:8000}
+      DOCS_INTERNAL_API_URL: ${DOCS_INTERNAL_API_URL:-http://backend:8000}
+      DOCS_PUBLIC_URL: ${DOCS_PUBLIC_URL:-http://localhost:8091}
+      DOCS_MAIN_SITE_URL: ${DOCS_MAIN_SITE_URL:-http://localhost:5173}
+      STATUS_PUBLIC_URL: ${VITE_STATUS_PUBLIC_URL:-http://localhost:8090}
+    ports:
+      - "8091:8091"
+
 volumes:
   postgres_data:
   media_data:
+  status_data:

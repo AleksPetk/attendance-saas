@@ -3,7 +3,7 @@
 from billing.catalog import PLAN_BUSINESS, PLAN_PLUS, catalog_public_payload
 from billing.models import BillingStatus, PurchaseSource
 from billing.prices import stripe_api_configured, trial_is_configured
-from billing.services import get_workspace_billing
+from billing.services import get_workspace_billing, scheduled_change_pending
 from organizations.entitlements.catalog import PLAN_DISPLAY_NAMES
 from organizations.models import OrganizationPlan
 
@@ -47,30 +47,64 @@ def build_billing_state(organization):
 
     can_checkout = basic_like and stripe_ok and not is_apple
     cancel_scheduled = bool(billing and billing.cancel_at_period_end)
+    change_scheduled = scheduled_change_pending(billing)
+    pending_target_interval = None
+    if billing and billing.pending_interval:
+        pending_target_interval = billing.pending_interval
+    elif billing and change_scheduled:
+        pending_target_interval = billing.billing_interval
     downgrade_scheduled = bool(
-        billing and billing.pending_plan == PLAN_PLUS and not cancel_scheduled
+        billing
+        and billing.pending_plan == PLAN_PLUS
+        and billing.subscribed_plan == PLAN_BUSINESS
+        and pending_target_interval == billing.billing_interval
+        and not cancel_scheduled
     )
+    interval_change_scheduled = bool(
+        billing
+        and billing.pending_interval
+        and billing.pending_plan == billing.subscribed_plan
+        and billing.pending_interval != billing.billing_interval
+        and not cancel_scheduled
+    )
+    combined_change_scheduled = bool(
+        billing
+        and change_scheduled
+        and not downgrade_scheduled
+        and not interval_change_scheduled
+    )
+    paid_active = status in {BillingStatus.ACTIVE, BillingStatus.PAST_DUE}
     actions = {
         "can_checkout_plus": can_checkout,
         "can_checkout_business": can_checkout,
         "can_start_trial": can_checkout and trial_ok,
         "can_schedule_downgrade_to_plus": (
             is_stripe
-            and status in {BillingStatus.ACTIVE, BillingStatus.PAST_DUE}
+            and paid_active
             and subscribed == PLAN_BUSINESS
             and effective == OrganizationPlan.BUSINESS
             and not cancel_scheduled
-            and not downgrade_scheduled
+            and not change_scheduled
         ),
         "can_cancel_scheduled_downgrade": (
             is_stripe
             and stripe_ok
-            and status in {BillingStatus.ACTIVE, BillingStatus.PAST_DUE}
-            and subscribed == PLAN_BUSINESS
-            and effective == OrganizationPlan.BUSINESS
+            and paid_active
             and downgrade_scheduled
         ),
-        "can_cancel": is_stripe and access_active and not cancel_scheduled,
+        "can_cancel_scheduled_change": (
+            is_stripe and stripe_ok and change_scheduled
+        ),
+        "can_schedule_billing_change": (
+            is_stripe
+            and stripe_ok
+            and paid_active
+            and subscribed in {PLAN_PLUS, PLAN_BUSINESS}
+            and interval in {"monthly", "yearly"}
+            and not cancel_scheduled
+            and not change_scheduled
+        ),
+        "can_cancel": is_stripe and access_active and not cancel_scheduled and not change_scheduled,
         "can_resume_subscription": (
             is_stripe
             and stripe_ok
@@ -79,16 +113,31 @@ def build_billing_state(organization):
         ),
         "can_upgrade_to_business": (
             is_stripe
-            and status in {BillingStatus.ACTIVE, BillingStatus.PAST_DUE}
+            and paid_active
             and subscribed == PLAN_PLUS
             and effective == OrganizationPlan.PLUS
             and not cancel_scheduled
+            and not change_scheduled
         ),
         "can_open_portal": bool(
             is_stripe and billing and billing.external_customer_id
         ),
-        "can_change_interval": False,
+        "can_change_interval": (
+            is_stripe
+            and stripe_ok
+            and paid_active
+            and subscribed in {PLAN_PLUS, PLAN_BUSINESS}
+            and interval in {"monthly", "yearly"}
+            and not cancel_scheduled
+            and not change_scheduled
+        ),
     }
+
+    pending_interval = None
+    if billing and change_scheduled:
+        pending_interval = billing.pending_interval or billing.billing_interval
+    elif billing and billing.pending_interval:
+        pending_interval = billing.pending_interval
 
     return {
         "effective_plan": {
@@ -109,11 +158,24 @@ def build_billing_state(organization):
         "trial_ends_at": _iso(billing.trial_ends_at) if billing else None,
         "cancel_at_period_end": bool(billing.cancel_at_period_end) if billing else False,
         "pending_plan": billing.pending_plan or None if billing else None,
+        "pending_interval": pending_interval,
         "pending_change_effective_at": (
             _iso(billing.pending_change_effective_at) if billing else None
         ),
+        "scheduled_change": {
+            "active": change_scheduled,
+            "kind": (
+                "downgrade"
+                if downgrade_scheduled
+                else "interval"
+                if interval_change_scheduled
+                else "combined"
+                if combined_change_scheduled
+                else None
+            ),
+        },
         "payment_issue": payment_issue,
-        "catalog": catalog_public_payload(),
+        "catalog": catalog_public_payload(organization=organization),
         "trial_available": trial_ok,
         "stripe_configured": stripe_ok,
         "actions": actions,

@@ -439,7 +439,7 @@ Keep these separate:
 | Stripe SDK / Checkout / Portal / webhooks | `billing.stripe_provider` (only Stripe call site) |
 | Provider selection | `billing.provider` (`stripe` or `fake` for tests) |
 
-Permanent USD list prices live in `billing.catalog` as **integer cents** (not in the entitlement catalog, not as floats, not as per-row prices). Promotions must not mutate that catalog. Stripe Price IDs map onto those plan/interval pairs via settings (`STRIPE_PRICE_*`); never infer plan from amount.
+Permanent USD list prices live in `billing.catalog` as **integer cents** (not in the entitlement catalog, not as floats, not as per-row prices). Promotions must not mutate that catalog. V1 eligibility groups (`new_basic` OFF/NORMAL/BIG, `plus_monthly` OFF/ON, `business_monthly` OFF/ON) live on platform singleton `PlatformPromotionSettings`, calculated in `billing.promotion`, and exposed as audience-aware `promotion` on the canonical catalog payload (DEC-091). **Plus Yearly and Business Yearly have no promotion.** The **10 simple offers** use **fixed Stripe coupon off-amounts**; backend `promotional_amount = normal − discount_amount` (Decimal/cents) so UI matches Checkout. Marketing % strings are labels only — clients must not recompute `normal × (1 − %)`. Coupons are configured via server-only `STRIPE_COUPON_*` env slots (`billing.coupons`); Plus Monthly→Business Yearly and Business Monthly→Business Yearly share `STRIPE_COUPON_BUSINESS_MONTHLY_TO_YEARLY`. Coupon IDs never appear in public APIs or `VITE_*`. Backend eligibility selects the coupon; Checkout/schedule attach `discounts=[{coupon}]` through the Stripe provider only. Stripe Price IDs map onto plan/interval pairs via settings (`STRIPE_PRICE_*`); never infer plan from amount.
 
 Canonical effective plan mutation: `organizations.entitlements.apply_effective_plan()`. `Organization.save()` still syncs plan locks as a safety net. Billing services call `apply_effective_plan()` for upgrades, effective downgrades, trial start, and transitions to Basic. Do not scatter Stripe objects through Groups/Members/Staff/Kiosk code.
 
@@ -497,6 +497,113 @@ Plus/Business have no ads (`ads_required=False`). Provider choice remains open b
 
 ---
 
+## Production domain family (frozen)
+
+**DEC-088.** These are official production origins, not examples. Local development stays on localhost. DNS, Nginx, cookies, CORS, redirects, and application origin wiring are **not** implemented in this decision.
+
+Temporary `*.checkstation.alekspetk.com` hostnames used as production examples in DEC-085–087 are **superseded for current architecture**. Those decision records are not rewritten.
+
+| Production origin | Responsibility |
+|-------------------|----------------|
+| `checkstation.app` | Promotional / marketing website: homepage, features, how-it-works, pricing, public Contact (`/contact`), registration entry point, sitemap / `robots.txt` for marketing pages |
+| `workspace.checkstation.app` | Owner login, staff login, workspace UI, account/security, subscription/billing, password reset, email verification, Stripe/account callback returns |
+| `docs.checkstation.app` | Documentation home, Getting Started, Groups & Members, Kiosk Setup, Billing & Plans, FAQ, Privacy Policy, Terms of Use, Support |
+| `status.checkstation.app` | Standalone public Status page and public Status API |
+
+**Not frozen:** production API hostname/routing (OPEN-029). The API may later be same-origin under the workspace origin, a separate API hostname, or another reverse-proxy arrangement. Do not invent `api.checkstation.app` until deployment design lands.
+
+**Platform administration** uses a **dedicated private management origin**, separate from the public, workspace, Docs, and Status sites. The exact hostname is not published in public-facing product docs. It is not a sitemap/robots/public-nav target. Obscurity is not a security control; platform-admin authentication and mandatory 2FA remain required.
+
+**Intended production email (config concepts stay separate):**
+
+| Concept | Env | Production intent |
+|---------|-----|-------------------|
+| Platform transactional From | `RESEND_FROM_EMAIL` | `accounts@checkstation.app` |
+| Public Contact destination | `CONTACT_TO_EMAIL` | `contact@checkstation.app` |
+| Published legal contact placeholder | `LEGAL_CONTACT_EMAIL` | same public mailbox when designated; still a separate setting |
+
+Do not store the private forwarding mailbox in application config or public content.
+
+**Intended future link origins (application still uses local `FRONTEND_BASE_URL` / Vite env until a later implementation task):** auth, password reset, email verification, and Stripe return URLs → `workspace.checkstation.app`; Contact → `checkstation.app/contact`; Docs → `docs.checkstation.app`; Status → `status.checkstation.app`.
+
+**Indexing intent (not implemented here):** index `checkstation.app` marketing pages and `docs.checkstation.app` documentation/legal pages. Generally do not index authenticated workspace app pages or the private platform-management origin. Status indexing is a later SEO choice.
+
+Local origins remain `http://localhost:5173` (current combined SPA), `http://localhost:8000` (API), `http://localhost:8090` (Status), `http://localhost:8091` (Docs).
+
+---
+
+## Public Status service (implemented)
+
+**STATUS IS API-FIRST.** The public status website is one client of the Status API. Future workspace, iOS, Android, and desktop Status screens consume the same JSON without opening a browser.
+
+The Status service is a small independent Python process (`status/`) with SQLite storage. It does **not** use main PostgreSQL and does **not** require Django or the main React app to be healthy in order to serve the status page and API.
+
+| Item | V1 |
+|------|----|
+| Local origin | `http://localhost:8090` |
+| Production origin | `status.checkstation.app` (DEC-088) |
+| Current status | `GET /api/status/current/` |
+| Incidents | `GET /api/status/incidents/` |
+| Maintenance | `GET /api/status/maintenance/` |
+| Webpage | `GET /` on the Status service |
+
+Probes run server-side every 60 seconds (configurable). Browsers poll the Status API only (default 30 seconds). Django health helpers used by probes: `GET /api/health/` (503 if PostgreSQL is down), `GET /api/health/kiosk/` (read-only kiosk runtime), `GET /api/health/email/` (Resend health without sending mail: `GET /domains` for full-access keys, or an invalid `POST /emails` that must 400/422 for sending-only keys; a 401 on `/domains` is not an outage), `GET /api/health/stripe/` (Stripe Balance retrieve via the billing provider). CSRF `GET /api/auth/csrf/` plus API health back Authentication. Workspace web app is probed at `/login`; the promotional site at `/`. Documentation stays Unknown until `STATUS_DOCS_URL` is set.
+
+Public JSON may include component id/name/state/label, timestamps, short descriptions, incidents, and maintenance. It must not include secrets, stack traces, tenant data, or provider raw errors.
+
+Later Documentation, Privacy, Terms, and Support should follow the same canonical-source pattern. They are implemented as the Content API + Docs website (DEC-086, DEC-087). Contact is **not** a Status/Docs page; it lives on the main public site.
+
+---
+
+## Public Docs and legal content (implemented)
+
+**DOCS/LEGAL CONTENT IS API-FIRST.** The public Docs website is one client of the Content API. Future workspace, iOS, Android, and desktop Docs/Help screens consume the same JSON/Markdown without scraping HTML and without requiring a browser redirect.
+
+Canonical documents live in PostgreSQL (`content.Document`). Bodies are Markdown. Platform operators edit them in Django admin. The public API returns only `published` + `is_public` documents and never returns `admin_notes`, drafts, or unpublished rows.
+
+| Item | V1 |
+|------|----|
+| Local Docs origin | `http://localhost:8091` |
+| Production origin | `docs.checkstation.app` (DEC-088) |
+| Document index | `GET /api/content/documents/` |
+| Document by slug | `GET /api/content/documents/<slug>/` |
+| Plan catalog (read-only) | `GET /api/content/catalog/` — prices/limits from billing + entitlement catalogs |
+| FAQ list | `GET /api/content/faq/` — published structured entries (`?q=`, `?category=` optional) |
+| V1 slugs | `documentation`, `getting-started`, `groups-members`, `kiosk-setup`, `billing-plans`, `support`, `faq`, `privacy-policy`, `terms-of-use` |
+| FAQ storage | `content.FaqEntry` (stable slug, question, Markdown answer, category, keywords, sort, publish flags). Not a giant Markdown-only article. |
+| FAQ search | No external search engine. Token AND match on question/answer/category/keywords; Docs UI filters client-side after one published fetch. Native apps can use the same JSON. |
+| Docs website | standalone Python static site (`docs/`); fetches the Content API in the browser |
+| Editing | Django admin, platform operators only (documents and FAQ entries) |
+
+The Docs site does **not** remain available independently of Django the way Status does. Missing API content is an error/empty state on the Docs client, not a second copy of the legal text.
+
+Promotional footer Documentation / Getting started / Kiosk setup / Groups & Members / Billing & Plans / FAQ / Support / Privacy Policy / Terms of Use open the Docs origin in a new tab (`VITE_DOCS_PUBLIC_URL`). Those documents and FAQ entries exist once as canonical API content; they are not duplicated into the promotional frontend. Website **Get started** remains `/register`. Footer **Contact** is the main-site `/contact` route (same tab).
+
+Embedded Workspace/mobile/desktop Docs screens are **not** implemented in this slice. Future in-app Help must fetch the Content API (documents + FAQ), the Status API, and the Contact API, and render natively.
+
+---
+
+## Public Contact (implemented)
+
+**Contact is not part of Docs.** The promotional Contact page is `/contact` on the main CheckStation site. Support is the Docs self-service hub.
+
+| Item | V1 |
+|------|----|
+| Public page | `/contact` on the promotional site (`checkstation.app/contact` in production; same tab from the promotional footer) |
+| Categories | `GET /api/contact/categories/` — stable ids, labels, subcategories, FAQ query mappings |
+| FAQ suggestions | `GET /api/contact/suggestions/?category=&subcategory=` — ranked from canonical `content.FaqEntry` |
+| Submit | `POST /api/contact/` — no login; reusable by future Workspace/iOS/Android/desktop clients |
+| Storage | `contact.ContactRequest` persisted even if outbound email fails |
+| Destination | `CONTACT_TO_EMAIL` — production intent `contact@checkstation.app` (DEC-088). Private forwarding mailbox is not stored in app config. |
+| Mail | Verified CheckStation From (`RESEND_FROM_EMAIL`; production intent `accounts@checkstation.app`); Reply-To is the submitter |
+| Anti-spam | Cloudflare Turnstile (server-side verify), honeypot `company_url`, IP rate limit, duplicate window |
+| Privacy requests | `is_privacy_request` flag only; no automatic deletion/export |
+| Admin | Platform Django admin only; review states new / reviewed / closed. Not a ticketing system. |
+
+Local DEBUG may use Cloudflare official dummy Turnstile keys when env keys are empty. Production fails closed if Turnstile is required but unconfigured.
+
+---
+
 ## Deferred Architecture
 
 The following are confirmed **product concepts** but intentionally **excluded from detailed implementation design here**:
@@ -530,6 +637,6 @@ When this document and another authoritative file conflict, **stop and resolve t
 
 | Field | Value |
 |-------|-------|
-| **Status** | Tenant/person foundation; Organization owner + WorkspaceStaffAccount + Member/Group slice implemented; V1 entitlement layer, internal billing domain, and Stripe-ready provider/UI boundary implemented (live Stripe credentials and Apple IAP still open) |
-| **Last updated** | 2026-08-25 |
-| **Next architecture work** | Connect Stripe TEST credentials; interval-change product decision; real ad provider at deployment; Events / Action Records as otherwise prioritized |
+| **Status** | Tenant/person foundation; Organization owner + WorkspaceStaffAccount + Member/Group slice implemented; V1 entitlement layer, internal billing domain, and Stripe-ready provider/UI boundary implemented (live Stripe credentials and Apple IAP still open); public Status service, API-first Docs/legal Content API, public Contact API, and Docs Support hub implemented |
+| **Last updated** | 2026-08-26 |
+| **Next architecture work** | Production domain family implementation (DNS/Nginx/cookies/CORS — DEC-088 / OPEN-029); Connect Stripe TEST credentials; interval-change product decision; real ad provider at deployment; Events / Action Records as otherwise prioritized |

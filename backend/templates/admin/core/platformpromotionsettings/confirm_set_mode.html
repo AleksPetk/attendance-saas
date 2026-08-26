@@ -1,0 +1,24 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block content %}
+<div id="content-main" class="cs-promotion-confirm">
+  <h1>{{ confirm_title }}</h1>
+  <p>{{ confirm_body }}</p>
+  <p>
+    Permanent catalog list prices are unchanged. Provider-side Stripe/Apple/Google
+    offers are not applied by this change yet — checkout still charges list price
+    until that mapping task is completed.
+  </p>
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="confirm" value="1">
+    <input type="hidden" name="group" value="{{ requested_group }}">
+    <input type="hidden" name="value" value="{{ requested_value }}">
+    <div class="submit-row">
+      <input type="submit" value="{{ confirm_label }}" class="default">
+      <a href="{{ cancel_url }}" class="button cancel-link">{% translate "Cancel" %}</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

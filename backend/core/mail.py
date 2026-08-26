@@ -16,6 +16,7 @@ from django.conf import settings
 logger = logging.getLogger("core.mail")
 
 RESEND_API_URL = "https://api.resend.com/emails"
+RESEND_DOMAINS_URL = "https://api.resend.com/domains"
 # Cloudflare in front of api.resend.com rejects Python's default
 # urllib User-Agent (Error 1010 / browser signature).
 RESEND_USER_AGENT = "CheckStation/1.0"
@@ -42,6 +43,10 @@ class EmailConfigurationError(EmailError):
 
 class EmailSendError(EmailError):
     """The provider rejected the message or the request failed."""
+
+
+class EmailHealthUnknown(EmailError):
+    """Configured, but no reliable provider health evidence is available."""
 
 
 def _redact_secret(value, secret):
@@ -133,7 +138,7 @@ def format_from_address(name, email):
 class ResendEmailProvider:
     """Thin Resend HTTP client. The only module that talks to Resend."""
 
-    def send(self, *, to_email, subject, html_body, text_body):
+    def send(self, *, to_email, subject, html_body, text_body, reply_to=""):
         api_key = getattr(settings, "RESEND_API_KEY", "") or ""
         if not api_key:
             raise EmailConfigurationError("RESEND_API_KEY is not configured.")
@@ -148,6 +153,9 @@ class ResendEmailProvider:
             "html": html_body,
             "text": text_body,
         }
+        reply = str(reply_to or "").strip()
+        if reply:
+            payload["reply_to"] = reply
         body = json.dumps(payload).encode("utf-8")
         request = urllib.request.Request(
             RESEND_API_URL,
@@ -182,17 +190,113 @@ class ResendEmailProvider:
         logger.info("Transactional email accepted by provider.")
         return True
 
+    def check_health(self):
+        """
+        Safe Resend health check. Does not send mail.
+
+        GET /domains works for full-access keys. Sending-only keys return 401
+        ``restricted_api_key`` there while POST /emails still works, so that
+        401 is not treated as an outage. In that case a deliberately invalid
+        POST /emails payload is used to prove the sending key is accepted
+        without creating a message.
+        """
+        api_key = getattr(settings, "RESEND_API_KEY", "") or ""
+        if not api_key:
+            raise EmailConfigurationError("RESEND_API_KEY is not configured.")
+
+        timeout = int(getattr(settings, "RESEND_TIMEOUT_SECONDS", 15) or 15)
+        domains_code, _domains_body = self._resend_request(
+            "GET",
+            RESEND_DOMAINS_URL,
+            api_key,
+            timeout=timeout,
+        )
+        if domains_code is None:
+            logger.error("Resend health check failed (network or timeout).")
+            raise EmailSendError("The email provider could not be reached.") from None
+        if 200 <= domains_code < 300:
+            logger.info("Resend health check succeeded.")
+            return "ok"
+        if 500 <= domains_code < 600:
+            logger.error("Resend health check returned HTTP %s.", domains_code)
+            raise EmailSendError("The email provider rejected the request.")
+
+        # 401/403 on /domains is the sending-only key case, not an outage.
+        logger.info(
+            "Resend domain list is not available for this API key (HTTP %s); "
+            "checking send authorization instead.",
+            domains_code,
+        )
+        return self._check_send_authorization(api_key, timeout=timeout)
+
+    def _check_send_authorization(self, api_key, *, timeout):
+        """
+        Authenticate a sending key without delivering mail.
+
+        An empty JSON object is invalid for POST /emails, so Resend returns
+        400/422 after accepting the key. No recipient or body is included.
+        """
+        code, _raw = self._resend_request(
+            "POST",
+            RESEND_API_URL,
+            api_key,
+            data=b"{}",
+            timeout=timeout,
+        )
+        if code is None:
+            logger.error("Resend send-auth health check failed (network or timeout).")
+            raise EmailSendError("The email provider could not be reached.") from None
+        if code in {400, 422}:
+            logger.info("Resend send-auth health check succeeded.")
+            return "ok"
+        if 200 <= code < 300:
+            logger.error("Resend send-auth probe returned success unexpectedly.")
+            raise EmailHealthUnknown("Resend did not yield a reliable health signal.")
+        if code in {401, 403} or 500 <= code < 600:
+            logger.error("Resend send-auth health check returned HTTP %s.", code)
+            raise EmailSendError("The email provider rejected the request.")
+        logger.info(
+            "Resend send-auth health check was inconclusive (HTTP %s).",
+            code,
+        )
+        raise EmailHealthUnknown("Resend did not yield a reliable health signal.")
+
+    def _resend_request(self, method, url, api_key, *, data=None, timeout=15):
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Accept": "application/json",
+            "User-Agent": RESEND_USER_AGENT,
+        }
+        if data is not None:
+            headers["Content-Type"] = "application/json"
+        request = urllib.request.Request(
+            url,
+            data=data,
+            method=method,
+            headers=headers,
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=timeout) as response:
+                return response.getcode(), response.read()
+        except urllib.error.HTTPError as exc:
+            body = exc.read()
+            return exc.code, body
+        except urllib.error.URLError:
+            return None, b""
+
 
 def get_email_provider():
     return ResendEmailProvider()
 
 
-def send_transactional_email(*, to_email, subject, html_body, text_body):
+def send_transactional_email(*, to_email, subject, html_body, text_body, reply_to=""):
     """
     Send one transactional email through the configured provider.
 
     Raises EmailConfigurationError or EmailSendError. Never logs the API key
     or the full message token/URL beyond the provider's own sanitized errors.
+    Optional reply_to is the validated submitter address for operator mail.
+    From remains the verified CheckStation sender.
     """
     if not to_email:
         raise EmailConfigurationError("A recipient email is required.")
@@ -207,4 +311,5 @@ def send_transactional_email(*, to_email, subject, html_body, text_body):
         subject=subject,
         html_body=html_body,
         text_body=text_body,
+        reply_to=reply_to,
     )

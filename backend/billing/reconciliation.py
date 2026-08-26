@@ -16,6 +16,7 @@ from billing.services import (
     mark_payment_failure,
     mark_payment_recovered,
     schedule_cancellation,
+    scheduled_change_pending,
     start_trial,
 )
 from organizations.entitlements.transitions import apply_effective_plan
@@ -153,11 +154,46 @@ def reconcile_subscription_snapshot(organization, snapshot, *, now=None):
         return get_workspace_billing(organization)
 
     billing = get_workspace_billing(organization)
+    pending_change = scheduled_change_pending(billing)
+    pending_target_interval = (
+        (billing.pending_interval or billing.billing_interval) if billing else None
+    )
     pending_downgrade = bool(
         billing
         and billing.pending_plan == OrganizationPlan.PLUS
+        and billing.subscribed_plan == OrganizationPlan.BUSINESS
+        and pending_target_interval == billing.billing_interval
         and not billing.cancel_at_period_end
     )
+
+    if pending_change and billing and snapshot.current_period_end and snapshot.current_period_end > moment:
+        target_plan = billing.pending_plan or billing.subscribed_plan
+        target_interval = billing.pending_interval or billing.billing_interval
+        current_pair = (billing.subscribed_plan, billing.billing_interval)
+        snapshot_pair = (plan_key, interval)
+        target_pair = (target_plan, target_interval)
+
+        if snapshot_pair == current_pair:
+            _org, billing = lock_workspace_billing(organization)
+            billing.current_period_start = snapshot.current_period_start
+            billing.current_period_end = snapshot.current_period_end
+            billing.external_subscription_id = snapshot.subscription_id
+            billing.external_customer_id = snapshot.customer_id
+            billing.save(
+                update_fields=[
+                    "current_period_start",
+                    "current_period_end",
+                    "external_subscription_id",
+                    "external_customer_id",
+                    "updated_at",
+                ]
+            )
+            if snapshot.cancel_at_period_end:
+                schedule_cancellation(organization, effective_at=snapshot.current_period_end)
+            return get_workspace_billing(organization)
+
+        if snapshot_pair != target_pair:
+            return billing
 
     if plan_key == OrganizationPlan.PLUS and organization.plan == OrganizationPlan.BUSINESS:
         if pending_downgrade and snapshot.current_period_end and snapshot.current_period_end > moment:
@@ -189,6 +225,13 @@ def reconcile_subscription_snapshot(organization, snapshot, *, now=None):
             now=moment,
         )
         return get_workspace_billing(organization)
+
+    if pending_change and plan_key != organization.plan and snapshot.current_period_end and snapshot.current_period_end > moment:
+        if (plan_key, interval) != (
+            billing.pending_plan or billing.subscribed_plan,
+            billing.pending_interval or billing.billing_interval,
+        ):
+            return billing
 
     if pending_downgrade and plan_key == OrganizationPlan.BUSINESS:
         _org, billing = lock_workspace_billing(organization)

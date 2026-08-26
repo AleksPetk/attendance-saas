@@ -1,0 +1,5 @@
+{
+  "name": "checkstation-status",
+  "private": true,
+  "type": "module"
+}

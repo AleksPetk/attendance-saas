@@ -12,7 +12,7 @@ Possible customers include schools, companies, gyms, clubs, childcare and traini
 
 **Technical foundation is in progress.**
 
-Product and architecture documentation is in place. A Django + DRF backend, React web frontend, PostgreSQL, and Docker Compose local stack are implemented at foundation level (health check, custom User model, Organization owner + WorkspaceStaffAccount, Members, Groups, GroupMemberships, and Group-only Participants). Event and Kiosk models are **not** yet implemented. Mobile and desktop applications come later.
+Product and architecture documentation is in place. A Django + DRF backend, React web frontend, PostgreSQL, independent Status service, public Docs website, and Docker Compose local stack are implemented at foundation level (health check, custom User model, Organization owner + WorkspaceStaffAccount, Members, Groups, GroupMemberships, and Group-only Participants). Event models are **not** yet implemented. Mobile and desktop applications come later.
 
 ## Core Product Concepts
 
@@ -44,6 +44,10 @@ This is the **planned** stack. Foundation pieces are partially implemented local
 | Backend | Python, Django, Django REST Framework |
 | Database | PostgreSQL |
 | Web frontend | React |
+| Status | Independent Python Status service (`http://localhost:8090`; production `status.checkstation.app`) |
+| Docs | Standalone Docs website (`http://localhost:8091`; production `docs.checkstation.app`) consuming the Django Content API |
+
+Public production origins (DEC-088): `checkstation.app` (promotional site, including Contact), `workspace.checkstation.app` (workspace and account/auth), `docs.checkstation.app`, `status.checkstation.app`. The API hostname is not frozen. Local development remains the localhost ports above.
 
 Later stages, when explicitly in scope:
 

@@ -302,6 +302,12 @@ export const api = {
   /* Owner billing (Stripe Checkout / portal). Secrets never leave the server. */
   getBilling: () => request("/api/billing/"),
   getBillingCatalog: () => request("/api/billing/catalog/"),
+  getContactCategories: () => request("/api/contact/categories/"),
+  getContactSuggestions: (category, subcategory) =>
+    request(
+      `/api/contact/suggestions/?category=${encodeURIComponent(category)}&subcategory=${encodeURIComponent(subcategory)}`,
+    ),
+  submitContact: (payload) => request("/api/contact/", { method: "POST", json: payload }),
   startBillingCheckout: (json) =>
     request("/api/billing/checkout/", { method: "POST", json }),
   startBillingTrialCheckout: (json) =>
@@ -318,8 +324,11 @@ export const api = {
     request("/api/billing/resume/", { method: "POST", json }),
   cancelScheduledBillingDowngrade: (json = {}) =>
     request("/api/billing/downgrade/cancel/", { method: "POST", json }),
+  scheduleBillingChange: (json) =>
+    request("/api/billing/change/schedule/", { method: "POST", json }),
   openBillingPortal: (json = {}) =>
     request("/api/billing/portal/", { method: "POST", json }),
+  listBillingInvoices: () => request("/api/billing/invoices/"),
 
   /* Workspace staff/admin management (owner-only) */
   listWorkspaceStaff: (_auth) => request("/api/workspace-staff/"),

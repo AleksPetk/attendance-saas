@@ -14,6 +14,8 @@ urlpatterns = [
     path("api/", include("groups.urls")),
     path("api/", include("attendance.urls")),
     path("api/", include("kiosk_builder.urls")),
+    path("api/", include("content.urls")),
+    path("api/", include("contact.urls")),
 ]
 
 if settings.DEBUG:

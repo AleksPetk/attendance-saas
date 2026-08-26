@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>__PAGE_TITLE__</title>
+    <meta name="description" content="__PAGE_DESCRIPTION__" />
+    <link rel="canonical" href="__PAGE_CANONICAL__" />
+    <link rel="icon" href="/brand/logo-mark.png" type="image/png" />
+    <link rel="stylesheet" href="/docs.css?v=support-hub" />
+  </head>
+  <body>
+    <div class="docs-app">
+      <header class="docs-top">
+        <a class="docs-brand" href="/" aria-label="CheckStation Docs">
+          <img
+            class="docs-logo"
+            src="/brand/logo-text.png"
+            width="180"
+            height="60"
+            alt="CheckStation"
+          />
+          <span class="docs-kicker">Docs</span>
+        </a>
+        <button
+          type="button"
+          class="docs-menu-toggle"
+          id="nav-toggle"
+          aria-expanded="false"
+          aria-controls="docs-nav"
+          aria-label="Open document navigation"
+        >
+          Menu
+        </button>
+      </header>
+      <div class="docs-layout">
+        <aside class="docs-sidebar" id="docs-nav">
+          <nav class="docs-nav" aria-label="Documents" id="sidebar-nav">
+            <p class="docs-nav-loading">Loading documents…</p>
+          </nav>
+        </aside>
+        <main class="docs-main" id="docs-main">
+          <p class="docs-loading">Loading…</p>
+          __FAQ_CRAWL__
+        </main>
+      </div>
+    </div>
+    <script src="/config.js"></script>
+    <script type="module" src="/docs.js"></script>
+  </body>
+</html>

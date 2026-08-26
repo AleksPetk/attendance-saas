@@ -1,10 +1,16 @@
-"""Platform advertising settings in Django admin."""
+"""Platform advertising and promotion settings in Django admin."""
 
 from django.contrib import admin, messages
 from django.shortcuts import redirect, render
 from django.urls import path, reverse
 
-from core.models import PlatformAdvertisingSettings
+from billing.promotion import admin_groups_snapshot, set_group_value
+from core.models import (
+    PlatformAdvertisingSettings,
+    PlatformPromotionModeChange,
+    PlatformPromotionSettings,
+    PromotionGroupKey,
+)
 
 
 DISABLE_CONFIRM_COPY = (
@@ -130,3 +136,175 @@ class PlatformAdvertisingSettingsAdmin(admin.ModelAdmin):
             "admin/core/platformadvertisingsettings/confirm_toggle.html",
             context,
         )
+
+
+@admin.register(PlatformPromotionSettings)
+class PlatformPromotionSettingsAdmin(admin.ModelAdmin):
+    """View-only change form; group changes go through a confirmation page."""
+
+    change_form_template = "admin/core/platformpromotionsettings/change_form.html"
+    list_display = (
+        "new_basic_mode",
+        "plus_monthly_enabled",
+        "business_monthly_enabled",
+        "updated_at",
+        "changed_by",
+    )
+    readonly_fields = (
+        "new_basic_mode",
+        "plus_monthly_enabled",
+        "business_monthly_enabled",
+        "updated_at",
+        "changed_by",
+    )
+    fields = readonly_fields
+
+    def has_add_permission(self, request):
+        return not PlatformPromotionSettings.objects.exists()
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    def changelist_view(self, request, extra_context=None):
+        settings_obj = PlatformPromotionSettings.load()
+        return redirect(
+            reverse(
+                "admin:core_platformpromotionsettings_change",
+                args=[settings_obj.pk],
+            )
+        )
+
+    def change_view(self, request, object_id, form_url="", extra_context=None):
+        settings_obj = PlatformPromotionSettings.load()
+        extra_context = extra_context or {}
+        extra_context["set_group_url"] = reverse(
+            "admin:core_platformpromotionsettings_set_group"
+        )
+        extra_context["promotion_groups"] = admin_groups_snapshot(
+            settings_obj=settings_obj
+        )
+        recent = PlatformPromotionModeChange.objects.select_related(
+            "changed_by"
+        )[:12]
+        extra_context["recent_changes"] = recent
+        extra_context["show_save"] = False
+        extra_context["show_save_and_continue"] = False
+        extra_context["show_save_and_add_another"] = False
+        extra_context["has_editable_inline_admin_formsets"] = False
+        return super().change_view(
+            request, object_id, form_url, extra_context=extra_context
+        )
+
+    def get_urls(self):
+        urls = super().get_urls()
+        extra = [
+            path(
+                "set-group/",
+                self.admin_site.admin_view(self.set_group_view),
+                name="core_platformpromotionsettings_set_group",
+            ),
+        ]
+        return extra + urls
+
+    def set_group_view(self, request):
+        settings_obj = PlatformPromotionSettings.load()
+        change_url = reverse(
+            "admin:core_platformpromotionsettings_change",
+            args=[settings_obj.pk],
+        )
+        cancel_url = change_url
+
+        group = (request.POST.get("group") or request.GET.get("group") or "").strip()
+        value = (request.POST.get("value") or request.GET.get("value") or "").strip()
+        if group not in {
+            PromotionGroupKey.NEW_BASIC,
+            PromotionGroupKey.PLUS_MONTHLY,
+            PromotionGroupKey.BUSINESS_MONTHLY,
+        }:
+            messages.error(request, "Select a valid promotion group.")
+            return redirect(change_url)
+
+        cards = {card["group"]: card for card in admin_groups_snapshot(settings_obj=settings_obj)}
+        card = cards.get(group)
+        if not card:
+            messages.error(request, "Unknown promotion group.")
+            return redirect(change_url)
+        valid_values = {choice["value"] for choice in card["choices"]}
+        if value not in valid_values:
+            messages.error(request, "Select a valid promotion value.")
+            return redirect(change_url)
+
+        if value == card["value"]:
+            messages.info(
+                request,
+                f"{card['label']} is already {value.upper()}.",
+            )
+            return redirect(change_url)
+
+        choice_summary = next(
+            (c["summary"] for c in card["choices"] if c["value"] == value),
+            "",
+        )
+
+        if request.method == "POST" and (request.POST.get("confirm") or "").strip() == "1":
+            old_value = card["value"]
+            updated, changed = set_group_value(group, value, actor=request.user)
+            if changed:
+                self.log_change(
+                    request,
+                    updated,
+                    (
+                        f'Changed {group} from "{old_value}" to "{value}".'
+                    ),
+                )
+                messages.success(
+                    request,
+                    f"{card['label']} is now {value.upper()}.",
+                )
+            else:
+                messages.info(
+                    request,
+                    f"{card['label']} is already {value.upper()}.",
+                )
+            return redirect(change_url)
+
+        context = {
+            **self.admin_site.each_context(request),
+            "title": f"Set {card['label']} to {value.upper()}?",
+            "confirm_title": f"Set {card['label']} to {value.upper()}?",
+            "confirm_body": (
+                f"Current: {card['value'].upper()}. "
+                f"New: {value.upper()}. {choice_summary}"
+            ),
+            "confirm_label": f"Set {card['label']} to {value.upper()}",
+            "requested_group": group,
+            "requested_value": value,
+            "cancel_url": cancel_url,
+            "change_url": change_url,
+            "opts": self.model._meta,
+            "original": settings_obj,
+        }
+        return render(
+            request,
+            "admin/core/platformpromotionsettings/confirm_set_mode.html",
+            context,
+        )
+
+
+@admin.register(PlatformPromotionModeChange)
+class PlatformPromotionModeChangeAdmin(admin.ModelAdmin):
+    """Read-only audit trail for promotion group setting changes."""
+
+    list_display = ("changed_at", "group", "old_value", "new_value", "changed_by")
+    list_filter = ("group", "old_value", "new_value")
+    readonly_fields = ("group", "old_value", "new_value", "changed_at", "changed_by")
+    ordering = ("-changed_at", "-id")
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False

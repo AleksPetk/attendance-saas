@@ -1,14 +1,30 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
+import { brandLogoText } from "./assets/brand/brandLogo.js";
 
 /* ------------------------------------------------------------------ */
 /* Brand                                                               */
 /* ------------------------------------------------------------------ */
 
-export function Wordmark({ subtitle, className = "" }) {
+export function Wordmark({ subtitle, className = "", logo = false }) {
   return (
-    <div className={`wordmark ${className}`.trim()}>
-      <span className="wordmark-main">Check Station</span>
+    <div className={`wordmark ${logo ? "wordmark-with-logo" : ""} ${className}`.trim()}>
+      {logo ? (
+        <picture className="wordmark-logo-picture">
+          <source type="image/avif" srcSet={brandLogoText.avifSrc} />
+          <source type="image/webp" srcSet={brandLogoText.webpSrc} />
+          <img
+            className="wordmark-logo"
+            src={brandLogoText.pngSrc}
+            alt={brandLogoText.alt}
+            width={brandLogoText.width}
+            height={brandLogoText.height}
+            decoding="async"
+          />
+        </picture>
+      ) : (
+        <span className="wordmark-main">Check Station</span>
+      )}
       {subtitle ? <span className="wordmark-sub">{subtitle}</span> : null}
     </div>
   );

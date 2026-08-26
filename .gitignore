@@ -78,6 +78,9 @@ pnpm-debug.log*
 .cursor/*.log
 .cursor/**/*.log
 
+# Status service local SQLite
+status/data/
+
 # Temporary files, logs, and generated caches
 tmp/
 temp/

@@ -26,6 +26,8 @@ APP_LABEL_TO_CATEGORY = {
     "groups": "operations",
     "kiosk_builder": "kiosks",
     "billing": "workspaces",
+    "content": "security",
+    "contact": "security",
     "core": "security",
     "auth": "security",
 }
@@ -190,12 +192,48 @@ CATEGORY_DEFINITIONS = (
         "models": (
             {
                 "app_label": "core",
+                "object_name": "platformpromotionsettings",
+                "label": "Promotions",
+                "description": "Eligibility-based promotion groups for all clients.",
+                "prefer_add": False,
+                "count": lambda: 1,
+                "stats": lambda: _promotion_stats(),
+            },
+            {
+                "app_label": "core",
                 "object_name": "platformadvertisingsettings",
                 "label": "Advertising",
                 "description": "Global advertising kill switch for all workspaces.",
                 "prefer_add": False,
                 "count": lambda: 1,
                 "stats": lambda: _advertising_stats(),
+            },
+            {
+                "app_label": "content",
+                "object_name": "document",
+                "label": "Public documents",
+                "description": "Canonical Docs, Privacy, Terms, and FAQ content.",
+                "prefer_add": True,
+                "count": lambda: _safe_model_count("content", "Document"),
+                "stats": lambda: [],
+            },
+            {
+                "app_label": "content",
+                "object_name": "faqentry",
+                "label": "FAQ entries",
+                "description": "Canonical structured FAQ questions and answers.",
+                "prefer_add": True,
+                "count": lambda: _safe_model_count("content", "FaqEntry"),
+                "stats": lambda: [],
+            },
+            {
+                "app_label": "contact",
+                "object_name": "contactrequest",
+                "label": "Contact requests",
+                "description": "Public Contact form submissions for platform operators.",
+                "prefer_add": False,
+                "count": lambda: _safe_model_count("contact", "ContactRequest"),
+                "stats": lambda: [],
             },
             {
                 "app_label": "auth",
@@ -219,6 +257,19 @@ def _advertising_stats():
         {
             "label": "Status",
             "value": "Enabled" if enabled else "Disabled",
+        }
+    ]
+
+
+def _promotion_stats():
+    from billing.promotion import admin_groups_snapshot
+
+    cards = admin_groups_snapshot()
+    active_count = sum(1 for card in cards if card["value"] != "off")
+    return [
+        {
+            "label": "Active groups",
+            "value": f"{active_count}/4",
         }
     ]
 
@@ -346,6 +397,8 @@ def install_category_verbose_names():
         "groups": "Operations",
         "kiosk_builder": "Kiosks",
         "billing": "Workspaces",
+        "content": "Security / System",
+        "contact": "Security / System",
         "core": "Security / System",
         "auth": "Security / System",
     }

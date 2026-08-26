@@ -2,6 +2,13 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "./api.js";
 import PublicPageShell from "./PublicPageShell.jsx";
+import {
+  catalogPromotion,
+  isAcquisitionPromotion,
+  promotionCheckoutWarning,
+  promotionPriceLabel,
+  promotionPriceNote,
+} from "./promotionCatalog.js";
 
 function PageTitle({ title, description }) {
   useEffect(() => {
@@ -25,18 +32,49 @@ const FALLBACK_CATALOG = {
       key: "plus",
       display_name: "Plus",
       intervals: {
-        monthly: { interval: "monthly", cents: 999, formatted: "$9.99" },
-        yearly: { interval: "yearly", cents: 9990, formatted: "$99.90" },
+        monthly: {
+          interval: "monthly",
+          cents: 999,
+          formatted: "$9.99",
+          promotion: { active: false },
+        },
+        yearly: {
+          interval: "yearly",
+          cents: 9990,
+          formatted: "$99.90",
+          promotion: { active: false },
+        },
       },
     },
     business: {
       key: "business",
       display_name: "Business",
       intervals: {
-        monthly: { interval: "monthly", cents: 1499, formatted: "$14.99" },
-        yearly: { interval: "yearly", cents: 14990, formatted: "$149.90" },
+        monthly: {
+          interval: "monthly",
+          cents: 1499,
+          formatted: "$14.99",
+          promotion: { active: false },
+        },
+        yearly: {
+          interval: "yearly",
+          cents: 14990,
+          formatted: "$149.90",
+          promotion: { active: false },
+        },
       },
     },
+  },
+  promotion: {
+    audience: "public",
+    group: "new_basic",
+    eligible: true,
+    active: false,
+    mode: "off",
+    label: "New / Basic",
+    summary: "No active promotional pricing for public / Basic",
+    checkout_applies_promotion: false,
+    offers: [],
   },
   trial_available: false,
 };
@@ -91,6 +129,9 @@ export default function PublicPricingScreen({ session = null }) {
   const signedIn = Boolean(session?.workspace);
   const ctaTo = signedIn ? "/account/subscription" : "/register";
   const ctaLabel = signedIn ? "Manage subscription" : "Create free workspace";
+  const promo = catalogPromotion(catalog);
+  const acquisitionActive = isAcquisitionPromotion(catalog);
+  const checkoutWarning = promotionCheckoutWarning(catalog);
 
   const cards = [
     {
@@ -98,30 +139,27 @@ export default function PublicPricingScreen({ session = null }) {
       tier: catalog.basic?.display_name || "Basic",
       price: catalog.basic?.formatted || "Free",
       note: "Start free — no card required",
+      listPrice: null,
       featured: false,
       features: FEATURES.basic,
     },
     {
       key: "plus",
       tier: catalog.plans?.plus?.display_name || "Plus",
-      price:
-        catalog.plans?.plus?.intervals?.[interval]?.formatted ||
-        (interval === "yearly" ? "$99.90" : "$9.99"),
-      note: interval === "yearly" ? "Billed yearly" : "Billed monthly",
+      price: promotionPriceLabel(catalog, "plus", interval) || "$9.99",
+      note: promotionPriceNote(catalog, "plus", interval),
+      listPrice: catalog.plans?.plus?.intervals?.[interval]?.formatted || null,
       featured: true,
       features: FEATURES.plus,
     },
     {
       key: "business",
       tier: catalog.plans?.business?.display_name || "Business",
-      price:
-        catalog.plans?.business?.intervals?.[interval]?.formatted ||
-        (interval === "yearly" ? "$149.90" : "$14.99"),
+      price: promotionPriceLabel(catalog, "business", interval) || "$14.99",
       note: catalog.trial_available
         ? "Business trial available"
-        : interval === "yearly"
-          ? "Billed yearly"
-          : "Billed monthly",
+        : promotionPriceNote(catalog, "business", interval),
+      listPrice: catalog.plans?.business?.intervals?.[interval]?.formatted || null,
       featured: false,
       features: FEATURES.business,
     },
@@ -140,6 +178,16 @@ export default function PublicPricingScreen({ session = null }) {
           V1 plans are Basic, Plus, and Business. Paid checkout starts after you create a
           workspace — there are no anonymous paid workspaces.
         </p>
+        {acquisitionActive ? (
+          <p className="pricing-promo-banner" role="status">
+            {promo.label}: {promo.summary}
+          </p>
+        ) : null}
+        {checkoutWarning && acquisitionActive ? (
+          <p className="pricing-promo-checkout-note" role="note">
+            {checkoutWarning}
+          </p>
+        ) : null}
         <div className="pricing-interval-toggle" role="group" aria-label="Billing interval">
           <button
             type="button"
@@ -160,26 +208,40 @@ export default function PublicPricingScreen({ session = null }) {
 
       <section className="public-section">
         <div className="pricing-grid">
-          {cards.map((plan) => (
-            <article
-              key={plan.key}
-              className={
-                plan.featured ? "pricing-card pricing-card-featured" : "pricing-card"
-              }
-            >
-              <div className="pricing-tier">{plan.tier}</div>
-              <div className="pricing-price">{plan.price}</div>
-              <p className="pricing-price-note">{plan.note}</p>
-              <ul className="pricing-features">
-                {plan.features.map((feature) => (
-                  <li key={feature}>{feature}</li>
-                ))}
-              </ul>
-              <Link className="btn-primary" to={ctaTo}>
-                {plan.key === "basic" ? ctaLabel : signedIn ? "Choose in Account" : "Register to subscribe"}
-              </Link>
-            </article>
-          ))}
+          {cards.map((plan) => {
+            const showStrike =
+              plan.key !== "basic" &&
+              acquisitionActive &&
+              plan.listPrice &&
+              plan.listPrice !== plan.price;
+            return (
+              <article
+                key={plan.key}
+                className={
+                  plan.featured ? "pricing-card pricing-card-featured" : "pricing-card"
+                }
+              >
+                <div className="pricing-tier">{plan.tier}</div>
+                <div className="pricing-price">{plan.price}</div>
+                {showStrike ? (
+                  <p className="pricing-list-price">Normally {plan.listPrice}</p>
+                ) : null}
+                <p className="pricing-price-note">{plan.note}</p>
+                <ul className="pricing-features">
+                  {plan.features.map((feature) => (
+                    <li key={feature}>{feature}</li>
+                  ))}
+                </ul>
+                <Link className="btn-primary" to={ctaTo}>
+                  {plan.key === "basic"
+                    ? ctaLabel
+                    : signedIn
+                      ? "Choose in Account"
+                      : "Register to subscribe"}
+                </Link>
+              </article>
+            );
+          })}
         </div>
       </section>
 

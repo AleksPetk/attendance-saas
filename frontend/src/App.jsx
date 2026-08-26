@@ -27,6 +27,7 @@ import PublicHomeScreen from "./PublicHomeScreen.jsx";
 import PublicFeaturesScreen from "./PublicFeaturesScreen.jsx";
 import PublicHowItWorksScreen from "./PublicHowItWorksScreen.jsx";
 import PublicPricingScreen from "./PublicPricingScreen.jsx";
+import PublicContactScreen from "./PublicContactScreen.jsx";
 import OwnerLoginScreen from "./OwnerLoginScreen.jsx";
 import StaffLoginScreen from "./StaffLoginScreen.jsx";
 import RegisterScreen from "./RegisterScreen.jsx";
@@ -165,7 +166,8 @@ function isPublicMarketingPath(pathname) {
   return (
     pathname.startsWith("/features") ||
     pathname.startsWith("/how-it-works") ||
-    pathname.startsWith("/pricing")
+    pathname.startsWith("/pricing") ||
+    pathname.startsWith("/contact")
   );
 }
 
@@ -587,6 +589,7 @@ export default function App() {
           <Route path="/features" element={<PublicFeaturesScreen />} />
           <Route path="/how-it-works" element={<PublicHowItWorksScreen />} />
           <Route path="/pricing" element={<PublicPricingScreen session={session} />} />
+          <Route path="/contact" element={<PublicContactScreen />} />
           <Route
             path="/login"
             element={

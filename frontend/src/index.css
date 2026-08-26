@@ -142,6 +142,21 @@ a:hover { color: var(--primary-hover); }
   font-weight: 500;
   color: var(--text-muted);
 }
+.wordmark-with-logo {
+  align-items: start;
+}
+.wordmark-logo-picture {
+  display: block;
+  line-height: 0;
+}
+.wordmark-logo {
+  display: block;
+  height: 1.55rem;
+  width: auto;
+  max-width: min(10.5rem, 46vw);
+  object-fit: contain;
+  object-position: left center;
+}
 
 .sidebar .wordmark-main { color: #fff; }
 .sidebar .wordmark-sub { color: var(--sidebar-muted); }
@@ -4027,14 +4042,48 @@ button.person-main:hover .person-copy strong { color: var(--blue); }
   justify-content: space-between;
   align-items: center;
   gap: var(--space-4);
-  padding: var(--space-3) var(--space-6);
+  /* Lock current promotional header height (pre-subtitle-removal measure). */
+  height: 74.58px;
+  box-sizing: border-box;
+  padding: 0 var(--space-6) 0 0;
   background: rgba(255, 255, 255, 0.88);
   backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--border);
 }
 
-.public-nav-brand { text-decoration: none; color: inherit; }
+.public-nav-brand {
+  text-decoration: none;
+  color: inherit;
+  display: flex;
+  align-items: center;
+  align-self: stretch;
+  height: 100%;
+  box-sizing: border-box;
+  padding: 3px 0 3px 16px;
+}
+.public-nav-brand .wordmark,
+.public-nav-brand .wordmark-with-logo {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  gap: 0;
+}
 .public-nav-brand .wordmark-main { font-size: 1.1rem; }
+.public-nav-brand .wordmark-logo-picture {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  line-height: 0;
+}
+.public-nav-brand .wordmark-logo {
+  display: block;
+  height: 100%;
+  width: auto;
+  max-height: 100%;
+  max-width: min(calc((74.58px - 6px) * 3), 70vw);
+  object-fit: contain;
+  object-position: left center;
+}
 
 .public-nav-links {
   display: flex;
@@ -4092,18 +4141,230 @@ button.person-main:hover .person-copy strong { color: var(--blue); }
 }
 
 .public-footer-inner {
-  max-width: var(--page-max);
-  margin: 0 auto;
-  padding: var(--space-6) var(--space-4);
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  box-sizing: border-box;
+  padding: var(--space-3) var(--space-6) var(--space-3) 16px;
   color: var(--text-muted);
   display: grid;
-  gap: var(--space-2);
+  grid-template-columns: minmax(13rem, 1.15fr) repeat(3, minmax(0, 1fr));
+  gap: 0;
+  align-items: start;
+}
+
+.public-footer-brand {
+  display: grid;
+  gap: 0.2rem;
+  justify-items: start;
+  align-content: start;
+  padding-right: clamp(0.75rem, 1.5vw, 1.25rem);
+  min-width: 0;
+}
+
+.public-footer-brand-link {
+  display: inline-flex;
+  line-height: 0;
+  text-decoration: none;
+}
+
+.public-footer-logo-text {
+  display: block;
+  line-height: 0;
+}
+
+.public-footer-logo-text img {
+  display: block;
+  height: 3.3rem;
+  width: auto;
+  max-width: min(22rem, 100%);
+  object-fit: contain;
+  object-position: left center;
+}
+
+.public-footer-tagline {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  line-height: 1.3;
+}
+
+.public-footer-copy {
+  margin: 0.12rem 0 0;
+  display: grid;
+  gap: 0.12rem;
+  justify-items: start;
+  font-size: 1.125rem;
+  line-height: 1.3;
+  color: var(--text-muted);
+}
+
+.public-footer-copy-line {
+  margin: 0;
+}
+
+.public-footer-copy-rights {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.public-footer-logo-mark {
+  display: inline-flex;
+  align-items: center;
+  line-height: 0;
+  flex: 0 0 auto;
+}
+
+.public-footer-logo-mark img {
+  display: block;
+  width: 1.35rem;
+  height: 1.35rem;
+  object-fit: contain;
+}
+
+.public-footer-columns {
+  display: contents;
+}
+
+.public-footer-col {
+  display: grid;
+  gap: 0.35rem;
+  align-content: start;
+  min-width: 0;
+  padding-left: clamp(0.75rem, 1.6vw, 1.35rem);
+  padding-right: clamp(0.75rem, 1.6vw, 1.35rem);
+  border-left: 1px solid var(--border);
+}
+
+.public-footer-col-title {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  line-height: 1.2;
+}
+
+.public-footer-col-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0;
+  align-items: start;
+}
+
+.public-footer-col-split > .public-footer-col-list:last-child {
+  padding-left: clamp(0.55rem, 1.1vw, 0.9rem);
+  margin-left: clamp(0.55rem, 1.1vw, 0.9rem);
+  border-left: 1px dotted color-mix(in srgb, var(--border-strong) 70%, transparent);
+}
+
+.public-footer-col-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.22rem;
+  min-width: 0;
+}
+
+.public-footer-col-list a,
+.public-footer-item-disabled {
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1.3;
+}
+
+.public-footer-col-list a {
+  color: var(--text-muted);
+  text-decoration: none;
+}
+
+.public-footer-col-list a:hover {
+  color: var(--blue);
+}
+
+.public-footer-item-disabled {
+  display: inline-block;
+  color: color-mix(in srgb, var(--text-muted) 72%, transparent);
+  cursor: default;
+  pointer-events: none;
+  user-select: none;
 }
 
 .public-footer-muted { font-size: 0.875rem; }
 .public-footer-links { display: flex; flex-wrap: wrap; gap: var(--space-4); margin-top: var(--space-2); }
 .public-footer-links a { color: var(--text-muted); font-size: 0.875rem; font-weight: 500; }
 .public-footer-links a:hover { color: var(--blue); }
+
+@media (max-width: 1100px) {
+  .public-footer-inner {
+    grid-template-columns: minmax(11.5rem, 1fr) repeat(3, minmax(0, 1.05fr));
+    padding: var(--space-3) var(--space-4) var(--space-3) 16px;
+  }
+
+  .public-footer-col {
+    padding-left: var(--space-3);
+    padding-right: var(--space-3);
+  }
+}
+
+/* Stacked footer for tablet + mobile — no intermediate 2+1 major-section layout. */
+@media (max-width: 900px) {
+  .public-footer-inner {
+    grid-template-columns: 1fr;
+    gap: var(--space-3);
+    padding: var(--space-4) var(--space-4);
+  }
+
+  .public-footer-brand {
+    padding-right: 0;
+  }
+
+  .public-footer-logo-text img {
+    height: 2.4rem;
+    max-width: min(16rem, 100%);
+  }
+
+  .public-footer-copy {
+    font-size: 1rem;
+  }
+
+  .public-footer-logo-mark img {
+    width: 1.15rem;
+    height: 1.15rem;
+  }
+
+  .public-footer-col {
+    border-left: none;
+    border-top: 1px solid var(--border);
+    padding: var(--space-3) 0 0;
+  }
+
+  .public-footer-col-split > .public-footer-col-list:last-child {
+    border-left: 1px dotted color-mix(in srgb, var(--border-strong) 70%, transparent);
+  }
+}
+
+@media (max-width: 420px) {
+  .public-footer-logo-text img {
+    height: 2.15rem;
+    max-width: min(14rem, 92vw);
+  }
+
+  .public-footer-col-split {
+    grid-template-columns: 1fr;
+    gap: 0.22rem;
+  }
+
+  .public-footer-col-split > .public-footer-col-list:last-child {
+    padding-left: 0;
+    margin-left: 0;
+    border-left: none;
+  }
+}
 
 /* Hero */
 .public-hero {
@@ -4542,6 +4803,27 @@ button.person-main:hover .person-copy strong { color: var(--blue); }
 }
 
 .pricing-price-note { font-size: 0.85rem; color: var(--text-muted); font-weight: 500; }
+
+.pricing-list-price {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  text-decoration: line-through;
+}
+
+.pricing-promo-banner {
+  margin: 0 0 var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border);
+  background: var(--surface-muted, #f6f7f8);
+  font-weight: 600;
+}
+
+.pricing-promo-checkout-note {
+  margin: 0 0 var(--space-4);
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
 
 .pricing-features {
   list-style: none;
@@ -5515,7 +5797,7 @@ button.person-main:hover .person-copy strong { color: var(--blue); }
 
   .history-meta { align-items: flex-start; flex-direction: row; flex-wrap: wrap; }
 
-  .public-nav { padding: var(--space-3) var(--space-4); }
+  .public-nav { padding-right: var(--space-4); }
   .public-nav-toggle { display: inline-flex; }
 
   .public-nav-links {
@@ -5755,8 +6037,22 @@ a.btn-secondary {
   margin-top: 0.35rem;
 }
 
+.account-plan-options-upgrade {
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 900px) {
+  .account-plan-options-upgrade {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.account-plan-options-downgrade {
+  margin-top: 0.85rem;
+}
+
 @media (min-width: 720px) {
-  .account-plan-options {
+  .account-plan-options:not(.account-plan-options-upgrade):not(.account-plan-options-downgrade) {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
@@ -5775,6 +6071,15 @@ a.btn-secondary {
   border-color: rgba(15, 23, 42, 0.35);
   background: var(--surface);
   box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.08);
+}
+
+.account-plan-option.is-recommended {
+  border-color: color-mix(in srgb, var(--brand, #0f766e) 45%, var(--border));
+  background: color-mix(in srgb, var(--brand, #0f766e) 6%, var(--surface));
+}
+
+.account-plan-option.is-scheduled {
+  border-style: dashed;
 }
 
 .account-plan-option-header {
@@ -5799,11 +6104,94 @@ a.btn-secondary {
   text-transform: uppercase;
 }
 
+.account-plan-option-badge-recommended {
+  color: var(--brand, #0f766e);
+}
+
+.account-plan-option-badge-scheduled {
+  color: var(--text-muted);
+}
+
 .account-plan-option-price {
   margin: 0;
   font-size: 1.15rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
+}
+
+.account-plan-option-period {
+  margin: -0.25rem 0 0;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.account-plan-option-list-price {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  text-decoration: line-through;
+}
+
+.account-plan-option-promo-note,
+.account-plan-option-renews {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.account-highest-plan-note {
+  margin: 0 0 0.75rem;
+  font-weight: 600;
+}
+
+.account-scheduled-change-panel {
+  margin-top: 0.85rem;
+  padding: 0.85rem 0.95rem;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  display: grid;
+  gap: 0.35rem;
+}
+
+.account-scheduled-change-target {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.account-downgrade-toggle {
+  width: fit-content;
+  max-width: 100%;
+}
+
+.account-downgrade-confirm-wrap {
+  margin-top: 0.85rem;
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 719px) {
+  .account-plan-option .btn-primary,
+  .account-plan-option .btn-secondary {
+    width: 100%;
+  }
+
+  .account-schedule-change-actions,
+  .account-upgrade-preview-actions {
+    display: grid;
+    gap: 0.5rem;
+  }
+
+  .account-schedule-change-actions .btn-primary,
+  .account-schedule-change-actions .btn-secondary,
+  .account-upgrade-preview-actions .btn-primary,
+  .account-upgrade-preview-actions .btn-secondary {
+    width: 100%;
+  }
+}
+
+.account-promo-banner {
+  font-weight: 600;
 }
 
 .account-plan-option .btn-primary,
@@ -6264,6 +6652,73 @@ a.btn-secondary {
   font-weight: 600;
 }
 
+.account-billing-invoices {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.account-billing-invoice-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.account-billing-invoice-row {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--border-subtle, rgba(15, 23, 42, 0.08));
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.65);
+}
+
+.account-billing-invoice-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.45rem 0.75rem;
+}
+
+.account-billing-invoice-date {
+  font-size: 0.88rem;
+  color: var(--text-secondary);
+}
+
+.account-billing-invoice-amount {
+  font-size: 0.95rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.account-billing-invoice-status {
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-secondary);
+}
+
+.account-billing-invoice-description {
+  margin: 0;
+  font-size: 0.88rem;
+  line-height: 1.35;
+}
+
+.account-billing-invoice-link,
+.account-billing-view-all {
+  justify-self: start;
+}
+
+.account-billing-view-all {
+  margin-top: 0.1rem;
+}
+
+.account-panel-note-warning {
+  color: #b45309;
+}
+
 .account-interval-toggle,
 .pricing-interval-toggle {
   display: inline-flex;
@@ -6286,13 +6741,128 @@ a.btn-secondary {
   margin-top: 0.85rem;
 }
 
+.account-cancel-confirm {
+  display: grid;
+  gap: 0.55rem;
+  padding: 0.9rem 1rem;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(220, 38, 38, 0.2);
+  border-left: 3px solid #dc2626;
+  background: rgba(254, 242, 242, 0.5);
+}
+
+.account-cancel-confirm-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.account-cancel-confirm-lead {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.account-cancel-confirm-date {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  line-height: 1.35;
+  font-variant-numeric: tabular-nums;
+}
+
+.account-cancel-confirm-after-label {
+  margin: 0 0 0.2rem;
+  color: var(--text-secondary);
+  font-size: 0.88rem;
+}
+
+.account-cancel-confirm-list {
+  margin: 0;
+  padding-left: 1.1rem;
+  color: var(--text-secondary);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.account-cancel-confirm-list li + li {
+  margin-top: 0.1rem;
+}
+
+.account-cancel-confirm-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.35rem;
+}
+
+@media (max-width: 720px) {
+  .account-cancel-confirm-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
 .account-upgrade-preview {
   display: grid;
   gap: 0.55rem;
+  margin-top: 0.85rem;
   padding: 0.85rem 1rem;
   border-radius: var(--radius-sm);
   background: var(--surface-muted);
   border: 1px solid var(--border-strong);
+}
+
+.account-upgrade-preview-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.account-schedule-change-preview {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 0.85rem;
+  padding: 0.85rem 1rem;
+  border-radius: var(--radius-sm);
+  background: var(--surface-muted);
+  border: 1px solid var(--border-strong);
+}
+
+.account-schedule-change-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.account-schedule-change-list {
+  margin: 0;
+  padding-left: 1.1rem;
+  color: var(--text-secondary);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.account-schedule-change-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.account-interval-switch {
+  margin-top: 0.65rem;
+}
+
+@media (max-width: 720px) {
+  .account-upgrade-preview-actions,
+  .account-schedule-change-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
 }
 
 .account-scheduled-action {
@@ -6671,4 +7241,165 @@ a.btn-secondary {
   margin: 0.75rem 0 1rem;
   width: 100%;
   max-width: 28rem;
+}
+
+.contact-page {
+  max-width: 42rem;
+}
+
+.contact-form {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1.25rem;
+}
+
+.contact-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.contact-field {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.contact-field label {
+  font-weight: 650;
+  color: var(--text-secondary);
+  font-size: 0.92rem;
+}
+
+.contact-field input,
+.contact-field select,
+.contact-field textarea {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 0.72rem 0.85rem;
+  font: inherit;
+  background: var(--surface);
+}
+
+.contact-field input:focus-visible,
+.contact-field select:focus-visible,
+.contact-field textarea:focus-visible,
+.contact-submit:focus-visible,
+.contact-secondary-btn:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+
+.contact-field-error,
+.contact-form-error {
+  color: #b42318;
+  font-size: 0.9rem;
+  margin: 0;
+}
+
+.contact-help {
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface);
+  padding: 1rem 1.1rem 1.15rem;
+}
+
+.contact-help h2 {
+  margin: 0 0 0.55rem;
+  font-size: 1.05rem;
+}
+
+.contact-help-list {
+  list-style: none;
+  margin: 0 0 1rem;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.contact-help-list li {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #fff;
+}
+
+.contact-help-question {
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  padding: 0.8rem 0.95rem;
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.contact-help-answer {
+  padding: 0 0.95rem 0.9rem;
+  border-top: 1px solid var(--border);
+  color: var(--text-secondary);
+}
+
+.contact-help-docs {
+  display: inline-block;
+  margin-top: 0.65rem;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.contact-hp {
+  position: absolute;
+  left: -10000px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+
+.contact-turnstile {
+  min-height: 1.5rem;
+}
+
+.contact-submit,
+.contact-secondary-btn {
+  justify-self: start;
+  border: 0;
+  border-radius: 999px;
+  padding: 0.7rem 1.15rem;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.contact-submit {
+  background: var(--blue);
+  color: #fff;
+}
+
+.contact-submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.contact-secondary-btn {
+  background: var(--blue-soft);
+  color: var(--navy);
+}
+
+.contact-success {
+  border: 1px solid rgba(37, 99, 235, 0.22);
+  background: rgba(37, 99, 235, 0.05);
+  border-radius: 16px;
+  padding: 1rem 1.1rem;
+  margin-bottom: 1.25rem;
+}
+
+.contact-reference {
+  font-weight: 700;
+}
+
+@media (max-width: 720px) {
+  .contact-grid {
+    grid-template-columns: 1fr;
+  }
 }

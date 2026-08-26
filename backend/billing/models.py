@@ -31,6 +31,7 @@ class SubscribedPlan(models.TextChoices):
 
 class PendingPlan(models.TextChoices):
     PLUS = OrganizationPlan.PLUS, "Plus"
+    BUSINESS = OrganizationPlan.BUSINESS, "Business"
     BASIC = OrganizationPlan.BASIC, "Basic"
 
 
@@ -95,6 +96,13 @@ class WorkspaceSubscription(models.Model):
         help_text="Scheduled destination plan. Applied only at effective_at.",
     )
     pending_change_effective_at = models.DateTimeField(null=True, blank=True)
+    pending_interval = models.CharField(
+        max_length=20,
+        choices=BillingInterval.choices,
+        blank=True,
+        default="",
+        help_text="Scheduled destination billing interval. Applied only at effective_at.",
+    )
     payment_failure_started_at = models.DateTimeField(null=True, blank=True)
     payment_grace_deadline = models.DateTimeField(null=True, blank=True)
     last_payment_warning_at = models.DateTimeField(null=True, blank=True)
@@ -128,6 +136,11 @@ class WorkspaceSubscription(models.Model):
                 condition=models.Q(pending_plan="")
                 | models.Q(pending_plan__in=PendingPlan.values),
                 name="billing_workspacesubscription_pending_valid",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(pending_interval="")
+                | models.Q(pending_interval__in=[BillingInterval.MONTHLY, BillingInterval.YEARLY]),
+                name="billing_workspacesubscription_pending_interval_valid",
             ),
             models.CheckConstraint(
                 condition=Q(trial_started_at__isnull=True, trial_ends_at__isnull=True)

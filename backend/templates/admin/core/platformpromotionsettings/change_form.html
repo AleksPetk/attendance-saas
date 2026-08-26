@@ -1,0 +1,102 @@
+{% extends "admin/change_form.html" %}
+{% load i18n %}
+
+{% block after_related_objects %}
+<div class="cs-promotion-panel">
+  <h2>Promotions</h2>
+  <p>
+    Four independent groups. Each audience receives only its eligible group.
+    Permanent catalog prices are never changed. Provider checkout discounts are
+    not connected yet.
+  </p>
+
+  <div class="cs-promotion-cards">
+    {% for card in promotion_groups %}
+    <section class="cs-promotion-card module">
+      <h3>{{ card.label }}</h3>
+      <p class="cs-promotion-current">
+        Current: <strong>{{ card.value|upper }}</strong> — {{ card.summary }}
+      </p>
+      <fieldset class="aligned">
+        {% for choice in card.choices %}
+        <div class="form-row cs-promotion-choice">
+          <label>
+            <input
+              type="radio"
+              name="value__{{ card.group }}"
+              value="{{ choice.value }}"
+              {% if choice.value == card.value %}checked{% endif %}
+              data-group="{{ card.group }}"
+            >
+            <strong>{{ choice.label }}</strong>
+            <span class="cs-promotion-choice-summary">{{ choice.summary }}</span>
+          </label>
+        </div>
+        {% endfor %}
+      </fieldset>
+      <div class="submit-row">
+        <button
+          type="submit"
+          class="default cs-promotion-set-btn"
+          formaction="{{ set_group_url }}"
+          formmethod="post"
+          data-group="{{ card.group }}"
+        >
+          Review {{ card.label }} change…
+        </button>
+      </div>
+    </section>
+    {% endfor %}
+  </div>
+
+  {# Copy the selected radio for the clicked card into hidden fields the set-group endpoint expects. #}
+  <input type="hidden" name="group" id="cs-promotion-group" value="">
+  <input type="hidden" name="value" id="cs-promotion-value" value="">
+
+  <p><a class="button" href="{% url 'admin:index' %}">Back to dashboard</a></p>
+
+  {% if recent_changes %}
+  <h3>Recent changes</h3>
+  <table class="cs-promotion-history">
+    <thead>
+      <tr>
+        <th>When</th>
+        <th>Group</th>
+        <th>From</th>
+        <th>To</th>
+        <th>By</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in recent_changes %}
+      <tr>
+        <td>{{ row.changed_at }}</td>
+        <td>{{ row.group }}</td>
+        <td>{{ row.old_value }}</td>
+        <td>{{ row.new_value }}</td>
+        <td>{% if row.changed_by %}{{ row.changed_by }}{% else %}—{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</div>
+<script>
+(function () {
+  document.querySelectorAll(".cs-promotion-set-btn").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var group = btn.getAttribute("data-group");
+      var selected = document.querySelector(
+        'input[name="value__' + group + '"]:checked'
+      );
+      document.getElementById("cs-promotion-group").value = group || "";
+      document.getElementById("cs-promotion-value").value = selected
+        ? selected.value
+        : "";
+    });
+  });
+})();
+</script>
+{% endblock %}
+
+{% block submit_buttons_bottom %}{% endblock %}

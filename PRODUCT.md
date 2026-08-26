@@ -52,19 +52,36 @@ Tenant isolation is a fundamental architectural and security requirement.
 
 The public browser website is part of the product. It is **not** the Organization workspace.
 
-**Public site (unauthenticated) may include:**
+**Production origins (frozen, DEC-088).** Local development stays on localhost; application origin wiring is not changed in this documentation freeze.
+
+| Origin | Role |
+|--------|------|
+| `checkstation.app` | Promotional / marketing site: homepage, features, how-it-works, pricing, public Contact, registration entry point, marketing sitemap / `robots.txt` |
+| `workspace.checkstation.app` | Owner login, staff login, workspace UI, account/security, subscription/billing, password reset, email verification, Stripe and other account callback returns |
+| `docs.checkstation.app` | Documentation home, Getting Started, Groups & Members, Kiosk Setup, Billing & Plans, FAQ, Privacy Policy, Terms of Use, Support |
+| `status.checkstation.app` | Standalone public Status page and public Status API |
+
+The production API hostname is **not** frozen (OPEN-029). Platform administration uses a dedicated private management origin that is not listed in public product navigation.
+
+**Public promotional site (unauthenticated) may include:**
 
 - Promotional and SEO pages
 - Homepage
 - Product explanation
 - Pricing
-- Registration and login
+- Registration **entry point** (login, password reset, and email verification are workspace-origin flows)
 - Sitemap
 - `robots.txt`
+- **Documentation** — public Docs website on `docs.checkstation.app` (API-first Content API; footer opens Docs home, Getting Started, Groups & Members, Kiosk Setup, Billing & Plans, FAQ, and Support in a new tab)
+- **Contact** — promotional page at `/contact` on `checkstation.app` (same tab). Not a Docs page. Category/subcategory selection suggests canonical FAQ answers before submission. Public Contact API is reusable by future Workspace/mobile/desktop clients.
+- **Privacy Policy / Terms of Use** — canonical documents on the Content API; promotional footer opens the Docs legal routes
+- **Status** — public system status website at `status.checkstation.app` (API-first Status service; footer links to the Status origin)
 
-After a customer **registers, verifies their email, and authenticates**, they access **their Organization workspace**. Members do **not** use this workspace. Participants use Kiosks (and similar participant-facing interfaces), not the Organization dashboard.
+After a customer **registers, verifies their email, and authenticates**, they access **their Organization workspace** on the workspace origin. Members do **not** use this workspace. Participants use Kiosks (and similar participant-facing interfaces), not the Organization dashboard.
 
-Exact public-page content, SEO implementation, and registration/login UX remain later design work. The surfaces listed above are confirmed product direction.
+**Indexing intent (not implemented here):** index `checkstation.app` marketing pages and `docs.checkstation.app` documentation/legal pages. Generally do not index authenticated workspace app pages or the private platform-management origin. Status indexing is a later SEO choice.
+
+Exact public-page content, SEO implementation, and registration/login UX remain later design work. The surfaces listed above are confirmed product direction. **Status is API-first** (DEC-085, production origin DEC-088). **Documentation, Privacy Policy, Terms of Use, Getting Started, Groups & Members, Kiosk Setup, Billing & Plans, FAQ, and Support are API-first** (DEC-086, DEC-087): the public Docs website is one client of the Content API; FAQ entries are structured canonical rows (`content.FaqEntry`), not website-only JavaScript. **Contact lives on the promotional site**, not in Docs. Future in-app Help views use the same FAQ, Status, and Contact APIs directly. Embedded Workspace/mobile Support/Contact screens are not implemented yet.
 
 ---
 
@@ -531,7 +548,7 @@ Do **not** treat kiosks as a separately assigned workspace resource for plan lim
 
 Yearly price = **10 × monthly** (effectively two months free). Both **monthly** and **yearly** are V1 billing intervals for paid plans, from launch. V1 currency is **USD**. The application must **not** invent its own proration arithmetic; the payment provider calculates amounts.
 
-A public-launch promotion (~30–50% off, ~1–2 weeks at **actual public product launch** after intended app/platform releases — not merely first server deployment) is planned **separately** from this catalog. Exact discount and dates are **not** frozen. Promotions must not mutate these permanent prices.
+Promotions are eligibility-based (DEC-091): New/Basic OFF/NORMAL/BIG acquisition; Plus Monthly annual switches (Plus Yearly 30% / Business Yearly 30%); Business Monthly → Business Yearly 30%; Plus Yearly and Business Yearly have no promotion. Permanent catalog prices above are never mutated. Clients read audience-aware promotion state from the billing catalog API.
 
 ### V1 plan matrix
 

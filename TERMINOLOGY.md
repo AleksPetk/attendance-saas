@@ -14,7 +14,7 @@ The SaaS system operated by the platform team. Encompasses all Organizations, in
 
 ### Public website **(confirmed concept)**
 
-The unauthenticated browser marketing/product site: promotional and SEO pages, homepage, product explanation, pricing, registration/login, sitemap, and `robots.txt`. Distinct from the Organization **workspace** and from **Kiosk Mode**.
+The unauthenticated browser marketing/product site: promotional and SEO pages, homepage, product explanation, pricing, registration entry point, sitemap, and `robots.txt`. In production this is **`checkstation.app`** (DEC-088). Distinct from the Organization **workspace** (`workspace.checkstation.app` in production) and from **Kiosk Mode**. Public Contact lives on this site. Documentation, legal pages, FAQ, and Support live on the Docs origin (`docs.checkstation.app`).
 
 ### User **(confirmed)**
 

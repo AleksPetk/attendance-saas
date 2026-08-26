@@ -55,6 +55,23 @@
     </article>
   </section>
 
+  <section class="cs-ads-card" aria-labelledby="cs-promo-heading">
+    <div class="cs-ads-copy">
+      <h2 id="cs-promo-heading">Promotions</h2>
+      <p>
+        <span class="cs-pill {% if dashboard_promotion.mode == '0/4 active' %}cs-pill-ok{% else %}cs-pill-warn{% endif %}">
+          {{ dashboard_promotion.label }}
+        </span>
+        {{ dashboard_promotion.summary }}
+      </p>
+    </div>
+    <div class="cs-ads-actions">
+      {% if dashboard_promotion.change_url %}
+      <a class="button default" href="{{ dashboard_promotion.change_url }}">Manage promotions</a>
+      {% endif %}
+    </div>
+  </section>
+
   <section class="cs-ads-card" aria-labelledby="cs-ads-heading">
     <div class="cs-ads-copy">
       <h2 id="cs-ads-heading">Advertising</h2>

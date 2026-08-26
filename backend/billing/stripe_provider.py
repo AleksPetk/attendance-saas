@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from datetime import datetime, timezone as dt_timezone
 
 from django.conf import settings
@@ -14,11 +15,13 @@ from billing.exceptions import (
 from billing.prices import price_id_for, require_stripe_api, stripe_webhook_secret
 from billing.snapshots import (
     CheckoutSessionResult,
+    InvoiceSnapshot,
     PortalSessionResult,
     ProviderEventPayload,
     SubscriptionSnapshot,
     UpgradePreview,
 )
+from billing.upgrade_amount import immediate_upgrade_amount_cents
 
 
 def _unix_to_dt(value):
@@ -43,6 +46,25 @@ class StripeProvider:
         stripe.api_key = settings.STRIPE_SECRET_KEY
         return stripe
 
+    def _health_client(self):
+        """Balance retrieve only needs the secret key, not Price ID mappings."""
+        key = (settings.STRIPE_SECRET_KEY or "").strip()
+        if not key:
+            raise StripeConfigurationError("STRIPE_SECRET_KEY is not configured.")
+        import stripe
+
+        stripe.api_key = key
+        return stripe
+
+    def check_health(self):
+        """Read-only Stripe connectivity. Does not create billing objects."""
+        stripe = self._health_client()
+        try:
+            stripe.Balance.retrieve()
+        except Exception as exc:
+            raise StripeProviderError("Stripe could not be reached.") from exc
+        return True
+
     def create_checkout_session(
         self,
         *,
@@ -53,6 +75,8 @@ class StripeProvider:
         success_url,
         cancel_url,
         trial_days=None,
+        coupon_id=None,
+        coupon_slot=None,
     ) -> CheckoutSessionResult:
         stripe = self._client()
         price_id = price_id_for(plan_key, interval)
@@ -70,6 +94,10 @@ class StripeProvider:
             "metadata": metadata,
             "subscription_data": {"metadata": metadata},
         }
+        coupon = str(coupon_id or "").strip()
+        if coupon:
+            # Server-applied eligibility coupon. Do not enable customer promo codes.
+            params["discounts"] = [{"coupon": coupon}]
         from billing.models import WorkspaceSubscription
 
         billing = WorkspaceSubscription.objects.filter(organization=organization).first()
@@ -89,6 +117,20 @@ class StripeProvider:
         if not url:
             raise StripeProviderError("Stripe Checkout did not return a URL.")
         return CheckoutSessionResult(checkout_url=url, session_id=session_id)
+
+    def list_invoices(self, *, customer_id, limit=10) -> list[InvoiceSnapshot]:
+        stripe = self._client()
+        if not customer_id:
+            raise StripeConfigurationError(
+                "No Stripe customer is on file for this workspace.",
+                code="stripe_customer_missing",
+            )
+        try:
+            result = stripe.Invoice.list(customer=customer_id, limit=int(limit))
+        except Exception as exc:
+            raise StripeProviderError("Stripe invoices could not be retrieved.") from exc
+        rows = _obj_get(result, "data") or []
+        return [self._snapshot_from_invoice(row) for row in rows]
 
     def create_portal_session(self, *, customer_id, return_url) -> PortalSessionResult:
         stripe = self._client()
@@ -141,20 +183,30 @@ class StripeProvider:
         target_price = price_id_for(target_plan, target_interval)
         snapshot = self.retrieve_subscription(subscription_id)
         item_id = self._item_id(subscription_id)
+        proration_date = int(time.time())
         try:
             invoice = stripe.Invoice.create_preview(
                 customer=snapshot.customer_id,
                 subscription=subscription_id,
                 subscription_details={
                     "items": [{"id": item_id, "price": target_price}],
-                    "proration_behavior": "create_prorations",
+                    "proration_behavior": "always_invoice",
+                    "proration_date": proration_date,
+                    "billing_cycle_anchor": "unchanged",
                 },
             )
         except Exception as exc:
             raise StripeProviderError("Stripe could not preview this upgrade.") from exc
         from billing.catalog import price_cents
 
-        amount = int(_obj_get(invoice, "amount_due", 0) or 0)
+        amount = immediate_upgrade_amount_cents(
+            invoice,
+            current_period_end_ts=(
+                int(snapshot.current_period_end.timestamp())
+                if snapshot.current_period_end
+                else None
+            ),
+        )
         currency = str(_obj_get(invoice, "currency") or "usd").lower()
         return UpgradePreview(
             amount_due_cents=amount,
@@ -169,18 +221,28 @@ class StripeProvider:
         stripe = self._client()
         target_price = price_id_for(target_plan, target_interval)
         item_id = self._item_id(subscription_id)
+        proration_date = int(time.time())
         try:
             stripe.Subscription.modify(
                 subscription_id,
                 items=[{"id": item_id, "price": target_price}],
-                proration_behavior="create_prorations",
+                proration_behavior="always_invoice",
+                proration_date=proration_date,
                 payment_behavior="error_if_incomplete",
             )
         except Exception as exc:
             raise StripeProviderError("Stripe could not apply the upgrade.") from exc
         return self.retrieve_subscription(subscription_id)
 
-    def schedule_downgrade(self, *, subscription_id, target_plan, target_interval):
+    def schedule_downgrade(
+        self,
+        *,
+        subscription_id,
+        target_plan,
+        target_interval,
+        coupon_id=None,
+        coupon_slot=None,
+    ):
         stripe = self._client()
         target_price = price_id_for(target_plan, target_interval)
         snapshot = self.retrieve_subscription(subscription_id)
@@ -189,6 +251,13 @@ class StripeProvider:
         period_end = snapshot.current_period_end
         if period_start is None or period_end is None:
             raise StripeProviderError("Stripe subscription is missing period dates.")
+        next_phase = {
+            "items": [{"price": target_price, "quantity": 1}],
+        }
+        coupon = str(coupon_id or "").strip()
+        if coupon:
+            # Apply the coupon to the scheduled target phase only.
+            next_phase["discounts"] = [{"coupon": coupon}]
         try:
             schedule = stripe.SubscriptionSchedule.create(
                 from_subscription=subscription_id
@@ -202,9 +271,7 @@ class StripeProvider:
                         "start_date": int(period_start.timestamp()),
                         "end_date": int(period_end.timestamp()),
                     },
-                    {
-                        "items": [{"price": target_price, "quantity": 1}],
-                    },
+                    next_phase,
                 ],
             )
         except Exception as exc:
@@ -288,6 +355,33 @@ class StripeProvider:
         if not item_id:
             raise StripeProviderError("Stripe subscription item is missing.")
         return str(item_id)
+
+    def _snapshot_from_invoice(self, invoice) -> InvoiceSnapshot:
+        status = str(_obj_get(invoice, "status") or "").lower()
+        amount = _obj_get(invoice, "amount_paid")
+        if amount in (None, "") or int(amount or 0) <= 0:
+            amount = _obj_get(invoice, "total", 0)
+        description = str(_obj_get(invoice, "description") or "").strip()
+        if not description:
+            lines = _obj_get(_obj_get(invoice, "lines"), "data") or []
+            if lines:
+                description = str(_obj_get(lines[0], "description") or "").strip()
+        if not description:
+            number = _obj_get(invoice, "number")
+            if number:
+                description = f"Invoice #{number}"
+        hosted_url = _obj_get(invoice, "hosted_invoice_url") or None
+        if hosted_url:
+            hosted_url = str(hosted_url)
+        return InvoiceSnapshot(
+            invoice_id=str(_obj_get(invoice, "id") or ""),
+            created_at=_unix_to_dt(_obj_get(invoice, "created")),
+            amount_cents=int(amount or 0),
+            currency=str(_obj_get(invoice, "currency") or "usd").lower(),
+            status=status,
+            description=description,
+            hosted_url=hosted_url,
+        )
 
     def _snapshot_from_subscription(self, sub) -> SubscriptionSnapshot:
         items = _obj_get(_obj_get(sub, "items"), "data") or []

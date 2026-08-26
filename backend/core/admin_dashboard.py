@@ -115,6 +115,11 @@ NAV_GROUPS = (
         "models": (
             {
                 "app_label": "core",
+                "object_name": "platformpromotionsettings",
+                "label": "Promotions",
+            },
+            {
+                "app_label": "core",
                 "object_name": "platformadvertisingsettings",
                 "label": "Advertising",
             },
@@ -146,6 +151,33 @@ def build_advertising_status():
             "Disable advertising" if enabled else "Enable advertising"
         ),
         "toggle_url": toggle_url,
+        "change_url": change_url,
+        "updated_at": settings_obj.updated_at,
+    }
+
+
+def build_promotion_status():
+    from django.urls import NoReverseMatch, reverse
+
+    from billing.promotion import admin_groups_snapshot
+    from core.models import PlatformPromotionSettings
+
+    settings_obj = PlatformPromotionSettings.load()
+    try:
+        change_url = reverse(
+            "admin:core_platformpromotionsettings_change",
+            args=[settings_obj.pk],
+        )
+    except NoReverseMatch:
+        change_url = ""
+    cards = admin_groups_snapshot(settings_obj=settings_obj)
+    active_count = sum(1 for card in cards if card["value"] != "off")
+    return {
+        "mode": f"{active_count}/4 active",
+        "label": f"{active_count} of 4 groups active",
+        "summary": " · ".join(
+            f"{card['label']}: {card['value'].upper()}" for card in cards
+        ),
         "change_url": change_url,
         "updated_at": settings_obj.updated_at,
     }
@@ -484,6 +516,7 @@ def build_dashboard_context(request):
         "dashboard_metrics": build_summary_metrics(),
         "dashboard_plans": build_plan_metrics(),
         "dashboard_advertising": build_advertising_status(),
+        "dashboard_promotion": build_promotion_status(),
         "dashboard_activity": build_recent_activity(),
         "dashboard_registrations": build_recent_registrations(),
         "dashboard_quick_links": build_quick_links(),

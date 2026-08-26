@@ -14,9 +14,10 @@ from billing.reconciliation import reconcile_subscription_snapshot
 from billing.services import (
     clear_pending_cancellation,
     clear_pending_downgrade,
+    clear_pending_scheduled_change,
     get_workspace_billing,
+    schedule_billing_change,
     schedule_cancellation,
-    schedule_downgrade,
 )
 from core.mail import frontend_url
 from organizations.models import OrganizationPlan
@@ -59,6 +60,13 @@ def start_paid_checkout(organization, owner, *, plan_key, interval):
                 BillingStatus.PAST_DUE,
             }:
                 raise BillingStateError("This workspace already has an active subscription.")
+    from billing.coupons import resolve_checkout_coupon
+
+    coupon_id, coupon_slot = resolve_checkout_coupon(
+        organization=organization,
+        plan_key=plan,
+        interval=interval_key,
+    )
     success_url, cancel_url, _portal = _return_urls()
     provider = get_billing_provider()
     return provider.create_checkout_session(
@@ -69,6 +77,8 @@ def start_paid_checkout(organization, owner, *, plan_key, interval):
         success_url=success_url,
         cancel_url=cancel_url,
         trial_days=None,
+        coupon_id=coupon_id,
+        coupon_slot=coupon_slot,
     )
 
 
@@ -91,6 +101,13 @@ def start_trial_checkout(organization, owner, *, interval):
             BillingStatus.PAST_DUE,
         }:
             raise BillingStateError("This workspace already has an active subscription.")
+    from billing.coupons import resolve_checkout_coupon
+
+    coupon_id, coupon_slot = resolve_checkout_coupon(
+        organization=organization,
+        plan_key=PLAN_BUSINESS,
+        interval=interval_key,
+    )
     success_url, cancel_url, _portal = _return_urls()
     provider = get_billing_provider()
     return provider.create_checkout_session(
@@ -101,6 +118,8 @@ def start_trial_checkout(organization, owner, *, interval):
         success_url=success_url,
         cancel_url=cancel_url,
         trial_days=days,
+        coupon_id=coupon_id,
+        coupon_slot=coupon_slot,
     )
 
 
@@ -138,7 +157,7 @@ def apply_upgrade_to_business(organization):
     return get_workspace_billing(organization)
 
 
-def request_downgrade_to_plus(organization):
+def request_downgrade_to_plus(organization, *, interval=None):
     require_stripe_api()
     billing = get_workspace_billing(organization)
     _require_stripe_source(billing)
@@ -146,13 +165,29 @@ def request_downgrade_to_plus(organization):
         raise BillingStateError("Only Business can schedule a downgrade to Plus.")
     if not billing.external_subscription_id:
         raise BillingStateError("No Stripe subscription is on file.")
+    if interval is None or str(interval).strip() == "":
+        target_interval = billing.billing_interval
+    else:
+        target_interval = str(interval).strip().lower()
+    if target_interval not in PAID_INTERVALS:
+        raise BillingStateError("Downgrade interval must be monthly or yearly.")
+    # Same-interval Business→Plus uses this endpoint; interval changes use schedule change.
+    if target_interval != billing.billing_interval:
+        raise BillingStateError(
+            "Interval-changing Business→Plus must use schedule billing change.",
+            code="use_schedule_billing_change",
+        )
     provider = get_billing_provider()
     provider.schedule_downgrade(
         subscription_id=billing.external_subscription_id,
         target_plan=PLAN_PLUS,
-        target_interval=billing.billing_interval,
+        target_interval=target_interval,
     )
-    return schedule_downgrade(organization, target_plan=PLAN_PLUS)
+    return schedule_billing_change(
+        organization,
+        target_plan=PLAN_PLUS,
+        target_interval=target_interval,
+    )
 
 
 def request_cancellation(organization):
@@ -197,21 +232,57 @@ def request_resume_subscription(organization):
 
 
 def request_cancel_scheduled_downgrade(organization):
-    """Release a scheduled Business→Plus change; keep the Business subscription."""
+    """Release a scheduled period-end change; keep the current subscription."""
     require_stripe_api()
     billing = get_workspace_billing(organization)
     _require_stripe_source(billing)
-    if billing.pending_plan != PLAN_PLUS:
-        return billing
-    if billing.subscribed_plan != PLAN_BUSINESS:
-        raise BillingStateError("Only a Business subscription can clear a Plus downgrade.")
     if not billing.external_subscription_id:
         raise BillingStateError("No Stripe subscription is on file.")
+    from billing.services import scheduled_change_pending
+
+    if not scheduled_change_pending(billing):
+        return billing
     provider = get_billing_provider()
     provider.cancel_scheduled_downgrade(
         subscription_id=billing.external_subscription_id
     )
-    return clear_pending_downgrade(organization)
+    return clear_pending_scheduled_change(organization)
+
+
+def request_schedule_billing_change(organization, *, plan, interval):
+    require_stripe_api()
+    billing = get_workspace_billing(organization)
+    _require_stripe_source(billing)
+    if billing.status not in {BillingStatus.ACTIVE, BillingStatus.PAST_DUE}:
+        raise BillingStateError("Scheduled changes require an active paid subscription.")
+    if not billing.external_subscription_id:
+        raise BillingStateError("No Stripe subscription is on file.")
+    plan_key = str(plan or billing.subscribed_plan or "").strip().lower()
+    interval_key = str(interval or billing.billing_interval or "").strip().lower()
+    if plan_key not in {PLAN_PLUS, PLAN_BUSINESS}:
+        raise BillingStateError("Scheduled plan must be plus or business.")
+    if interval_key not in PAID_INTERVALS:
+        raise BillingStateError("Scheduled interval must be monthly or yearly.")
+    from billing.coupons import resolve_schedule_coupon
+
+    coupon_id, coupon_slot = resolve_schedule_coupon(
+        organization=organization,
+        target_plan=plan_key,
+        target_interval=interval_key,
+    )
+    provider = get_billing_provider()
+    provider.schedule_downgrade(
+        subscription_id=billing.external_subscription_id,
+        target_plan=plan_key,
+        target_interval=interval_key,
+        coupon_id=coupon_id,
+        coupon_slot=coupon_slot,
+    )
+    return schedule_billing_change(
+        organization,
+        target_plan=plan_key,
+        target_interval=interval_key,
+    )
 
 
 def open_customer_portal(organization):
@@ -228,4 +299,20 @@ def open_customer_portal(organization):
     return provider.create_portal_session(
         customer_id=billing.external_customer_id,
         return_url=portal_return,
+    )
+
+
+def list_customer_invoices(organization, *, limit=10):
+    require_stripe_api()
+    billing = get_workspace_billing(organization)
+    _require_stripe_source(billing)
+    if not billing.external_customer_id:
+        raise StripeConfigurationError(
+            "No Stripe customer is on file for this workspace.",
+            code="stripe_customer_missing",
+        )
+    provider = get_billing_provider()
+    return provider.list_invoices(
+        customer_id=billing.external_customer_id,
+        limit=limit,
     )

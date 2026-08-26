@@ -65,6 +65,16 @@ Favor long-term human readability and maintainability:
 - Reuse logic appropriately without unnecessary abstractions.
 - Follow established project conventions once they exist.
 
+## Original Assets Vault (`original_assets/`)
+
+`original_assets/` is **protected master media storage** (logos, source images, branding masters, large originals). Files may be large and intentionally unoptimized.
+
+- **Never** delete, rename, overwrite, resize, compress, convert, optimize, edit, or replace files in this folder unless the owner explicitly requests that exact action.
+- **Never** import, CSS-reference, serve, Vite-bundle, or otherwise use originals directly at runtime (web, mobile, or desktop).
+- When asked to use an original: **copy** it to the correct runtime asset location, optimize the **copy** for the target, leave the master untouched.
+
+See `original_assets/README.md`.
+
 ## When Making Changes
 
 1. Inspect existing authoritative files before planning.

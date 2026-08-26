@@ -798,7 +798,6 @@ Only log decisions supported by approved product planning. Do not invent decisio
 | **Clarifies** | DEC-052, DEC-073, OPEN-024 |
 
 ### DEC-083 — Reverse scheduled cancellation and downgrade before effective date
-
 | Field | Value |
 |-------|-------|
 | **Date** | 2026-08-25 |
@@ -806,6 +805,16 @@ Only log decisions supported by approved product planning. Do not invent decisio
 | **Reason** | Owners need a way to reverse a change of mind before period end without recreating billing. |
 | **Status** | confirmed |
 | **Clarifies** | DEC-079, OPEN-024 |
+
+### DEC-084 — Scheduled billing interval and combined plan+interval changes
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-08-26 |
+| **Decision** | **Billing interval changes are always scheduled for the current paid period end** (monthly↔yearly). No immediate charge and no proration for interval-only changes. **Combined tier+interval changes** (e.g. Plus monthly → Business yearly) are scheduled entirely for period end—no immediate tier upgrade or proration preview. Same-interval tier upgrades (Plus→Business on the same interval) remain **immediate** with provider-calculated proration (DEC-079). Scheduled interval/combined changes may be **canceled before the effective date** via Stripe schedule release, reusing the existing reversal pattern (DEC-083). Interval-only changes do not change `Organization.plan` until effective; combined changes apply the target plan at effective date through `apply_effective_plan()`. |
+| **Reason** | Keeps interval switches predictable, avoids double-charging, and preserves the existing billing-cycle anchor. |
+| **Status** | confirmed |
+| **Clarifies** | DEC-077, DEC-079, DEC-083, OPEN-011 |
 
 ### DEC-080 — Payment-failure grace
 
@@ -836,6 +845,79 @@ Only log decisions supported by approved product planning. Do not invent decisio
 | **Reason** | Launch marketing must not rewrite the durable price list. |
 | **Status** | confirmed |
 | **Clarifies** | DEC-077 |
+| **Clarified by** | [DEC-090](#dec-090--eligibility-based-promotion-groups) (eligibility groups; Group 1 keeps OFF/NORMAL/BIG percents for New/Basic only) |
+
+### DEC-089 — Global Promotion Modes
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-08-26 |
+| **Decision** | CheckStation has exactly **three** platform-wide promotion modes: **`off`**, **`normal_discount`**, **`big_discount`**. The mode is a single global setting (not per user, workspace, plan, or customer) controlled only by platform admin. **Commercial rules:** OFF = normal list prices. NORMAL_DISCOUNT = **50%** off the **first monthly** payment and **30%** off the **first yearly** payment, then normal recurring price. BIG_DISCOUNT = **70%** off the **first monthly** payment and **50%** off the **first yearly** payment, then normal recurring price. Eligible paid plans are **Plus** and **Business**; **Basic** stays free with no promotion calculation. Permanent `billing.catalog` list prices are never mutated. Promotion state is exposed on the canonical billing catalog API (`GET /api/billing/catalog/` and owner billing `catalog`) for every client (public pricing, Workspace Subscription, future iOS/Android/desktop). Clients must not hardcode active promotion percentages. USD first-period amounts use Decimal + ROUND_HALF_UP to the nearest cent on the backend. Provider-side Stripe/Apple/Google offer mappings are a **separate** later task; until those offers are wired, checkout must not silently charge a discounted amount while the UI shows a promotion (`checkout_applies_promotion` remains false). |
+| **Reason** | One admin switch must drive promotional presentation everywhere without redeploying clients, while keeping permanent prices and payment-provider wiring separate. |
+| **Status** | superseded |
+| **Clarifies** | DEC-077, DEC-082, OPEN-024 (global promotion mode foundation; provider offer IDs still open) |
+| **Superseded by** | [DEC-090](#dec-090--eligibility-based-promotion-groups) |
+
+### DEC-090 — Eligibility-based promotion groups
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-08-26 |
+| **Decision** | CheckStation promotions are **four independent eligibility groups**, not one global mode for every visitor. **Group 1 New/Basic** (`off` / `normal` / `big`): acquisition offers for **public visitors and Basic workspaces only** — marketing labels NORMAL = 50% first month / 30% first year; BIG = 70% first month / 50% first year; then normal recurring. **Group 2 Plus Monthly** (`off` / `on`): when ON — (A) Business Monthly first **2** periods at the subscriber’s **current Plus Monthly catalog price**, then normal Business Monthly; (B) Plus Yearly **30%** off first year; (C) Business Yearly **20%** off first year. **Group 3 Plus Yearly** (`off` / `on`): when ON — **50% off the provider-calculated remaining prorated upgrade** from Plus Yearly → Business Yearly (not 50% off full Business Yearly), then normal Business Yearly renewal. **Group 4 Business Monthly** (`off` / `on`): when ON — Business Yearly **30%** off first year. **Business Yearly has no promotion group.** All four groups may be ON simultaneously; backend eligibility returns **exactly one** matching group (or none). Permanent catalog prices never mutate. Canonical APIs expose audience-aware `promotion` (`group`, `mode`, `offers[]` with provider-neutral offer types including `discount_type`, fixed `discount_amount`, and exact `promotional_amount`). **For the 11 simple Stripe fixed-amount coupons**, displayed first-period prices are **`normal − fixed coupon off-amount`** (integer cents / Decimal money fields) — never `normal × (1 − marketing %)`. Marketing percentages remain copy labels only (customer still receives at least the stated discount). Clients must not recalculate promotional amounts from percents. Two special offers remain separate (match-current-price intro; prorated upgrade). |
+| **Reason** | Retention/upgrade campaigns must not leak acquisition discounts to paid subscribers, and paid tiers need distinct commercial rules while sharing one backend source of truth. Fixed Stripe coupons must match catalog/Workspace/public pricing display and Checkout first charge. |
+| **Status** | superseded |
+| **Clarifies** | DEC-077, DEC-082; supersedes DEC-089’s “one mode for everybody” model while preserving Group 1 OFF/NORMAL/BIG marketing percents for New/Basic only |
+| **Does not change** | Permanent USD list prices (DEC-077) |
+| **Superseded by** | [DEC-091](#dec-091--v1-promotion-groups-simplified) |
+
+### DEC-091 — V1 promotion groups simplified
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-08-26 |
+| **Decision** | Final V1 promotions are **three** eligibility groups. **Group 1 New/Basic** (`off` / `normal` / `big`): public + Basic only — marketing NORMAL 50% first month / 30% first year; BIG 70% / 50%; amounts from fixed Stripe coupons (`normal − off-amount`). **Group 2 Plus Monthly** (`off` / `on`): when ON — Plus Yearly **30%** first year ($69.90) and Business Yearly **30%** first year ($104.90); no other Plus Monthly offer. **Group 3 Business Monthly** (`off` / `on`): when ON — Business Yearly **30%** first year ($104.90). **Plus Yearly and Business Yearly have no promotion.** Removed from V1 (not implemented): Plus Monthly→Business Monthly “2 months at Plus price”; Plus Yearly→Business Yearly 50% prorated upgrade promo; Plus Monthly→Business Yearly 20%. Plus Monthly→Business Yearly and Business Monthly→Business Yearly **reuse** `STRIPE_COUPON_BUSINESS_MONTHLY_TO_YEARLY` ($45 off); eligibility is server-side. Permanent catalog prices never mutate. Clients render backend promotional amounts only. |
+| **Reason** | Drop unfinished special offers; keep a small, Stripe-aligned V1 set that admin can operate without placeholders. |
+| **Status** | confirmed |
+| **Clarifies / supersedes** | [DEC-090](#dec-090--eligibility-based-promotion-groups) commercial offer set (eligibility-group architecture retained) |
+| **Does not change** | Permanent USD list prices (DEC-077); normal non-promotional Plus Yearly→Business upgrades |
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-08-26 |
+| **Decision** | CheckStation Status is an **API-first** public health surface. A dedicated Status service owns probes, SQLite state, incidents, and maintenance. It exposes a public read-only JSON API consumed by the standalone status website (production: `status.checkstation.alekspetk.com`) and, later, in-app Status views on web workspace, iOS, Android, and desktop — without requiring a browser or workspace login. The promotional footer Status link opens the Status website. The Status service must remain available when Django, PostgreSQL, or the main frontend is down. Component states never default to Operational; missing, unconfigured, or stale checks are Unknown. Platform Email Delivery means Resend only, not tenant Group SMTP. Shared public content (Status now; Documentation, Privacy, Terms, Support) should have one canonical source so clients do not duplicate manual copy. Documentation, Privacy, Terms, FAQ, and Support canonical content is implemented in DEC-086 and DEC-087. |
+| **Reason** | Customers and future native apps need the same truthful status data. Serving status from Django or the main SPA would hide outages of those systems. |
+| **Status** | confirmed |
+
+### DEC-086 — Docs and legal content are API-first
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-08-26 |
+| **Decision** | **DOCS/LEGAL CONTENT IS API-FIRST.** Canonical Documentation, Privacy Policy, Terms of Use, Getting Started, Groups & Members, Kiosk Setup, Billing & Plans, FAQ, and Support live in Django and are exposed by a public read-only Content API. **FAQ is structured** (`content.FaqEntry`: stable id/slug, question, Markdown answer, category, keywords, sort order, publish flags, optional related document). It is not a giant Markdown-only article and is not duplicated into website JavaScript. The standalone Docs website (local `http://localhost:8091`, future `docs.checkstation.alekspetk.com`) is **one client** and may filter published FAQ entries client-side. Future Workspace, iOS, Android, and desktop Help screens must fetch the same documents/FAQ API and render inside the app — no scraping HTML, no required browser redirect, and no external search infrastructure. Plan prices/limits in Docs are substituted from the canonical entitlement and billing catalogs (plus `GET /api/content/catalog/`). The promotional website footer opens Docs destinations in a new tab. Platform operators edit documents and FAQ entries in Django admin (not workspace admins). Drafts, `admin_notes`, and unpublished rows are never public. The Website footer **Get started** item remains the registration CTA and is not a Docs article. Privacy/Terms are launch-quality drafts that require professional legal review (Japan/APPI, subscription rules, app stores) before production; that review status is internal (`backend/content/LEGAL_REVIEW.md`) and is not shown as a public “draft” banner. **Support is the Docs self-service hub** (DEC-087). In-app embedded Docs/Support/Contact screens remain later. |
+| **Reason** | Legal and help text must stay consistent across web, mobile, and desktop without copying Markdown or FAQ into each frontend. |
+| **Status** | confirmed |
+| **Depends on** | DEC-085 (canonical public content pattern) |
+
+### DEC-087 — Public Contact and Docs Support hub
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-08-26 |
+| **Decision** | **Contact lives on the main public CheckStation site** at `/contact`. It is not a Docs page, not a Workspace page, and not authenticated. The promotional footer Contact link stays on this site in the same tab. **Support lives in Docs/help** (`/support` on the Docs origin). Support is self-service first: search canonical FAQ data, show a compact Status summary from the independent Status API, then offer Contact. Category/subcategory on Contact drives FAQ suggestions via the existing FAQ API; FAQ answers are not duplicated into the Contact frontend. `GET /api/contact/categories/` and `POST /api/contact/` are reusable by future Workspace, iOS, Android, and desktop clients. Contact requests are persisted (`contact.ContactRequest`) even if outbound email fails. Public destination is `contact@checkstation.alekspetk.com` (Cloudflare Email Routing). The private forwarding mailbox is not part of application config or public content. From address stays the verified CheckStation sender; Reply-To is the submitter. Cloudflare Turnstile protects the public form (official dummy keys allowed in DEBUG only; production fails closed if misconfigured). Honeypot + IP rate limiting apply. Privacy/legal Contact submissions are flagged only — not automatically executed. Platform Django admin can view/filter/search requests and set new/reviewed/closed. No ticketing, attachments, live chat, or in-app embedded Help in this slice. |
+| **Reason** | Keep help content canonical, keep Contact on the promotional site, and give future native clients one Contact API and one FAQ/Status source. |
+| **Status** | confirmed |
+| **Depends on** | DEC-086 (Docs/FAQ API), DEC-085 (Status API) |
+
+### DEC-088 — Production domain family is checkstation.app
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-08-26 |
+| **Decision** | The owned domain **`checkstation.app`** is the canonical public brand and production domain family. It **replaces** the temporary `*.checkstation.alekspetk.com` hostnames that appeared as production examples in DEC-085, DEC-086, and DEC-087. Those earlier decisions remain historically accurate for 2026-08-26; this decision freezes the successor hostnames. **Frozen public origins:** `checkstation.app` (promotional website, including public Contact at `/contact` and the registration entry point); `workspace.checkstation.app` (owner/staff login, workspace UI, account/security, subscription/billing, password reset, email verification, and account-related callback flows); `docs.checkstation.app` (Documentation home, Getting Started, Groups & Members, Kiosk Setup, Billing & Plans, FAQ, Privacy Policy, Terms of Use, Support); `status.checkstation.app` (standalone public Status page and public Status API). **Intended production email:** platform transactional From `accounts@checkstation.app` (`RESEND_FROM_EMAIL`); public Contact destination `contact@checkstation.app` (`CONTACT_TO_EMAIL`). `LEGAL_CONTACT_EMAIL` remains a separate published-legal placeholder even when it uses the same mailbox. **Intended future link origins (not implemented in this decision):** auth/account/billing/Stripe return URLs use `workspace.checkstation.app`; public Contact stays on `checkstation.app`; Docs and Status use their frozen origins. **Platform administration** uses a **dedicated private management origin**, separate from the public and workspace sites. The exact manager hostname is **not** published in README, PRODUCT, or other public-facing docs; it belongs in private/gitignored deployment env later. Hostname obscurity is **not** a security control. Platform-admin authentication and mandatory 2FA remain required (DEC-030 / SECURITY.md). **The production API hostname/routing is intentionally unfrozen** until Nginx/reverse-proxy design is finalized. The API may later be same-origin under workspace, a separate API hostname, or another reverse-proxy arrangement — do not invent `api.checkstation.app` now. Local development remains localhost (frontend `5173`, API `8000`, Status `8090`, Docs `8091`). DNS, cookies, CORS, redirects, and application origin wiring are **not** changed by this decision. |
+| **Reason** | CheckStation now owns `checkstation.app`. Continuing to treat `alekspetk.com` subdomains as the production family would freeze a temporary personal domain into product architecture. Splitting promotional, workspace, Docs, and Status origins matches the already-distinct product surfaces (DEC-034, DEC-085–087) without requiring those historical records to be rewritten. |
+| **Status** | confirmed |
+| **Clarifies** | DEC-034 (distinct public site vs workspace vs kiosk; production hostnames now frozen), DEC-085 (Status production origin), DEC-086 (Docs production origin), DEC-087 (Contact lives on the promotional origin; production Contact mailbox) |
+| **Does not change** | DEC-085/086/087 historical text; local localhost URLs; application behavior; API hostname |
 
 ---
 
@@ -854,7 +936,7 @@ Unresolved questions requiring explicit approval before implementation.
 | OPEN-008 | Free trial duration | Business trial **behavior** frozen (DEC-078). **Exact duration still TBD** / later configurable. Do not invent 7 or 14 days. |
 | OPEN-009 | Historical record retention policy | Archival, deletion, and compliance requirements. Event Entries may exist without Members while Action Records remain (DEC-045); how those records survive Event archival vs deletion (DEC-023) is part of this design. |
 | OPEN-010 | Database implementation and API design | Organization owner + WorkspaceStaffAccount models, constraints, and a minimal current-workspace API now exist. Remaining tenant/person models, broader REST/API design, and tenant-enforcement mechanisms (e.g. RLS) remain undecided |
-| OPEN-011 | Stripe live configuration & remaining provider gaps | **Architecture implemented (Phase 2):** Checkout Session, Customer Portal, upgrade preview/apply, period-end downgrade, cancel-at-period-end, resume cancellation, cancel scheduled downgrade, signed webhooks + `ProviderEvent` idempotency, owner billing APIs/UI, fake provider for tests. **Still open:** creating the real Stripe account; supplying TEST `STRIPE_SECRET_KEY` / webhook secret / Price IDs; live end-to-end verification; **monthly↔yearly interval-change execution** (capabilities expose `can_change_interval: false` until product/provider semantics are frozen); production webhook URL + Customer Portal branding in Stripe Dashboard |
+| OPEN-011 | Stripe live configuration & remaining provider gaps | **Architecture implemented (Phase 2):** Checkout Session, Customer Portal, upgrade preview/apply, period-end downgrade, **scheduled interval/combined plan+interval changes**, cancel-at-period-end, resume cancellation, cancel scheduled changes, signed webhooks + `ProviderEvent` idempotency, owner billing APIs/UI, fake provider for tests. **Still open:** creating the real Stripe account; supplying TEST credentials; live end-to-end verification; production webhook URL + Customer Portal branding in Stripe Dashboard |
 | OPEN-012 | Image optimization specifications | Max dimensions, formats, thumbnail strategy |
 | OPEN-013 | MVP feature final checklist | Which candidate features are in vs out |
 | OPEN-014 | Group-only participant to Member linking | Conversion workflow and duplicate detection |
@@ -867,10 +949,11 @@ Unresolved questions requiring explicit approval before implementation.
 | OPEN-021 | Minimum Member data | **Resolved by DEC-053.** Name is the only universally required Organization-level Member field. Email, date of birth, phone, address, photo, and notes are optional. Member-level PIN/identifier are not profile fields. Contextual Group/Event requirements remain (DEC-046). |
 | OPEN-022 | Event Entry future structure | Whether future architecture will split generic Event Entries into separate concepts such as Reservation → Attendees, and under what circumstances. |
 | OPEN-023 | Action Record source/context implementation | Product-level sources confirmed: kiosk, staff/admin, automatic/preset (DEC-040). Exact fields, whether a kiosk reference is always stored, and other sources remain undesigned |
-| OPEN-024 | Organization billing lifecycle | Workspace-before-paid-subscription is confirmed (DEC-035). Commercial rules for trial conversion, immediate upgrades, scheduled downgrade/cancel, **reversal of scheduled cancel/downgrade before effective end** (DEC-083), and 3-day payment grace are frozen (DEC-078–080, DEC-083). Stripe execution path exists (OPEN-011 narrowed). Remaining: trial **duration**, launch promo (OPEN-related DEC-082), Apple IAP execution, interval-change proration execution |
+| OPEN-024 | Organization billing lifecycle | Workspace-before-paid-subscription is confirmed (DEC-035). Commercial rules for trial conversion, immediate upgrades, scheduled downgrade/cancel, **scheduled interval/combined changes** (DEC-084), **reversal of scheduled cancel/downgrade/interval/combined changes before effective end** (DEC-083), and 3-day payment grace are frozen (DEC-078–080, DEC-083–084). Stripe execution path exists (OPEN-011 narrowed). **V1 promotion groups frozen (DEC-091)** with fixed Stripe coupon mapping for the 10 simple offers. Remaining elsewhere: trial **duration**, Apple IAP execution |
 | OPEN-025 | User/staff ↔ Member explicit linking | Same real-world person may later be both a WorkspaceStaffAccount and a Member (or a paying User and a Member). Any explicit link, deduplication, or conversion mechanism remains undecided. Do not invent a required link during foundation implementation. |
 | OPEN-027 | Kiosk data model | **Partially resolved (2026-08-20).** Group behavioral kiosk settings live in `KioskSettings` (OneToOne Group). Visual design stays in `KioskDesign`. See DEC-057. Event kiosk storage and device credentials remain future work. |
 | OPEN-028 | Multiple kiosk variants per Group or Event | Explicitly **not** an MVP requirement. Future decision. Initial product direction is one owned configuration per Group and per Event (DEC-044). |
+| OPEN-029 | Production API hostname / reverse-proxy arrangement | **Intentionally unfrozen (DEC-088).** Do not invent `api.checkstation.app`. Decide with Nginx/deployment design: same-origin under workspace, a separate API hostname, or another reverse-proxy arrangement. Cookie/CORS/CSRF implications of splitting `checkstation.app` vs `workspace.checkstation.app` are part of that later implementation, not this decision. |
 
 ---
 
