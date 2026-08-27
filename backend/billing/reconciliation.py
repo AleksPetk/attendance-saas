@@ -15,9 +15,9 @@ from billing.services import (
     lock_workspace_billing,
     mark_payment_failure,
     mark_payment_recovered,
+    record_deferred_paid_start,
     schedule_cancellation,
     scheduled_change_pending,
-    start_trial,
 )
 from organizations.entitlements.transitions import apply_effective_plan
 from organizations.models import Organization, OrganizationPlan
@@ -100,7 +100,15 @@ def reconcile_subscription_snapshot(organization, snapshot, *, now=None):
     """Converge internal billing to the provider snapshot without double-applying.
 
     Organization.plan changes only through billing services / apply_effective_plan.
+    CheckStation-managed workspaces ignore commercial reconciliation.
     """
+    if organization is not None and organization.is_checkstation_account:
+        logger = __import__("logging").getLogger("billing.reconciliation")
+        logger.info(
+            "Skipping subscription reconciliation for CheckStation-managed organization_id=%s",
+            organization.pk,
+        )
+        return None
     moment = now or timezone.now()
     _store_provider_ids(organization, snapshot)
     organization.refresh_from_db()
@@ -135,13 +143,13 @@ def reconcile_subscription_snapshot(organization, snapshot, *, now=None):
         organization.refresh_from_db()
 
     if snapshot.status == "trialing":
-        start_trial(
+        record_deferred_paid_start(
             organization,
+            subscribed_plan=plan_key,
             billing_interval=interval,
+            purchase_source=PurchaseSource.STRIPE,
             trial_started_at=snapshot.trial_start or snapshot.current_period_start,
             trial_ends_at=snapshot.trial_end or snapshot.current_period_end,
-            purchase_source=PurchaseSource.STRIPE,
-            payment_method_recorded=True,
             external_customer_id=snapshot.customer_id,
             external_subscription_id=snapshot.subscription_id,
             now=moment,

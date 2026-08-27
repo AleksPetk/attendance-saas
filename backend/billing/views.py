@@ -30,9 +30,8 @@ from billing.operations import (
     request_resume_subscription,
     request_schedule_billing_change,
     start_paid_checkout,
-    start_trial_checkout,
 )
-from billing.prices import stripe_api_configured, trial_is_configured
+from billing.prices import stripe_api_configured
 from billing.provider import get_billing_provider
 from billing.state import build_billing_state
 from billing.webhooks import process_provider_event
@@ -59,8 +58,10 @@ class BillingCatalogView(APIView):
 
     def get(self, request):
         payload = catalog_public_payload()
-        # Duration-only signal for marketing copy. Checkout still requires Stripe config.
-        payload["trial_available"] = trial_is_configured()
+        from billing.builtin_trial import BUILTIN_TRIAL_DAYS
+
+        payload["builtin_trial_days"] = BUILTIN_TRIAL_DAYS
+        payload["builtin_trial_offered"] = True
         payload["stripe_configured"] = stripe_api_configured()
         return Response(payload)
 
@@ -83,24 +84,6 @@ class BillingCheckoutView(APIView):
                 organization,
                 request.user,
                 plan_key=request.data.get("plan"),
-                interval=request.data.get("interval"),
-            )
-        except (BillingStateError, StripeConfigurationError, StripeProviderError) as exc:
-            return _error_response(exc)
-        return Response(
-            {"checkout_url": result.checkout_url, "session_id": result.session_id}
-        )
-
-
-class BillingTrialCheckoutView(APIView):
-    permission_classes = [IsAuthenticated, IsWorkspaceOwner]
-
-    def post(self, request):
-        organization = get_owned_organization(request.user)
-        try:
-            result = start_trial_checkout(
-                organization,
-                request.user,
                 interval=request.data.get("interval"),
             )
         except (BillingStateError, StripeConfigurationError, StripeProviderError) as exc:

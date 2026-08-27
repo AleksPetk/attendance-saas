@@ -167,15 +167,9 @@ class MicrosoftProvider(EmailSenderProvider):
         )
 
     def send_test(self, sender, *, to_email):
-        subject = "Check Station test email"
-        text_body = (
-            "This is a test message from Check Station.\n\n"
-            "Your Group email sender is working."
-        )
-        html_body = (
-            "<p>This is a test message from Check Station.</p>"
-            "<p>Your Group email sender is working.</p>"
-        )
+        from groups.email_providers.test_message import group_sender_test_email
+
+        subject, html_body, text_body = group_sender_test_email()
         self.send_message(
             sender,
             to_email=to_email,

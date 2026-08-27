@@ -24,6 +24,7 @@ from contact.catalog import (
     is_privacy_request,
 )
 from contact.models import ClientType, ContactRequest, DeliveryStatus
+from core.email_branding import render_branded_email
 from core.mail import EmailConfigurationError, EmailSendError, send_transactional_email
 
 logger = logging.getLogger("contact")
@@ -180,8 +181,6 @@ def build_contact_email(row):
     client_label = dict(ClientType.choices).get(row.client_type, row.client_type)
     submitted = row.created_at.isoformat().replace("+00:00", "Z") if row.created_at else ""
     lines = [
-        "CheckStation Contact",
-        "",
         f"Reference: {row.public_ref}",
         f"Category: {row.category_label}",
         f"Subcategory: {row.subcategory_label}",
@@ -204,10 +203,9 @@ def build_contact_email(row):
     )
     if row.is_privacy_request:
         lines.append("Classification: privacy request")
-    text = "\n".join(lines)
+    extra_text = "\n".join(lines)
     html_message = escape(row.message).replace("\n", "<br>")
-    html = (
-        "<h1>CheckStation Contact</h1>"
+    extra_html = (
         f"<p><strong>Reference:</strong> {escape(row.public_ref)}</p>"
         f"<p><strong>Category:</strong> {escape(row.category_label)}<br>"
         f"<strong>Subcategory:</strong> {escape(row.subcategory_label)}<br>"
@@ -223,6 +221,11 @@ def build_contact_email(row):
             else ""
         )
         + "</p>"
+    )
+    html, text = render_branded_email(
+        heading="CheckStation Contact",
+        extra_html=extra_html,
+        extra_text=extra_text,
     )
     return text, html
 

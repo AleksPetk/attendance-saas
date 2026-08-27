@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from billing.models import ProviderEvent, WorkspaceSubscription
+from billing.models import ProviderEvent, WorkspaceBuiltinTrial, WorkspaceSubscription
 
 
 @admin.register(WorkspaceSubscription)
@@ -25,15 +25,6 @@ class WorkspaceSubscriptionAdmin(admin.ModelAdmin):
     )
     autocomplete_fields = ("organization",)
     readonly_fields = (
-        "created_at",
-        "updated_at",
-        "payment_failure_started_at",
-        "payment_grace_deadline",
-        "last_payment_warning_at",
-        "payment_warning_count",
-        "payment_recovered_at",
-    )
-    fields = (
         "organization",
         "status",
         "purchase_source",
@@ -48,15 +39,26 @@ class WorkspaceSubscriptionAdmin(admin.ModelAdmin):
         "trial_ends_at",
         "cancel_at_period_end",
         "pending_plan",
+        "pending_interval",
         "pending_change_effective_at",
+        "created_at",
+        "updated_at",
         "payment_failure_started_at",
         "payment_grace_deadline",
         "last_payment_warning_at",
         "payment_warning_count",
         "payment_recovered_at",
-        "created_at",
-        "updated_at",
     )
+    fields = readonly_fields
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return True
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(ProviderEvent)
@@ -82,3 +84,48 @@ class ProviderEventAdmin(admin.ModelAdmin):
         "processed_at",
         "created_at",
     )
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(WorkspaceBuiltinTrial)
+class WorkspaceBuiltinTrialAdmin(admin.ModelAdmin):
+    """Inspect the one-time built-in Business trial. Not editable."""
+
+    list_display = (
+        "organization",
+        "consumed",
+        "started_at",
+        "ends_at",
+        "expired_at",
+        "updated_at",
+    )
+    list_filter = ("consumed",)
+    search_fields = (
+        "organization__workspace_id",
+        "organization__internal_label",
+    )
+    autocomplete_fields = ("organization",)
+    readonly_fields = (
+        "organization",
+        "started_at",
+        "ends_at",
+        "consumed",
+        "expired_at",
+        "created_at",
+        "updated_at",
+    )
+    fields = readonly_fields
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False

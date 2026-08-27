@@ -55,42 +55,46 @@
     </article>
   </section>
 
-  <section class="cs-ads-card" aria-labelledby="cs-promo-heading">
-    <div class="cs-ads-copy">
-      <h2 id="cs-promo-heading">Promotions</h2>
-      <p>
-        <span class="cs-pill {% if dashboard_promotion.mode == '0/4 active' %}cs-pill-ok{% else %}cs-pill-warn{% endif %}">
-          {{ dashboard_promotion.label }}
-        </span>
-        {{ dashboard_promotion.summary }}
-      </p>
-    </div>
-    <div class="cs-ads-actions">
-      {% if dashboard_promotion.change_url %}
-      <a class="button default" href="{{ dashboard_promotion.change_url }}">Manage promotions</a>
-      {% endif %}
-    </div>
-  </section>
-
-  <section class="cs-ads-card" aria-labelledby="cs-ads-heading">
-    <div class="cs-ads-copy">
-      <h2 id="cs-ads-heading">Advertising</h2>
-      <p>
-        <span class="cs-pill {% if dashboard_advertising.enabled %}cs-pill-ok{% else %}cs-pill-warn{% endif %}">
-          {{ dashboard_advertising.label }}
-        </span>
-        Global kill switch for workspace advertising. Plans and subscriptions are not changed.
-      </p>
-    </div>
-    <div class="cs-ads-actions">
-      {% if dashboard_advertising.toggle_url %}
-      <a class="button{% if dashboard_advertising.enabled %} default{% endif %}" href="{{ dashboard_advertising.toggle_url }}">
-        {{ dashboard_advertising.action_label }}
-      </a>
-      {% endif %}
-      {% if dashboard_advertising.change_url %}
-      <a class="button" href="{{ dashboard_advertising.change_url }}">History</a>
-      {% endif %}
+  <section class="cs-ads-card" aria-labelledby="cs-ads-card-heading">
+    <h2 id="cs-ads-card-heading" class="cs-ads-card-title">Advertising</h2>
+    <div class="cs-ads-rows">
+      <section class="cs-ads-row" aria-labelledby="cs-ads-switcher-heading">
+        <div class="cs-ads-copy">
+          <h3 id="cs-ads-switcher-heading">Ads Switcher</h3>
+          <p>
+            <span class="cs-pill {% if dashboard_advertising.enabled %}cs-pill-ok{% else %}cs-pill-warn{% endif %}">
+              {{ dashboard_advertising.label }}
+            </span>
+            Global kill switch for workspace advertising. Plans and subscriptions are not changed.
+          </p>
+        </div>
+        <div class="cs-ads-actions">
+          {% if dashboard_advertising.toggle_url %}
+          <a class="button{% if dashboard_advertising.enabled %} default{% endif %}" href="{{ dashboard_advertising.toggle_url }}">
+            {{ dashboard_advertising.action_label }}
+          </a>
+          {% endif %}
+          {% if dashboard_advertising.change_url %}
+          <a class="button" href="{{ dashboard_advertising.change_url }}">History</a>
+          {% endif %}
+        </div>
+      </section>
+      <section class="cs-ads-row" aria-labelledby="cs-promo-heading">
+        <div class="cs-ads-copy">
+          <h3 id="cs-promo-heading">Promotions</h3>
+          <p>
+            <span class="cs-pill {% if dashboard_promotion.mode == '0/4 active' %}cs-pill-ok{% else %}cs-pill-warn{% endif %}">
+              {{ dashboard_promotion.label }}
+            </span>
+            {{ dashboard_promotion.summary }}
+          </p>
+        </div>
+        <div class="cs-ads-actions">
+          {% if dashboard_promotion.change_url %}
+          <a class="button default" href="{{ dashboard_promotion.change_url }}">Manage promotions</a>
+          {% endif %}
+        </div>
+      </section>
     </div>
   </section>
 
@@ -103,7 +107,7 @@
       {% for tier in dashboard_plans.tiers %}
       <div class="cs-plan-tier">
         <span class="cs-plan-name">{{ tier.label }}</span>
-        <span class="cs-plan-count">—</span>
+        <span class="cs-plan-count">{{ tier.count }}</span>
       </div>
       {% endfor %}
     </div>

@@ -19,6 +19,7 @@ from organizations.entitlements import (
     workspace_requires_ads,
 )
 from organizations.entitlements.advertising import AD_PLACEMENTS, AD_PROVIDER_MOCK
+from organizations.entitlements.transitions import apply_effective_plan
 from organizations.models import Organization, OrganizationPlan
 
 
@@ -34,6 +35,7 @@ class AdvertisingEffectiveStateTests(TestCase):
             owner=self.owner,
             internal_label="Ads Org",
         )
+        apply_effective_plan(self.org, PLAN_BASIC, source="test")
         self.client = APIClient()
         self.client.force_authenticate(user=self.owner)
         PlatformAdvertisingSettings.load()

@@ -1,7 +1,5 @@
 """Resolve plan/price tokens from canonical catalogs. Do not copy numbers by hand."""
 
-from django.conf import settings
-
 from billing.catalog import (
     INTERVAL_MONTHLY,
     INTERVAL_YEARLY,
@@ -11,23 +9,19 @@ from billing.catalog import (
     format_usd_cents,
     price_cents,
 )
+from billing.builtin_trial import BUILTIN_TRIAL_DAYS
 from organizations.entitlements.catalog import PLAN_KEYS, get_plan_definition
 
 
 def trial_placeholder_map():
-    days = int(getattr(settings, "BUSINESS_TRIAL_DAYS", 0) or 0)
-    if days > 0:
-        status = (
-            f"a {days}-day Business trial when trial checkout is enabled in this environment"
-        )
-    else:
-        status = (
-            "not currently offered because the Business trial length is unset "
-            "(configured as 0 days)"
-        )
+    days = int(BUILTIN_TRIAL_DAYS)
+    status = (
+        f"an automatic {days}-day Business trial for every new workspace, "
+        "with no card required"
+    )
     return {
         "PAYMENT_GRACE_DAYS": str(PAYMENT_GRACE_DAYS),
-        "BUSINESS_TRIAL_DAYS": str(days),
+        "BUILTIN_TRIAL_DAYS": str(days),
         "TRIAL_STATUS": status,
     }
 
@@ -81,11 +75,14 @@ def public_catalog_payload():
         )
     # Docs catalog uses public/Group 1 promotion context only.
     promotion = promotion_payload_for_audience(AUDIENCE_PUBLIC)
+    days = int(BUILTIN_TRIAL_DAYS)
     return {
         "currency": "usd",
         "grace_days": PAYMENT_GRACE_DAYS,
-        "trial_days": int(getattr(settings, "BUSINESS_TRIAL_DAYS", 0) or 0),
-        "trial_offered": int(getattr(settings, "BUSINESS_TRIAL_DAYS", 0) or 0) > 0,
+        "trial_days": days,
+        "trial_offered": True,
+        "builtin_trial_days": days,
+        "builtin_trial_offered": True,
         "promotion": promotion,
         "prices": {
             PLAN_PLUS: {

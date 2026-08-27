@@ -14,7 +14,7 @@ CheckStation has three plans:
 
 There is no separate Free, Pro, or Enterprise plan.
 
-New workspaces start on Basic after registration. A Business trial is not started automatically at signup.
+New workspaces automatically receive a **7-day Business trial** at creation. No card is required. The trial is one-time and is not a Stripe or Apple subscription.
 
 ## 2. Basic
 
@@ -230,11 +230,13 @@ After the effective date, entitlement follows the new plan (Plus, or Basic after
 
 ## 28. Trial behavior
 
-A Business trial, **when enabled**, requires a payment method before it starts. Registration does not auto-start a trial.
+Every new normal workspace automatically has **Business** for **{{BUILTIN_TRIAL_DAYS}} days**. No card. No extra activation step.
 
-If you do nothing, a started trial continues into **paid Business**. If you cancel before trial end, you keep Business until trial end, then become Basic without converting to paid Business.
+The trial is one-time forever. Canceling later, changing payment method, or switching provider does not restore it. Workspaces that already existed before this trial, and CheckStation-managed workspaces, do not receive it.
 
-**Current environment:** trial is {{TRIAL_STATUS}}. Exact duration is not a frozen public number independent of configuration (`BUSINESS_TRIAL_DAYS` is currently {{BUSINESS_TRIAL_DAYS}}). Do not assume a 7-day or 14-day trial unless this environment is configured for one.
+If you do nothing, the workspace becomes **Basic** when the free week ends. If you choose **Plus** during the week, you keep Business until that date, then Plus starts. If you choose **Business** during the week, you keep Business, and paid Business billing starts when the free week ends. Choosing a paid plan does not shorten the free week.
+
+**Current environment:** trial is {{TRIAL_STATUS}}.
 
 ## 29. Payment failure
 

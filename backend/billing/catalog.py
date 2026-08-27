@@ -35,6 +35,12 @@ YEARLY_MONTHS_CHARGED = 10
 PAYMENT_GRACE_DAYS = 3
 
 
+def _builtin_trial_days() -> int:
+    from billing.builtin_trial import BUILTIN_TRIAL_DAYS
+
+    return int(BUILTIN_TRIAL_DAYS)
+
+
 def price_cents(plan_key: str, interval: str) -> int:
     return int(PRICE_CENTS[plan_key][interval])
 
@@ -87,6 +93,7 @@ def catalog_public_payload(*, organization=None, audience=None) -> dict:
         promotion_payload_for_audience,
         resolve_audience,
     )
+    from organizations.entitlements.catalog import PLAN_KEYS, get_plan_definition
 
     if audience is None:
         audience = (
@@ -98,6 +105,14 @@ def catalog_public_payload(*, organization=None, audience=None) -> dict:
     offers = promotion.get("offers") or []
     # Only acquisition (Group 1) overlays per-interval display helpers.
     interval_offers = offers if promotion.get("group") == GROUP_NEW_BASIC else []
+
+    entitlements = {}
+    for plan_key in PLAN_KEYS:
+        definition = get_plan_definition(plan_key)
+        entitlements[plan_key] = {
+            "limits": definition["limits"],
+            "features": definition["features"],
+        }
 
     plans = {}
     for plan_key, display in ((PLAN_PLUS, "Plus"), (PLAN_BUSINESS, "Business")):
@@ -128,5 +143,8 @@ def catalog_public_payload(*, organization=None, audience=None) -> dict:
             "formatted": "Free",
         },
         "plans": plans,
+        "entitlements": entitlements,
         "promotion": promotion,
+        "builtin_trial_days": _builtin_trial_days(),
+        "builtin_trial_offered": True,
     }

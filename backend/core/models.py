@@ -186,3 +186,57 @@ class PlatformPromotionModeChange(models.Model):
 
     def __str__(self):
         return f"{self.group}: {self.old_value} → {self.new_value}"
+
+
+class PlatformAdminActionType(models.TextChoices):
+    CHECKSTATION_ACCOUNT_ON = "checkstation_account_on", "CheckStation Account ON"
+    CHECKSTATION_ACCOUNT_OFF = "checkstation_account_off", "CheckStation Account OFF"
+    CHECKSTATION_PLAN_CHANGE = "checkstation_plan_change", "CheckStation plan change"
+    ORGANIZATION_BLOCK = "organization_block", "Block organization"
+    ORGANIZATION_UNBLOCK = "organization_unblock", "Unblock organization"
+    ORGANIZATION_PERMANENT_DELETE = (
+        "organization_permanent_delete",
+        "Permanently delete organization",
+    )
+    USER_PERMANENT_DELETE = "user_permanent_delete", "Permanently delete user"
+
+
+class PlatformAdminAction(models.Model):
+    """Durable snapshot of high-risk platform-admin actions.
+
+    Survives deletion of the target User/Organization. Reasons are
+    operator-only and must not be exposed to customers.
+    """
+
+    action_type = models.CharField(
+        max_length=64,
+        choices=PlatformAdminActionType.choices,
+        db_index=True,
+    )
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="+",
+    )
+    actor_email_snapshot = models.CharField(max_length=254, blank=True, default="")
+    target_kind = models.CharField(max_length=32, blank=True, default="")
+    target_id_snapshot = models.CharField(max_length=64, blank=True, default="")
+    workspace_id_snapshot = models.CharField(max_length=16, blank=True, default="")
+    owner_email_snapshot = models.CharField(max_length=254, blank=True, default="")
+    old_value = models.CharField(max_length=255, blank=True, default="")
+    new_value = models.CharField(max_length=255, blank=True, default="")
+    reason = models.CharField(max_length=500)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Platform admin action"
+        verbose_name_plural = "Platform admin actions"
+        ordering = ("-created_at", "-id")
+        indexes = [
+            models.Index(fields=["action_type", "created_at"]),
+        ]
+
+    def __str__(self):
+        return f"{self.action_type} ({self.created_at})"

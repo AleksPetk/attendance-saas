@@ -192,12 +192,11 @@ export function buildUpgradePlanOptions(billing, sessionPlanKey = null) {
     });
   }
 
+  const status = billing?.status;
   const unpaid =
-    plan === "basic" ||
-    (!interval &&
-      (actions.can_checkout_plus ||
-        actions.can_checkout_business ||
-        actions.can_start_trial));
+    billing?.purchase_source !== "apple" &&
+    !billing?.managed_by_platform &&
+    (!status || status === "none" || status === "canceled");
 
   if (unpaid) {
     for (const iv of ["monthly", "yearly"]) {
@@ -219,7 +218,6 @@ export function buildUpgradePlanOptions(billing, sessionPlanKey = null) {
         kind: "checkout",
         recommended: Boolean(targetOfferPricing(billing, "business", iv).promotional),
         enabled: Boolean(actions.can_checkout_business),
-        showTrial: Boolean(actions.can_start_trial),
         actionLabel: `Choose Business ${intervalNoun(iv)}`,
       });
     }

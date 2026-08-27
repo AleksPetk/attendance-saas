@@ -517,14 +517,35 @@ class OrganizationAdminTests(TestCase):
         self.owner = create_user("owner@example.com")
         self.organization = Organization.objects.create_with_owner(owner=self.owner)
 
-    def test_organization_changelist_and_add_form_load(self):
+    def test_organization_changelist_loads_and_add_is_disabled(self):
         changelist = self.client.get(reverse("admin:organizations_organization_changelist"))
         add_form = self.client.get(reverse("admin:organizations_organization_add"))
 
         self.assertEqual(changelist.status_code, 200)
-        self.assertEqual(add_form.status_code, 200)
-        self.assertContains(add_form, "workspace_id")
-        self.assertNotContains(add_form, 'name="workspace_id"')
+        self.assertEqual(add_form.status_code, 403)
+
+    def test_organization_changelist_filters_are_collapsed_under_search(self):
+        url = reverse("admin:organizations_organization_changelist")
+        response = self.client.get(url)
+        html = response.content.decode()
+
+        self.assertEqual(html.count('id="changelist-filter"'), 1)
+        self.assertIn('id="changelist-search"', html)
+        self.assertContains(response, "Show filters")
+        self.assertContains(response, "Hide filters")
+        self.assertIn('class="cs-changelist-filter-disclosure"', html)
+        self.assertNotIn('cs-changelist-filter-disclosure" open', html)
+        self.assertLess(html.find('id="changelist-search"'), html.find("Show filters"))
+        self.assertLess(html.find("cs-changelist-filter-disclosure"), html.find('id="changelist-filter"'))
+        self.assertLess(html.find('id="changelist-filter"'), html.find('id="result_list"'))
+        self.assertContains(response, "By status")
+        self.assertContains(response, "By plan")
+        self.assertContains(response, "checkstation account")
+
+        filtered = self.client.get(url, {"status__exact": OrganizationStatus.ARCHIVED})
+        self.assertEqual(filtered.status_code, 200)
+        self.assertNotContains(filtered, self.organization.workspace_id)
+        self.assertContains(filtered, "Clear all filters")
 
     def test_staff_account_changelist_and_add_form_load(self):
         changelist = self.client.get(
@@ -625,6 +646,17 @@ class WorkspaceStaffSessionAuthenticationBackendTests(TestCase):
             password="staff-password",
         )
         self.assertIsNone(authenticated)
+
+    def test_get_user_rejects_blocked_organization(self):
+        self.assertEqual(self.backend.get_user(self.staff.pk).pk, self.staff.pk)
+        self.organization.block()
+        self.assertIsNone(self.backend.get_user(self.staff.pk))
+        self.organization.unblock()
+        self.assertEqual(self.backend.get_user(self.staff.pk).pk, self.staff.pk)
+
+    def test_get_user_rejects_archived_organization(self):
+        self.organization.archive()
+        self.assertIsNone(self.backend.get_user(self.staff.pk))
 
 
 class SessionAuthEndpointsTests(TestCase):

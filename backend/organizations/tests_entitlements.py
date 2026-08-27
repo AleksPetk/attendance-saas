@@ -139,13 +139,16 @@ class BasicPlanEnforcementTests(EntitlementApiFixtureMixin, TestCase):
         super().setUp()
         self.set_plan(OrganizationPlan.BASIC)
 
-    def test_default_plan_is_basic(self):
+    def test_default_plan_is_business_from_builtin_trial(self):
         org = Organization.objects.create_with_owner(
             owner=User.objects.create_user(
                 email="new@example.com", password="password12345"
             )
         )
-        self.assertEqual(org.plan, OrganizationPlan.BASIC)
+        org.refresh_from_db()
+        self.assertEqual(org.plan, OrganizationPlan.BUSINESS)
+        self.assertTrue(org.builtin_trial.consumed)
+        self.assertIsNotNone(org.builtin_trial.started_at)
 
     def test_two_standard_groups_allowed_third_blocked(self):
         self.assertEqual(self.create_standard_group("G1").status_code, 201)

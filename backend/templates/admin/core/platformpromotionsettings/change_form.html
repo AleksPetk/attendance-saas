@@ -12,7 +12,7 @@
 
   <div class="cs-promotion-cards">
     {% for card in promotion_groups %}
-    <section class="cs-promotion-card module">
+    <section class="cs-promotion-card module" data-group="{{ card.group }}" data-current="{{ card.value }}">
       <h3>{{ card.label }}</h3>
       <p class="cs-promotion-current">
         Current: <strong>{{ card.value|upper }}</strong> — {{ card.summary }}
@@ -34,24 +34,23 @@
         </div>
         {% endfor %}
       </fieldset>
-      <div class="submit-row">
-        <button
-          type="submit"
-          class="default cs-promotion-set-btn"
-          formaction="{{ set_group_url }}"
-          formmethod="post"
-          data-group="{{ card.group }}"
-        >
-          Review {{ card.label }} change…
-        </button>
-      </div>
     </section>
     {% endfor %}
   </div>
 
-  {# Copy the selected radio for the clicked card into hidden fields the set-group endpoint expects. #}
-  <input type="hidden" name="group" id="cs-promotion-group" value="">
-  <input type="hidden" name="value" id="cs-promotion-value" value="">
+  <div class="cs-promotion-review-bar">
+    <div class="cs-promotion-review-copy">
+      <p>Review every group you changed, then apply those settings together.</p>
+      <p class="cs-promotion-review-empty" hidden>No promotion groups have changed.</p>
+    </div>
+    <input
+      type="submit"
+      class="default cs-promotion-review-btn"
+      formaction="{{ set_group_url }}"
+      formmethod="post"
+      value="Review New Changes"
+    >
+  </div>
 
   <p><a class="button" href="{% url 'admin:index' %}">Back to dashboard</a></p>
 
@@ -83,17 +82,34 @@
 </div>
 <script>
 (function () {
-  document.querySelectorAll(".cs-promotion-set-btn").forEach(function (btn) {
-    btn.addEventListener("click", function () {
-      var group = btn.getAttribute("data-group");
-      var selected = document.querySelector(
-        'input[name="value__' + group + '"]:checked'
-      );
-      document.getElementById("cs-promotion-group").value = group || "";
-      document.getElementById("cs-promotion-value").value = selected
-        ? selected.value
-        : "";
-    });
+  var reviewBtn = document.querySelector(".cs-promotion-review-btn");
+  var emptyNote = document.querySelector(".cs-promotion-review-empty");
+  if (!reviewBtn) {
+    return;
+  }
+
+  function changedCards() {
+    return Array.prototype.filter.call(
+      document.querySelectorAll(".cs-promotion-card"),
+      function (card) {
+        var current = card.getAttribute("data-current") || "";
+        var selected = card.querySelector('input[type="radio"]:checked');
+        return selected && selected.value !== current;
+      }
+    );
+  }
+
+  reviewBtn.addEventListener("click", function (event) {
+    if (changedCards().length) {
+      if (emptyNote) {
+        emptyNote.hidden = true;
+      }
+      return;
+    }
+    event.preventDefault();
+    if (emptyNote) {
+      emptyNote.hidden = false;
+    }
   });
 })();
 </script>

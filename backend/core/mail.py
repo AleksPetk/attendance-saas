@@ -131,6 +131,9 @@ def format_from_address(name, email):
     if "<" in email and ">" in email:
         return email
     if name:
+        from core.email_branding import canonical_product_name
+
+        name = canonical_product_name(name)
         return f"{name} <{email}>"
     return email
 

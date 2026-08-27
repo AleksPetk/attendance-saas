@@ -10,7 +10,6 @@ from billing.views import (
     BillingPortalView,
     BillingResumeView,
     BillingScheduleChangeView,
-    BillingTrialCheckoutView,
     BillingUpgradePreviewView,
     BillingUpgradeView,
     OwnerBillingView,
@@ -21,11 +20,6 @@ urlpatterns = [
     path("billing/catalog/", BillingCatalogView.as_view(), name="billing-catalog"),
     path("billing/", OwnerBillingView.as_view(), name="billing-current"),
     path("billing/checkout/", BillingCheckoutView.as_view(), name="billing-checkout"),
-    path(
-        "billing/trial-checkout/",
-        BillingTrialCheckoutView.as_view(),
-        name="billing-trial-checkout",
-    ),
     path(
         "billing/upgrade/preview/",
         BillingUpgradePreviewView.as_view(),

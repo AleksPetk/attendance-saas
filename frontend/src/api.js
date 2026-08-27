@@ -310,8 +310,6 @@ export const api = {
   submitContact: (payload) => request("/api/contact/", { method: "POST", json: payload }),
   startBillingCheckout: (json) =>
     request("/api/billing/checkout/", { method: "POST", json }),
-  startBillingTrialCheckout: (json) =>
-    request("/api/billing/trial-checkout/", { method: "POST", json }),
   previewBillingUpgrade: (json = {}) =>
     request("/api/billing/upgrade/preview/", { method: "POST", json }),
   applyBillingUpgrade: (json = {}) =>

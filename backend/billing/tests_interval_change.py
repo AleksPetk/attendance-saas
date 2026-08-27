@@ -17,6 +17,7 @@ from billing.services import (
     schedule_billing_change,
 )
 from billing.tests_phase2 import STRIPE_TEST_SETTINGS, create_user, login_owner
+from billing.testing import simulate_migrated_existing_workspace
 from organizations.models import Organization, OrganizationPlan
 
 
@@ -26,6 +27,7 @@ class BillingIntervalChangeTests(TestCase):
         get_fake_provider().reset()
         self.owner = create_user("interval-owner@example.com")
         self.org = Organization.objects.create_with_owner(owner=self.owner)
+        simulate_migrated_existing_workspace(self.org)
         self.api = login_owner(APIClient(), "interval-owner@example.com")
 
     def _activate(self, *, plan="plus", interval="monthly"):
@@ -230,6 +232,7 @@ class BusinessDowngradeIntervalPreservationTests(TestCase):
         get_fake_provider().reset()
         self.owner = create_user("downgrade-interval@example.com")
         self.org = Organization.objects.create_with_owner(owner=self.owner)
+        simulate_migrated_existing_workspace(self.org)
         self.api = login_owner(APIClient(), "downgrade-interval@example.com")
 
     def _activate(self, *, plan="business", interval="yearly"):

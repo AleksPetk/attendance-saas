@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import timedelta
 
 from django.contrib.auth import get_user_model
+from django.db.models import Count
 from django.urls import NoReverseMatch, reverse
 from django.utils import timezone
 
@@ -20,7 +21,6 @@ from organizations.models import (
 
 User = get_user_model()
 
-# Future-ready plan labels. Counts stay unset until subscription data exists.
 PLAN_TIERS = (
     {"key": "basic", "label": "Basic"},
     {"key": "plus", "label": "Plus"},
@@ -73,21 +73,27 @@ NAV_GROUPS = (
         "kind": "models",
         "models": (
             {"app_label": "members", "object_name": "member", "label": "Members"},
-            {"app_label": "groups", "object_name": "group", "label": "Groups"},
             {
                 "app_label": "groups",
-                "object_name": "groupmembership",
-                "label": "Group Memberships",
-            },
-            {
-                "app_label": "groups",
-                "object_name": "groupsection",
-                "label": "Group Sections",
-            },
-            {
-                "app_label": "groups",
-                "object_name": "grouponlyparticipant",
-                "label": "Group-only Participants",
+                "object_name": "group",
+                "label": "Groups",
+                "children": (
+                    {
+                        "app_label": "groups",
+                        "object_name": "groupmembership",
+                        "label": "Group Memberships",
+                    },
+                    {
+                        "app_label": "groups",
+                        "object_name": "groupsection",
+                        "label": "Group Sections",
+                    },
+                    {
+                        "app_label": "groups",
+                        "object_name": "grouponlyparticipant",
+                        "label": "Group-only Participants",
+                    },
+                ),
             },
         ),
     },
@@ -122,6 +128,11 @@ NAV_GROUPS = (
                 "app_label": "core",
                 "object_name": "platformadvertisingsettings",
                 "label": "Advertising",
+            },
+            {
+                "app_label": "core",
+                "object_name": "platformadminaction",
+                "label": "Platform admin actions",
             },
             {"app_label": "auth", "object_name": "group", "label": "Permission Groups"},
         ),
@@ -238,6 +249,36 @@ def _safe_reverse(url_name, *args):
         return ""
 
 
+def _path_matches_admin_url(admin_url, path):
+    if not admin_url:
+        return False
+    prefix = admin_url.rstrip("/")
+    normalized = (path or "").rstrip("/")
+    return normalized == prefix or normalized.startswith(prefix + "/")
+
+
+def _nav_item_from_model(model_spec, model_index, path):
+    model = model_index.get((model_spec["app_label"], model_spec["object_name"]))
+    if model is None or not model.get("admin_url"):
+        return None
+    children = []
+    for child_spec in model_spec.get("children") or ():
+        child = _nav_item_from_model(child_spec, model_index, path)
+        if child is not None:
+            children.append(child)
+    child_current = any(
+        child["current"] or child.get("child_current") for child in children
+    )
+    return {
+        "label": model_spec["label"],
+        "url": model["admin_url"],
+        "current": _path_matches_admin_url(model["admin_url"], path),
+        "child_current": child_current,
+        "open": child_current or _path_matches_admin_url(model["admin_url"], path),
+        "children": children,
+    }
+
+
 def _model_index(available_apps):
     index = {}
     for app in available_apps or []:
@@ -273,21 +314,9 @@ def build_nav_groups(available_apps, *, request_path=""):
             category_url = _safe_reverse("admin:index")
         else:
             for model_spec in spec["models"]:
-                model = model_index.get(
-                    (model_spec["app_label"], model_spec["object_name"])
-                )
-                if model is None or not model.get("admin_url"):
-                    continue
-                items.append(
-                    {
-                        "label": model_spec["label"],
-                        "url": model["admin_url"],
-                        "current": bool(
-                            model["admin_url"]
-                            and model["admin_url"].rstrip("/") in path
-                        ),
-                    }
-                )
+                item = _nav_item_from_model(model_spec, model_index, path)
+                if item is not None:
+                    items.append(item)
             primary_app = CATEGORY_PRIMARY_APP.get(spec["key"])
             category_url = (
                 category_url_for_app_label(primary_app) if primary_app else ""
@@ -299,12 +328,16 @@ def build_nav_groups(available_apps, *, request_path=""):
         category_current = bool(
             category_url and path == category_url.rstrip("/")
         )
+        item_current = any(
+            item["current"] or item.get("child_current") for item in items
+        )
         groups.append(
             {
                 "key": spec["key"],
                 "label": spec["label"],
                 "url": category_url,
-                "current": category_current,
+                "current": category_current or item_current,
+                "open": category_current or item_current,
                 "items": items,
             }
         )
@@ -333,25 +366,21 @@ def build_summary_metrics():
 
 
 def build_plan_metrics():
-    """
-    Placeholder for future subscription/entitlement counts.
-
-    Live counts require Organization (or related) plan/tier fields that are not
-    implemented yet. Do not invent numbers.
-    """
+    """Count active workspaces by current Organization.plan entitlement."""
+    counts = {
+        row["plan"]: row["total"]
+        for row in (
+            Organization.objects.filter(status=OrganizationStatus.ACTIVE)
+            .values("plan")
+            .annotate(total=Count("id"))
+        )
+    }
     return {
-        "available": False,
+        "available": True,
         "tiers": [
-            {**tier, "count": None, "status": "not_wired"} for tier in PLAN_TIERS
+            {**tier, "count": counts.get(tier["key"], 0)} for tier in PLAN_TIERS
         ],
-        "note": (
-            "Plan/tier counts will appear here once subscription entitlement "
-            "data exists (Basic / Plus / Business)."
-        ),
-        "required_source": (
-            "Organization (or related) subscription/plan entitlement field "
-            "with Basic, Plus, and Business values."
-        ),
+        "note": "Active workspaces by current entitlement plan.",
     }
 
 

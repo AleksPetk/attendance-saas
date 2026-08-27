@@ -1,9 +1,11 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{ title }} · Check Station</title>
+  {% include "admin/includes/favicon_links.html" %}
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -41,13 +43,27 @@
       color: var(--navy);
       margin-bottom: 1.5rem;
     }
+    .brand-mark-picture,
+    .brand-text-picture {
+      display: block;
+      line-height: 0;
+    }
+    .brand-mark-picture {
+      flex-shrink: 0;
+    }
     .brand-mark {
+      display: block;
       width: 1.75rem;
       height: 1.75rem;
-      border-radius: 8px;
-      background: linear-gradient(135deg, #2563eb 0%, #22d3ee 55%, #22c55e 100%);
-      box-shadow: 0 4px 12px rgba(37, 99, 235, 0.35);
-      flex-shrink: 0;
+      object-fit: contain;
+    }
+    .brand-text {
+      display: block;
+      height: 1.2rem;
+      width: auto;
+      max-width: min(10.5rem, 58vw);
+      object-fit: contain;
+      object-position: left center;
     }
     .card {
       background: var(--surface);
@@ -153,8 +169,28 @@
 <body>
   <div class="wrap">
     <div class="brand">
-      <span class="brand-mark" aria-hidden="true"></span>
-      <span>Check Station</span>
+      <picture class="brand-mark-picture">
+        <source type="image/webp" srcset="{% static 'admin/img/logo.webp' %}">
+        <img
+          class="brand-mark"
+          src="{% static 'admin/img/logo.png' %}"
+          alt=""
+          width="192"
+          height="181"
+          decoding="async"
+        >
+      </picture>
+      <picture class="brand-text-picture">
+        <source type="image/webp" srcset="{% static 'admin/img/logo-text.webp' %}">
+        <img
+          class="brand-text"
+          src="{% static 'admin/img/logo-text.png' %}"
+          alt="Check Station"
+          width="720"
+          height="214"
+          decoding="async"
+        >
+      </picture>
     </div>
     <div class="card">
       {% if error %}<p class="error">{{ error }}</p>{% endif %}

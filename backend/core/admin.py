@@ -4,12 +4,16 @@ from django.contrib import admin, messages
 from django.shortcuts import redirect, render
 from django.urls import path, reverse
 
-from billing.promotion import admin_groups_snapshot, set_group_value
+from billing.promotion import (
+    ACTIVE_PROMOTION_GROUPS,
+    admin_groups_snapshot,
+    set_group_value,
+)
 from core.models import (
+    PlatformAdminAction,
     PlatformAdvertisingSettings,
     PlatformPromotionModeChange,
     PlatformPromotionSettings,
-    PromotionGroupKey,
 )
 
 
@@ -206,6 +210,65 @@ class PlatformPromotionSettingsAdmin(admin.ModelAdmin):
         ]
         return extra + urls
 
+    def _pending_promotion_changes(self, request, cards):
+        """Changed group/value pairs to review. Unchanged groups are omitted."""
+        groups = [str(group).strip() for group in request.POST.getlist("group")]
+        values = [str(value).strip() for value in request.POST.getlist("value")]
+        groups = [group for group in groups if group]
+        if not groups:
+            get_group = (request.GET.get("group") or "").strip()
+            get_value = (request.GET.get("value") or "").strip()
+            if get_group:
+                groups = [get_group]
+                values = [get_value]
+
+        if groups:
+            if len(values) != len(groups):
+                return [], "Select a valid promotion value."
+            pairs = list(zip(groups, values))
+        else:
+            pairs = []
+            for group in ACTIVE_PROMOTION_GROUPS:
+                field = f"value__{group}"
+                if field not in request.POST:
+                    continue
+                pairs.append((group, (request.POST.get(field) or "").strip()))
+
+        pending = []
+        seen = set()
+        for group, value in pairs:
+            if group not in ACTIVE_PROMOTION_GROUPS:
+                return [], "Select a valid promotion group."
+            if group in seen:
+                continue
+            seen.add(group)
+            card = cards.get(group)
+            if not card:
+                return [], "Unknown promotion group."
+            valid_values = {choice["value"] for choice in card["choices"]}
+            if value not in valid_values:
+                return [], "Select a valid promotion value."
+            if value == card["value"]:
+                continue
+            choice_summary = next(
+                (
+                    choice["summary"]
+                    for choice in card["choices"]
+                    if choice["value"] == value
+                ),
+                "",
+            )
+            pending.append(
+                {
+                    "group": group,
+                    "value": value,
+                    "label": card["label"],
+                    "old_value": card["value"],
+                    "choice_summary": choice_summary,
+                }
+            )
+        return pending, None
+
     def set_group_view(self, request):
         settings_obj = PlatformPromotionSettings.load()
         change_url = reverse(
@@ -213,72 +276,68 @@ class PlatformPromotionSettingsAdmin(admin.ModelAdmin):
             args=[settings_obj.pk],
         )
         cancel_url = change_url
-
-        group = (request.POST.get("group") or request.GET.get("group") or "").strip()
-        value = (request.POST.get("value") or request.GET.get("value") or "").strip()
-        if group not in {
-            PromotionGroupKey.NEW_BASIC,
-            PromotionGroupKey.PLUS_MONTHLY,
-            PromotionGroupKey.BUSINESS_MONTHLY,
-        }:
-            messages.error(request, "Select a valid promotion group.")
+        cards = {
+            card["group"]: card
+            for card in admin_groups_snapshot(settings_obj=settings_obj)
+        }
+        pending, error = self._pending_promotion_changes(request, cards)
+        if error:
+            messages.error(request, error)
             return redirect(change_url)
-
-        cards = {card["group"]: card for card in admin_groups_snapshot(settings_obj=settings_obj)}
-        card = cards.get(group)
-        if not card:
-            messages.error(request, "Unknown promotion group.")
+        if not pending:
+            messages.info(request, "No promotion changes to review.")
             return redirect(change_url)
-        valid_values = {choice["value"] for choice in card["choices"]}
-        if value not in valid_values:
-            messages.error(request, "Select a valid promotion value.")
-            return redirect(change_url)
-
-        if value == card["value"]:
-            messages.info(
-                request,
-                f"{card['label']} is already {value.upper()}.",
-            )
-            return redirect(change_url)
-
-        choice_summary = next(
-            (c["summary"] for c in card["choices"] if c["value"] == value),
-            "",
-        )
 
         if request.method == "POST" and (request.POST.get("confirm") or "").strip() == "1":
-            old_value = card["value"]
-            updated, changed = set_group_value(group, value, actor=request.user)
-            if changed:
-                self.log_change(
-                    request,
-                    updated,
-                    (
-                        f'Changed {group} from "{old_value}" to "{value}".'
-                    ),
+            for item in pending:
+                updated, changed = set_group_value(
+                    item["group"],
+                    item["value"],
+                    actor=request.user,
                 )
-                messages.success(
-                    request,
-                    f"{card['label']} is now {value.upper()}.",
-                )
-            else:
-                messages.info(
-                    request,
-                    f"{card['label']} is already {value.upper()}.",
-                )
+                if changed:
+                    self.log_change(
+                        request,
+                        updated,
+                        (
+                            f'Changed {item["group"]} from '
+                            f'"{item["old_value"]}" to "{item["value"]}".'
+                        ),
+                    )
+                    messages.success(
+                        request,
+                        f"{item['label']} is now {item['value'].upper()}.",
+                    )
+                else:
+                    messages.info(
+                        request,
+                        f"{item['label']} is already {item['value'].upper()}.",
+                    )
             return redirect(change_url)
+
+        if len(pending) == 1:
+            item = pending[0]
+            title = f"Set {item['label']} to {item['value'].upper()}?"
+            confirm_body = (
+                f"Current: {item['old_value'].upper()}. "
+                f"New: {item['value'].upper()}. {item['choice_summary']}"
+            )
+            confirm_label = f"Set {item['label']} to {item['value'].upper()}"
+        else:
+            title = "Apply promotion changes?"
+            confirm_body = (
+                "These promotion groups will change. "
+                "Groups you did not change are not included."
+            )
+            confirm_label = "Apply promotion changes"
 
         context = {
             **self.admin_site.each_context(request),
-            "title": f"Set {card['label']} to {value.upper()}?",
-            "confirm_title": f"Set {card['label']} to {value.upper()}?",
-            "confirm_body": (
-                f"Current: {card['value'].upper()}. "
-                f"New: {value.upper()}. {choice_summary}"
-            ),
-            "confirm_label": f"Set {card['label']} to {value.upper()}",
-            "requested_group": group,
-            "requested_value": value,
+            "title": title,
+            "confirm_title": title,
+            "confirm_body": confirm_body,
+            "confirm_label": confirm_label,
+            "pending_changes": pending,
             "cancel_url": cancel_url,
             "change_url": change_url,
             "opts": self.model._meta,
@@ -299,6 +358,50 @@ class PlatformPromotionModeChangeAdmin(admin.ModelAdmin):
     list_filter = ("group", "old_value", "new_value")
     readonly_fields = ("group", "old_value", "new_value", "changed_at", "changed_by")
     ordering = ("-changed_at", "-id")
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(PlatformAdminAction)
+class PlatformAdminActionAdmin(admin.ModelAdmin):
+    """Read-only durable audit of high-risk platform-admin actions."""
+
+    list_display = (
+        "created_at",
+        "action_type",
+        "actor_email_snapshot",
+        "workspace_id_snapshot",
+        "old_value",
+        "new_value",
+    )
+    list_filter = ("action_type",)
+    search_fields = (
+        "actor_email_snapshot",
+        "workspace_id_snapshot",
+        "owner_email_snapshot",
+        "reason",
+    )
+    readonly_fields = (
+        "action_type",
+        "actor",
+        "actor_email_snapshot",
+        "target_kind",
+        "target_id_snapshot",
+        "workspace_id_snapshot",
+        "owner_email_snapshot",
+        "old_value",
+        "new_value",
+        "reason",
+        "created_at",
+    )
+    ordering = ("-created_at", "-id")
 
     def has_add_permission(self, request):
         return False

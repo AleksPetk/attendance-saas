@@ -25,6 +25,17 @@ def send_due_payment_warnings(*, now=None):
     failed = 0
     for billing in rows:
         organization = billing.organization
+        if organization is None:
+            skipped += 1
+            continue
+        if organization.is_checkstation_account:
+            skipped += 1
+            continue
+        from organizations.models import OrganizationStatus
+
+        if organization.status != OrganizationStatus.ACTIVE:
+            skipped += 1
+            continue
         apply_due_billing_transitions(organization, now=moment)
         billing.refresh_from_db()
         if billing.status != BillingStatus.PAST_DUE:

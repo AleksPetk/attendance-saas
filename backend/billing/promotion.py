@@ -41,6 +41,7 @@ CHECKOUT_APPLIES_PROMOTION = False
 # Audiences (subscription state)
 AUDIENCE_PUBLIC = "public"
 AUDIENCE_BASIC = "basic"
+AUDIENCE_NONE = "none"
 AUDIENCE_PLUS_MONTHLY = "plus_monthly"
 AUDIENCE_PLUS_YEARLY = "plus_yearly"
 AUDIENCE_BUSINESS_MONTHLY = "business_monthly"
@@ -119,6 +120,7 @@ GROUP_SUMMARIES = {
 AUDIENCE_TO_GROUP = {
     AUDIENCE_PUBLIC: GROUP_NEW_BASIC,
     AUDIENCE_BASIC: GROUP_NEW_BASIC,
+    AUDIENCE_NONE: None,
     AUDIENCE_PLUS_MONTHLY: GROUP_PLUS_MONTHLY,
     AUDIENCE_PLUS_YEARLY: None,  # Plus Yearly: no V1 promotion
     AUDIENCE_BUSINESS_MONTHLY: GROUP_BUSINESS_MONTHLY,
@@ -174,9 +176,13 @@ def resolve_audience(*, organization=None, billing=None) -> str:
     """Map workspace commercial state → audience key.
 
     Anonymous / no organization → public.
+    CheckStation-managed workspaces receive no promotions.
     No paid access → basic (even if Organization.plan was left stale).
     Paid/trialing/past_due → plan+interval audience.
     """
+    if organization is not None and organization.is_checkstation_account:
+        return AUDIENCE_NONE
+
     if organization is None and billing is None:
         return AUDIENCE_PUBLIC
 

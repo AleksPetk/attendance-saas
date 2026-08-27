@@ -310,37 +310,49 @@ class DjangoAdminPermanentDeleteTests(TestCase):
         self.seed = seed_workspace(self.owner)
         self.client = Client()
 
-    def test_superuser_permanent_delete_from_user_admin(self):
+    def test_superuser_cannot_permanently_delete_user_who_owns_organization(self):
         force_platform_admin_login(self.client, self.superuser)
         url = reverse(
             "admin:accounts_user_permanent_delete", args=[self.owner.pk]
         )
         get_page = self.client.get(url)
-        self.assertEqual(get_page.status_code, 200)
-        self.assertContains(get_page, "This cannot be undone")
-
-        denied = self.client.post(url, {"confirmation": "nope"})
-        self.assertEqual(denied.status_code, 200)
-        self.assertTrue(User.objects.filter(pk=self.owner.pk).exists())
-
-        deleted = self.client.post(url, {"confirmation": "DELETE"})
+        self.assertEqual(get_page.status_code, 302)
+        deleted = self.client.post(
+            url,
+            {
+                "confirmation": "DELETE",
+                "admin_password": "secure-password",
+                "reason": "Trying to delete an owner from the user screen.",
+            },
+        )
         self.assertEqual(deleted.status_code, 302)
-        self.assertFalse(User.objects.filter(email="test@example.com").exists())
-        self.assertFalse(
+        self.assertTrue(User.objects.filter(pk=self.owner.pk).exists())
+        self.assertTrue(
             Organization.objects.filter(pk=self.seed["organization"].pk).exists()
         )
 
-        with patch("organizations.views.send_verification_email_for_user"):
-            register = APIClient().post(
-                "/api/auth/register/",
-                {
-                    "email": "test@example.com",
-                    "password": "secure-password",
-                    "password_confirm": "secure-password",
-                },
-                format="json",
-            )
-        self.assertEqual(register.status_code, 201)
+    def test_superuser_permanent_delete_user_without_organization(self):
+        orphan = create_user("orphan@example.com")
+        force_platform_admin_login(self.client, self.superuser)
+        url = reverse("admin:accounts_user_permanent_delete", args=[orphan.pk])
+        get_page = self.client.get(url)
+        self.assertEqual(get_page.status_code, 200)
+        self.assertContains(get_page, "This cannot be undone")
+
+        denied = self.client.post(url, {"confirmation": "DELETE"})
+        self.assertEqual(denied.status_code, 200)
+        self.assertTrue(User.objects.filter(pk=orphan.pk).exists())
+
+        deleted = self.client.post(
+            url,
+            {
+                "confirmation": "DELETE",
+                "admin_password": "secure-password",
+                "reason": "Orphan test account no longer needed.",
+            },
+        )
+        self.assertEqual(deleted.status_code, 302)
+        self.assertFalse(User.objects.filter(email="orphan@example.com").exists())
 
     def test_superuser_permanent_delete_from_organization_admin(self):
         owner = create_user("org-delete@example.com")
@@ -350,7 +362,18 @@ class DjangoAdminPermanentDeleteTests(TestCase):
             "admin:organizations_organization_permanent_delete",
             args=[seed["organization"].pk],
         )
-        response = self.client.post(url, {"confirmation": "DELETE"})
+        denied = self.client.post(url, {"confirmation": "DELETE"})
+        self.assertEqual(denied.status_code, 200)
+        self.assertTrue(User.objects.filter(pk=owner.pk).exists())
+
+        response = self.client.post(
+            url,
+            {
+                "confirmation": "DELETE",
+                "admin_password": "secure-password",
+                "reason": "Test workspace is ready for permanent deletion.",
+            },
+        )
         self.assertEqual(response.status_code, 302)
         self.assertFalse(User.objects.filter(pk=owner.pk).exists())
         self.assertFalse(Organization.objects.filter(pk=seed["organization"].pk).exists())

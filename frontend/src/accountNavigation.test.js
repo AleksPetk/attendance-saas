@@ -14,6 +14,7 @@ import {
   accountSectionMeta,
   isAccountSectionId,
   resolveAccountSection,
+  visibleAccountSectionIds,
 } from "./accountNavigation.js";
 import {
   AccountBillingPanel,
@@ -86,12 +87,10 @@ const basicBilling = {
       },
     },
   },
-  trial_available: false,
   stripe_configured: true,
   actions: {
     can_checkout_plus: true,
     can_checkout_business: true,
-    can_start_trial: false,
     can_upgrade_to_business: false,
     can_schedule_downgrade_to_plus: false,
     can_cancel_scheduled_downgrade: false,
@@ -124,12 +123,17 @@ test("account section routes are absolute and stable", () => {
   assert.equal(accountSectionMeta("billing").path, "/account/billing");
 });
 
-test("account subnav renders all three sections", () => {
+test("account subnav renders all three sections for a billing-capable owner", () => {
+  const session = {
+    workspace: {
+      capabilities: { can_view_billing: true, can_manage_subscription: true },
+    },
+  };
   const html = renderToStaticMarkup(
     createElement(
       MemoryRouter,
       { initialEntries: ["/account/security"] },
-      createElement(AccountSubNav),
+      createElement(AccountSubNav, { session }),
     ),
   );
   assert.match(html, /account-subnav/);
@@ -211,12 +215,10 @@ test("subscription panel shows plans when Stripe is not configured", () => {
   const billing = {
     ...basicBilling,
     stripe_configured: false,
-    trial_available: false,
     actions: {
       ...basicBilling.actions,
       can_checkout_plus: false,
       can_checkout_business: false,
-      can_start_trial: false,
     },
   };
   assert.equal(isBasicPaidCheckoutCandidate(billing, "basic"), true);
@@ -237,34 +239,35 @@ test("subscription panel shows plans when Stripe is not configured", () => {
   assert.doesNotMatch(html, /account-plan-tier-chip/);
 });
 
-test("subscription panel hides trial when unavailable", () => {
+test("subscription panel hides the removed card-trial CTA", () => {
   const html = renderToStaticMarkup(
     createElement(AccountSubscriptionPanel, {
       session: { workspace: { entitlements: basicEntitlements } },
-      billing: {
-        ...basicBilling,
-        trial_available: false,
-        actions: { ...basicBilling.actions, can_start_trial: false },
-      },
+      billing: basicBilling,
     }),
   );
   assert.doesNotMatch(html, /Start Business trial/);
-  assert.doesNotMatch(html, /\b7[- ]day\b/i);
-  assert.doesNotMatch(html, /\b14[- ]day\b/i);
 });
 
-test("subscription panel shows trial only when backend allows it", () => {
+test("subscription panel shows included Business trial when builtin trial is active", () => {
   const html = renderToStaticMarkup(
     createElement(AccountSubscriptionPanel, {
       session: { workspace: { entitlements: basicEntitlements } },
       billing: {
         ...basicBilling,
-        trial_available: true,
-        actions: { ...basicBilling.actions, can_start_trial: true },
+        effective_plan: { key: "business", display_name: "Business" },
+        builtin_trial: {
+          active: true,
+          granted: true,
+          consumed: true,
+          days: 7,
+          ends_at: "2026-09-03T00:00:00Z",
+        },
       },
     }),
   );
-  assert.match(html, /Start Business trial/);
+  assert.match(html, /7-day Business trial included/);
+  assert.doesNotMatch(html, /Start Business trial/);
 });
 
 test("subscription panel shows upgrade preview copy from API value", () => {
@@ -696,7 +699,6 @@ test("subscription panel shows scheduled cancellation and trial without invented
     trial_ends_at: "2026-09-10T00:00:00Z",
     cancel_at_period_end: true,
     pending_change_effective_at: "2026-09-10T00:00:00Z",
-    trial_available: false,
     actions: {
       ...basicBilling.actions,
       can_checkout_plus: false,
@@ -720,7 +722,7 @@ test("subscription panel shows scheduled cancellation and trial without invented
   );
   assert.match(html, /Cancellation scheduled/);
   assert.match(html, /Your current plan remains active until|Subscription ends|Access remains/);
-  assert.match(html, /Trial ends/);
+  assert.match(html, /Paid plan starts/);
   assert.match(html, /Resume subscription/);
   assert.doesNotMatch(html, /Schedule downgrade to Plus/);
   assert.doesNotMatch(html, /Choose Plus/);
@@ -1221,8 +1223,13 @@ test("subscription panel summarizes plan locks without attention actions", () =>
 });
 
 test("direct account section routes resolve through MemoryRouter", () => {
+  const session = {
+    workspace: {
+      capabilities: { can_view_billing: true, can_manage_subscription: true },
+    },
+  };
   function Probe() {
-    return createElement(AccountSubNav);
+    return createElement(AccountSubNav, { session });
   }
   const html = renderToStaticMarkup(
     createElement(
@@ -1239,8 +1246,29 @@ test("direct account section routes resolve through MemoryRouter", () => {
   assert.match(html, /is-active/);
 });
 
+test("CheckStation-managed account hides Subscription and Billing", () => {
+  const session = {
+    workspace: {
+      capabilities: { can_view_billing: false, can_manage_subscription: false },
+    },
+  };
+  assert.deepEqual(visibleAccountSectionIds(session), ["security"]);
+  assert.equal(isAccountSectionId("subscription", session), false);
+  assert.equal(resolveAccountSection("billing", session), "security");
+  const html = renderToStaticMarkup(
+    createElement(
+      MemoryRouter,
+      { initialEntries: ["/account/security"] },
+      createElement(AccountSubNav, { session }),
+    ),
+  );
+  assert.match(html, /Security/);
+  assert.doesNotMatch(html, /Subscription/);
+  assert.doesNotMatch(html, /Billing/);
+});
+
 test("public pricing source uses Basic Plus Business and removes Starter Pro", () => {
-  const src = readSrc("PublicPricingScreen.jsx");
+  const src = `${readSrc("PublicPricingScreen.jsx")}\n${readSrc("pricingPage.js")}`;
   assert.match(src, /Basic/);
   assert.match(src, /Plus/);
   assert.match(src, /Business/);
@@ -1250,11 +1278,21 @@ test("public pricing source uses Basic Plus Business and removes Starter Pro", (
   assert.match(src, /\$149\.90/);
   assert.match(src, /Monthly/);
   assert.match(src, /Yearly/);
-  assert.match(src, /Business trial available/);
+  assert.match(src, /Simple plans for every workspace/);
+  assert.match(src, /Get Started Free/);
+  assert.match(src, /Choose Plus/);
+  assert.match(src, /Go Business/);
   assert.match(src, /\/register/);
   assert.match(src, /\/account\/subscription/);
+  assert.doesNotMatch(src, /\bV1\b/);
+  assert.doesNotMatch(src, /Paid checkout starts after you create a workspace/);
+  assert.doesNotMatch(src, /anonymous paid workspaces/);
+  assert.doesNotMatch(src, /Choose in Account/);
+  assert.doesNotMatch(src, /7-day Business trial/);
+  assert.doesNotMatch(src, /Higher Group \/ Member limits/);
+  assert.doesNotMatch(src, /More Admin and Staff seats/);
   assert.doesNotMatch(src, /Starter/);
   assert.doesNotMatch(src, /tier: "Pro"/);
-  assert.doesNotMatch(src, /\b7[- ]day\b/i);
+  assert.doesNotMatch(src, /Start Business trial/);
   assert.doesNotMatch(src, /\b14[- ]day\b/i);
 });

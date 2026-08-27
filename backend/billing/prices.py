@@ -28,21 +28,6 @@ def stripe_webhook_secret() -> str:
     return _setting("STRIPE_WEBHOOK_SECRET")
 
 
-def business_trial_days():
-    raw = getattr(settings, "BUSINESS_TRIAL_DAYS", 0)
-    try:
-        days = int(raw or 0)
-    except (TypeError, ValueError):
-        return None
-    if days <= 0:
-        return None
-    return days
-
-
-def trial_is_configured() -> bool:
-    return business_trial_days() is not None
-
-
 def price_id_for(plan_key: str, interval: str) -> str:
     key = (str(plan_key or "").strip().lower(), str(interval or "").strip().lower())
     setting_name = PRICE_ID_SETTINGS.get(key)

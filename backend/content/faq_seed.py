@@ -951,13 +951,14 @@ FAQ_ENTRIES = (
         "slug": "is-there-a-business-trial",
         "question": "Is there a Business trial?",
         "category": FaqCategory.SUBSCRIPTION_CHANGES,
-        "keywords": "trial, business trial, card required",
+        "keywords": "trial, business trial, 7 days, no card",
         "related_document_slug": "billing-plans",
         "sort_order": 80,
         "answer": (
-            "When a trial is enabled, it is Business access, requires a payment method "
-            "first, and is not started at registration. Current environment: trial is "
-            "{{TRIAL_STATUS}}."
+            "Yes. Every new workspace automatically has Business for 7 days — no card "
+            "and no extra step. Current environment: trial is {{TRIAL_STATUS}}. "
+            "The trial is one-time. If you choose Plus or Business during that week, "
+            "paid billing starts after the free week ends."
         ),
     },
     {

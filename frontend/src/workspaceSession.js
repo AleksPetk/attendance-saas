@@ -65,6 +65,14 @@ export function canViewBilling(session) {
   return isWorkspaceOwner(session);
 }
 
+export function canManageSubscription(session) {
+  const caps = workspaceCapabilities(session);
+  if ("can_manage_subscription" in caps) {
+    return Boolean(caps.can_manage_subscription);
+  }
+  return canViewBilling(session);
+}
+
 export function canViewGlobalMembers(session) {
   const caps = workspaceCapabilities(session);
   if ("can_view_global_members" in caps) return Boolean(caps.can_view_global_members);

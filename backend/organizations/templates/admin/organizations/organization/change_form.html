@@ -2,9 +2,97 @@
 
 {% block object-tools-items %}
   {{ block.super }}
+{% endblock %}
+
+{% block after_field_sets %}
+{{ block.super }}
+{% if original %}
+<div class="cs-lifecycle-grid">
+  <section class="cs-lifecycle-card">
+    <h2>Account type</h2>
+    <dl>
+      <dt>Type</dt>
+      <dd>{{ account_type_label }}</dd>
+      <dt>Plan</dt>
+      <dd>{{ original.get_plan_display }}</dd>
+    </dl>
+    <div class="cs-lifecycle-actions">
+      <a class="button" href="{{ account_type_url }}">Change account type</a>
+    </div>
+  </section>
+
+  <section class="cs-lifecycle-card">
+    <h2>Access</h2>
+    <dl>
+      <dt>Status</dt>
+      <dd>{{ original.get_status_display }}</dd>
+      {% if original.blocked_at %}
+        <dt>Blocked at</dt>
+        <dd>{{ original.blocked_at }}</dd>
+      {% endif %}
+      {% if original.archived_at %}
+        <dt>Archived at</dt>
+        <dd>{{ original.archived_at }}</dd>
+      {% endif %}
+    </dl>
+    <div class="cs-lifecycle-actions">
+      {% if original.status == "active" %}
+        <a class="button" href="{{ block_url }}">Block workspace</a>
+      {% endif %}
+      {% if original.status == "blocked" %}
+        <a class="button" href="{{ unblock_url }}">Reactivate workspace</a>
+      {% endif %}
+    </div>
+  </section>
+
+  <section class="cs-lifecycle-card">
+    <h2>Plan</h2>
+    <dl>
+      <dt>Effective plan</dt>
+      <dd>{{ original.get_plan_display }}</dd>
+    </dl>
+    {% if original.is_checkstation_account %}
+      <p>CheckStation Account: platform admin may set Basic / Plus / Business. Limits still apply.</p>
+      <div class="cs-lifecycle-actions">
+        <a class="button" href="{{ plan_change_url }}">Change plan</a>
+      </div>
+    {% else %}
+      <p>Normal customer: plan follows billing. Do not raw-edit entitlement while a paid subscription exists.</p>
+    {% endif %}
+  </section>
+
+  <section class="cs-lifecycle-card">
+    <h2>Billing</h2>
+    <dl>
+      <dt>Source</dt>
+      <dd>{{ billing_summary.source }}</dd>
+      <dt>Status</dt>
+      <dd>{{ billing_summary.status }}</dd>
+      <dt>Subscribed plan</dt>
+      <dd>{{ billing_summary.plan }}</dd>
+      <dt>Interval</dt>
+      <dd>{{ billing_summary.interval|default:"—" }}</dd>
+      <dt>Period end</dt>
+      <dd>{{ billing_summary.period_end|default:"—" }}</dd>
+      <dt>Cancel at period end</dt>
+      <dd>{{ billing_summary.cancel_at_period_end }}</dd>
+      <dt>Scheduled plan</dt>
+      <dd>{{ billing_summary.pending_plan|default:"—" }}</dd>
+    </dl>
+    {% if billing_summary.managed_by_checkstation %}
+      <p>Managed by CheckStation. No customer subscription.</p>
+    {% endif %}
+  </section>
+
   {% if show_permanent_delete %}
-    <li>
-      <a href="{{ permanent_delete_url }}" class="deletelink">Permanently delete workspace…</a>
-    </li>
+    <section class="cs-lifecycle-card cs-lifecycle-danger">
+      <h2>Danger zone</h2>
+      <p>Permanent deletion destroys the workspace, attendance history, and the owner login. Live paid subscriptions must be ended first.</p>
+      <div class="cs-lifecycle-actions">
+        <a class="deletelink" href="{{ permanent_delete_url }}">Permanently delete workspace…</a>
+      </div>
+    </section>
   {% endif %}
+</div>
+{% endif %}
 {% endblock %}

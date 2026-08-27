@@ -334,7 +334,7 @@ Only log decisions supported by approved product planning. Do not invent decisio
 | **Decision** | An Organization workspace is the **subscription boundary**. It may begin unsubscribed (currently **Basic** at registration) or later enter a Business trial / paid subscription. Organization identity exists independently of currently paying. |
 | **Reason** | Onboarding should not require a paid subscription before a workspace exists. Billing implementation stays a separate design. |
 | **Status** | confirmed |
-| **Clarified by** | [DEC-078](#dec-078--business-trial-commercial-rules) (trial access and conversion rules; duration still TBD), [DEC-081](#dec-081--internal-billing-domain-and-purchase-sources). Current registration creates Basic and does **not** auto-start a trial. |
+| **Clarified by** | [DEC-093](#dec-093--automatic-7-day-built-in-business-trial) (automatic no-card 7-day Business trial), [DEC-081](#dec-081--internal-billing-domain-and-purchase-sources). Registration creates a workspace immediately; new normal workspaces receive Business for 7 days without a paid subscription. |
 
 ### DEC-036 — Controlled workspace UI; constrained kiosk branding
 
@@ -784,8 +784,8 @@ Only log decisions supported by approved product planning. Do not invent decisio
 | **Date** | 2026-08-25 |
 | **Decision** | V1 trial, when started, provides **Business** access. A payment method/card is required **before** the trial starts. If the customer does nothing, the trial automatically continues into **paid Business**. The customer may cancel immediately after starting; cancellation does **not** remove Business access until **trial end**. If canceled correctly before trial end, it must **not** convert to paid Business, then the workspace becomes **Basic**. **Exact trial duration is not frozen** (TBD / later configurable). Architecture stores explicit trial start/end. Registration does **not** auto-start a trial (workspaces still default to Basic until checkout exists). |
 | **Reason** | Card-required trial reduces unpaid abuse while still letting customers evaluate Business. Duration can be tuned without changing conversion rules. |
-| **Status** | confirmed |
-| **Clarifies** | DEC-035, OPEN-008 (behavior frozen; duration still open) |
+| **Status** | superseded |
+| **Superseded by** | [DEC-093](#dec-093--automatic-7-day-built-in-business-trial) |
 
 ### DEC-079 — Immediate upgrades; scheduled downgrades and cancellations
 
@@ -801,7 +801,7 @@ Only log decisions supported by approved product planning. Do not invent decisio
 | Field | Value |
 |-------|-------|
 | **Date** | 2026-08-25 |
-| **Decision** | While a Stripe-managed cancellation is still pending (`cancel_at_period_end`) and access has not ended, the Owner may **resume** the subscription: Stripe clears cancel-at-period-end on the **existing** subscription; internal pending Basic transition is cleared; `Organization.plan` is unchanged; billing cycle / renewal date is preserved; no new Checkout and no immediate resubscribe charge. The same resume applies to a canceled Business trial still within the trial window (trial end unchanged; auto-conversion to paid Business is restored). While a Business→Plus downgrade is scheduled and not yet effective, the Owner may **cancel the downgrade**: Stripe releases the schedule; Business price/subscription continues; pending Plus is cleared; cycle preserved; no Checkout/charge. Reversals require successful provider confirmation before local pending state is cleared. Apple-managed sources do not use these Stripe actions. |
+| **Decision** | While a Stripe-managed cancellation is still pending (`cancel_at_period_end`) and access has not ended, the Owner may **resume** the subscription: Stripe clears cancel-at-period-end on the **existing** subscription; internal pending Basic transition is cleared; `Organization.plan` is unchanged; billing cycle / renewal date is preserved; no new Checkout and no immediate resubscribe charge. The same resume applies to a canceled **deferred paid start** still within the provider delay window (`trial_ends_at` unchanged; conversion to the selected paid plan is restored). That provider delay is not the built-in 7-day Business trial (DEC-093). While a Business→Plus downgrade is scheduled and not yet effective, the Owner may **cancel the downgrade**: Stripe releases the schedule; Business price/subscription continues; pending Plus is cleared; cycle preserved; no Checkout/charge. Reversals require successful provider confirmation before local pending state is cleared. Apple-managed sources do not use these Stripe actions. |
 | **Reason** | Owners need a way to reverse a change of mind before period end without recreating billing. |
 | **Status** | confirmed |
 | **Clarifies** | DEC-079, OPEN-024 |
@@ -919,6 +919,27 @@ Only log decisions supported by approved product planning. Do not invent decisio
 | **Clarifies** | DEC-034 (distinct public site vs workspace vs kiosk; production hostnames now frozen), DEC-085 (Status production origin), DEC-086 (Docs production origin), DEC-087 (Contact lives on the promotional origin; production Contact mailbox) |
 | **Does not change** | DEC-085/086/087 historical text; local localhost URLs; application behavior; API hostname |
 
+### DEC-092 — CheckStation Account, Organization Block, and high-risk admin safety
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-08-27 |
+| **Decision** | **CheckStation Account** is one Organization-level boolean (`is_checkstation_account`, default off). It is an account mode, not a Stripe subscription, complimentary billing row, second billing provider, or separate User type. **ON:** no `WorkspaceSubscription`; no customer Subscription/Billing UI; no promotions; admin may set Basic/Plus/Business through `apply_effective_plan()`; normal plan limits and ads rules still apply (no unlimited bypass). Turning ON is refused while a live commercial subscription exists; Stripe is not auto-cancelled. Turning OFF lands on Basic with no billing row. **Organization.status** is `active` / `blocked` / `archived`. Blocked is platform-enforced access restriction, not archive. Blocking a normal paid customer stops access immediately, issues no refund, and schedules provider `cancel_at_period_end`. Unblock before period end resumes the subscription; unblock after the subscription ended returns to Basic. CheckStation-managed blocking is access-only. **Permanent User delete** from User admin is refused while the User owns an Organization. **Permanent Organization delete** is refused while a live provider subscription exists; it still deletes the owner User after billing is ended. High-risk admin actions use confirmation pages, `request.user.check_password`, a required reason, and durable `PlatformAdminAction` snapshots. WorkspaceSubscription commercial/Stripe fields are inspection-only. Customer owners cannot receive `is_staff` / `is_superuser` from casual User admin checkboxes. Owner reassignment is not supported in this slice. |
+| **Reason** | Platform operators needed a simple internal-account mode and a real abuse/security block without faking Stripe billing, merging User deactivation with workspace block, or allowing raw commercial-field edits in Django admin. |
+| **Status** | confirmed |
+| **Clarifies** | DEC-029, DEC-051, DEC-052, DEC-075, DEC-076, DEC-081 |
+
+### DEC-093 — Automatic 7-day built-in Business trial
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-08-27 |
+| **Decision** | Every newly created **normal** Organization workspace automatically receives **Business** entitlement for **7 days** at creation. No activation choice, no “use later,” and **no card**. The trial is completely separate from Stripe, Apple, promotions, coupons, and payment-provider trial states. It is **one time forever** per workspace: `billing.WorkspaceBuiltinTrial` stores immutable `started_at`/`ends_at` when granted and `consumed=True` always; billing, cancellation, provider changes, and payment-method changes must never restore eligibility. Existing workspaces at cutover are backfilled as consumed/never-granted and do not receive the trial. CheckStation-managed workspaces are ineligible. Entitlement changes use only `Organization.plan` + `apply_effective_plan()`. At trial end: no paid subscription → Basic; Plus purchased during the week → keep Business until trial end, then Plus; Business purchased during the week → keep Business, then paid Business starts at trial end. Purchasing during the week must not shorten the free week; paid Checkout uses a provider deferred start (`trial_end` / internal `TRIALING`) until the built-in window ends. Commercial checkout is allowed while entitlement is Business from this trial; `Organization.plan == basic` is not the checkout gate. Stripe/Apple never grant this trial. Expiry is lazy on workspace/entitlement/billing reads plus management command `expire_builtin_trials`; it does not depend on Stripe webhooks. The first-time workspace tutorial only informs the owner that Business is already included. The former card-required Business trial checkout (`/api/billing/trial-checkout/`, `BUSINESS_TRIAL_DAYS`, Stripe `trial_period_days` as the product trial) is removed. `WorkspaceSubscription.trial_started_at` / `trial_ends_at` / `BillingStatus.TRIALING` remain as the **provider billing delay** for deferred paid start, not as the product trial. |
+| **Reason** | Let every new workspace evaluate Business immediately without collecting a card or mixing promotions/provider trials into entitlement. |
+| **Status** | confirmed |
+| **Clarifies** | DEC-035, DEC-072, DEC-076, DEC-081 |
+| **Supersedes** | [DEC-078](#dec-078--business-trial-commercial-rules) |
+
 ---
 
 ## Open Decisions
@@ -933,7 +954,7 @@ Unresolved questions requiring explicit approval before implementation.
 | OPEN-005 | Organization role capability matrix | **Frozen (DEC-070 Admin, DEC-071 Staff).** Owner/Admin/Staff role names unchanged |
 | OPEN-006 | Notification engine architecture | Group after-action senders implemented for Custom SMTP, Gmail App Password, Outlook/Microsoft 365 SMTP, and Yahoo Mail App Password (DEC-059–062). Multiple participation emails (max 3) confirmed in DEC-069. Group Forward Emails (max 3 private copies) confirmed in DEC-068. Broader templates/triggers/channels and Gmail/Microsoft/Yahoo OAuth remain open. No further dedicated MVP mailbox providers planned. |
 | OPEN-007 | Plan prices and Event plan axes | **V1 prices frozen (DEC-077).** Remaining open: Event-specific quotas vs Group axes |
-| OPEN-008 | Free trial duration | Business trial **behavior** frozen (DEC-078). **Exact duration still TBD** / later configurable. Do not invent 7 or 14 days. |
+| OPEN-008 | Free trial duration | **Resolved by DEC-093.** Automatic 7-day built-in Business trial; no card; one-time forever. |
 | OPEN-009 | Historical record retention policy | Archival, deletion, and compliance requirements. Event Entries may exist without Members while Action Records remain (DEC-045); how those records survive Event archival vs deletion (DEC-023) is part of this design. |
 | OPEN-010 | Database implementation and API design | Organization owner + WorkspaceStaffAccount models, constraints, and a minimal current-workspace API now exist. Remaining tenant/person models, broader REST/API design, and tenant-enforcement mechanisms (e.g. RLS) remain undecided |
 | OPEN-011 | Stripe live configuration & remaining provider gaps | **Architecture implemented (Phase 2):** Checkout Session, Customer Portal, upgrade preview/apply, period-end downgrade, **scheduled interval/combined plan+interval changes**, cancel-at-period-end, resume cancellation, cancel scheduled changes, signed webhooks + `ProviderEvent` idempotency, owner billing APIs/UI, fake provider for tests. **Still open:** creating the real Stripe account; supplying TEST credentials; live end-to-end verification; production webhook URL + Customer Portal branding in Stripe Dashboard |
@@ -949,7 +970,7 @@ Unresolved questions requiring explicit approval before implementation.
 | OPEN-021 | Minimum Member data | **Resolved by DEC-053.** Name is the only universally required Organization-level Member field. Email, date of birth, phone, address, photo, and notes are optional. Member-level PIN/identifier are not profile fields. Contextual Group/Event requirements remain (DEC-046). |
 | OPEN-022 | Event Entry future structure | Whether future architecture will split generic Event Entries into separate concepts such as Reservation → Attendees, and under what circumstances. |
 | OPEN-023 | Action Record source/context implementation | Product-level sources confirmed: kiosk, staff/admin, automatic/preset (DEC-040). Exact fields, whether a kiosk reference is always stored, and other sources remain undesigned |
-| OPEN-024 | Organization billing lifecycle | Workspace-before-paid-subscription is confirmed (DEC-035). Commercial rules for trial conversion, immediate upgrades, scheduled downgrade/cancel, **scheduled interval/combined changes** (DEC-084), **reversal of scheduled cancel/downgrade/interval/combined changes before effective end** (DEC-083), and 3-day payment grace are frozen (DEC-078–080, DEC-083–084). Stripe execution path exists (OPEN-011 narrowed). **V1 promotion groups frozen (DEC-091)** with fixed Stripe coupon mapping for the 10 simple offers. Remaining elsewhere: trial **duration**, Apple IAP execution |
+| OPEN-024 | Organization billing lifecycle | Workspace-before-paid-subscription is confirmed (DEC-035). Automatic 7-day built-in Business trial is frozen (DEC-093). Commercial rules for deferred paid start, immediate upgrades, scheduled downgrade/cancel, **scheduled interval/combined changes** (DEC-084), **reversal of scheduled cancel/downgrade/interval/combined changes before effective end** (DEC-083), and 3-day payment grace are frozen (DEC-079–080, DEC-083–084). Stripe execution path exists (OPEN-011 narrowed). **V1 promotion groups frozen (DEC-091)** with fixed Stripe coupon mapping for the 10 simple offers. Remaining elsewhere: Apple IAP execution |
 | OPEN-025 | User/staff ↔ Member explicit linking | Same real-world person may later be both a WorkspaceStaffAccount and a Member (or a paying User and a Member). Any explicit link, deduplication, or conversion mechanism remains undecided. Do not invent a required link during foundation implementation. |
 | OPEN-027 | Kiosk data model | **Partially resolved (2026-08-20).** Group behavioral kiosk settings live in `KioskSettings` (OneToOne Group). Visual design stays in `KioskDesign`. See DEC-057. Event kiosk storage and device credentials remain future work. |
 | OPEN-028 | Multiple kiosk variants per Group or Event | Explicitly **not** an MVP requirement. Future decision. Initial product direction is one owned configuration per Group and per Event (DEC-044). |

@@ -17,7 +17,6 @@ from billing.catalog import (
     price_cents,
     price_decimal,
 )
-from billing.exceptions import BillingStateError
 from billing.models import (
     BillingInterval,
     BillingStatus,
@@ -34,11 +33,12 @@ from billing.services import (
     get_workspace_billing,
     mark_payment_failure,
     mark_payment_recovered,
+    record_deferred_paid_start,
     record_payment_warning,
     schedule_cancellation,
     schedule_downgrade,
-    start_trial,
 )
+from billing.testing import simulate_migrated_existing_workspace
 from groups.models import Group, GroupType
 from organizations.admin import OrganizationAdmin
 from organizations.entitlements.transitions import (
@@ -50,7 +50,8 @@ from organizations.models import Organization, OrganizationPlan
 
 def _create_workspace(email="billing-owner@example.com"):
     owner = User.objects.create_user(email=email, password="password12345")
-    return Organization.objects.create_with_owner(owner=owner)
+    org = Organization.objects.create_with_owner(owner=owner)
+    return simulate_migrated_existing_workspace(org)
 
 
 class BillingCatalogTests(TestCase):
@@ -127,79 +128,68 @@ class WorkspaceBillingPersistenceTests(TestCase):
         self.assertEqual(org.plan, OrganizationPlan.BUSINESS)
 
 
-class TrialBillingTests(TestCase):
-    def test_trial_requires_payment_method_and_sets_business(self):
+class DeferredPaidStartTests(TestCase):
+    def test_deferred_paid_start_does_not_grant_entitlement(self):
         org = _create_workspace()
         start = timezone.now()
-        end = start + timedelta(days=11)
-        with self.assertRaises(BillingStateError):
-            start_trial(
-                org,
-                billing_interval="monthly",
-                trial_started_at=start,
-                trial_ends_at=end,
-                purchase_source=PurchaseSource.STRIPE,
-                payment_method_recorded=False,
-            )
-        billing = start_trial(
+        end = start + timedelta(days=7)
+        billing = record_deferred_paid_start(
             org,
+            subscribed_plan=PLAN_PLUS,
             billing_interval="monthly",
+            purchase_source=PurchaseSource.STRIPE,
             trial_started_at=start,
             trial_ends_at=end,
-            purchase_source=PurchaseSource.STRIPE,
-            payment_method_recorded=True,
         )
         org.refresh_from_db()
         self.assertEqual(billing.status, BillingStatus.TRIALING)
         self.assertEqual(billing.trial_started_at, start)
         self.assertEqual(billing.trial_ends_at, end)
-        self.assertEqual(org.plan, OrganizationPlan.BUSINESS)
+        self.assertEqual(billing.subscribed_plan, PLAN_PLUS)
+        self.assertEqual(org.plan, OrganizationPlan.BASIC)
 
-    def test_canceled_trial_keeps_business_until_trial_end(self):
+    def test_canceled_deferred_paid_start_does_not_convert(self):
         org = _create_workspace()
         start = timezone.now()
-        end = start + timedelta(days=11)
-        start_trial(
+        end = start + timedelta(days=7)
+        record_deferred_paid_start(
             org,
+            subscribed_plan=PLAN_BUSINESS,
             billing_interval="monthly",
+            purchase_source=PurchaseSource.STRIPE,
             trial_started_at=start,
             trial_ends_at=end,
-            purchase_source=PurchaseSource.STRIPE,
-            payment_method_recorded=True,
         )
         schedule_cancellation(org, effective_at=end)
         org.refresh_from_db()
-        self.assertEqual(org.plan, OrganizationPlan.BUSINESS)
+        self.assertEqual(org.plan, OrganizationPlan.BASIC)
         apply_due_billing_transitions(org, now=start + timedelta(days=1))
         org.refresh_from_db()
-        self.assertEqual(org.plan, OrganizationPlan.BUSINESS)
+        self.assertEqual(org.plan, OrganizationPlan.BASIC)
         apply_due_billing_transitions(org, now=end)
         org.refresh_from_db()
         billing = get_workspace_billing(org)
         self.assertEqual(org.plan, OrganizationPlan.BASIC)
         self.assertEqual(billing.status, BillingStatus.CANCELED)
-        apply_due_billing_transitions(org, now=end + timedelta(days=1))
-        org.refresh_from_db()
-        self.assertEqual(org.plan, OrganizationPlan.BASIC)
 
-    def test_uncanceled_trial_converts_to_paid_business(self):
+    def test_uncanceled_deferred_paid_start_converts_to_subscribed_plan(self):
         org = _create_workspace("trial-convert@example.com")
         start = timezone.now()
-        end = start + timedelta(days=11)
-        start_trial(
+        end = start + timedelta(days=7)
+        record_deferred_paid_start(
             org,
+            subscribed_plan=PLAN_PLUS,
             billing_interval="yearly",
+            purchase_source=PurchaseSource.STRIPE,
             trial_started_at=start,
             trial_ends_at=end,
-            purchase_source=PurchaseSource.STRIPE,
-            payment_method_recorded=True,
         )
         apply_due_billing_transitions(org, now=end)
         org.refresh_from_db()
         billing = get_workspace_billing(org)
-        self.assertEqual(org.plan, OrganizationPlan.BUSINESS)
+        self.assertEqual(org.plan, OrganizationPlan.PLUS)
         self.assertEqual(billing.status, BillingStatus.ACTIVE)
-        self.assertEqual(billing.subscribed_plan, PLAN_BUSINESS)
+        self.assertEqual(billing.subscribed_plan, PLAN_PLUS)
         self.assertEqual(billing.billing_interval, BillingInterval.YEARLY)
 
 
@@ -380,7 +370,7 @@ class PaymentFailureTests(TestCase):
 
 
 class PlatformAdminPlanChangeTests(TestCase):
-    def test_admin_save_uses_canonical_plan_transition(self):
+    def test_admin_save_does_not_raw_edit_plan(self):
         org = _create_workspace("admin-plan@example.com")
         request = RequestFactory().post("/admin/")
         request.user = User.objects.create_superuser(
@@ -398,5 +388,5 @@ class PlatformAdminPlanChangeTests(TestCase):
             request, org, FakeForm(), change=True
         )
         org.refresh_from_db()
-        self.assertEqual(org.plan, OrganizationPlan.PLUS)
+        self.assertEqual(org.plan, OrganizationPlan.BASIC)
         self.assertIsNone(get_workspace_billing(org))

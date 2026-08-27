@@ -113,7 +113,7 @@ def build_plain_text_body(
         lines.append("")
         lines.append(message)
     lines.append("")
-    lines.append("Sent via Check Station")
+    lines.append("Sent via CheckStation")
     return "\n".join(lines)
 
 
@@ -174,7 +174,7 @@ def build_html_body(
     theme_key,
 ):
     theme = get_email_theme(theme_key)
-    brand = (brand_name or "").strip() or "Check Station"
+    brand = (brand_name or "").strip() or "CheckStation"
     name = (participant_name or "").strip() or "Participant"
     action = action_summary_label(action_type)
     headline = action_headline_label(action_type)
@@ -248,7 +248,7 @@ def build_html_body(
             </table>
             {message_block}
             <div style="margin-top:22px;font-size:12px;color:{theme["muted"]};">
-              Sent via Check Station
+              Sent via CheckStation
             </div>
           </td>
         </tr>

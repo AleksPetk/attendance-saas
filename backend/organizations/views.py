@@ -32,8 +32,10 @@ from organizations.serializers import (
     WorkspaceStaffAccountListSerializer,
     WorkspaceStaffAccountUpdateSerializer,
 )
+from organizations.account_mode import account_mode_key
 from attendance.kiosk_lock import attach_kiosk_status
 from organizations.entitlements.advertising import attach_workspace_advertising
+from billing.builtin_trial import attach_builtin_trial
 from organizations.entitlements import (
     FEATURE_STAFF_MANAGEMENT,
     LIMIT_WORKSPACE_ADMINS,
@@ -80,12 +82,17 @@ class CurrentWorkspaceView(APIView):
     def get(self, request):
         actor = request.user
         if isinstance(actor, WorkspaceStaffAccount):
+            org = getattr(actor, "organization", None)
+            if org is None or org.status != OrganizationStatus.ACTIVE:
+                raise NotFound("No active customer workspace.")
+            if getattr(actor, "status", None) != WorkspaceStaffStatus.ACTIVE:
+                raise NotFound("No active customer workspace.")
             if not is_staff_account_plan_unlocked(actor):
                 return Response(
                     {
                         "code": "plan_account_locked",
                         "detail": "This workspace account is locked by the current plan.",
-                        "workspace_id": actor.organization.workspace_id,
+                        "workspace_id": org.workspace_id,
                         "username": actor.username,
                         "role": actor.role,
                     },
@@ -96,11 +103,14 @@ class CurrentWorkspaceView(APIView):
                 "role": actor.role,
                 "identity": actor.username,
                 "is_platform_operator": False,
-                "workspace_id": actor.organization.workspace_id,
+                "workspace_id": org.workspace_id,
+                "account_mode": account_mode_key(org),
+                "workspace_status": org.status,
                 "capabilities": workspace_capabilities(actor),
-                "entitlements": build_entitlement_payload(actor.organization),
+                "entitlements": build_entitlement_payload(org),
             }
-            attach_workspace_advertising(payload, actor.organization)
+            attach_workspace_advertising(payload, org)
+            attach_builtin_trial(payload, org)
             return Response(CurrentWorkspaceSerializer(attach_kiosk_status(request, payload)).data)
 
         if customer_must_verify_email(actor):
@@ -119,10 +129,13 @@ class CurrentWorkspaceView(APIView):
                 "identity": actor.email,
                 "is_platform_operator": is_platform_operator,
                 "workspace_id": organization.workspace_id,
+                "account_mode": account_mode_key(organization),
+                "workspace_status": organization.status,
                 "capabilities": workspace_capabilities(actor),
                 "entitlements": build_entitlement_payload(organization),
             }
             attach_workspace_advertising(payload, organization)
+            attach_builtin_trial(payload, organization)
             return Response(CurrentWorkspaceSerializer(attach_kiosk_status(request, payload)).data)
 
         if is_platform_operator:
@@ -248,10 +261,13 @@ class OwnerLoginView(APIView):
             "identity": user.email,
             "is_platform_operator": bool(user.is_staff or user.is_superuser),
             "workspace_id": organization.workspace_id,
+            "account_mode": account_mode_key(organization),
+            "workspace_status": organization.status,
             "capabilities": workspace_capabilities(user),
             "entitlements": build_entitlement_payload(organization),
         }
         attach_workspace_advertising(payload, organization)
+        attach_builtin_trial(payload, organization)
         return Response(CurrentWorkspaceSerializer(attach_kiosk_status(request, payload)).data)
 
 
@@ -303,10 +319,13 @@ class StaffLoginView(APIView):
             "identity": staff.username,
             "is_platform_operator": False,
             "workspace_id": staff.organization.workspace_id,
+            "account_mode": account_mode_key(staff.organization),
+            "workspace_status": staff.organization.status,
             "capabilities": workspace_capabilities(staff),
             "entitlements": build_entitlement_payload(staff.organization),
         }
         attach_workspace_advertising(payload, staff.organization)
+        attach_builtin_trial(payload, staff.organization)
         return Response(CurrentWorkspaceSerializer(attach_kiosk_status(request, payload)).data)
 
 

@@ -133,6 +133,10 @@ class PlatformAdminTwoFactorTests(TestCase):
         self.assertEqual(setup.status_code, 200)
         self.assertContains(setup, "Secure your Check Station admin account")
         self.assertContains(setup, "Check Station:")
+        self.assertContains(setup, "admin/img/logo.png")
+        self.assertContains(setup, "admin/img/logo-text.png")
+        self.assertContains(setup, "admin/img/favicon.ico")
+        self.assertContains(setup, "admin/img/favicon-32.png")
         secret = extract_totp_setup_key(setup)
         self.assertIn("data:image/png;base64,", setup.content.decode())
 

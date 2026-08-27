@@ -32,6 +32,7 @@ def normalize_workspace_id(value):
 
 class OrganizationStatus(models.TextChoices):
     ACTIVE = "active", "Active"
+    BLOCKED = "blocked", "Blocked"
     ARCHIVED = "archived", "Archived"
 
 
@@ -57,6 +58,7 @@ class OrganizationQuerySet(models.QuerySet):
         updated = self.exclude(status=OrganizationStatus.ARCHIVED).update(
             status=OrganizationStatus.ARCHIVED,
             archived_at=now,
+            blocked_at=None,
         )
         return updated, {self.model._meta.label: updated}
 
@@ -101,6 +103,15 @@ class Organization(models.Model):
         choices=OrganizationStatus.choices,
         default=OrganizationStatus.ACTIVE,
     )
+    is_checkstation_account = models.BooleanField(
+        default=False,
+        db_index=True,
+        help_text=(
+            "CheckStation-managed/internal workspace. Not a paid subscription. "
+            "When on, Organization.plan is admin-controlled and customer "
+            "Subscription/Billing are hidden."
+        ),
+    )
     plan = models.CharField(
         max_length=20,
         choices=OrganizationPlan.choices,
@@ -119,6 +130,7 @@ class Organization(models.Model):
     workspace_staff_slots_resolved = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    blocked_at = models.DateTimeField(null=True, blank=True)
     archived_at = models.DateTimeField(null=True, blank=True)
 
     objects = OrganizationManager()
@@ -164,8 +176,14 @@ class Organization(models.Model):
         if self.status == OrganizationStatus.ARCHIVED:
             if self.archived_at is None:
                 self.archived_at = timezone.now()
+            self.blocked_at = None
+        elif self.status == OrganizationStatus.BLOCKED:
+            if self.blocked_at is None:
+                self.blocked_at = timezone.now()
+            self.archived_at = None
         else:
             self.archived_at = None
+            self.blocked_at = None
         super().save(*args, **kwargs)
         if previous_plan is not None and previous_plan != self.plan:
             from organizations.entitlements.plan_locks import (
@@ -181,7 +199,19 @@ class Organization(models.Model):
         if self.status == OrganizationStatus.ARCHIVED:
             return
         self.status = OrganizationStatus.ARCHIVED
-        self.save(update_fields=["status", "archived_at", "updated_at"])
+        self.save(update_fields=["status", "archived_at", "blocked_at", "updated_at"])
+
+    def block(self):
+        if self.status == OrganizationStatus.BLOCKED:
+            return
+        self.status = OrganizationStatus.BLOCKED
+        self.save(update_fields=["status", "blocked_at", "archived_at", "updated_at"])
+
+    def unblock(self):
+        if self.status != OrganizationStatus.BLOCKED:
+            return
+        self.status = OrganizationStatus.ACTIVE
+        self.save(update_fields=["status", "blocked_at", "archived_at", "updated_at"])
 
     def delete(self, using=None, keep_parents=False):
         self.archive()

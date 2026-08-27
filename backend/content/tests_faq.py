@@ -193,14 +193,17 @@ class GroupsBillingDocumentTests(TestCase):
         plus_monthly = format_usd_cents(price_cents("plus", "monthly"))
         self.assertIn(plus_monthly, billing.data["body_markdown"])
         self.assertIn(f"{PAYMENT_GRACE_DAYS} days", billing.data["body_markdown"])
-        self.assertIn("not currently offered", billing.data["body_markdown"])
+        self.assertIn("automatic 7-day", billing.data["body_markdown"])
+        self.assertIn("no card required", billing.data["body_markdown"])
         self.assertEqual(faq.data["nav_group"], "help")
 
     def test_catalog_api_matches_entitlement_and_billing_catalogs(self):
         response = self.client.get(reverse("content-catalog"))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["grace_days"], PAYMENT_GRACE_DAYS)
-        self.assertFalse(response.data["trial_offered"])
+        self.assertTrue(response.data["trial_offered"])
+        self.assertEqual(response.data["builtin_trial_days"], 7)
+        self.assertTrue(response.data["builtin_trial_offered"])
         basic = next(plan for plan in response.data["plans"] if plan["key"] == "basic")
         self.assertEqual(
             basic["limits"]["members"],

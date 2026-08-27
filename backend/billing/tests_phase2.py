@@ -24,6 +24,7 @@ from billing.models import (
     WorkspaceSubscription,
 )
 from billing.services import activate_paid_subscription, mark_payment_failure
+from billing.testing import simulate_migrated_existing_workspace
 from groups.models import Group
 from kiosk_builder.kiosk_settings_constants import KioskType
 from kiosk_builder.testing import configure_group_kiosk_for_launch
@@ -42,7 +43,6 @@ STRIPE_TEST_SETTINGS = {
     "STRIPE_PRICE_PLUS_YEARLY": "price_plus_yearly",
     "STRIPE_PRICE_BUSINESS_MONTHLY": "price_business_monthly",
     "STRIPE_PRICE_BUSINESS_YEARLY": "price_business_yearly",
-    "BUSINESS_TRIAL_DAYS": 0,
     "FRONTEND_BASE_URL": "http://localhost:5173",
 }
 
@@ -70,6 +70,7 @@ class BillingPhase2ApiTests(TestCase):
         get_fake_provider().reset()
         self.owner = create_user("billing-owner@example.com")
         self.org = Organization.objects.create_with_owner(owner=self.owner)
+        simulate_migrated_existing_workspace(self.org)
         self.api = login_owner(APIClient(), "billing-owner@example.com")
 
     def test_owner_can_get_billing_state_without_subscription_row(self):
@@ -78,7 +79,7 @@ class BillingPhase2ApiTests(TestCase):
         self.assertEqual(response.data["effective_plan"]["key"], "basic")
         self.assertEqual(response.data["purchase_source"], "none")
         self.assertTrue(response.data["actions"]["can_checkout_plus"])
-        self.assertFalse(response.data["actions"]["can_start_trial"])
+        self.assertNotIn("can_start_trial", response.data["actions"])
         self.assertFalse(response.data["actions"]["can_change_interval"])
         self.assertNotIn("external_subscription_id", response.data)
         self.assertEqual(response.data["catalog"]["plans"]["plus"]["intervals"]["monthly"]["formatted"], "$9.99")
@@ -140,26 +141,13 @@ class BillingPhase2ApiTests(TestCase):
         session = fake.checkouts[yearly.data["session_id"]]
         self.assertEqual(session["price_id"], "price_business_yearly")
 
-    def test_trial_unavailable_when_duration_missing(self):
+    def test_old_trial_checkout_endpoint_is_gone(self):
         response = self.api.post(
             "/api/billing/trial-checkout/",
             {"interval": "monthly"},
             format="json",
         )
-        self.assertEqual(response.status_code, 503)
-        self.assertEqual(response.data["code"], "trial_not_configured")
-
-    @override_settings(**{**STRIPE_TEST_SETTINGS, "BUSINESS_TRIAL_DAYS": 10})
-    def test_trial_checkout_when_duration_configured(self):
-        response = self.api.post(
-            "/api/billing/trial-checkout/",
-            {"interval": "monthly"},
-            format="json",
-        )
-        self.assertEqual(response.status_code, 200)
-        session = get_fake_provider().checkouts[response.data["session_id"]]
-        self.assertEqual(session["plan_key"], "business")
-        self.assertEqual(session["trial_days"], 10)
+        self.assertEqual(response.status_code, 404)
 
     def test_checkout_success_return_does_not_grant_plan(self):
         self.assertEqual(self.org.plan, OrganizationPlan.BASIC)
@@ -296,18 +284,18 @@ class BillingPhase2ApiTests(TestCase):
         snapshot = fake.retrieve_subscription(billing.external_subscription_id)
         self.assertTrue(snapshot.cancel_at_period_end)
 
-    def test_trial_resume_keeps_trial_end_and_clears_cancel(self):
-        from billing.services import start_trial
+    def test_deferred_paid_resume_keeps_delay_end_and_clears_cancel(self):
+        from billing.services import record_deferred_paid_start
         from billing.snapshots import SubscriptionSnapshot
 
         trial_end = timezone.now() + timedelta(days=10)
-        start_trial(
+        record_deferred_paid_start(
             self.org,
+            subscribed_plan="plus",
             billing_interval="monthly",
             trial_started_at=timezone.now(),
             trial_ends_at=trial_end,
             purchase_source=PurchaseSource.STRIPE,
-            payment_method_recorded=True,
             external_customer_id="cus_trial_resume",
             external_subscription_id="sub_trial_resume",
         )
@@ -316,7 +304,7 @@ class BillingPhase2ApiTests(TestCase):
             subscription_id="sub_trial_resume",
             customer_id="cus_trial_resume",
             status="trialing",
-            price_id="price_business_monthly",
+            price_id="price_plus_monthly",
             cancel_at_period_end=False,
             current_period_start=timezone.now(),
             current_period_end=trial_end,
@@ -337,7 +325,7 @@ class BillingPhase2ApiTests(TestCase):
         self.assertEqual(billing.trial_ends_at, trial_end)
         self.assertEqual(billing.status, BillingStatus.TRIALING)
         self.org.refresh_from_db()
-        self.assertEqual(self.org.plan, OrganizationPlan.BUSINESS)
+        self.assertEqual(self.org.plan, OrganizationPlan.BASIC)
         snapshot = fake.retrieve_subscription("sub_trial_resume")
         self.assertFalse(snapshot.cancel_at_period_end)
         self.assertEqual(snapshot.trial_end, trial_end)
@@ -537,6 +525,7 @@ class BillingPhase2ApiTests(TestCase):
 
         owner_b = create_user("billing-owner-b@example.com")
         org_b = Organization.objects.create_with_owner(owner=owner_b)
+        simulate_migrated_existing_workspace(org_b)
         checkout_b = fake.create_checkout_session(
             organization=org_b,
             owner=owner_b,
@@ -603,6 +592,7 @@ class BillingWebhookTests(TestCase):
         get_fake_provider().reset()
         self.owner = create_user("webhook-owner@example.com")
         self.org = Organization.objects.create_with_owner(owner=self.owner)
+        simulate_migrated_existing_workspace(self.org)
         self.client = Client()
 
     def _post_event(self, event_id, event_type, obj, signature=FAKE_SIGNATURE_OK):
@@ -728,6 +718,7 @@ class BillingKioskLockWebhookTests(TestCase):
         get_fake_provider().reset()
         self.owner = create_user("kiosk-bill@example.com")
         self.org = Organization.objects.create_with_owner(owner=self.owner)
+        simulate_migrated_existing_workspace(self.org)
         self.org.plan = OrganizationPlan.BUSINESS
         self.org.save(update_fields=["plan", "updated_at"])
         self.group = Group.objects.create_group(
@@ -767,6 +758,7 @@ class BillingWarningCommandTests(TestCase):
     def setUp(self):
         self.owner = create_user("warn-owner@example.com")
         self.org = Organization.objects.create_with_owner(owner=self.owner)
+        simulate_migrated_existing_workspace(self.org)
         activate_paid_subscription(
             self.org,
             subscribed_plan="plus",
@@ -795,6 +787,7 @@ class BillingConfigErrorTests(TestCase):
     def setUp(self):
         self.owner = create_user("cfg-owner@example.com")
         self.org = Organization.objects.create_with_owner(owner=self.owner)
+        simulate_migrated_existing_workspace(self.org)
         self.api = login_owner(APIClient(), "cfg-owner@example.com")
 
     def test_missing_stripe_key_returns_controlled_error(self):

@@ -1,12 +1,1 @@
-{{ product_name }}
-
-{{ heading }}
-
-{{ intro }}
-
-{{ action_label }}:
-{{ action_url }}
-
-{% if show_expiry %}This link expires in {{ expiry_hours }} hours.
-
-{% endif %}{{ security_note }}
+{% include "email/branded_message.txt" %}

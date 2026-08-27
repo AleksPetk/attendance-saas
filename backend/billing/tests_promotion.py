@@ -242,6 +242,20 @@ class GroupOfferRulesTests(TestCase):
         self.assertEqual(PRICE_CENTS["plus"]["monthly"], 999)
         self.assertFalse(CHECKOUT_APPLIES_PROMOTION)
 
+    def test_catalog_exposes_entitlement_limits_for_display(self):
+        from organizations.entitlements.catalog import get_plan_definition
+
+        payload = catalog_public_payload()
+        for plan_key in ("basic", "plus", "business"):
+            self.assertEqual(
+                payload["entitlements"][plan_key]["limits"],
+                get_plan_definition(plan_key)["limits"],
+            )
+            self.assertEqual(
+                payload["entitlements"][plan_key]["features"],
+                get_plan_definition(plan_key)["features"],
+            )
+
     def test_ten_fixed_coupon_promotional_amounts(self):
         """Exact first-period cents for all 10 Stripe fixed-amount coupons."""
         expected = {
@@ -477,6 +491,79 @@ class PromotionAdminTests(TestCase):
                 action_flag=CHANGE,
             ).exists()
         )
+
+    def test_change_form_has_single_review_button(self):
+        client = Client()
+        force_platform_admin_login(client, self.admin)
+        settings_obj = PlatformPromotionSettings.load()
+        response = client.get(
+            reverse(
+                "admin:core_platformpromotionsettings_change",
+                args=[settings_obj.pk],
+            )
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Review New Changes")
+        self.assertContains(response, 'class="default cs-promotion-review-btn"')
+        self.assertNotContains(response, "Review New / Basic change")
+        self.assertNotContains(response, "Review Plus Monthly change")
+        self.assertNotContains(response, "Review Business Monthly change")
+
+    def test_review_includes_only_changed_groups(self):
+        client = Client()
+        force_platform_admin_login(client, self.admin)
+        url = reverse("admin:core_platformpromotionsettings_set_group")
+        response = client.post(
+            url,
+            {
+                f"value__{GROUP_NEW_BASIC}": MODE_NORMAL,
+                f"value__{GROUP_PLUS_MONTHLY}": "off",
+                f"value__{GROUP_BUSINESS_MONTHLY}": "on",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Apply promotion changes?")
+        self.assertContains(response, "New / Basic")
+        self.assertContains(response, "Business Monthly")
+        self.assertContains(response, f'name="group" value="{GROUP_NEW_BASIC}"')
+        self.assertContains(response, f'name="group" value="{GROUP_BUSINESS_MONTHLY}"')
+        self.assertNotContains(
+            response, f'name="group" value="{GROUP_PLUS_MONTHLY}"'
+        )
+        settings_obj = PlatformPromotionSettings.load()
+        self.assertEqual(settings_obj.new_basic_mode, MODE_OFF)
+        self.assertFalse(settings_obj.business_monthly_enabled)
+
+    def test_unchanged_groups_are_not_reviewed(self):
+        client = Client()
+        force_platform_admin_login(client, self.admin)
+        response = client.post(
+            reverse("admin:core_platformpromotionsettings_set_group"),
+            {
+                f"value__{GROUP_NEW_BASIC}": MODE_OFF,
+                f"value__{GROUP_PLUS_MONTHLY}": "off",
+                f"value__{GROUP_BUSINESS_MONTHLY}": "off",
+            },
+            follow=True,
+        )
+        self.assertContains(response, "No promotion changes to review.")
+
+    def test_confirm_applies_changed_groups_together(self):
+        client = Client()
+        force_platform_admin_login(client, self.admin)
+        confirm = client.post(
+            reverse("admin:core_platformpromotionsettings_set_group"),
+            {
+                "group": [GROUP_NEW_BASIC, GROUP_BUSINESS_MONTHLY],
+                "value": [MODE_NORMAL, "on"],
+                "confirm": "1",
+            },
+        )
+        self.assertEqual(confirm.status_code, 302)
+        settings_obj = PlatformPromotionSettings.load()
+        self.assertEqual(settings_obj.new_basic_mode, MODE_NORMAL)
+        self.assertTrue(settings_obj.business_monthly_enabled)
+        self.assertFalse(settings_obj.plus_monthly_enabled)
 
     def test_non_platform_user_cannot_change(self):
         before = PlatformPromotionSettings.load()

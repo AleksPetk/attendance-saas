@@ -12,8 +12,11 @@ from core.admin_dashboard import (
 )
 from groups.models import Group
 from members.models import Member
+from billing.models import BillingStatus, WorkspaceSubscription
 from organizations.models import (
     Organization,
+    OrganizationPlan,
+    OrganizationStatus,
     WorkspaceStaffAccount,
     WorkspaceStaffRole,
 )
@@ -65,7 +68,16 @@ class PlatformAdminBrandingTests(TestCase):
         response = self.client.get("/admin/login/")
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Check Station")
+        self.assertContains(response, "Platform admin sign in")
+        self.assertContains(response, "admin/img/logo.png")
+        self.assertContains(response, "admin/img/logo-text.png")
+        self.assertContains(response, "admin/img/favicon.ico")
+        self.assertContains(response, "admin/img/favicon-32.png")
+        self.assertContains(response, "cs-admin-login-panel")
         self.assertContains(response, "checkstation_admin.css")
+        self.assertNotContains(response, "theme-toggle")
+        self.assertNotContains(response, "admin/js/theme.js")
+        self.assertNotContains(response, "admin/css/dark_mode.css")
 
     def test_base_site_includes_theme_assets(self):
         User.objects.create_superuser(
@@ -78,6 +90,28 @@ class PlatformAdminBrandingTests(TestCase):
         response = self.client.get("/admin/login/")
         self.assertContains(response, "cs-admin-brand")
         self.assertContains(response, "Inter")
+
+    def test_admin_header_uses_logo_images(self):
+        User.objects.create_superuser(
+            email="platform-admin@example.com",
+            password="secure-password",
+        )
+        force_platform_admin_login(
+            self.client,
+            User.objects.get(email="platform-admin@example.com"),
+        )
+        response = self.client.get("/admin/")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "admin/img/logo.png")
+        self.assertContains(response, "admin/img/logo-text.png")
+        self.assertContains(response, "admin/img/favicon.ico")
+        self.assertContains(response, "admin/img/favicon-32.png")
+        self.assertContains(response, "Platform admin")
+        self.assertContains(response, "cs-admin-logo-text")
+        self.assertNotContains(response, "theme-toggle")
+        self.assertNotContains(response, "admin/js/theme.js")
+        self.assertNotContains(response, "admin/css/dark_mode.css")
+        self.assertNotContains(response, "Toggle theme")
 
 
 class PlatformAdminDashboardTests(TestCase):
@@ -115,7 +149,10 @@ class PlatformAdminDashboardTests(TestCase):
         self.assertContains(response, "Platform dashboard")
         self.assertContains(response, "cs-dashboard")
         self.assertContains(response, "Advertising")
+        self.assertContains(response, "Ads Switcher")
+        self.assertContains(response, "Promotions")
         self.assertContains(response, "Disable advertising")
+        self.assertContains(response, "Manage promotions")
         self.assertNotContains(response, "class=\"addlink\"")
         self.assertNotContains(response, "class=\"changelink\"")
         self.assertNotContains(response, "Recent actions")
@@ -134,21 +171,80 @@ class PlatformAdminDashboardTests(TestCase):
         self.assertContains(response, "Customer accounts")
         self.assertContains(response, f'<p class="cs-metric-value">{metrics["customer_owners"]}</p>', html=True)
 
-    def test_plan_metrics_are_placeholders_without_fake_counts(self):
+    def test_plan_metrics_count_active_workspace_entitlements(self):
+        plus_owner = User.objects.create_user(
+            email="plus-owner@example.com",
+            password="secure-password",
+        )
+        plus_org = Organization.objects.create_with_owner(owner=plus_owner)
+        plus_org.plan = OrganizationPlan.PLUS
+        plus_org.save(update_fields=["plan", "updated_at"])
+
+        business_owner = User.objects.create_user(
+            email="business-owner@example.com",
+            password="secure-password",
+        )
+        business_org = Organization.objects.create_with_owner(
+            owner=business_owner,
+            internal_label="Plan sandbox",
+        )
+        business_org.plan = OrganizationPlan.BUSINESS
+        business_org.is_checkstation_account = True
+        business_org.save(
+            update_fields=["plan", "is_checkstation_account", "updated_at"]
+        )
+
+        archived_owner = User.objects.create_user(
+            email="archived-owner@example.com",
+            password="secure-password",
+        )
+        archived_org = Organization.objects.create_with_owner(owner=archived_owner)
+        archived_org.plan = OrganizationPlan.PLUS
+        archived_org.status = OrganizationStatus.ARCHIVED
+        archived_org.save(update_fields=["plan", "status", "updated_at"])
+
+        blocked_owner = User.objects.create_user(
+            email="blocked-owner@example.com",
+            password="secure-password",
+        )
+        blocked_org = Organization.objects.create_with_owner(owner=blocked_owner)
+        blocked_org.plan = OrganizationPlan.BUSINESS
+        blocked_org.status = OrganizationStatus.BLOCKED
+        blocked_org.save(update_fields=["plan", "status", "updated_at"])
+
+        WorkspaceSubscription.objects.create(
+            organization=self.organization,
+            status=BillingStatus.ACTIVE,
+            subscribed_plan=OrganizationPlan.PLUS,
+        )
+
         plans = build_plan_metrics()
-        self.assertFalse(plans["available"])
+        self.assertTrue(plans["available"])
         self.assertEqual(
             [tier["label"] for tier in plans["tiers"]],
             ["Basic", "Plus", "Business"],
         )
-        for tier in plans["tiers"]:
-            self.assertIsNone(tier["count"])
+        self.assertEqual(
+            {tier["key"]: tier["count"] for tier in plans["tiers"]},
+            {
+                "basic": 1,
+                "plus": 1,
+                "business": 1,
+            },
+        )
 
         response = self.client.get("/admin/")
-        self.assertContains(response, "subscription entitlement")
+        self.assertContains(response, "Active workspaces by current entitlement plan.")
         self.assertContains(response, "Basic")
         self.assertContains(response, "Plus")
         self.assertContains(response, "Business")
+        self.assertContains(
+            response,
+            '<span class="cs-plan-count">1</span>',
+            html=True,
+            count=3,
+        )
+        self.assertNotContains(response, '<span class="cs-plan-count">—</span>')
 
     def test_recent_registrations_render(self):
         response = self.client.get("/admin/")
@@ -211,7 +307,7 @@ class PlatformAdminDashboardTests(TestCase):
         self.assertEqual(labels[0], "Dashboard")
         self.assertIn("Customer Accounts", labels)
 
-        # Level-2 category landings must be reachable from sidebar headings.
+        # Level-2 category landings remain available at the same URLs.
         by_key = {group["key"]: group for group in groups}
         self.assertEqual(
             by_key["workspaces"]["url"],
@@ -221,16 +317,112 @@ class PlatformAdminDashboardTests(TestCase):
             by_key["operations"]["url"],
             reverse("admin:app_list", kwargs={"app_label": "members"}),
         )
-        self.assertContains(response, 'class="cs-nav-category-link"')
+        self.assertTrue(by_key["dashboard"]["open"])
+        self.assertFalse(by_key["workspaces"]["open"])
+        self.assertContains(response, 'class="cs-nav-group-toggle"')
+        self.assertContains(response, 'data-cs-nav-group="workspaces"')
         self.assertContains(
             response,
-            reverse("admin:app_list", kwargs={"app_label": "organizations"}),
+            reverse("admin:organizations_organization_changelist"),
         )
+
+        workspaces_page = self.client.get(
+            reverse("admin:organizations_organization_changelist")
+        )
+        self.assertContains(workspaces_page, 'data-cs-nav-group="workspaces"')
+        self.assertContains(workspaces_page, 'data-cs-default-open="true"')
+        self.assertContains(workspaces_page, 'aria-current="page"')
+
+    def test_operations_groups_submenu_highlights_only_current_page(self):
+        request = RequestFactory().get("/admin/")
+        request.user = self.superuser
+        app_list = admin.site.get_app_list(request)
+        groups_url = reverse("admin:groups_group_changelist")
+        sections_url = reverse("admin:groups_groupsection_changelist")
+
+        operations = next(
+            group
+            for group in build_nav_groups(app_list, request_path=sections_url)
+            if group["key"] == "operations"
+        )
+        groups_item = next(
+            item for item in operations["items"] if item["label"] == "Groups"
+        )
+        self.assertTrue(operations["open"])
+        self.assertFalse(groups_item["current"])
+        self.assertTrue(groups_item["child_current"])
+        self.assertTrue(groups_item["open"])
+        self.assertEqual(
+            [child["label"] for child in groups_item["children"]],
+            [
+                "Group Memberships",
+                "Group Sections",
+                "Group-only Participants",
+            ],
+        )
+        current_children = [
+            child["label"] for child in groups_item["children"] if child["current"]
+        ]
+        self.assertEqual(current_children, ["Group Sections"])
+
+        response = self.client.get(sections_url)
+        self.assertEqual(response.status_code, 200)
+        html = response.content.decode()
+        self.assertEqual(html.count('aria-current="page"'), 1)
+        self.assertIn('is-ancestor', html)
+        self.assertIn('cs-nav-submodule', html)
+        self.assertContains(response, groups_url)
+        self.assertContains(response, sections_url)
+
+        groups_page = self.client.get(groups_url)
+        groups_html = groups_page.content.decode()
+        self.assertEqual(groups_html.count('aria-current="page"'), 1)
+        self.assertContains(groups_page, 'class="cs-nav-parent-link is-current"')
 
     def test_model_changelist_still_works(self):
         response = self.client.get(reverse("admin:accounts_user_changelist"))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "owner@example.com")
+
+    def test_listed_changelists_use_collapsible_filters(self):
+        other_owner = User.objects.create_user(
+            email="second-owner@example.com",
+            password="secure-password",
+        )
+        Organization.objects.create_with_owner(owner=other_owner)
+        for url_name in (
+            "admin:accounts_user_changelist",
+            "admin:organizations_workspacestaffaccount_changelist",
+            "admin:billing_workspacesubscription_changelist",
+            "admin:members_member_changelist",
+            "admin:groups_group_changelist",
+            "admin:groups_groupmembership_changelist",
+            "admin:groups_groupsection_changelist",
+            "admin:groups_grouponlyparticipant_changelist",
+            "admin:kiosk_builder_kioskdesign_changelist",
+            "admin:kiosk_builder_kiosksettings_changelist",
+            "admin:core_platformadminaction_changelist",
+        ):
+            with self.subTest(url_name=url_name):
+                response = self.client.get(reverse(url_name))
+                html = response.content.decode()
+                self.assertEqual(response.status_code, 200, url_name)
+                self.assertEqual(html.count('id="changelist-filter"'), 1, url_name)
+                self.assertIn("Show filters", html)
+                self.assertIn("Hide filters", html)
+                self.assertIn('class="cs-changelist-filter-disclosure"', html)
+                self.assertNotIn('cs-changelist-filter-disclosure" open', html)
+                self.assertLess(
+                    html.find("cs-changelist-filter-disclosure"),
+                    html.find('id="changelist-filter"'),
+                )
+                form_pos = html.find('id="changelist-form"')
+                results_pos = html.find('id="result_list"')
+                filter_pos = html.find('id="changelist-filter"')
+                if results_pos != -1:
+                    self.assertLess(filter_pos, results_pos, url_name)
+                else:
+                    self.assertLess(filter_pos, form_pos, url_name)
 
     def test_non_platform_user_cannot_access_admin(self):
         client = Client()

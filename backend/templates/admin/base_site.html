@@ -8,13 +8,38 @@
 {% block branding %}
 <div id="site-name">
   <a href="{% url 'admin:index' %}" class="cs-admin-brand">
-    <span class="cs-admin-mark" aria-hidden="true"></span>
+    <picture class="cs-admin-mark-picture">
+      <source type="image/webp" srcset="{% static 'admin/img/logo.webp' %}">
+      <img
+        class="cs-admin-mark"
+        src="{% static 'admin/img/logo.png' %}"
+        alt=""
+        width="192"
+        height="181"
+        decoding="async"
+      >
+    </picture>
     <span class="cs-admin-wordmark">
-      <span class="cs-admin-wordmark-main">Check Station</span>
+      <picture class="cs-admin-logo-text-picture">
+        <source type="image/webp" srcset="{% static 'admin/img/logo-text.webp' %}">
+        <img
+          class="cs-admin-logo-text"
+          src="{% static 'admin/img/logo-text.png' %}"
+          alt="Check Station"
+          width="720"
+          height="214"
+          decoding="async"
+        >
+      </picture>
       <span class="cs-admin-wordmark-sub">Platform admin</span>
     </span>
   </a>
 </div>
+{% endblock %}
+
+{% block extrahead %}
+{{ block.super }}
+{% include "admin/includes/favicon_links.html" %}
 {% endblock %}
 
 {% block extrastyle %}
@@ -24,5 +49,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="{% static 'admin/css/checkstation_admin.css' %}">
 {% endblock %}
+
+{% block dark-mode-vars %}{% endblock %}
 
 {% block nav-global %}{% endblock %}

@@ -1,6 +1,7 @@
 from io import BytesIO
 from unittest.mock import MagicMock, patch
 from urllib.error import HTTPError, URLError
+import json
 
 from django.test import SimpleTestCase, override_settings
 
@@ -71,7 +72,108 @@ class ResendProviderTests(SimpleTestCase):
         self.assertEqual(captured["user_agent"], RESEND_USER_AGENT)
         self.assertFalse(str(captured["user_agent"]).startswith("Python-urllib"))
         self.assertEqual(captured["content_type"], "application/json")
-        self.assertIn(b"Check Station <accounts@example.com>", captured["from_payload"])
+        self.assertIn(b"CheckStation <accounts@example.com>", captured["from_payload"])
+        self.assertNotIn(b"Check Station <", captured["from_payload"])
+        self.assertNotIn(b'"attachments"', captured["from_payload"])
+
+    @override_settings(
+        RESEND_API_KEY="re_test_secret_key",
+        RESEND_FROM_EMAIL="accounts@example.com",
+        RESEND_FROM_NAME="CheckStation",
+        FRONTEND_BASE_URL="http://localhost:5173",
+        EMAIL_BRAND_LOGO_URL="",
+        RESEND_TIMEOUT_SECONDS=15,
+    )
+    def test_branded_html_uses_text_wordmark_with_no_attachments(self):
+        from core.email_branding import render_branded_email
+
+        mock_response = MagicMock()
+        mock_response.read.return_value = b'{"id":"email_1"}'
+        mock_response.getcode.return_value = 200
+        mock_response.__enter__.return_value = mock_response
+        mock_response.__exit__.return_value = False
+        captured = []
+
+        def fake_urlopen(request, timeout=None):
+            captured.append(json.loads(request.data.decode("utf-8")))
+            return mock_response
+
+        verify_html, verify_text = render_branded_email(
+            heading="Verify your CheckStation email",
+            intro="Confirm this email.",
+            action_label="Verify email",
+            action_url="http://localhost:5173/verify-email/x/y",
+        )
+        reset_html, reset_text = render_branded_email(
+            heading="Reset your CheckStation password",
+            intro="Choose a new password.",
+            action_label="Reset password",
+            action_url="http://localhost:5173/reset-password/x/y",
+        )
+        with patch("core.mail.urllib.request.urlopen", side_effect=fake_urlopen):
+            send_transactional_email(
+                to_email="user@example.com",
+                subject="Verify your CheckStation email",
+                html_body=verify_html,
+                text_body=verify_text,
+            )
+            send_transactional_email(
+                to_email="user@example.com",
+                subject="Reset your CheckStation password",
+                html_body=reset_html,
+                text_body=reset_text,
+            )
+        self.assertEqual(len(captured), 2)
+        for payload in captured:
+            self.assertNotIn("attachments", payload)
+            self.assertNotIn("<img", payload["html"])
+            self.assertNotIn("cid:", payload["html"])
+            self.assertNotIn("localhost:5173/brand/", payload["html"])
+            self.assertNotIn("docs.checkstation.app", payload["html"])
+            self.assertNotIn("checkstation.app", payload["html"])
+            self.assertNotIn('"content_id"', json.dumps(payload))
+            self.assertIn("CheckStation", payload["html"])
+
+    @override_settings(
+        RESEND_API_KEY="re_test_secret_key",
+        RESEND_FROM_EMAIL="accounts@example.com",
+        RESEND_FROM_NAME="CheckStation",
+        FRONTEND_BASE_URL="http://localhost:5173",
+        EMAIL_BRAND_LOGO_URL="https://cdn.example.com/brand/logo-text.png",
+        RESEND_TIMEOUT_SECONDS=15,
+    )
+    def test_branded_html_uses_configured_https_logo_with_no_attachments(self):
+        from core.email_branding import render_branded_email
+
+        mock_response = MagicMock()
+        mock_response.read.return_value = b'{"id":"email_1"}'
+        mock_response.getcode.return_value = 200
+        mock_response.__enter__.return_value = mock_response
+        mock_response.__exit__.return_value = False
+        captured = []
+
+        def fake_urlopen(request, timeout=None):
+            captured.append(json.loads(request.data.decode("utf-8")))
+            return mock_response
+
+        html_body, text_body = render_branded_email(
+            heading="Reset your CheckStation password",
+            intro="Choose a new password.",
+            action_label="Reset password",
+            action_url="http://localhost:5173/reset-password/x/y",
+        )
+        with patch("core.mail.urllib.request.urlopen", side_effect=fake_urlopen):
+            send_transactional_email(
+                to_email="user@example.com",
+                subject="Reset your CheckStation password",
+                html_body=html_body,
+                text_body=text_body,
+            )
+        payload = captured[0]
+        self.assertNotIn("attachments", payload)
+        self.assertIn('src="https://cdn.example.com/brand/logo-text.png"', payload["html"])
+        self.assertNotIn("cid:", payload["html"])
+        self.assertNotIn('"content_id"', json.dumps(payload))
 
     @override_settings(
         RESEND_API_KEY="re_test_secret_key",

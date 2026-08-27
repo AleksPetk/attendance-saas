@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{{ subject }}</title>
+  </head>
+  <body style="margin:0;padding:0;background:#f6f9fc;font-family:'Segoe UI',Helvetica,Arial,sans-serif;color:#0f172a;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f6f9fc;padding:32px 16px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="560" cellspacing="0" cellpadding="0" style="max-width:560px;width:100%;background:#ffffff;border:1px solid #e2e8f0;border-radius:14px;padding:32px;">
+            <tr>
+              <td>
+                {% if brand_logo_url %}
+                <p style="margin:0 0 20px;line-height:0;">
+                  <a href="{{ home_url }}" style="text-decoration:none;border:0;">
+                    <img
+                      src="{{ brand_logo_url }}"
+                      alt="{{ product_name }}"
+                      width="{{ brand_logo_width }}"
+                      height="{{ brand_logo_height }}"
+                      style="display:block;border:0;outline:none;width:{{ brand_logo_width }}px;height:{{ brand_logo_height }}px;max-width:{{ brand_logo_width }}px;"
+                    />
+                  </a>
+                </p>
+                {% else %}
+                <p style="margin:0 0 20px;">
+                  <a href="{{ home_url }}" style="text-decoration:none;color:#071426;font-size:20px;font-weight:700;letter-spacing:-0.02em;line-height:1.2;">{{ product_name }}</a>
+                </p>
+                {% endif %}
+                <h1 style="margin:0 0 16px;font-size:22px;line-height:1.3;color:#071426;">
+                  {{ heading }}
+                </h1>
+                {% if intro %}
+                <p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#334155;">
+                  {{ intro }}
+                </p>
+                {% endif %}
+                {% if extra_html %}
+                <div style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#334155;">
+                  {{ extra_html|safe }}
+                </div>
+                {% endif %}
+                {% if action_label and action_url %}
+                <p style="margin:0 0 24px;">
+                  <a href="{{ action_url }}" style="display:inline-block;background:#2563eb;color:#ffffff;text-decoration:none;font-weight:600;padding:12px 18px;border-radius:10px;">
+                    {{ action_label }}
+                  </a>
+                </p>
+                {% endif %}
+                {% if action_url %}
+                <p style="margin:0 0 12px;font-size:13px;line-height:1.6;color:#64748b;">
+                  {% if show_expiry %}This link expires in {{ expiry_hours }} hours. {% endif %}{% if action_label %}If the button does not work, copy and paste this URL into your browser:{% endif %}
+                </p>
+                <p style="margin:0 0 20px;font-size:13px;line-height:1.5;color:#2563eb;word-break:break-all;">
+                  {{ action_url }}
+                </p>
+                {% endif %}
+                {% if security_note %}
+                <p style="margin:0 0 20px;font-size:13px;line-height:1.6;color:#64748b;">
+                  {{ security_note }}
+                </p>
+                {% endif %}
+                <p style="margin:20px 0 0;padding-top:16px;border-top:1px solid #e2e8f0;font-size:13px;line-height:1.6;color:#64748b;">
+                  {{ product_name }}{% if footer_note %}<br>{{ footer_note }}{% endif %}
+                </p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

@@ -166,7 +166,6 @@ export function AccountSubscriptionPanel({
   confirmingCheckout = false,
   checkoutNotice = "",
   onStartCheckout,
-  onStartTrial,
   onPreviewUpgrade,
   onConfirmUpgrade,
   onScheduleDowngrade,
@@ -518,19 +517,6 @@ export function AccountSubscriptionPanel({
             option.actionLabel,
           )
         : null,
-      option.kind === "checkout" && option.showTrial
-        ? createElement(
-            "button",
-            {
-              type: "button",
-              className: "btn-secondary btn-sm",
-              disabled: Boolean(busyAction) || !actions.can_start_trial,
-              "aria-label": `Start Business trial (${option.interval})`,
-              onClick: () => onStartTrial?.(option.interval),
-            },
-            "Start Business trial",
-          )
-        : null,
       option.kind === "immediate_upgrade" && !upgradePreview && busyAction !== "preview"
         ? createElement(
             "button",
@@ -678,6 +664,25 @@ export function AccountSubscriptionPanel({
           createElement("p", null, checkoutNotice),
         )
       : null,
+    billing?.builtin_trial?.active
+      ? createElement(
+          "div",
+          {
+            className: "account-billing-banner",
+            role: "status",
+          },
+          createElement("strong", null, "7-day Business trial included"),
+          createElement(
+            "p",
+            null,
+            billing.builtin_trial.ends_at
+              ? `This workspace already has Business until ${formatWhen(
+                  billing.builtin_trial.ends_at,
+                )}. No card is required for the trial. If you choose Plus or Business now, paid billing starts after that date.`
+              : "This workspace already has Business for 7 days. No card is required for the trial.",
+          ),
+        )
+      : null,
     billing?.payment_issue?.active
       ? createElement(
           "div",
@@ -738,12 +743,20 @@ export function AccountSubscriptionPanel({
             ? "Loading subscription state…"
             : isApple
               ? "This workspace is billed through Apple. Manage renewals in Apple subscriptions."
-              : "Entitlements come from the workspace plan. Checkout changes apply after Stripe confirms.",
+              : billing?.builtin_trial?.active
+                ? "Business is included free until the trial ends. Choosing Plus or Business does not shorten that week."
+                : "Entitlements come from the workspace plan. Checkout changes apply after Stripe confirms.",
         ),
       ),
       billing && !billingLoading
         ? MetaPairs([
             ["Billing status", statusLabelForBilling(billing)],
+            [
+              "Included Business trial ends",
+              billing.builtin_trial?.active && billing.builtin_trial?.ends_at
+                ? formatWhen(billing.builtin_trial.ends_at)
+                : null,
+            ],
             [
               "Interval",
               currentInterval
@@ -753,7 +766,7 @@ export function AccountSubscriptionPanel({
                 : null,
             ],
             ["Price", recurringPrice],
-            ["Trial ends", billing.trial_ends_at ? formatWhen(billing.trial_ends_at) : null],
+            ["Paid plan starts", billing.trial_ends_at ? formatWhen(billing.trial_ends_at) : null],
             [
               billing.cancel_at_period_end ? "Ends" : "Renews",
               billing.current_period_end && !billing.trial_ends_at

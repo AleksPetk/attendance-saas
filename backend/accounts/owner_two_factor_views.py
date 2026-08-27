@@ -54,6 +54,7 @@ from accounts.verification import customer_must_verify_email
 from attendance.kiosk_lock import attach_kiosk_status
 from organizations.entitlements import build_entitlement_payload
 from organizations.entitlements.advertising import attach_workspace_advertising
+from billing.builtin_trial import attach_builtin_trial
 from organizations.models import Organization, OrganizationStatus
 from organizations.permissions import workspace_capabilities
 from organizations.serializers import CurrentWorkspaceSerializer
@@ -97,6 +98,7 @@ def _workspace_payload(request, user):
         "entitlements": build_entitlement_payload(org),
     }
     attach_workspace_advertising(payload, org)
+    attach_builtin_trial(payload, org)
     return CurrentWorkspaceSerializer(attach_kiosk_status(request, payload)).data
 
 

@@ -3,12 +3,9 @@
 from __future__ import annotations
 
 from billing.catalog import PLAN_BUSINESS, PLAN_PLUS, PAID_INTERVALS
-from billing.exceptions import BillingStateError, StripeConfigurationError
+from billing.exceptions import BillingStateError, StripeConfigurationError, StripeProviderError
 from billing.models import BillingStatus, PurchaseSource
-from billing.prices import (
-    business_trial_days,
-    require_stripe_api,
-)
+from billing.prices import require_stripe_api
 from billing.provider import get_billing_provider
 from billing.reconciliation import reconcile_subscription_snapshot
 from billing.services import (
@@ -20,7 +17,14 @@ from billing.services import (
     schedule_cancellation,
 )
 from core.mail import frontend_url
-from organizations.models import OrganizationPlan
+
+
+def _deny_checkstation_billing(organization):
+    if organization is not None and organization.is_checkstation_account:
+        raise BillingStateError(
+            "This workspace is managed by CheckStation and does not use customer billing.",
+            code="checkstation_managed_account",
+        )
 
 
 def _require_stripe_source(billing):
@@ -39,6 +43,7 @@ def _return_urls():
 
 
 def start_paid_checkout(organization, owner, *, plan_key, interval):
+    _deny_checkstation_billing(organization)
     require_stripe_api()
     plan = str(plan_key or "").strip().lower()
     interval_key = str(interval or "").strip().lower()
@@ -52,14 +57,13 @@ def start_paid_checkout(organization, owner, *, plan_key, interval):
             "Apple-managed subscriptions cannot use Stripe Checkout.",
             code="purchase_source_apple",
         )
-    if organization.plan != OrganizationPlan.BASIC:
-        if not billing or billing.status not in {BillingStatus.NONE, BillingStatus.CANCELED}:
-            if billing and billing.status in {
-                BillingStatus.TRIALING,
-                BillingStatus.ACTIVE,
-                BillingStatus.PAST_DUE,
-            }:
-                raise BillingStateError("This workspace already has an active subscription.")
+    if billing and billing.status in {
+        BillingStatus.TRIALING,
+        BillingStatus.ACTIVE,
+        BillingStatus.PAST_DUE,
+    }:
+        raise BillingStateError("This workspace already has an active subscription.")
+    from billing.builtin_trial import billing_start_at_for_checkout
     from billing.coupons import resolve_checkout_coupon
 
     coupon_id, coupon_slot = resolve_checkout_coupon(
@@ -76,54 +80,14 @@ def start_paid_checkout(organization, owner, *, plan_key, interval):
         interval=interval_key,
         success_url=success_url,
         cancel_url=cancel_url,
-        trial_days=None,
-        coupon_id=coupon_id,
-        coupon_slot=coupon_slot,
-    )
-
-
-def start_trial_checkout(organization, owner, *, interval):
-    require_stripe_api()
-    days = business_trial_days()
-    if days is None:
-        raise StripeConfigurationError(
-            "Business trial is not offered until BUSINESS_TRIAL_DAYS is configured.",
-            code="trial_not_configured",
-        )
-    interval_key = str(interval or "").strip().lower()
-    if interval_key not in PAID_INTERVALS:
-        raise BillingStateError("Trial interval must be monthly or yearly.")
-    if organization.plan != OrganizationPlan.BASIC:
-        billing = get_workspace_billing(organization)
-        if billing and billing.status in {
-            BillingStatus.TRIALING,
-            BillingStatus.ACTIVE,
-            BillingStatus.PAST_DUE,
-        }:
-            raise BillingStateError("This workspace already has an active subscription.")
-    from billing.coupons import resolve_checkout_coupon
-
-    coupon_id, coupon_slot = resolve_checkout_coupon(
-        organization=organization,
-        plan_key=PLAN_BUSINESS,
-        interval=interval_key,
-    )
-    success_url, cancel_url, _portal = _return_urls()
-    provider = get_billing_provider()
-    return provider.create_checkout_session(
-        organization=organization,
-        owner=owner,
-        plan_key=PLAN_BUSINESS,
-        interval=interval_key,
-        success_url=success_url,
-        cancel_url=cancel_url,
-        trial_days=days,
+        billing_start_at=billing_start_at_for_checkout(organization),
         coupon_id=coupon_id,
         coupon_slot=coupon_slot,
     )
 
 
 def preview_upgrade_to_business(organization):
+    _deny_checkstation_billing(organization)
     require_stripe_api()
     billing = get_workspace_billing(organization)
     _require_stripe_source(billing)
@@ -139,6 +103,7 @@ def preview_upgrade_to_business(organization):
 
 
 def apply_upgrade_to_business(organization):
+    _deny_checkstation_billing(organization)
     require_stripe_api()
     billing = get_workspace_billing(organization)
     _require_stripe_source(billing)
@@ -158,6 +123,7 @@ def apply_upgrade_to_business(organization):
 
 
 def request_downgrade_to_plus(organization, *, interval=None):
+    _deny_checkstation_billing(organization)
     require_stripe_api()
     billing = get_workspace_billing(organization)
     _require_stripe_source(billing)
@@ -191,6 +157,7 @@ def request_downgrade_to_plus(organization, *, interval=None):
 
 
 def request_cancellation(organization):
+    _deny_checkstation_billing(organization)
     require_stripe_api()
     billing = get_workspace_billing(organization)
     _require_stripe_source(billing)
@@ -206,6 +173,7 @@ def request_cancellation(organization):
 
 def request_resume_subscription(organization):
     """Remove cancel-at-period-end on the existing Stripe subscription."""
+    _deny_checkstation_billing(organization)
     require_stripe_api()
     billing = get_workspace_billing(organization)
     _require_stripe_source(billing)
@@ -233,6 +201,7 @@ def request_resume_subscription(organization):
 
 def request_cancel_scheduled_downgrade(organization):
     """Release a scheduled period-end change; keep the current subscription."""
+    _deny_checkstation_billing(organization)
     require_stripe_api()
     billing = get_workspace_billing(organization)
     _require_stripe_source(billing)
@@ -250,6 +219,7 @@ def request_cancel_scheduled_downgrade(organization):
 
 
 def request_schedule_billing_change(organization, *, plan, interval):
+    _deny_checkstation_billing(organization)
     require_stripe_api()
     billing = get_workspace_billing(organization)
     _require_stripe_source(billing)
@@ -286,6 +256,7 @@ def request_schedule_billing_change(organization, *, plan, interval):
 
 
 def open_customer_portal(organization):
+    _deny_checkstation_billing(organization)
     require_stripe_api()
     billing = get_workspace_billing(organization)
     _require_stripe_source(billing)
@@ -303,6 +274,7 @@ def open_customer_portal(organization):
 
 
 def list_customer_invoices(organization, *, limit=10):
+    _deny_checkstation_billing(organization)
     require_stripe_api()
     billing = get_workspace_billing(organization)
     _require_stripe_source(billing)

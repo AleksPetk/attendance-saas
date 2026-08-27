@@ -11,6 +11,8 @@ import {
   canAccessStaffManagement,
   shouldShowLockedStaffNav,
 } from "./workspaceEntitlements.js";
+import WorkspaceOnboarding from "./WorkspaceOnboarding.jsx";
+import { shouldShowWorkspaceOnboarding } from "./workspaceOnboarding.js";
 
 const NAV_ITEMS = [
   { name: "dashboard", label: "Dashboard", icon: "▦" },
@@ -57,6 +59,9 @@ export default function WorkspaceLayout({ session, route, onNavigate, onSignOut,
   const roleLabel = workspaceRoleLabel(session);
   const topbarNotice = workspaceTopbarNotice(session);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [onboardingOpen, setOnboardingOpen] = useState(() =>
+    shouldShowWorkspaceOnboarding(session),
+  );
   const pageTitle = PAGE_TITLES[route.name] || "Workspace";
 
   const roleCanManageStaff = canManageStaffAccounts(session);
@@ -72,6 +77,12 @@ export default function WorkspaceLayout({ session, route, onNavigate, onSignOut,
 
   return (
     <div className="workspace-shell">
+      {onboardingOpen ? (
+        <WorkspaceOnboarding
+          session={session}
+          onClose={() => setOnboardingOpen(false)}
+        />
+      ) : null}
       {sidebarOpen ? (
         <button
           type="button"

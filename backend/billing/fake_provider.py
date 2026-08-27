@@ -59,7 +59,7 @@ class FakeStripeProvider:
         interval,
         success_url,
         cancel_url,
-        trial_days=None,
+        billing_start_at=None,
         coupon_id=None,
         coupon_slot=None,
     ) -> CheckoutSessionResult:
@@ -74,7 +74,7 @@ class FakeStripeProvider:
             "interval": interval,
             "price_id": price_id,
             "customer_id": customer_id,
-            "trial_days": trial_days,
+            "billing_start_at": billing_start_at,
             "success_url": success_url,
             "cancel_url": cancel_url,
             "coupon_id": str(coupon_id or "").strip() or None,
@@ -88,15 +88,17 @@ class FakeStripeProvider:
     def complete_checkout(self, session_id: str) -> SubscriptionSnapshot:
         checkout = self.checkouts[session_id]
         now = timezone.now()
-        trial_days = checkout.get("trial_days")
+        billing_start_at = checkout.get("billing_start_at")
         sub_id = f"sub_test_{uuid4().hex[:16]}"
-        if trial_days:
+        if billing_start_at and billing_start_at > now:
             status = "trialing"
-            trial_end = now + timedelta(days=int(trial_days))
+            trial_end = billing_start_at
             period_end = trial_end
+            trial_start = now
         else:
             status = "active"
             trial_end = None
+            trial_start = None
             period_end = now + timedelta(days=30)
         snapshot = SubscriptionSnapshot(
             subscription_id=sub_id,
@@ -106,7 +108,7 @@ class FakeStripeProvider:
             cancel_at_period_end=False,
             current_period_start=now,
             current_period_end=period_end,
-            trial_start=now if trial_days else None,
+            trial_start=trial_start,
             trial_end=trial_end,
             metadata={
                 "organization_id": str(checkout["organization_id"]),

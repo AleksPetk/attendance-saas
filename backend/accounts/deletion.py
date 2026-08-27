@@ -108,7 +108,12 @@ def _delete_tenant_media_directories(organization_id):
             logger.warning("Could not remove tenant media directory %s", directory)
 
 
-def permanently_delete_customer_account(user):
+def permanently_delete_customer_account(
+    user,
+    *,
+    require_no_owned_organization=False,
+    require_no_live_subscription=False,
+):
     """
     Irreversibly delete a paying customer User and their owned workspace.
 
@@ -123,6 +128,21 @@ def permanently_delete_customer_account(user):
         )
 
     organization = Organization.objects.filter(owner=user).first()
+    if require_no_owned_organization and organization is not None:
+        raise PermanentDeletionError(
+            "This user still owns a workspace. Permanently delete the Organization first."
+        )
+    if require_no_live_subscription and organization is not None:
+        from organizations.lifecycle import live_subscription_block_reason
+
+        reason = live_subscription_block_reason(organization)
+        if reason:
+            raise PermanentDeletionError(
+                "This workspace still has a live paid subscription. "
+                "Handle or end billing first. Permanent deletion cannot leave "
+                "Stripe charging a deleted workspace."
+            )
+
     organization_id = organization.pk if organization is not None else None
     user_id = user.pk
     email = user.email

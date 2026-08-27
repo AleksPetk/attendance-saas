@@ -154,7 +154,7 @@ Excel and PDF advanced layout variants remain refinable; production exports ship
 ### Subscriptions & Billing
 
 - [x] Recurring subscription model (Organization is the subscription boundary)
-- [x] Registration creates Basic (unsubscribed/free); Business trial is a later billing action (DEC-078; duration TBD)
+- [x] Registration creates a workspace immediately; new normal workspaces receive an automatic 7-day built-in Business trial (DEC-093)
 - [x] **V1 plans frozen:** Basic / Plus / Business matrix in PRODUCT.md (DEC-072)
 - [x] Permanent V1 USD prices and monthly/yearly intervals (DEC-077)
 - [x] Internal entitlement / usage system **before** Stripe (DEC-076)
@@ -227,7 +227,7 @@ Items requiring explicit design and approval before categorization.
 | Permission/role capability matrix | **Admin frozen (DEC-070). Staff frozen (DEC-071).** |
 | Notification engine architecture | Templates, triggers, variables, delivery pipeline; which predefined outcomes ship in MVP |
 | Plan prices and Event plan axes | **V1 names, limits, and USD prices frozen (DEC-072 / DEC-077).** Event quotas remain open |
-| Free trial duration | Business trial **behavior** frozen (DEC-078). Exact duration **TBD** |
+| Free trial duration | **Resolved (DEC-093).** Automatic 7-day built-in Business trial; no card |
 | Action Record retention policy | Archival, deletion, and compliance requirements; separate from media storage quotas |
 | Action Record source/context implementation | Product sources confirmed (kiosk, staff/admin, automatic/preset); exact fields undesigned |
 | Database implementation and API design | Organization owner + WorkspaceStaffAccount models and a minimal current-workspace API exist. Remaining tenant/person models, broader APIs, and tenant-enforcement mechanisms remain undecided |
@@ -236,7 +236,7 @@ Items requiring explicit design and approval before categorization.
 | Image optimization specifications | Dimensions, formats, variants |
 | MVP Event identification methods | Which identification pattern(s) belong in MVP |
 | Event Entry future structure | Whether Event Entries later split into Reservation → Attendees |
-| Organization billing lifecycle | Commercial rules frozen (DEC-078–080). Remaining: trial duration, provider execution, interval-change proration |
+| Organization billing lifecycle | Commercial rules frozen (DEC-079–080, DEC-093). Remaining: provider execution, interval-change proration |
 | Minimum Platform administration for launch | Required operator controls at launch vs full tooling deferred Post-MVP |
 
 ---

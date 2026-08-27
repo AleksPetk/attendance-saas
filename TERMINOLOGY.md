@@ -72,7 +72,9 @@ The real-world legal form of the customer (company, school, gym, individual busi
 
 One paying customer User owns **one** workspace and may use it for **any mix** of real-world activities (businesses, schools, hobbies, teams, one-time Events) as Groups and Events inside that Organization. Separate User accounts are for **separate workspaces**, not for each activity type.
 
-A workspace currently begins as **Basic** at registration. A Business trial is a later billing action (payment method required; duration TBD). An Organization may be in trial, actively subscribed, scheduled to cancel, in payment-failure grace, or after paid access has ended. Billing/subscription status is **separate** from the identity of the Organization itself and from the current effective entitlement plan. An Organization is not defined by currently paying.
+A newly created **normal** workspace automatically receives **Business** for **7 days** (no card; one-time; DEC-093). CheckStation-managed workspaces are ineligible. After the free week, entitlement is **Basic** unless a paid Plus or Business subscription was selected during the week. An Organization may be on the built-in trial, actively subscribed, scheduled to cancel, in payment-failure grace, or after paid access has ended. Billing/subscription status is **separate** from the identity of the Organization itself and from the current effective entitlement plan. An Organization is not defined by currently paying.
+
+**CheckStation Account** is an Organization account mode (internal/managed by the platform). It is not a paid Stripe subscription and not a separate User type. **Blocked** is a platform-enforced access restriction on the Organization; it is not archive.
 
 Tenant isolation remains fundamental: all Organization data is strictly separated from other Organizations.
 
@@ -334,5 +336,5 @@ Action (performed)
 | Kiosk storage shape | Fields on Group/Event vs separate entity (OPEN-027); ownership is confirmed |
 | Organization role capabilities | Role names: owner is the paying User; admin/staff are WorkspaceStaffAccount; **Admin/Staff matrices frozen (DEC-070/071)** |
 | User ↔ Member explicit linking | Same real person may be both; any explicit link/deduplication mechanism undecided |
-| Plan prices / Event quotas | V1 names, limits, and USD prices frozen (DEC-072, DEC-077); Event axes open; trial duration TBD (DEC-078) |
+| Plan prices / Event quotas | V1 names, limits, and USD prices frozen (DEC-072, DEC-077); Event axes open; built-in 7-day Business trial frozen (DEC-093) |
 | Event sub-concepts | Whether some Events later need separate Reservation and Attendee structures remains undecided |

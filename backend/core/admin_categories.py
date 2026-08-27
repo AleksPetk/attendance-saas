@@ -236,6 +236,15 @@ CATEGORY_DEFINITIONS = (
                 "stats": lambda: [],
             },
             {
+                "app_label": "core",
+                "object_name": "platformadminaction",
+                "label": "Platform admin actions",
+                "description": "Durable audit of high-risk platform-admin actions.",
+                "prefer_add": False,
+                "count": lambda: _safe_model_count("core", "PlatformAdminAction"),
+                "stats": lambda: [],
+            },
+            {
                 "app_label": "auth",
                 "object_name": "group",
                 "label": "Permission Groups",

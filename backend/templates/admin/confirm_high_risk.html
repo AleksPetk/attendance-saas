@@ -1,0 +1,80 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block extrahead %}
+{{ block.super }}
+{% endblock %}
+
+{% block content %}
+<div id="content-main" class="cs-high-risk-confirm">
+  <h1>{{ confirm_title }}</h1>
+  {% if confirm_lead %}
+    <p>{{ confirm_lead }}</p>
+  {% endif %}
+
+  {% if warning %}
+    <div class="cs-high-risk-warning">{{ warning }}</div>
+  {% endif %}
+
+  <div class="cs-confirm-block">
+    <h2>Current</h2>
+    {{ current_state|linebreaks }}
+  </div>
+  <div class="cs-confirm-block">
+    <h2>Requested</h2>
+    {{ requested_state|linebreaks }}
+  </div>
+  {% if access_impact %}
+    <div class="cs-confirm-block">
+      <h2>Access impact</h2>
+      {{ access_impact|linebreaks }}
+    </div>
+  {% endif %}
+  {% if billing_impact %}
+    <div class="cs-confirm-block">
+      <h2>Billing impact</h2>
+      {{ billing_impact|linebreaks }}
+    </div>
+  {% endif %}
+
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="confirm" value="1">
+    {% if show_plan_select %}
+      <label for="id_target_plan">New plan</label>
+      <select id="id_target_plan" name="target_plan">
+        {% for value, label in plan_choices %}
+          <option value="{{ value }}" {% if value == extra_hidden.target_plan %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    {% elif extra_hidden %}
+      {% for name, value in extra_hidden.items %}
+        <input type="hidden" name="{{ name }}" value="{{ value }}">
+      {% endfor %}
+    {% endif %}
+
+    <label for="id_reason">Reason (required, not shown to customers)</label>
+    <textarea id="id_reason" name="reason" rows="3" required>{{ posted_reason }}</textarea>
+    {% if errors.reason %}<p class="errornote">{{ errors.reason }}</p>{% endif %}
+
+    <label for="id_admin_password">Your platform-admin password</label>
+    <input id="id_admin_password" name="admin_password" type="password" autocomplete="current-password" required>
+    {% if errors.admin_password %}<p class="errornote">{{ errors.admin_password }}</p>{% endif %}
+
+    {% if require_typed_delete %}
+      <label for="id_confirmation">Type DELETE to confirm</label>
+      <input id="id_confirmation" name="confirmation" type="text" autocomplete="off" required>
+      {% if errors.confirmation %}<p class="errornote">{{ errors.confirmation }}</p>{% endif %}
+    {% endif %}
+
+    {% if form_error %}
+      <p class="errornote">{{ form_error }}</p>
+    {% endif %}
+
+    <div class="submit-row">
+      <input type="submit" value="{{ confirm_label }}" class="default {% if danger %}deletelink{% endif %}">
+      <a href="{{ cancel_url }}" class="button cancel-link">{% translate "Cancel" %}</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

@@ -20,49 +20,71 @@
 
 {% block content %}
 <div id="content-main">
-  <div class="login-brand">
-    <a href="{% url 'admin:index' %}" class="cs-admin-brand">
-      <span class="cs-admin-mark" aria-hidden="true"></span>
-      <span class="cs-admin-wordmark">
-        <span class="cs-admin-wordmark-main">Check Station</span>
-        <span class="cs-admin-wordmark-sub">Platform admin sign in</span>
-      </span>
-    </a>
-  </div>
-
-  {% if form.errors and not form.non_field_errors %}
-  <p class="errornote">
-    {% blocktranslate count counter=form.errors.items|length %}Please correct the error below.{% plural %}Please correct the errors below.{% endblocktranslate %}
-  </p>
-  {% endif %}
-
-  {% if form.non_field_errors %}
-  {% for error in form.non_field_errors %}
-  <p class="errornote">{{ error }}</p>
-  {% endfor %}
-  {% endif %}
-
-  <form action="{{ app_path }}" method="post" id="login-form">{% csrf_token %}
-    <div class="form-row">
-      {{ form.username.errors }}
-      {{ form.username.label_tag }}
-      {{ form.username }}
+  <div class="cs-admin-login-panel">
+    <div class="login-brand">
+      <a href="{% url 'admin:index' %}" class="cs-admin-brand cs-admin-login-brand">
+        <picture class="cs-admin-login-logo-mark-picture">
+          <source type="image/webp" srcset="{% static 'admin/img/logo.webp' %}">
+          <img
+            class="cs-admin-login-logo-mark"
+            src="{% static 'admin/img/logo.png' %}"
+            alt=""
+            width="192"
+            height="181"
+            decoding="async"
+          >
+        </picture>
+        <span class="cs-admin-wordmark">
+          <picture class="cs-admin-login-logo-text-picture">
+            <source type="image/webp" srcset="{% static 'admin/img/logo-text.webp' %}">
+            <img
+              class="cs-admin-login-logo-text"
+              src="{% static 'admin/img/logo-text.png' %}"
+              alt="Check Station"
+              width="720"
+              height="214"
+              decoding="async"
+            >
+          </picture>
+          <span class="cs-admin-wordmark-sub">Platform admin sign in</span>
+        </span>
+      </a>
     </div>
-    <div class="form-row">
-      {{ form.password.errors }}
-      {{ form.password.label_tag }}
-      {{ form.password }}
-      <input type="hidden" name="next" value="{{ next }}">
-    </div>
-    {% url 'admin_password_reset' as password_reset_url %}
-    {% if password_reset_url %}
-    <div class="password-reset-link">
-      <a href="{{ password_reset_url }}">{% translate 'Forgotten your password or username?' %}</a>
-    </div>
+
+    {% if form.errors and not form.non_field_errors %}
+    <p class="errornote">
+      {% blocktranslate count counter=form.errors.items|length %}Please correct the error below.{% plural %}Please correct the errors below.{% endblocktranslate %}
+    </p>
     {% endif %}
-    <div class="submit-row">
-      <input type="submit" value="{% translate 'Log in' %}">
-    </div>
-  </form>
+
+    {% if form.non_field_errors %}
+    {% for error in form.non_field_errors %}
+    <p class="errornote">{{ error }}</p>
+    {% endfor %}
+    {% endif %}
+
+    <form action="{{ app_path }}" method="post" id="login-form">{% csrf_token %}
+      <input type="hidden" name="next" value="{{ next }}">
+      <div class="form-row">
+        {{ form.username.errors }}
+        {{ form.username.label_tag }}
+        {{ form.username }}
+      </div>
+      <div class="form-row">
+        {{ form.password.errors }}
+        {{ form.password.label_tag }}
+        {{ form.password }}
+      </div>
+      {% url 'admin_password_reset' as password_reset_url %}
+      {% if password_reset_url %}
+      <div class="password-reset-link">
+        <a href="{{ password_reset_url }">{% translate 'Forgotten your password or username?' %}</a>
+      </div>
+      {% endif %}
+      <div class="submit-row">
+        <input type="submit" value="{% translate 'Log in' %}">
+      </div>
+    </form>
+  </div>
 </div>
 {% endblock %}

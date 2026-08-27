@@ -1,0 +1,26 @@
+{{ product_name }}
+
+{{ heading }}
+{% if intro %}
+
+{{ intro }}
+{% endif %}{% if extra_text %}
+
+{{ extra_text }}
+{% endif %}{% if action_label and action_url %}
+
+{{ action_label }}:
+{{ action_url }}
+{% elif action_url %}
+
+{{ action_url }}
+{% endif %}{% if show_expiry %}
+
+This link expires in {{ expiry_hours }} hours.
+{% endif %}{% if security_note %}
+
+{{ security_note }}
+{% endif %}
+
+{{ product_name }}{% if footer_note %}
+{{ footer_note }}{% endif %}

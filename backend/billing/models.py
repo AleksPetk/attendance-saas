@@ -18,7 +18,7 @@ class BillingInterval(models.TextChoices):
 
 class BillingStatus(models.TextChoices):
     NONE = "none", "No paid subscription"
-    TRIALING = "trialing", "Trial"
+    TRIALING = "trialing", "Provider billing delay"
     ACTIVE = "active", "Active paid"
     PAST_DUE = "past_due", "Payment problem / grace"
     CANCELED = "canceled", "Ended / canceled paid access"
@@ -76,7 +76,7 @@ class WorkspaceSubscription(models.Model):
         choices=SubscribedPlan.choices,
         blank=True,
         default="",
-        help_text="Commercial paid/trial tier (plus/business). Blank when none.",
+        help_text="Commercial paid/deferred-start tier (plus/business). Blank when none.",
     )
     currency = models.CharField(
         max_length=3,
@@ -85,8 +85,22 @@ class WorkspaceSubscription(models.Model):
     )
     current_period_start = models.DateTimeField(null=True, blank=True)
     current_period_end = models.DateTimeField(null=True, blank=True)
-    trial_started_at = models.DateTimeField(null=True, blank=True)
-    trial_ends_at = models.DateTimeField(null=True, blank=True)
+    trial_started_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text=(
+            "Provider billing-delay window start (Stripe/Apple). "
+            "Not the built-in 7-day Business trial."
+        ),
+    )
+    trial_ends_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text=(
+            "When the provider starts the first paid period. "
+            "Not the built-in 7-day Business trial."
+        ),
+    )
     cancel_at_period_end = models.BooleanField(default=False)
     pending_plan = models.CharField(
         max_length=20,
@@ -198,3 +212,74 @@ class ProviderEvent(models.Model):
 
     def __str__(self):
         return f"{self.provider}:{self.external_event_id}"
+
+
+class WorkspaceBuiltinTrial(models.Model):
+    """One-time built-in 7-day Business trial per Organization.
+
+    Separate from Stripe/Apple billing and from promotions. ``consumed`` is
+    write-once: billing changes must never restore eligibility.
+    """
+
+    organization = models.OneToOneField(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name="builtin_trial",
+    )
+    started_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When Business entitlement was granted. Null if never granted.",
+    )
+    ends_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When built-in Business entitlement ends. Null if never granted.",
+    )
+    consumed = models.BooleanField(
+        default=True,
+        help_text="True after grant or ineligible backfill. Never set back to False.",
+    )
+    expired_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When post-trial entitlement (Basic or paid) was applied.",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Built-in Business trial"
+        verbose_name_plural = "Built-in Business trials"
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(consumed=True),
+                name="billing_workspacebuiltintrial_consumed_once",
+            ),
+            models.CheckConstraint(
+                condition=Q(started_at__isnull=True, ends_at__isnull=True)
+                | Q(
+                    started_at__isnull=False,
+                    ends_at__isnull=False,
+                    ends_at__gt=models.F("started_at"),
+                ),
+                name="billing_workspacebuiltintrial_window_valid",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["ends_at", "expired_at"]),
+        ]
+
+    def __str__(self):
+        workspace_id = getattr(self.organization, "workspace_id", self.organization_id)
+        if self.started_at is None:
+            return f"{workspace_id} (ineligible)"
+        return f"{workspace_id} (until {self.ends_at})"
+
+    def delete(self, *args, **kwargs):
+        from django.db.models import ProtectedError
+
+        raise ProtectedError(
+            "Built-in trial rows cannot be deleted.",
+            [self],
+        )

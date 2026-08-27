@@ -22,8 +22,9 @@ from billing.reconciliation import (
 from billing.services import (
     activate_paid_subscription,
     schedule_cancellation,
-    start_trial,
+    record_deferred_paid_start,
 )
+from billing.testing import simulate_migrated_existing_workspace
 from billing.snapshots import ProviderEventPayload, SubscriptionSnapshot
 from billing.state import build_billing_state
 from billing.webhooks import process_provider_event
@@ -37,7 +38,6 @@ STRIPE_TEST_SETTINGS = {
     "STRIPE_PRICE_PLUS_YEARLY": "price_plus_yearly",
     "STRIPE_PRICE_BUSINESS_MONTHLY": "price_business_monthly",
     "STRIPE_PRICE_BUSINESS_YEARLY": "price_business_yearly",
-    "BUSINESS_TRIAL_DAYS": 0,
     "FRONTEND_BASE_URL": "http://localhost:5173",
 }
 
@@ -67,6 +67,8 @@ class BillingTenantIsolationTests(TestCase):
         self.owner_b = create_user("owner-b@example.com")
         self.org_a = Organization.objects.create_with_owner(owner=self.owner_a)
         self.org_b = Organization.objects.create_with_owner(owner=self.owner_b)
+        simulate_migrated_existing_workspace(self.org_a)
+        simulate_migrated_existing_workspace(self.org_b)
         self.api_a = login_owner(APIClient(), "owner-a@example.com")
         self.api_b = login_owner(APIClient(), "owner-b@example.com")
 
@@ -125,6 +127,7 @@ class BillingReconciliationAuditTests(TestCase):
         get_fake_provider().reset()
         self.owner = create_user("recon-owner@example.com")
         self.org = Organization.objects.create_with_owner(owner=self.owner)
+        simulate_migrated_existing_workspace(self.org)
 
     def test_ended_without_price_id_still_finalizes(self):
         activate_paid_subscription(
@@ -223,6 +226,7 @@ class BillingActionGateAndPreviewTests(TestCase):
         get_fake_provider().reset()
         self.owner = create_user("gate-owner@example.com")
         self.org = Organization.objects.create_with_owner(owner=self.owner)
+        simulate_migrated_existing_workspace(self.org)
         self.api = login_owner(APIClient(), "gate-owner@example.com")
 
     def _activate(self, plan="plus", interval="monthly"):
@@ -307,13 +311,16 @@ class BillingActionGateAndPreviewTests(TestCase):
         self.assertEqual(state["effective_plan"]["key"], "business")
 
     def test_trial_cancel_keeps_business_until_end(self):
-        start_trial(
+        from organizations.entitlements.transitions import apply_effective_plan
+
+        apply_effective_plan(self.org, OrganizationPlan.BUSINESS, source="test")
+        record_deferred_paid_start(
             self.org,
+            subscribed_plan="business",
             billing_interval="monthly",
             trial_started_at=timezone.now(),
             trial_ends_at=timezone.now() + timedelta(days=10),
             purchase_source=PurchaseSource.STRIPE,
-            payment_method_recorded=True,
             external_customer_id="cus_trial",
             external_subscription_id="sub_trial",
         )
@@ -347,6 +354,7 @@ class BillingUnconfiguredModeTests(TestCase):
     def setUp(self):
         self.owner = create_user("unconfigured@example.com")
         self.org = Organization.objects.create_with_owner(owner=self.owner)
+        simulate_migrated_existing_workspace(self.org)
         self.api = login_owner(APIClient(), "unconfigured@example.com")
 
     def test_billing_get_and_catalog_work_without_stripe(self):

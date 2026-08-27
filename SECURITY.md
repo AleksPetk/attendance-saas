@@ -98,8 +98,10 @@ Platform-operator 2FA uses standard TOTP (Google Authenticator and other TOTP ap
 
 - **Archive/deactivate** is reversible and preserves tenant data and history. It is the normal operational removal path.
 - An archived **Member** cannot be edited and is operationally inactive in Group and kiosk flows. Restore returns the same Member and reactivates existing GroupMemberships. Permanent Member delete is allowed only after archive; Action Record snapshots remain, and the live Member link is cleared.
-- **Subscription cancellation** is not account deletion. Billing is not implemented in this slice.
-- **Permanent account deletion** is owner-only (paying `accounts.User`) or platform-superuser in Django admin. It requires re-authentication (current password) and explicit confirmation on the customer path. Workspace staff cannot delete the paying customer's account. Platform staff who are not superusers cannot permanently delete tenants.
+- **Organization Block** is not archive. It is a platform-enforced workspace access restriction (`Organization.status=blocked`). Owner/staff/kiosk/workspace APIs stop immediately. Data is kept. For a normal paid customer, blocking schedules period-end subscription cancellation (no current-period refund). CheckStation-managed workspaces change access only.
+- **User.is_active** deactivates the owner login only. It does not automatically block staff or kiosk, and it does not cancel billing. Do not merge User deactivation with Organization Block.
+- **Subscription cancellation** is not account deletion.
+- **Permanent account deletion** is owner-only (paying `accounts.User`) or platform-superuser in Django admin. The customer path requires re-authentication (current password) and explicit confirmation. Workspace staff cannot delete the paying customer's account. Platform staff who are not superusers cannot permanently delete tenants. Platform-admin permanent User delete is refused while the User still owns an Organization. Organization permanent delete is refused while a live provider subscription exists. High-risk admin actions also require a fresh platform-admin password and a required reason (DEC-092). Platform TOTP still gates `/admin/`.
 - After permanent deletion, the customer email may be registered again. Stale verification or password-reset tokens for the deleted User are invalid.
 - Permanent deletion removes that tenant's workspace and customer-created operational data. Narrow legal/security retention may still apply per policy and is not implemented here.
 

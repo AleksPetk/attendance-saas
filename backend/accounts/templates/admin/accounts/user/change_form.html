@@ -8,3 +8,14 @@
     </li>
   {% endif %}
 {% endblock %}
+
+{% block after_field_sets %}
+{{ block.super }}
+{% if owns_organization %}
+  <p class="help">
+    This user owns a workspace. Deactivating the owner login does not block staff,
+    kiosk, or billing. Use Organization Block to stop the whole workspace.
+    Permanent user deletion is blocked until the Organization is deleted.
+  </p>
+{% endif %}
+{% endblock %}

@@ -109,6 +109,11 @@ def get_workspace_billing(organization):
 @transaction.atomic
 def lock_workspace_billing(organization):
     org = Organization.objects.select_for_update().get(pk=organization.pk)
+    if org.is_checkstation_account:
+        raise BillingStateError(
+            "CheckStation-managed workspaces do not use commercial billing.",
+            code="checkstation_managed_account",
+        )
     try:
         billing = WorkspaceSubscription.objects.select_for_update().get(
             organization=org
@@ -125,49 +130,62 @@ def _save_billing(billing: WorkspaceSubscription, fields):
 
 
 @transaction.atomic
-def start_trial(
+def record_deferred_paid_start(
     organization,
     *,
+    subscribed_plan,
     billing_interval,
+    purchase_source,
     trial_started_at,
     trial_ends_at,
-    purchase_source,
-    payment_method_recorded,
     external_customer_id="",
     external_subscription_id="",
     now=None,
 ):
-    """Start a Business trial. Card/payment method must already be recorded.
+    """Record a provider paid subscription whose first invoice is delayed.
 
-    Exact trial duration is not frozen; callers pass explicit start/end.
+    Does not grant the built-in Business trial and does not change
+    Organization.plan. Stripe/Apple ``trialing`` is only a billing delay.
     """
-    if not payment_method_recorded:
-        raise BillingStateError(
-            "A payment method must be recorded before starting a Business trial."
-        )
+    plan = _require_paid_plan(subscribed_plan)
     interval = _require_interval(billing_interval)
     source = _require_purchase_source(purchase_source)
     started = trial_started_at or _now(now)
     ends = trial_ends_at
     if ends is None or ends <= started:
-        raise BillingStateError("Trial end must be after trial start.")
+        raise BillingStateError("Deferred paid start must be after the delay start.")
 
     org, billing = lock_workspace_billing(organization)
+    _ = org
     if (
         billing.status == BillingStatus.TRIALING
-        and billing.subscribed_plan == PLAN_BUSINESS
-        and org.plan == OrganizationPlan.BUSINESS
+        and billing.subscribed_plan == plan
         and billing.trial_started_at == started
         and billing.trial_ends_at == ends
         and billing.billing_interval == interval
         and not billing.cancel_at_period_end
     ):
-        return billing
+        billing.external_customer_id = (
+            external_customer_id or billing.external_customer_id
+        )
+        billing.external_subscription_id = (
+            external_subscription_id or billing.external_subscription_id
+        )
+        billing.purchase_source = source
+        return _save_billing(
+            billing,
+            [
+                "purchase_source",
+                "external_customer_id",
+                "external_subscription_id",
+            ],
+        )
 
     if billing.status in _PAID_STATUSES:
-        raise BillingStateError("Cannot start a trial while a paid subscription is active.")
+        raise BillingStateError(
+            "Cannot record a deferred paid start while a paid subscription is active."
+        )
 
-    apply_effective_plan(org, PLAN_BUSINESS, source="billing.start_trial")
     billing.purchase_source = source
     billing.external_customer_id = external_customer_id or billing.external_customer_id
     billing.external_subscription_id = (
@@ -175,7 +193,7 @@ def start_trial(
     )
     billing.status = BillingStatus.TRIALING
     billing.billing_interval = interval
-    billing.subscribed_plan = PLAN_BUSINESS
+    billing.subscribed_plan = plan
     billing.trial_started_at = started
     billing.trial_ends_at = ends
     billing.current_period_start = started
@@ -242,7 +260,10 @@ def activate_paid_subscription(
     ):
         return billing
 
-    apply_effective_plan(org, plan, source="billing.activate_paid_subscription")
+    from billing.builtin_trial import builtin_trial_is_active
+
+    if not builtin_trial_is_active(org, now=now):
+        apply_effective_plan(org, plan, source="billing.activate_paid_subscription")
     billing.purchase_source = source
     billing.external_customer_id = external_customer_id or billing.external_customer_id
     billing.external_subscription_id = (
@@ -594,7 +615,10 @@ def finalize_subscription_end(organization, *, ended_at=None, now=None):
     ):
         return billing
 
-    apply_effective_plan(org, PLAN_BASIC, source="billing.finalize_subscription_end")
+    from billing.builtin_trial import builtin_trial_is_active
+
+    if not builtin_trial_is_active(org, now=now):
+        apply_effective_plan(org, PLAN_BASIC, source="billing.finalize_subscription_end")
     billing.status = BillingStatus.CANCELED
     billing.purchase_source = PurchaseSource.NONE
     billing.billing_interval = BillingInterval.NONE
@@ -623,7 +647,7 @@ def finalize_subscription_end(organization, *, ended_at=None, now=None):
 
 @transaction.atomic
 def apply_due_billing_transitions(organization, *, now=None):
-    """Apply scheduled cancellation, downgrade, trial conversion, or grace end.
+    """Apply scheduled cancellation, downgrade, deferred paid start, or grace end.
 
     Safe to call more than once. Does not invent provider period lengths.
     """
@@ -638,14 +662,20 @@ def apply_due_billing_transitions(organization, *, now=None):
         if moment >= billing.trial_ends_at:
             if billing.cancel_at_period_end:
                 return finalize_subscription_end(org, ended_at=moment, now=moment)
-            apply_effective_plan(
-                org, PLAN_BUSINESS, source="billing.convert_trial_to_paid"
-            )
+            paid_plan = billing.subscribed_plan
+            if paid_plan not in PAID_PLAN_KEYS:
+                paid_plan = PLAN_BUSINESS
+            from billing.builtin_trial import builtin_trial_is_active
+
+            if not builtin_trial_is_active(org, now=moment):
+                apply_effective_plan(
+                    org, paid_plan, source="billing.convert_deferred_paid_start"
+                )
             paid_period_end = billing.current_period_end
             if paid_period_end is None or paid_period_end <= billing.trial_ends_at:
                 paid_period_end = None
             billing.status = BillingStatus.ACTIVE
-            billing.subscribed_plan = PLAN_BUSINESS
+            billing.subscribed_plan = paid_plan
             billing.current_period_start = billing.trial_ends_at
             billing.current_period_end = paid_period_end
             _clear_pending(billing)

@@ -9,6 +9,7 @@ import {
   canManageGroupConfiguration,
   canManageOwnerAccount,
   canManageStaffAccounts,
+  canManageSubscription,
   canManageWorkspace,
   canManageWorkspaceAdminAccounts,
   canViewBilling,
@@ -31,6 +32,7 @@ const ownerSession = {
       can_manage_owner_account: true,
       can_launch_kiosk: true,
       can_view_billing: true,
+      can_manage_subscription: true,
       can_view_global_members: true,
       can_manage_group_configuration: true,
       is_group_scoped_staff: false,
@@ -91,6 +93,23 @@ test("owner retains full owner-only capabilities", () => {
   assert.equal(canManageOwnerAccount(ownerSession), true);
   assert.equal(canManageWorkspaceAdminAccounts(ownerSession), true);
   assert.equal(canViewBilling(ownerSession), true);
+  assert.equal(canManageSubscription(ownerSession), true);
+});
+
+test("CheckStation-managed owner cannot view or manage billing", () => {
+  const checkstation = {
+    workspace: {
+      account_kind: "owner",
+      role: "owner",
+      capabilities: {
+        can_view_billing: false,
+        can_manage_subscription: false,
+        account_mode: "checkstation",
+      },
+    },
+  };
+  assert.equal(canViewBilling(checkstation), false);
+  assert.equal(canManageSubscription(checkstation), false);
 });
 
 test("staff remains group-scoped without global members or configuration", () => {

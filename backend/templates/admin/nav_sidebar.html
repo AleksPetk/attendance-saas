@@ -1,4 +1,4 @@
-{% load i18n %}
+{% load i18n static %}
 <button class="sticky toggle-nav-sidebar" id="toggle-nav-sidebar" aria-label="{% translate 'Toggle navigation' %}"></button>
 <nav class="sticky" id="nav-sidebar" aria-label="{% translate 'Sidebar' %}">
   <input type="search" id="nav-filter"
@@ -8,29 +8,62 @@
   {% if platform_nav_groups %}
   <div class="cs-nav-groups">
     {% for group in platform_nav_groups %}
-    <div class="module cs-nav-module{% if group.current %} current-category{% endif %}" data-cs-nav-group="{{ group.key }}">
-      <table>
-        <caption>
-          {% if group.url %}
-          <a href="{{ group.url }}" class="cs-nav-category-link"{% if group.current %} aria-current="page"{% endif %}>{{ group.label }}</a>
-          {% else %}
-          {{ group.label }}
-          {% endif %}
-        </caption>
+    <details
+      class="module cs-nav-module{% if group.current %} current-category{% endif %}"
+      data-cs-nav-group="{{ group.key }}"
+      {% if group.open %}open data-cs-default-open="true"{% endif %}
+    >
+      <summary class="cs-nav-group-toggle">
+        <span class="cs-nav-group-label">{{ group.label }}</span>
+        <span class="cs-nav-chevron" aria-hidden="true"></span>
+      </summary>
+      <table class="cs-nav-group-panel">
         <tbody>
           {% for item in group.items %}
-          <tr class="{% if item.current %}current-model{% endif %}">
+          {% if item.children %}
+          <tr class="{% if item.child_current %}ancestor-model{% endif %}">
+            <th scope="row">
+              <details
+                class="cs-nav-submodule{% if item.child_current %} is-ancestor{% endif %}"
+                {% if item.open %}open data-cs-default-open="true"{% endif %}
+              >
+                <summary class="cs-nav-sub-toggle">
+                  <a
+                    href="{{ item.url }}"
+                    class="cs-nav-parent-link{% if item.current %} is-current{% endif %}{% if item.child_current %} is-ancestor{% endif %}"
+                    {% if item.current %}aria-current="page"{% endif %}
+                  >{{ item.label }}</a>
+                  <span class="cs-nav-chevron" aria-hidden="true"></span>
+                </summary>
+                <table class="cs-nav-sub-panel">
+                  <tbody>
+                    {% for child in item.children %}
+                    <tr>
+                      <th scope="row">
+                        <a href="{{ child.url }}"{% if child.current %} aria-current="page"{% endif %}>{{ child.label }}</a>
+                      </th>
+                    </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </details>
+            </th>
+          </tr>
+          {% else %}
+          <tr>
             <th scope="row">
               <a href="{{ item.url }}"{% if item.current %} aria-current="page"{% endif %}>{{ item.label }}</a>
             </th>
           </tr>
+          {% endif %}
           {% endfor %}
         </tbody>
       </table>
-    </div>
+    </details>
     {% endfor %}
   </div>
   {% else %}
   {% include "admin/app_list.html" with app_list=available_apps show_changelinks=False %}
   {% endif %}
 </nav>
+<script src="{% static 'admin/js/checkstation_nav.js' %}" defer></script>

@@ -48,7 +48,6 @@ env = environ.Env(
     STRIPE_COUPON_ACQ_BIG_BUSINESS_YEARLY=(str, ""),
     STRIPE_COUPON_PLUS_MONTHLY_TO_PLUS_YEARLY=(str, ""),
     STRIPE_COUPON_BUSINESS_MONTHLY_TO_YEARLY=(str, ""),
-    BUSINESS_TRIAL_DAYS=(int, 0),
     BILLING_PROVIDER=(str, "stripe"),
     CONTACT_TO_EMAIL=(str, "contact@checkstation.alekspetk.com"),
     TURNSTILE_SITE_KEY=(str, ""),
@@ -206,11 +205,17 @@ REST_FRAMEWORK = {
 }
 
 # Public product name used in transactional account emails.
-PRODUCT_NAME = "Check Station"
+PRODUCT_NAME = "CheckStation"
 
 # Browser origin used to build verification and password-reset links.
 # Never accept a user-supplied redirect target for these emails.
 FRONTEND_BASE_URL = env("FRONTEND_BASE_URL", default="http://localhost:5173").rstrip("/")
+
+# Optional public HTTPS URL for the CheckStation wordmark in transactional
+# emails. Gmail fetches this from the public internet. Do not use CID,
+# localhost, or http://. Leave empty to render a text wordmark. Set this
+# when a real public HTTPS asset URL exists (deployment, not local default).
+EMAIL_BRAND_LOGO_URL = env("EMAIL_BRAND_LOGO_URL", default="").strip()
 
 # Public Docs origin used in document canonical_url metadata.
 # Browser-facing URL, not a Docker-internal hostname.
@@ -289,8 +294,6 @@ STRIPE_COUPON_PLUS_MONTHLY_TO_PLUS_YEARLY = env(
 STRIPE_COUPON_BUSINESS_MONTHLY_TO_YEARLY = env(
     "STRIPE_COUPON_BUSINESS_MONTHLY_TO_YEARLY", default=""
 )
-# 0 / unset = Business trial is not offered. Do not invent a duration.
-BUSINESS_TRIAL_DAYS = env("BUSINESS_TRIAL_DAYS")
 BILLING_PROVIDER = env("BILLING_PROVIDER", default="stripe")
 
 # Public Contact mailbox (Cloudflare Email Routing). Never the private

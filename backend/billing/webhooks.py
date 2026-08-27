@@ -119,6 +119,40 @@ def process_provider_event(event) -> str:
     return "processed"
 
 
+def _skip_checkstation_org(org) -> bool:
+    if org is not None and org.is_checkstation_account:
+        logger.info(
+            "Ignoring Stripe billing event for CheckStation-managed organization_id=%s",
+            org.pk,
+        )
+        return True
+    return False
+
+
+def _reassert_block_cancellation(org):
+    """Keep a blocked paid workspace from renewing if Stripe resume leaked in."""
+    from organizations.models import OrganizationStatus
+    from organizations.lifecycle import LIVE_BILLING_STATUSES, schedule_block_cancellation
+    from billing.services import get_workspace_billing
+
+    if org is None or org.is_checkstation_account:
+        return
+    if org.status != OrganizationStatus.BLOCKED:
+        return
+    billing = get_workspace_billing(org)
+    if billing is None or billing.status not in LIVE_BILLING_STATUSES:
+        return
+    if billing.cancel_at_period_end:
+        return
+    try:
+        schedule_block_cancellation(org)
+    except Exception:
+        logger.exception(
+            "Could not re-assert period-end cancellation for blocked organization_id=%s",
+            org.pk,
+        )
+
+
 def _dispatch(event):
     provider = get_billing_provider()
     obj = event.data_object or {}
@@ -145,10 +179,13 @@ def _dispatch(event):
             customer_id=customer_id,
             subscription_id=subscription_id,
         )
+        if _skip_checkstation_org(org):
+            return
         if not subscription_id:
             raise BillingStateError("Checkout session has no subscription.")
         snapshot = provider.retrieve_subscription(subscription_id)
         reconcile_subscription_snapshot(org, snapshot)
+        _reassert_block_cancellation(org)
         return
 
     subscription_id = _subscription_id_from_object(obj)
@@ -160,9 +197,12 @@ def _dispatch(event):
             customer_id=customer_id,
             subscription_id=subscription_id,
         )
+        if _skip_checkstation_org(org):
+            return
         snapshot = provider.retrieve_subscription(subscription_id)
         reconcile_subscription_snapshot(org, snapshot)
         apply_due_billing_transitions(org)
+        _reassert_block_cancellation(org)
         return
 
     if event.event_type in {"invoice.paid", "invoice.payment_succeeded"}:
@@ -171,11 +211,14 @@ def _dispatch(event):
             customer_id=customer_id,
             subscription_id=subscription_id,
         )
+        if _skip_checkstation_org(org):
+            return
         if subscription_id:
             snapshot = provider.retrieve_subscription(subscription_id)
             reconcile_subscription_snapshot(org, snapshot)
         else:
             mark_payment_recovered(org)
+        _reassert_block_cancellation(org)
         return
 
     if event.event_type == "invoice.payment_failed":
@@ -184,6 +227,9 @@ def _dispatch(event):
             customer_id=customer_id,
             subscription_id=subscription_id,
         )
+        if _skip_checkstation_org(org):
+            return
         mark_payment_failure(org)
         apply_due_billing_transitions(org)
+        _reassert_block_cancellation(org)
         return

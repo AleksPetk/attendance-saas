@@ -78,9 +78,23 @@ def get_active_workspace_organization(user):
                     "role": user.role,
                 }
             )
+    if isinstance(user, WorkspaceStaffAccount):
+        from organizations.entitlements.plan_locks import (
+            is_staff_account_plan_unlocked,
+        )
+
+        if not is_staff_account_plan_unlocked(user):
+            raise PermissionDenied(
+                detail={
+                    "code": "plan_account_locked",
+                    "detail": "This workspace account is locked by the current plan.",
+                    "workspace_id": user.organization.workspace_id,
+                    "username": user.username,
+                    "role": user.role,
+                }
+            )
         if getattr(user, "status", None) != WorkspaceStaffStatus.ACTIVE:
-            if hasattr(user, "is_active") and not user.is_active:
-                return None
+            return None
         org = getattr(user, "organization", None)
         if org is None or getattr(org, "status", None) != OrganizationStatus.ACTIVE:
             return None
@@ -199,18 +213,25 @@ def workspace_capabilities(user):
     role = get_workspace_operator_role(user)
     if role is None:
         return {}
+    org = get_active_workspace_organization(user)
     is_staff = role == WorkspaceStaffRole.STAFF
+    checkstation = bool(getattr(org, "is_checkstation_account", False))
+    owner = role == "owner"
+    can_billing = owner and not checkstation
     return {
         "can_manage_workspace": role in {"owner", "admin"},
         "can_manage_staff_accounts": role in {"owner", "admin"},
         "can_manage_workspace_admin_accounts": role == "owner",
         "can_manage_owner_account": role == "owner",
         "can_launch_kiosk": role in {"owner", "admin", "staff"},
-        "can_view_billing": role == "owner",
+        "can_view_billing": can_billing,
+        "can_manage_subscription": can_billing,
         "can_view_global_members": not is_staff,
         "can_manage_group_configuration": role in {"owner", "admin"},
         "can_manage_group_participants": role in {"owner", "admin", "staff"},
         "is_group_scoped_staff": is_staff,
+        "account_mode": "checkstation" if checkstation else "normal",
+        "workspace_status": getattr(org, "status", None),
     }
 
 

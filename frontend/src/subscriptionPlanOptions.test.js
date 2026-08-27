@@ -127,6 +127,8 @@ describe("Business highest plan", () => {
       effective_plan: { key: "business", display_name: "Business" },
       subscribed_plan: { key: "business", display_name: "Business" },
       interval: "monthly",
+      status: "active",
+      purchase_source: "stripe",
       catalog: {
         ...catalog,
         promotion: {

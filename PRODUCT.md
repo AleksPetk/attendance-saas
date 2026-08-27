@@ -20,7 +20,7 @@ An **Organization** is the customer **workspace**, **tenant**, and **subscriptio
 
 One paying customer User owns **one** workspace and may use that workspace for **any mix** of real-world activities — businesses, schools, hobbies, teams, one-time Events, and so on — as **Groups** and **Events** inside that same Organization. Separate User accounts are required only when the same person operates **separate workspaces** (separate tenants / subscriptions), not for each activity type inside one workspace.
 
-Billing and subscription state belong to the Organization workspace and are **separate** from Organization identity. Registration currently creates a **Basic** workspace; a Business trial is a later billing action that requires a payment method and is **not** started automatically at signup. An Organization may exist while on Basic, trialing Business, actively subscribed, scheduled to cancel, in payment-failure grace, or after paid access has ended. Effective entitlement is `Organization.plan`; commercial lifecycle lives in the billing domain.
+Billing and subscription state belong to the Organization workspace and are **separate** from Organization identity. Every newly created normal workspace automatically receives **Business** entitlement for **7 days** (no card, no opt-in). That built-in trial is one-time forever, separate from Stripe/Apple/promotions, and does not start a paid subscription. After the free week, entitlement becomes **Basic** unless a paid Plus or Business subscription was selected during the week (paid billing starts at trial end). An Organization may exist while on Basic, on the built-in Business trial, actively subscribed, scheduled to cancel, in payment-failure grace, or after paid access has ended. Effective entitlement is `Organization.plan`; commercial lifecycle lives in the billing domain.
 
 ---
 
@@ -532,9 +532,9 @@ Recurring subscription SaaS product. **Subscriptions belong to the Organization 
 
 **Canonical V1 plan names (use exactly):** **Basic**, **Plus**, **Business**. Do **not** use Free, Pro, or Enterprise for V1 tiers.
 
-Registration currently creates a **Basic** workspace. A Business trial is **not** started at signup; it is a billing action that will require payment-method setup in the Stripe/checkout phase.
+Every newly created **normal** workspace automatically receives **Business** for **7 days** at creation (DEC-093). No card, no activation choice, and no “use later.” CheckStation-managed workspaces are ineligible. Workspaces that already existed when this trial shipped are permanently ineligible. The first-time workspace tutorial only **informs** the owner that Business is already included; it does not activate the trial.
 
-**V1 plan names, limits, ads policy, non-destructive downgrade semantics, Owner Account area structure, entitlement architecture, permanent USD prices, monthly/yearly intervals, trial commercial rules (duration still TBD), upgrade/downgrade/cancellation timing, and payment-failure grace are frozen** (see below and [DECISIONS.md](./DECISIONS.md) DEC-072–082). Stripe Checkout/webhooks/Customer Portal **architecture and Account UI are implemented** (provider boundary + owner APIs); live Stripe account/credentials and Apple billing remain open (OPEN-011 narrowed, OPEN-015).
+**V1 plan names, limits, ads policy, non-destructive downgrade semantics, Owner Account area structure, entitlement architecture, permanent USD prices, monthly/yearly intervals, automatic 7-day built-in Business trial, upgrade/downgrade/cancellation timing, and payment-failure grace are frozen** (see below and [DECISIONS.md](./DECISIONS.md) DEC-072–082, DEC-093). Stripe Checkout/webhooks/Customer Portal **architecture and Account UI are implemented** (provider boundary + owner APIs); live Stripe account/credentials and Apple billing remain open (OPEN-011 narrowed, OPEN-015).
 
 Do **not** treat kiosks as a separately assigned workspace resource for plan limits. Do **not** artificially disable essential operational functionality only to invent pricing tiers beyond the frozen matrix.
 
@@ -613,16 +613,18 @@ Plan-lock / slot-selection runs only when the **effective** entitlement plan cha
 
 `Organization.plan` is the **current effective entitlement plan**. Billing subscription state is the **commercial/payment lifecycle**. They must stay separate until an effective transition runs.
 
-**Business trial** (duration **TBD**, not frozen):
+**Built-in 7-day Business trial** (DEC-093; replaces the former card-required Business trial):
 
-- Trial provides **Business** entitlement
-- A payment method/card is required **before** the trial starts
-- If the customer does nothing, the trial **automatically continues into paid Business**
-- The customer may cancel immediately after starting the trial
-- Cancellation does **not** remove Business access immediately
-- A canceled trial continues until **trial end**
-- If canceled correctly before trial end, it must **not** convert to a paid Business subscription
-- After a properly canceled trial ends, the workspace transitions to **Basic**
+- Every new normal workspace automatically receives **Business** entitlement for **7 days** at creation
+- No card, no Stripe/Apple trial grant, no promotion/coupon, no opt-in, and no “use later”
+- One time forever per workspace; billing, cancellation, and provider changes never restore eligibility
+- Existing workspaces at cutover are permanently ineligible (consumed, never granted)
+- CheckStation-managed workspaces are ineligible
+- Entitlement changes go only through `Organization.plan` + `apply_effective_plan()`
+- At trial end: no paid subscription → **Basic**; Plus selected during the week → keep Business until trial end, then **Plus**; Business selected during the week → keep Business, then paid Business starts at trial end
+- Purchasing during the week must not shorten the free week; paid Stripe/Apple billing is deferred until trial end
+- Commercial checkout is allowed while entitlement is Business from this trial (`Organization.plan == basic` is not the checkout gate)
+- Expiry is lazy/self-healing on entitlement/billing reads plus the `expire_builtin_trials` command; it does not depend on Stripe webhooks
 
 **Paid upgrades are immediate** (including yearly Plus → yearly Business):
 
@@ -639,14 +641,14 @@ Plan-lock / slot-selection runs only when the **effective** entitlement plan cha
 - Before the effective date, the Owner may **cancel the scheduled downgrade**; Business continues on the existing subscription/billing cycle with no new Checkout or immediate charge
 - At period end (if not reversed), billing applies the destination plan to `Organization.plan`, and **then** existing downgrade/plan-lock behavior runs
 
-**Cancellation is scheduled for period end** (paid) or trial end (trial):
+**Cancellation is scheduled for period end** (paid) or the provider’s delayed first paid period end:
 
-- Customer may cancel now; current access remains through the paid period or trial end
+- Customer may cancel now; current access remains through the paid period or deferred paid start
 - Cancellation is **not** account, workspace, or data deletion (DEC-052)
 - Before the effective end, the Owner may **resume** the subscription: cancel-at-period-end is cleared on the existing Stripe subscription, pending Basic transition is cleared, the billing cycle is preserved, and no new Checkout or immediate resubscribe charge is required
-- The same resume path applies to a canceled Business trial still within the trial window (trial end is unchanged; auto-conversion to paid Business is restored)
-- At paid period end (if not resumed), paid access ends and the workspace transitions to **Basic**; existing Basic entitlement/plan-lock behavior handles over-limit data non-destructively
-- At trial end for a properly canceled (not resumed) trial, the workspace transitions to **Basic** without converting to paid Business
+- The same resume path applies to a canceled **deferred paid start** still waiting for first invoice (provider `trialing` / `trial_ends_at` unchanged; conversion to the selected paid plan is restored). This is not the built-in 7-day Business trial.
+- At paid period end (if not resumed), paid access ends and the workspace transitions to **Basic** unless the built-in trial is still active; existing Basic entitlement/plan-lock behavior handles over-limit data non-destructively
+- Canceling a deferred paid start does **not** shorten the built-in free week; if no paid plan remains at built-in trial end, the workspace becomes **Basic**
 
 **Payment failure grace:** the first failed recurring payment does **not** immediately downgrade. Current paid entitlement is preserved for **3 days**. A warning email is sent **once per day** during grace via the platform email path (`send_billing_payment_warnings` management command; schedule daily in deployment). If payment recovers, failure/grace state is cleared. If billing remains unresolved after the final provider outcome/grace handling, paid access ends and the workspace transitions to **Basic**. Stripe webhooks coordinate with this internal grace state; the app does not implement an independent payment retry engine.
 
@@ -654,7 +656,7 @@ Plan-lock / slot-selection runs only when the **effective** entitlement plan cha
 
 **Purchase sources:** `none` (Basic / no paid relationship), `stripe`, `apple`. Basic/free workspaces have no paid purchase source. Account Subscription/Billing UI must later respect the source (Apple-managed subscriptions go to Apple for applicable management).
 
-Platform-admin changes to `Organization.plan` are **manual entitlement operations**, not paid transactions, and must use the same canonical effective plan-transition path.
+Platform-admin changes to `Organization.plan` for **CheckStation Accounts** are **manual entitlement operations**, not paid transactions, and must use `apply_effective_plan()`. Normal customer workspaces with a live paid subscription are not raw-edited from Organization admin.
 
 ### Basic ads policy
 
@@ -678,9 +680,11 @@ The current web implementation uses a **development mock provider**. A real ad p
 
 The Owner Account area is organized into three top-level sections/pages:
 
-1. **Security** — primary/login email, backup email, password, optional Owner TOTP 2FA, Danger Zone / permanent account deletion
-2. **Subscription** — current plan, plan status, limits/usage, upgrade/downgrade/cancellation, renewal, purchase-source-aware management (Stripe/web, Apple, etc.). Owner Checkout and plan-change actions call billing APIs; browser return URLs are UX only
-3. **Billing** — Stripe Customer Portal for invoices/payment method when Stripe-managed; lightweight summary otherwise; purchase-source awareness
+1. **Security** — primary/login email, backup email, password, optional Owner TOTP 2FA, Danger Zone / permanent account deletion. Always available to the owner.
+2. **Subscription** — current plan, plan status, limits/usage, upgrade/downgrade/cancellation, renewal, purchase-source-aware management (Stripe/web, Apple, etc.). Owner Checkout and plan-change actions call billing APIs; browser return URLs are UX only. Hidden when the workspace is a CheckStation-managed account.
+3. **Billing** — Stripe Customer Portal for invoices/payment method when Stripe-managed; lightweight summary otherwise; purchase-source awareness. Hidden when the workspace is a CheckStation-managed account.
+
+Direct `/account/subscription` and `/account/billing` routes redirect to Security when those capabilities are off. Backend workspace capabilities include `account_mode` (`normal` | `checkstation`), `workspace_status`, `can_view_billing`, and `can_manage_subscription`. Do not show customers technical “CheckStation Account flag ON” copy.
 
 ### Purchase source
 

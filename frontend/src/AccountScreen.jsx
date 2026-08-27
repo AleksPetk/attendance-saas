@@ -26,6 +26,10 @@ import {
   usePasswordVisibility,
 } from "./components.jsx";
 import {
+  canManageSubscription,
+  canViewBilling,
+} from "./workspaceSession.js";
+import {
   emailAccordionStatusPills,
   emailAccordionStatusSummary,
   twoFactorStatusPills,
@@ -55,8 +59,10 @@ function EmailActionRow({ label, email, status, children }) {
 
 export default function AccountScreen({ session, setSession, onAccountDeleted }) {
   const { section: sectionParam } = useParams();
-  const section = resolveAccountSection(sectionParam);
-  const sectionMeta = accountSectionMeta(section);
+  const billingAllowed =
+    canViewBilling(session) && canManageSubscription(session);
+  const section = resolveAccountSection(sectionParam, session);
+  const sectionMeta = accountSectionMeta(section, session);
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [loading, setLoading] = useState(true);
@@ -203,6 +209,7 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
   }, []);
 
   useEffect(() => {
+    if (!billingAllowed) return undefined;
     if (section !== "subscription" && section !== "billing") return undefined;
     let cancelled = false;
     async function refresh() {
@@ -214,9 +221,10 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
     return () => {
       cancelled = true;
     };
-  }, [section, refreshWorkspaceSession, loadBilling]);
+  }, [section, billingAllowed, refreshWorkspaceSession, loadBilling]);
 
   useEffect(() => {
+    if (!billingAllowed) return undefined;
     if (section !== "subscription" && section !== "billing") return undefined;
     const checkout = searchParams.get("checkout");
     const portal = searchParams.get("portal");
@@ -278,7 +286,7 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
       cancelled = true;
       if (timer) window.clearTimeout(timer);
     };
-  }, [section, searchParams, setSearchParams, refreshWorkspaceSession, loadBilling]);
+  }, [section, billingAllowed, searchParams, setSearchParams, refreshWorkspaceSession, loadBilling]);
 
   async function handleStartCheckout(plan, interval) {
     setBillingBusy("checkout");
@@ -286,21 +294,6 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
     try {
       await api.csrf();
       const result = await api.startBillingCheckout({ plan, interval });
-      const url = result.data?.checkout_url;
-      if (!url) throw { data: { detail: "Checkout URL was not returned." } };
-      window.location.assign(url);
-    } catch (err) {
-      setBillingError(errorMessage(err));
-      setBillingBusy("");
-    }
-  }
-
-  async function handleStartTrial(interval) {
-    setBillingBusy("trial");
-    setBillingError("");
-    try {
-      await api.csrf();
-      const result = await api.startBillingTrialCheckout({ interval });
       const url = result.data?.checkout_url;
       if (!url) throw { data: { detail: "Checkout URL was not returned." } };
       window.location.assign(url);
@@ -644,7 +637,7 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
     }
   }
 
-  if (sectionParam && !isAccountSectionId(sectionParam)) {
+  if (sectionParam && !isAccountSectionId(sectionParam, session)) {
     return <Navigate to="/account/security" replace />;
   }
 
@@ -652,7 +645,7 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
     return (
       <div className="page account-page">
         <PageHeader title="Account" description={sectionMeta.description} />
-        <AccountSubNav />
+        <AccountSubNav session={session} />
         {section === "subscription" ? (
           <AccountSubscriptionPanel
             session={subscriptionSession || session}
@@ -663,7 +656,6 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
             checkoutNotice={checkoutNotice}
             busyAction={billingBusy}
             onStartCheckout={handleStartCheckout}
-            onStartTrial={handleStartTrial}
             onPreviewUpgrade={handlePreviewUpgrade}
             onConfirmUpgrade={handleConfirmUpgrade}
             onScheduleDowngrade={handleScheduleDowngrade}
@@ -712,7 +704,7 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
   return (
     <div className="page account-page">
       <PageHeader title="Account" description={sectionMeta.description} />
-      <AccountSubNav />
+      <AccountSubNav session={session} />
       <div className="account-settings-stack">
         <AccountSettingsSection
           id="email"

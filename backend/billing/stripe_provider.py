@@ -74,7 +74,7 @@ class StripeProvider:
         interval,
         success_url,
         cancel_url,
-        trial_days=None,
+        billing_start_at=None,
         coupon_id=None,
         coupon_slot=None,
     ) -> CheckoutSessionResult:
@@ -105,9 +105,14 @@ class StripeProvider:
             params["customer"] = billing.external_customer_id
         else:
             params["customer_email"] = owner.email
-        if trial_days:
-            params["subscription_data"]["trial_period_days"] = int(trial_days)
-            params["payment_method_collection"] = "always"
+        if billing_start_at:
+            from django.utils import timezone as dj_timezone
+
+            start_at = billing_start_at
+            if dj_timezone.is_naive(start_at):
+                start_at = dj_timezone.make_aware(start_at, dj_timezone.utc)
+            if start_at > datetime.now(tz=dt_timezone.utc):
+                params["subscription_data"]["trial_end"] = int(start_at.timestamp())
         try:
             session = stripe.checkout.Session.create(**params)
         except Exception as exc:

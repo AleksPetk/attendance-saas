@@ -5,6 +5,17 @@
 <div id="content-main" class="cs-promotion-confirm">
   <h1>{{ confirm_title }}</h1>
   <p>{{ confirm_body }}</p>
+  {% if pending_changes|length > 1 %}
+  <ul class="cs-promotion-confirm-list">
+    {% for change in pending_changes %}
+    <li>
+      <strong>{{ change.label }}</strong>
+      — {{ change.old_value|upper }} → {{ change.value|upper }}.
+      {{ change.choice_summary }}
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
   <p>
     Permanent catalog list prices are unchanged. Provider-side Stripe/Apple/Google
     offers are not applied by this change yet — checkout still charges list price
@@ -13,8 +24,10 @@
   <form method="post">
     {% csrf_token %}
     <input type="hidden" name="confirm" value="1">
-    <input type="hidden" name="group" value="{{ requested_group }}">
-    <input type="hidden" name="value" value="{{ requested_value }}">
+    {% for change in pending_changes %}
+    <input type="hidden" name="group" value="{{ change.group }}">
+    <input type="hidden" name="value" value="{{ change.value }}">
+    {% endfor %}
     <div class="submit-row">
       <input type="submit" value="{{ confirm_label }}" class="default">
       <a href="{{ cancel_url }}" class="button cancel-link">{% translate "Cancel" %}</a>

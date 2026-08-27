@@ -1,6 +1,6 @@
 import { createElement } from "react";
 import { NavLink } from "react-router-dom";
-import { ACCOUNT_SECTIONS } from "./accountNavigation.js";
+import { visibleAccountSections } from "./accountNavigation.js";
 import { externalLinkProps } from "./billingExternalLinks.js";
 import { promotionPriceNote } from "./promotionCatalog.js";
 import {
@@ -9,11 +9,12 @@ import {
   targetOfferPricing,
 } from "./subscriptionPlanOptions.js";
 
-export function AccountSubNav() {
+export function AccountSubNav({ session = null }) {
+  const sections = visibleAccountSections(session);
   return createElement(
     "nav",
     { className: "account-subnav", "aria-label": "Account sections" },
-    ACCOUNT_SECTIONS.map((section) =>
+    sections.map((section) =>
       createElement(
         NavLink,
         {
@@ -192,10 +193,13 @@ export function scheduleChangePreviewCopy(billing, planKey, interval) {
   };
 }
 
-/** Basic workspace that may start a paid checkout (Stripe may still be off). */
+/** Workspace that may start a paid checkout (Stripe may still be off).
+
+Entitlement may be Basic or built-in Business; commercial status is the gate.
+*/
 export function isBasicPaidCheckoutCandidate(billing, planKey) {
   if (!billing || billing.purchase_source === "apple") return false;
-  if (planKey !== "basic") return false;
+  if (billing.managed_by_platform) return false;
   const status = billing.status;
   return !status || status === "none" || status === "canceled";
 }
@@ -208,7 +212,8 @@ export function statusLabelForBilling(billing) {
   if (billing.pending_plan === "plus" && billing.subscribed_plan?.key === "business") {
     return "Downgrade scheduled";
   }
-  if (billing.status === "trialing") return "Business trial";
+  if (billing.builtin_trial?.active) return "Included Business trial";
+  if (billing.status === "trialing") return "Paid plan starts after the free week";
   if (billing.status === "active") return "Active";
   if (billing.status === "canceled") return "Ended";
   return "No paid subscription";

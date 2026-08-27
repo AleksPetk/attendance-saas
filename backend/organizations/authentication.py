@@ -88,4 +88,16 @@ class WorkspaceStaffSessionAuthenticationBackend(BaseBackend):
     def get_user(self, user_id):
         if not user_id:
             return None
-        return WorkspaceStaffAccount.objects.select_related("organization").filter(pk=user_id).first()
+        staff = (
+            WorkspaceStaffAccount.objects.select_related("organization")
+            .filter(pk=user_id)
+            .first()
+        )
+        if staff is None:
+            return None
+        org = getattr(staff, "organization", None)
+        if org is None or getattr(org, "status", None) != OrganizationStatus.ACTIVE:
+            return None
+        if getattr(staff, "status", None) != WorkspaceStaffStatus.ACTIVE:
+            return None
+        return staff

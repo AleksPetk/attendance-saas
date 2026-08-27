@@ -112,7 +112,7 @@ Exceeding a limit after downgrade does not automatically delete your data. The p
 
 Paid subscriptions renew according to the selected monthly or yearly interval until canceled. Upgrades, downgrades, interval changes, and cancellation follow the product's billing rules, including period-end downgrade/cancel behavior as implemented.
 
-A Business trial may be offered only when a trial duration is configured. The current default configuration does **not** invent a trial length; if trial days are unset or zero, trial checkout is not offered.
+A Business trial is included automatically for **7 days** on every new normal workspace. No payment method is required for that trial. Paid subscriptions still require a payment method through Stripe (or a later app-store purchase). The built-in trial is one-time and is separate from Stripe or Apple billing.
 
 ### 9.4 Payment, grace, and taxes
 

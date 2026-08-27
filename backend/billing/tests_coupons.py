@@ -35,7 +35,6 @@ COUPON_TEST_SETTINGS = {
     "STRIPE_PRICE_PLUS_YEARLY": "price_plus_yearly",
     "STRIPE_PRICE_BUSINESS_MONTHLY": "price_business_monthly",
     "STRIPE_PRICE_BUSINESS_YEARLY": "price_business_yearly",
-    "BUSINESS_TRIAL_DAYS": 0,
     "STRIPE_COUPON_ACQ_NORMAL_PLUS_MONTHLY": "coup_acq_n_pm",
     "STRIPE_COUPON_ACQ_NORMAL_BUSINESS_MONTHLY": "coup_acq_n_bm",
     "STRIPE_COUPON_ACQ_NORMAL_PLUS_YEARLY": "coup_acq_n_py",

@@ -148,6 +148,10 @@ def build_entitlement_payload(organization) -> dict:
     if plan_locks_are_inconsistent(organization):
         organization = ensure_plan_locks_consistent(organization)
 
+    from billing.builtin_trial import expire_due_builtin_trial
+
+    expire_due_builtin_trial(organization)
+    organization.refresh_from_db()
     plan = get_workspace_plan(organization)
     plan_key = plan["key"]
     usage_map = get_workspace_usage(organization)

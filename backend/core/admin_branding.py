@@ -53,6 +53,7 @@ ADMIN_MODEL_ORDER = {
         "platformpromotionsettings",
         "platformpromotionmodechange",
         "platformadvertisingsettings",
+        "platformadminaction",
     ),
     "auth": (
         "group",

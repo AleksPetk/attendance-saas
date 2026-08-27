@@ -10,7 +10,7 @@ You will: create an account, create a Group, add people, configure and launch a 
 2. Enter **Email**, **Password**, and **Confirm password**. First and last name are optional.
 3. Choose **Create account**.
 
-Your workspace is created automatically on **Basic**. Email verification is required before you can use the workspace. After registration you land on **Check your email**.
+Your workspace is created automatically with **Business included for 7 days** (no card). Email verification is required before you can use the workspace. After registration you land on **Check your email**.
 
 Open the verification link (it expires in 24 hours). Use **Resend verification email** if needed. After verification, continue to Check Station or sign in at **Login**.
 
@@ -214,7 +214,7 @@ The owner opens **Account**:
 - **Subscription** — current plan, usage, upgrades and downgrades
 - **Billing** — invoices, receipts, payment details (Stripe for web checkout)
 
-New workspaces start on **Basic** (free, with ads in specified workspace placements). Paid plans are Plus and Business. Changing plan does not delete existing data; it can lock increasing usage that exceeds the new plan.
+New workspaces include a **7-day Business trial** (no card). After that week, unpaid workspaces are **Basic** (free, with ads in specified workspace placements). Paid plans are Plus and Business. Changing plan does not delete existing data; it can lock increasing usage that exceeds the new plan.
 
 ## 19. Next
 
