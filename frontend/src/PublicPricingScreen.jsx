@@ -5,6 +5,9 @@ import PublicPageShell from "./PublicPageShell.jsx";
 import { canViewBilling } from "./workspaceSession.js";
 import { workspacePlanKey } from "./workspaceEntitlements.js";
 import { pricingCta, pricingFeatureList } from "./pricingPage.js";
+import PricingCardsLoadingState from "./PricingCardsLoadingState.js";
+import { pricingTemplateClass } from "./pricingTemplates.js";
+import { PromotionalText } from "./promotionalText.js";
 import {
   catalogPromotion,
   isAcquisitionPromotion,
@@ -144,6 +147,7 @@ function yearlySavingsLabel(catalog) {
 export default function PublicPricingScreen({ session = null }) {
   const [interval, setInterval] = useState("monthly");
   const [catalog, setCatalog] = useState(FALLBACK_CATALOG);
+  const [catalogLoading, setCatalogLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
@@ -162,6 +166,8 @@ export default function PublicPricingScreen({ session = null }) {
         }
       } catch {
         /* keep frozen fallback catalog */
+      } finally {
+        if (!cancelled) setCatalogLoading(false);
       }
     }
     load();
@@ -178,6 +184,7 @@ export default function PublicPricingScreen({ session = null }) {
   const acquisitionActive = isAcquisitionPromotion(catalog);
   const checkoutWarning = promotionCheckoutWarning(catalog);
   const yearlySavings = yearlySavingsLabel(catalog);
+  const templateClass = catalogLoading ? null : pricingTemplateClass(catalog);
   const trialDays = Number(catalog?.builtin_trial_days);
   const businessTrialAvailable =
     Boolean(catalog?.builtin_trial_offered) && Number.isFinite(trialDays) && trialDays > 0;
@@ -221,7 +228,7 @@ export default function PublicPricingScreen({ session = null }) {
   return (
     <PublicPageShell>
       <PageTitle
-        title="Pricing — Check Station"
+        title="Pricing — CheckStation"
         description="Simple plans for every workspace. Start free and upgrade anytime."
       />
 
@@ -261,17 +268,24 @@ export default function PublicPricingScreen({ session = null }) {
           ) : null}
         </section>
 
-        {acquisitionActive ? (
+        {!catalogLoading ? (
+          <PromotionalText catalog={catalog} className="pricing-promotional-text" />
+        ) : null}
+        {!catalogLoading && acquisitionActive ? (
           <section className="pricing-promo-banner" role="status">
             <strong>{promo.label}</strong><span>{promo.summary}</span>
           </section>
         ) : null}
-        {checkoutWarning && acquisitionActive ? (
+        {!catalogLoading && checkoutWarning && acquisitionActive ? (
           <p className="pricing-promo-checkout-note" role="note">{checkoutWarning}</p>
         ) : null}
 
-        <section className="pricing-card-section" aria-label="Check Station plans">
-          <div className="pricing-grid">
+        <section className="pricing-card-section" aria-label="CheckStation plans">
+          {catalogLoading ? (
+            <PricingCardsLoadingState cardCount={3} />
+          ) : (
+            <>
+              <div className="pricing-grid">
           {cards.map((plan) => {
             const showStrike =
               plan.key !== "basic" &&
@@ -284,8 +298,8 @@ export default function PublicPricingScreen({ session = null }) {
                 key={plan.key}
                 className={
                   plan.featured
-                    ? "pricing-card pricing-card-featured"
-                    : "pricing-card"
+                    ? `pricing-card pricing-card-featured ${templateClass}`
+                    : `pricing-card ${templateClass}`
                 }
               >
                 <div className="pricing-card-body">
@@ -318,16 +332,18 @@ export default function PublicPricingScreen({ session = null }) {
               </article>
             );
           })}
-          </div>
+              </div>
 
-          <div className="pricing-reassurance" aria-label="Billing reassurance">
-            <p><span aria-hidden="true">✓</span> Start with Basic for free</p>
-            <p><span aria-hidden="true">✓</span> No card required to begin</p>
-            {businessTrialAvailable ? <p><span aria-hidden="true">✓</span> Business free for {trialDays} days</p> : null}
-            <p><span aria-hidden="true">✓</span> Upgrade when you need more</p>
-            <p><span aria-hidden="true">✓</span> {planChangeReassurance}</p>
-            <p><span aria-hidden="true">✓</span> {paymentReassurance}</p>
-          </div>
+              <div className="pricing-reassurance" aria-label="Billing reassurance">
+                <p><span aria-hidden="true">✓</span> Start with Basic for free</p>
+                <p><span aria-hidden="true">✓</span> No card required to begin</p>
+                {businessTrialAvailable ? <p><span aria-hidden="true">✓</span> Business free for {trialDays} days</p> : null}
+                <p><span aria-hidden="true">✓</span> Upgrade when you need more</p>
+                <p><span aria-hidden="true">✓</span> {planChangeReassurance}</p>
+                <p><span aria-hidden="true">✓</span> {paymentReassurance}</p>
+              </div>
+            </>
+          )}
         </section>
       </div>
     </PublicPageShell>

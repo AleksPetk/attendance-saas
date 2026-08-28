@@ -1,11 +1,11 @@
 export const FEATURES_META = {
-  title: "Features — Check Station",
+  title: "Features — CheckStation",
   description:
     "Configurable check-in, dedicated kiosks, Members, Groups, history, reports, staff access, and email — designed for browser, iPhone, iPad, Android, Mac, and Windows.",
 };
 
 export const FEATURES_HERO = {
-  eyebrow: "Check Station features",
+  eyebrow: "CheckStation features",
   headline: "Check-in that matches how your organization actually works.",
   lead:
     "Set up people, Groups, and kiosks the way you already operate. Participants check in on a dedicated screen. Your workspace stays private. Every action is recorded.",
@@ -18,7 +18,7 @@ export const FEATURES_SHOWCASE = {
   eyebrow: "Product",
   title: "See the workspace, the kiosk, and the record.",
   lead:
-    "Check Station connects the screens your staff use with the screens your participants see — without mixing the two.",
+    "CheckStation connects the screens your staff use with the screens your participants see — without mixing the two.",
   slots: [
     {
       id: "workspace",
@@ -139,7 +139,7 @@ export const FEATURES_PLATFORMS = {
   eyebrow: "Every screen",
   title: "Designed for the devices your organization already uses.",
   lead:
-    "Check Station is a cross-platform product. Use the full web experience in the browser today. Native and downloadable apps for phone, tablet, Mac, and Windows are on the way — clearly marked until they ship.",
+    "CheckStation is a cross-platform product. Use the full web experience in the browser today. Native and downloadable apps for phone, tablet, Mac, and Windows are on the way — clearly marked until they ship.",
   items: [
     {
       id: "browser",
@@ -196,7 +196,7 @@ export const FEATURES_PLATFORMS = {
 export const FEATURES_INCLUDED = {
   eyebrow: "At a glance",
   title: "Everything included",
-  lead: "The capabilities you can use in Check Station today — in one place.",
+  lead: "The capabilities you can use in CheckStation today — in one place.",
   items: [
     { title: "Members", body: "Reusable people profiles with optional photo and contact details." },
     { title: "Groups", body: "Lasting check-in contexts with their own rules and kiosk." },

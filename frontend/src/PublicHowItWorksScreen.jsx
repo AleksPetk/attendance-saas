@@ -8,7 +8,7 @@ const JOURNEY_STEPS = [
     number: "01",
     eyebrow: "Start in minutes",
     title: "Create your workspace",
-    body: "Register once and your Check Station workspace is ready to shape around the way your organization runs.",
+    body: "Register once and your CheckStation workspace is ready to shape around the way your organization runs.",
     detail: "One workspace gives your team a single place to set up, run, and review attendance.",
   },
   {
@@ -56,7 +56,7 @@ const STAFF_EXAMPLES = [
 
 function PageTitle() {
   useEffect(() => {
-    const title = "How it works — Check Station";
+    const title = "How it works — CheckStation";
     document.title = title;
     const ensure = (name, content) => {
       let el = document.querySelector(`meta[name="${name}"]`);
@@ -67,7 +67,7 @@ function PageTitle() {
       }
       el.setAttribute("content", content);
     };
-    ensure("description", "Set up flexible check-in flows, run them across your devices, and keep every action connected in one Check Station workspace.");
+    ensure("description", "Set up flexible check-in flows, run them across your devices, and keep every action connected in one CheckStation workspace.");
     ensure("og:title", title);
     ensure("og:description", "A flexible check-in flow for every Group, all from one workspace.");
     ensure("og:type", "website");
@@ -110,28 +110,8 @@ export default function PublicHowItWorksScreen() {
       <div className="how-page">
         <PageTitle />
 
-        <section className="how-hero" data-reveal>
-          <div className="how-hero-copy">
-            <p className="how-kicker">Simple to start. Flexible by design.</p>
-            <h1>One workspace for every way your people check in.</h1>
-            <p>Set up a flow for the front desk, another for each class, and another for your team — all at the same time, all from one place.</p>
-            <div className="how-hero-actions">
-              <Link className="btn-primary how-primary-button" to="/register">Create your workspace <span aria-hidden="true">→</span></Link>
-              <a className="how-quiet-link" href="#your-journey">See the journey <span aria-hidden="true">↓</span></a>
-            </div>
-            <div className="how-hero-pills"><span><CheckMark /> Set up fast</span><span><CheckMark /> Different flows, one workspace</span><span><CheckMark /> Ready on your devices</span></div>
-          </div>
-          <div className="how-hero-visual" aria-hidden="true">
-            <span className="how-hero-line how-hero-line-one" /><span className="how-hero-line how-hero-line-two" />
-            <div className="how-hero-hub"><span>One</span><b>workspace</b></div>
-            <div className="how-hero-flow how-hero-flow-a"><span>Class A</span><b>iPad kiosk</b></div>
-            <div className="how-hero-flow how-hero-flow-b"><span>Welcome desk</span><b>Browser kiosk</b></div>
-            <div className="how-hero-flow how-hero-flow-c"><span>Team check-in</span><b>Phone ready</b></div>
-          </div>
-        </section>
-
-        <section id="your-journey" className="how-journey" data-reveal>
-          <div className="how-section-heading"><p className="how-kicker">Your journey</p><h2>From first workspace to first check-in — it just clicks.</h2><p>Choose a step to see how Check Station helps your setup take shape.</p></div>
+        <section id="your-journey" className="how-journey how-journey-hero" data-reveal>
+          <div className="how-section-heading how-journey-heading"><p className="how-kicker">Your journey</p><h1>From setup to daily attendance — it just clicks.</h1><p>Choose a step to see how CheckStation helps your setup take shape.</p></div>
           <div className="how-journey-layout">
             <ol className="how-step-list">
               {JOURNEY_STEPS.map((step, index) => (
@@ -171,7 +151,7 @@ export default function PublicHowItWorksScreen() {
         </section>
 
         <section className="how-history" data-reveal>
-          <div><p className="how-kicker">Everything connects</p><h2>Every action becomes a clearer picture.</h2><p>When people check in, check out, or take a break, Check Station keeps the activity connected to the Group. Your team can return to the workspace, filter the history, and understand what happened without chasing down scattered notes.</p><Link className="how-text-link" to="/features">Explore all features <span aria-hidden="true">→</span></Link></div>
+          <div><p className="how-kicker">Everything connects</p><h2>Every action becomes a clearer picture.</h2><p>When people check in, check out, or take a break, CheckStation keeps the activity connected to the Group. Your team can return to the workspace, filter the history, and understand what happened without chasing down scattered notes.</p><Link className="how-text-link" to="/features">Explore all features <span aria-hidden="true">→</span></Link></div>
           <ProductImageSlot label="Activity history" caption="Image placeholder — add an original history screenshot here later." aspect="16 / 10" className="how-history-image" />
         </section>
 

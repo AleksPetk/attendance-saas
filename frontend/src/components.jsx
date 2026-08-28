@@ -6,7 +6,7 @@ import { brandLogoText } from "./assets/brand/brandLogo.js";
 /* Brand                                                               */
 /* ------------------------------------------------------------------ */
 
-export function Wordmark({ subtitle, className = "", logo = false }) {
+export function Wordmark({ subtitle, className = "", logo = false, name = "Check Station" }) {
   return (
     <div className={`wordmark ${logo ? "wordmark-with-logo" : ""} ${className}`.trim()}>
       {logo ? (
@@ -23,7 +23,7 @@ export function Wordmark({ subtitle, className = "", logo = false }) {
           />
         </picture>
       ) : (
-        <span className="wordmark-main">Check Station</span>
+        <span className="wordmark-main">{name}</span>
       )}
       {subtitle ? <span className="wordmark-sub">{subtitle}</span> : null}
     </div>

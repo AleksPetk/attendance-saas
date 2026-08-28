@@ -12,6 +12,9 @@ import {
   catalogPromotion,
   promotionCheckoutWarning,
 } from "./promotionCatalog.js";
+import { pricingTemplateClass } from "./pricingTemplates.js";
+import PricingCardsLoadingState from "./PricingCardsLoadingState.js";
+import { PromotionalText } from "./promotionalText.js";
 import {
   buildDowngradePlanOptions,
   buildUpgradePlanOptions,
@@ -94,9 +97,11 @@ function PlanOptionCard({
   isScheduled,
   scheduledLabel,
   recommended,
+  templateClass,
   children,
 }) {
   const classes = ["account-plan-option"];
+  classes.push(templateClass || "pricing-template-normal");
   if (isCurrent) classes.push("is-current");
   if (recommended) classes.push("is-recommended");
   if (isScheduled) classes.push("is-scheduled");
@@ -192,6 +197,11 @@ export function AccountSubscriptionPanel({
   const currentInterval = effectiveBillingInterval(billing);
   const usageRows = subscriptionUsageRows(entitlements);
   const actions = billing?.actions || {};
+  const pricingCatalogResolved =
+    !billingLoading && Boolean(billing || billingError);
+  const templateClass = pricingCatalogResolved
+    ? pricingTemplateClass(billing?.catalog)
+    : null;
 
   const [upgradePreview, setUpgradePreview] = useState(initialUpgradePreview);
   const [upgradeError, setUpgradeError] = useState(initialUpgradeError);
@@ -500,6 +510,7 @@ export function AccountSubscriptionPanel({
           ? `Changes on ${scheduledSummary.effectiveAt}`
           : "Scheduled",
         recommended: option.recommended && !isCurrent && !isScheduled,
+        templateClass,
       },
       option.kind === "checkout"
         ? createElement(
@@ -905,14 +916,20 @@ export function AccountSubscriptionPanel({
             "Apple-managed billing cannot use Stripe Checkout from these options.",
           )
         : null,
-      catalogPromo?.active && planKey === "basic"
+      pricingCatalogResolved
+        ? createElement(PromotionalText, {
+            catalog: billing?.catalog,
+            className: "account-panel-note account-promotional-text",
+          })
+        : null,
+      pricingCatalogResolved && catalogPromo?.active && planKey === "basic"
         ? createElement(
             "p",
             { className: "account-panel-note account-promo-banner", role: "status" },
             `${catalogPromo.label || "Promotion"}: ${catalogPromo.summary || ""}`,
           )
         : null,
-      checkoutPromoWarning
+      pricingCatalogResolved && checkoutPromoWarning
         ? createElement(
             "p",
             {
@@ -922,7 +939,9 @@ export function AccountSubscriptionPanel({
             checkoutPromoWarning,
           )
         : null,
-      upgradeOptions.length
+      !pricingCatalogResolved
+        ? createElement(PricingCardsLoadingState, { cardCount: 2, compact: true })
+        : upgradeOptions.length
         ? createElement(
             "div",
             {
@@ -1036,6 +1055,7 @@ export function AccountSubscriptionPanel({
                       priceLabel: option.pricing?.firstPeriodWithInterval || "Free",
                       isCurrent: false,
                       recommended: false,
+                      templateClass,
                     },
                     createElement(
                       "button",

@@ -93,6 +93,8 @@ def catalog_public_payload(*, organization=None, audience=None) -> dict:
         promotion_payload_for_audience,
         resolve_audience,
     )
+    from core.promotional_text import promotional_text_payload
+    from core.pricing_templates import pricing_template_payload
     from organizations.entitlements.catalog import PLAN_KEYS, get_plan_definition
 
     if audience is None:
@@ -145,6 +147,8 @@ def catalog_public_payload(*, organization=None, audience=None) -> dict:
         "plans": plans,
         "entitlements": entitlements,
         "promotion": promotion,
+        "pricing_template": pricing_template_payload(),
+        "promotional_text": promotional_text_payload(),
         "builtin_trial_days": _builtin_trial_days(),
         "builtin_trial_offered": True,
     }

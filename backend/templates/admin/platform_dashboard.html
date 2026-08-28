@@ -56,7 +56,7 @@
   </section>
 
   <section class="cs-ads-card" aria-labelledby="cs-ads-card-heading">
-    <h2 id="cs-ads-card-heading" class="cs-ads-card-title">Advertising</h2>
+    <h2 id="cs-ads-card-heading" class="cs-ads-card-title">Platform controls</h2>
     <div class="cs-ads-rows">
       <section class="cs-ads-row" aria-labelledby="cs-ads-switcher-heading">
         <div class="cs-ads-copy">
@@ -92,6 +92,52 @@
         <div class="cs-ads-actions">
           {% if dashboard_promotion.change_url %}
           <a class="button default" href="{{ dashboard_promotion.change_url }}">Manage promotions</a>
+          {% endif %}
+        </div>
+      </section>
+      <section class="cs-ads-row" aria-labelledby="cs-price-template-heading">
+        <div class="cs-ads-copy">
+          <h3 id="cs-price-template-heading">Price Templates</h3>
+          <p>
+            <span class="cs-pill cs-pill-ok">{{ dashboard_pricing_template.label }}</span>
+            Presentation only. Prices, promotions, plan limits, trials, and billing behavior stay unchanged.
+          </p>
+        </div>
+        <div class="cs-ads-actions">
+          {% if dashboard_pricing_template.set_url %}
+          <form class="cs-pricing-template-form" method="get" action="{{ dashboard_pricing_template.set_url }}">
+            <select name="template" aria-label="Price template">
+              {% for choice in dashboard_pricing_template.choices %}
+              <option value="{{ choice.value }}"{% if choice.selected %} selected{% endif %}>{{ choice.label }}</option>
+              {% endfor %}
+            </select>
+            <button type="submit" class="button default">Review change</button>
+          </form>
+          {% endif %}
+          {% if dashboard_pricing_template.change_url %}
+          <a class="button" href="{{ dashboard_pricing_template.change_url }}">Manage</a>
+          {% endif %}
+        </div>
+      </section>
+      <section class="cs-ads-row" aria-labelledby="cs-promotional-text-heading">
+        <div class="cs-ads-copy">
+          <h3 id="cs-promotional-text-heading">Promotional Text</h3>
+          <p>
+            <span class="cs-pill {% if dashboard_promotional_text.enabled %}cs-pill-ok{% else %}cs-pill-warn{% endif %}">
+              {{ dashboard_promotional_text.label }}
+            </span>
+            {% if dashboard_promotional_text.enabled and dashboard_promotional_text.text %}
+              “{{ dashboard_promotional_text.text }}”
+            {% else %}
+              No display text is currently shown.
+            {% endif %}
+            Style: {{ dashboard_promotional_text.style.display_name }}.
+            Display copy only—prices and discounts are unchanged.
+          </p>
+        </div>
+        <div class="cs-ads-actions">
+          {% if dashboard_promotional_text.change_url %}
+          <a class="button default" href="{{ dashboard_promotional_text.change_url }}">Manage promotional text</a>
           {% endif %}
         </div>
       </section>

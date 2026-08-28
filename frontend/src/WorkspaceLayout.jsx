@@ -13,6 +13,7 @@ import {
 } from "./workspaceEntitlements.js";
 import WorkspaceOnboarding from "./WorkspaceOnboarding.jsx";
 import { shouldShowWorkspaceOnboarding } from "./workspaceOnboarding.js";
+import workspaceHeaderIcon from "./assets/brand/workspace-header-icon.webp";
 
 const NAV_ITEMS = [
   { name: "dashboard", label: "Dashboard", icon: "▦" },
@@ -93,7 +94,7 @@ export default function WorkspaceLayout({ session, route, onNavigate, onSignOut,
       ) : null}
       <aside className={sidebarOpen ? "sidebar open" : "sidebar"}>
         <div className="brand">
-          <Wordmark subtitle="Workspace" />
+          <Wordmark name="CheckStation" subtitle="Workspace" />
         </div>
         <nav className="sidebar-nav" aria-label="Workspace">
           {visibleNavItems.map((item) => {
@@ -146,13 +147,22 @@ export default function WorkspaceLayout({ session, route, onNavigate, onSignOut,
               ☰
             </button>
             <div className="topbar-copy">
-              <p className="eyebrow">Check Station</p>
+              <p className="eyebrow">CheckStation</p>
               <h1>{pageTitle}</h1>
             </div>
           </div>
           {topbarNotice ? (
             <p className="notice">{topbarNotice}</p>
           ) : null}
+          <img
+            className="workspace-header-icon"
+            src={workspaceHeaderIcon}
+            alt=""
+            width="36"
+            height="36"
+            decoding="async"
+            aria-hidden="true"
+          />
         </header>
         <div className="content">
           <div className="content-inner">{children}</div>

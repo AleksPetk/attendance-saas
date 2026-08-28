@@ -403,8 +403,16 @@ class StatusHttpTests(unittest.TestCase):
         self.assertEqual(code, 200)
         html = body.decode("utf-8")
         self.assertIn("CheckStation Status", html)
+        self.assertIn('/favicon.ico?v=20260828', html)
         self.assertNotIn("Login", html)
         self.assertNotIn("Get started", html)
+
+    def test_favicon_assets_are_served(self):
+        for path in ("/favicon.ico", "/favicon-32x32.png", "/apple-touch-icon.png"):
+            code, headers, body = self._get(path)
+            self.assertEqual(code, 200)
+            self.assertTrue(headers.get("Content-Type", "").startswith("image/"))
+            self.assertGreater(len(body), 100)
 
     def test_cors_preflight_and_head_are_uncredentialed(self):
         options = urllib.request.Request(

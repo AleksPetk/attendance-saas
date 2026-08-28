@@ -1129,7 +1129,7 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
                             onChange={(event) =>
                               patchSender("from_name", event.target.value)
                             }
-                            placeholder="Check Station"
+                            placeholder="CheckStation"
                           />
                         </Field>
                       </div>
@@ -1202,7 +1202,7 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
                             onChange={(event) =>
                               patchSender("from_name", event.target.value)
                             }
-                            placeholder="Check Station"
+                            placeholder="CheckStation"
                           />
                         </Field>
                       </div>
@@ -1275,7 +1275,7 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
                             onChange={(event) =>
                               patchSender("from_name", event.target.value)
                             }
-                            placeholder="Check Station"
+                            placeholder="CheckStation"
                           />
                         </Field>
                       </div>
@@ -1560,9 +1560,9 @@ function GmailAppPasswordGuide({ onClose }) {
           <li>Open your Google Account security settings.</li>
           <li>Turn on 2-Step Verification if it is not already enabled.</li>
           <li>Open App Passwords (search for “App passwords” in Google Account).</li>
-          <li>Create an App Password for Check Station (or Mail / Other).</li>
+          <li>Create an App Password for CheckStation (or Mail / Other).</li>
           <li>Copy the generated 16-character password.</li>
-          <li>Paste it into Check Station as the App password.</li>
+          <li>Paste it into CheckStation as the App password.</li>
           <li>Save the sender, then send a test email.</li>
         </ol>
         <p className="hint">
@@ -1609,7 +1609,7 @@ function MicrosoftSmtpGuide({ onClose }) {
       <div className="confirm-modal email-sender-guide-modal">
         <h2 id="microsoft-smtp-guide-title">How to connect Outlook / Microsoft 365</h2>
         <p className="hint">
-          Check Station uses Authenticated SMTP (SMTP AUTH) for this provider. Microsoft OAuth
+          CheckStation uses Authenticated SMTP (SMTP AUTH) for this provider. Microsoft OAuth
           is not available yet.
         </p>
 
@@ -1624,14 +1624,14 @@ function MicrosoftSmtpGuide({ onClose }) {
           <li>Select the user / mailbox.</li>
           <li>Open Mail → Manage email apps.</li>
           <li>Enable Authenticated SMTP for the mailbox.</li>
-          <li>In Check Station, enter the Microsoft email and allowed password/app password.</li>
+          <li>In CheckStation, enter the Microsoft email and allowed password/app password.</li>
           <li>Save the sender, then send a test email.</li>
         </ol>
 
         <h3 className="email-sender-guide-subtitle">Personal Outlook / Hotmail accounts</h3>
         <p className="hint">
           Microsoft increasingly requires Modern Authentication / OAuth for personal Outlook
-          accounts. Check Station does not yet support Microsoft OAuth, so personal
+          accounts. CheckStation does not yet support Microsoft OAuth, so personal
           Outlook/Hotmail accounts may not be able to use this provider. An app password does
           not guarantee compatibility if SMTP AUTH is unavailable.
         </p>
@@ -1686,10 +1686,10 @@ function YahooAppPasswordGuide({ onClose }) {
           <li>Open Yahoo Account Security.</li>
           <li>Find External connections (or Generate app password).</li>
           <li>Choose Create app password.</li>
-          <li>Enter a name such as Check Station.</li>
+          <li>Enter a name such as CheckStation.</li>
           <li>Generate the password.</li>
           <li>Copy it.</li>
-          <li>Paste it into Check Station as the App password.</li>
+          <li>Paste it into CheckStation as the App password.</li>
           <li>Save the sender, then send a test email.</li>
         </ol>
         <p className="hint">

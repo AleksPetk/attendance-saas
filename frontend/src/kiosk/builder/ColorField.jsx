@@ -1,5 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { COLOR_SWATCHES, normalizeHex } from "./builderUtils.js";
+import {
+  COLOR_SWATCHES,
+  evaluateHexDraft,
+  HEX_COLOR_ERROR,
+  normalizeHex,
+  replaceHexDraftSelection,
+} from "./builderUtils.js";
 
 /**
  * Shared color editor: swatch + hex + native/system picker stay in sync.
@@ -17,9 +23,10 @@ export default function ColorField({
   const [draft, setDraft] = useState(normalized);
   const [error, setError] = useState("");
   const pickingRef = useRef(false);
+  const textEditingRef = useRef(false);
 
   useEffect(() => {
-    if (pickingRef.current) return;
+    if (pickingRef.current || textEditingRef.current) return;
     setDraft(normalized);
     setError("");
   }, [normalized]);
@@ -27,13 +34,22 @@ export default function ColorField({
   function applyHex(raw, { previewOnly = false } = {}) {
     const next = normalizeHex(raw);
     if (!next) {
-      setError("Enter a hex color like #3B82F6.");
+      setError(HEX_COLOR_ERROR);
       return false;
     }
     setError("");
     setDraft(next);
     onChange(next, { previewOnly });
     return true;
+  }
+
+  function updateHexDraft(raw) {
+    const result = evaluateHexDraft(raw);
+    setDraft(result.draft);
+    setError(result.error);
+    if (result.color) {
+      onChange(result.color, { previewOnly: true });
+    }
   }
 
   function onNativeInput(event) {
@@ -84,28 +100,36 @@ export default function ColorField({
             className="kb-hex"
             spellCheck={false}
             placeholder="#3B82F6"
-            maxLength={7}
             aria-label={`${label} hex value`}
             value={draft}
-            onFocus={onGestureStart}
+            onFocus={() => {
+              textEditingRef.current = true;
+              onGestureStart?.();
+            }}
             onChange={(event) => {
-              let raw = event.target.value.trim();
-              if (raw && !raw.startsWith("#")) raw = `#${raw}`;
-              setDraft(raw);
-              const next = normalizeHex(raw);
-              if (next) {
-                setError("");
-                onChange(next, { previewOnly: true });
-              } else if (raw.length >= 4) {
-                setError("Enter a hex color like #3B82F6.");
-              } else {
-                setError("");
-              }
+              updateHexDraft(event.target.value);
+            }}
+            onPaste={(event) => {
+              event.preventDefault();
+              const input = event.currentTarget;
+              const paste = replaceHexDraftSelection(
+                draft,
+                event.clipboardData.getData("text"),
+                input.selectionStart,
+                input.selectionEnd,
+              );
+              updateHexDraft(paste.draft);
+              requestAnimationFrame(() => {
+                input.setSelectionRange(paste.caret, paste.caret);
+              });
             }}
             onBlur={() => {
-              if (!applyHex(draft)) {
-                setDraft(normalized);
-                setError("");
+              const result = evaluateHexDraft(draft);
+              textEditingRef.current = false;
+              if (result.color) {
+                applyHex(result.color);
+              } else {
+                setError(result.error);
               }
               onGestureEnd?.();
             }}

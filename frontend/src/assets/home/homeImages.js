@@ -9,21 +9,36 @@ import workflow480Jpg from "./home-workflow-480.jpg";
 import workflow800Jpg from "./home-workflow-800.jpg";
 import workflow1122Jpg from "./home-workflow-1122.jpg";
 
-import setups480Avif from "./home-real-setups-480.avif";
-import setups800Avif from "./home-real-setups-800.avif";
-import setups1200Avif from "./home-real-setups-1200.avif";
-import setups1448Avif from "./home-real-setups-1448.avif";
-import setups480Webp from "./home-real-setups-480.webp";
-import setups800Webp from "./home-real-setups-800.webp";
-import setups1200Webp from "./home-real-setups-1200.webp";
-import setups1448Webp from "./home-real-setups-1448.webp";
-import setups480Jpg from "./home-real-setups-480.jpg";
-import setups800Jpg from "./home-real-setups-800.jpg";
-import setups1200Jpg from "./home-real-setups-1200.jpg";
-import setups1448Jpg from "./home-real-setups-1448.jpg";
+import setups480Avif from "./home-real-setup-480.avif";
+import setups800Avif from "./home-real-setup-800.avif";
+import setups1200Avif from "./home-real-setup-1200.avif";
+import setups1600Avif from "./home-real-setup-1600.avif";
+import setups480Webp from "./home-real-setup-480.webp";
+import setups800Webp from "./home-real-setup-800.webp";
+import setups1200Webp from "./home-real-setup-1200.webp";
+import setups1600Webp from "./home-real-setup-1600.webp";
+import kioskSchool1200Webp from "./kiosk-school-1200.webp";
+import kioskWarehouse1200Webp from "./kiosk-warehouse-1200.webp";
+import kioskCafe1200Webp from "./kiosk-cafe-1200.webp";
+import kioskOffice1200Webp from "./kiosk-office-1200.webp";
+import kioskClub1200Webp from "./kiosk-club-1200.webp";
+import workspaceDashboard1600Webp from "./home-workspace-dashboard-1600.webp";
+import workspaceHistory1600Webp from "./home-workspace-history-1600.webp";
+import workspaceMembers1600Webp from "./home-workspace-members-1600.webp";
+import groupMail900Webp from "./home-groupmail-900.webp";
+import notification900Webp from "./home-notification-900.webp";
+import startQuicklyIcon from "./home-startQ-160.webp";
+import fitWorkflowIcon from "./home-fitYour-160.webp";
+import seeHistoryIcon from "./home-See-160.webp";
+
+export const homeValueIcons = {
+  startQuickly: startQuicklyIcon,
+  fitWorkflow: fitWorkflowIcon,
+  seeHistory: seeHistoryIcon,
+};
 
 export const homeWorkflowImage = {
-  alt: "Check Station workflow connecting members, groups, kiosk actions, and attendance history.",
+  alt: "CheckStation workflow connecting members, groups, kiosk actions, and attendance history.",
   width: 1122,
   height: 1402,
   // Slot is ~40% of content column on desktop; full-bleed-ish on mobile.
@@ -36,13 +51,82 @@ export const homeWorkflowImage = {
 };
 
 export const homeRealSetupsImage = {
-  alt: "Check Station used for check-in across schools, workplaces, communities, and events.",
-  width: 1448,
-  height: 1086,
+  alt: "CheckStation used for check-in across schools, workplaces, communities, and events.",
+  width: 1600,
+  height: 1200,
   sizes: "(max-width: 720px) 100vw, (max-width: 960px) 92vw, 28rem",
   objectPosition: "center 40%",
-  avifSrcSet: `${setups480Avif} 480w, ${setups800Avif} 800w, ${setups1200Avif} 1200w, ${setups1448Avif} 1448w`,
-  webpSrcSet: `${setups480Webp} 480w, ${setups800Webp} 800w, ${setups1200Webp} 1200w, ${setups1448Webp} 1448w`,
-  jpgSrcSet: `${setups480Jpg} 480w, ${setups800Jpg} 800w, ${setups1200Jpg} 1200w, ${setups1448Jpg} 1448w`,
-  fallbackSrc: setups800Jpg,
+  avifSrcSet: `${setups480Avif} 480w, ${setups800Avif} 800w, ${setups1200Avif} 1200w, ${setups1600Avif} 1600w`,
+  webpSrcSet: `${setups480Webp} 480w, ${setups800Webp} 800w, ${setups1200Webp} 1200w, ${setups1600Webp} 1600w`,
+  fallbackSrc: setups800Webp,
+};
+
+export const homeKioskStyleImages = {
+  school: {
+    alt: "A customized CheckStation school kiosk showing selectable classes.",
+    width: 1200,
+    height: 900,
+    sizes: "(max-width: 900px) calc(100vw - 1.5rem), min(50vw, 38rem)",
+    fallbackSrc: kioskSchool1200Webp,
+  },
+  warehouse: {
+    alt: "A customized CheckStation warehouse kiosk with a participant code check-in flow.",
+    width: 1200,
+    height: 900,
+    sizes: "(max-width: 900px) calc(100vw - 1.5rem), min(50vw, 38rem)",
+    fallbackSrc: kioskWarehouse1200Webp,
+  },
+  cafe: {
+    alt: "A customized CheckStation café kiosk showing selectable staff cards.",
+    width: 1200,
+    height: 900,
+    sizes: "(max-width: 900px) calc(100vw - 1.5rem), min(50vw, 38rem)",
+    fallbackSrc: kioskCafe1200Webp,
+  },
+  office: {
+    alt: "A customized CheckStation office kiosk showing code cards for reception check-in.",
+    width: 1200,
+    height: 900,
+    sizes: "(max-width: 900px) calc(100vw - 1.5rem), min(50vw, 38rem)",
+    fallbackSrc: kioskOffice1200Webp,
+  },
+  club: {
+    alt: "A customized CheckStation club kiosk with a branded participant check-in flow.",
+    width: 1200,
+    height: 900,
+    sizes: "(max-width: 900px) calc(100vw - 1.5rem), min(50vw, 38rem)",
+    fallbackSrc: kioskClub1200Webp,
+  },
+};
+
+export const homeWorkspaceImages = [
+  {
+    src: workspaceDashboard1600Webp,
+    alt: "CheckStation workspace dashboard with activity, totals, and quick actions.",
+  },
+  {
+    src: workspaceHistory1600Webp,
+    alt: "CheckStation workspace attendance history and report view.",
+  },
+  {
+    src: workspaceMembers1600Webp,
+    alt: "CheckStation workspace member management view.",
+  },
+];
+
+export const homeGroupCommunicationImages = {
+  sender: {
+    alt: "CheckStation Group email sender settings with custom SMTP configuration.",
+    width: 900,
+    height: 1200,
+    sizes: "(max-width: 900px) min(44vw, 18rem), min(22vw, 17rem)",
+    fallbackSrc: groupMail900Webp,
+  },
+  notifications: {
+    alt: "CheckStation notification and forwarding rules sending check-in messages to different recipients.",
+    width: 900,
+    height: 1200,
+    sizes: "(max-width: 900px) min(44vw, 18rem), min(22vw, 17rem)",
+    fallbackSrc: notification900Webp,
+  },
 };

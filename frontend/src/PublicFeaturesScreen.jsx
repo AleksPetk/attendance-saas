@@ -41,6 +41,19 @@ const FEATURE_STORIES = [
     caption: "A future screenshot will show kiosk configuration and presentation options here.",
   },
   {
+    type: "group-email",
+    eyebrow: "Email & notifications",
+    title: "Let every Group communicate from the right inbox.",
+    body: "A school, café, office, or club can keep its communication distinct without leaving the workspace. Each Group or Structured Group chooses its own sender, recipients, forwarding, and action-based notification rules.",
+    points: [
+      "Gmail, Microsoft / Outlook, Yahoo, or custom SMTP",
+      "A dedicated sender or business email for each Group",
+      "Participant emails on or off independently",
+      "Check-in, check-out, break, or combined notification triggers",
+      "Forwarding emails and up to three participant recipients where supported",
+    ],
+  },
+  {
     eyebrow: "Capture the moment",
     title: "Record the actions that matter — automatically.",
     body: "Turn a quick participant interaction into dependable history. Enable the actions each Group needs, from check-in and check-out to breaks, then review the record whenever you need it.",
@@ -99,13 +112,13 @@ export default function PublicFeaturesScreen() {
   return (
     <PublicPageShell>
       <div className="features-page">
-        <PageTitle title="Features — Check Station" description="Configure check-in your way, run participant-friendly kiosks, and keep a dependable record of every action." />
+        <PageTitle title="Features — CheckStation" description="Configure check-in your way, run participant-friendly kiosks, and keep a dependable record of every action." />
 
         <section className="features-hero" data-reveal>
           <div className="features-hero-copy">
             <p className="features-kicker">A clearer way to manage attendance</p>
             <h1>Check-in that works the way your organization works.</h1>
-            <p className="features-hero-lead">Check Station brings people, Groups, kiosk flows, and activity history together in one calm, configurable workspace — so your team can spend less time managing attendance and more time doing the work.</p>
+            <p className="features-hero-lead">CheckStation brings people, Groups, kiosk flows, and activity history together in one calm, configurable workspace — so your team can spend less time managing attendance and more time doing the work.</p>
             <div className="features-actions">
               <Link className="btn-primary features-primary-button" to="/pricing">Check out pricing <span aria-hidden="true">→</span></Link>
               <Link className="btn-secondary features-secondary-button" to="/how-it-works">See how it works</Link>
@@ -119,7 +132,7 @@ export default function PublicFeaturesScreen() {
           <div className="features-hero-orbit" aria-hidden="true">
             <div className="features-orbit-glow" />
             <div className="features-orbit-card features-orbit-card-main">
-              <span className="features-orbit-card-top"><span className="features-status-dot" /> Check Station</span>
+              <span className="features-orbit-card-top"><span className="features-status-dot" /> CheckStation</span>
               <span className="features-orbit-card-title">One workspace.<br /><em>Every action in sync.</em></span>
               <span className="features-orbit-bars"><i /><i /><i /><i /></span>
             </div>
@@ -132,20 +145,40 @@ export default function PublicFeaturesScreen() {
 
         <section className="features-showcase" data-reveal>
           <div className="features-section-heading"><p className="features-kicker">See the whole picture</p><h2>Everything your check-in flow needs, without the busywork.</h2><p>Set up the experience once. Then give participants a simple way to take action and your team a reliable way to understand what happened.</p></div>
-          <ProductImageSlot label="Check Station workspace overview" caption="Image placeholder — add an original Check Station screenshot here later." aspect="16 / 8" className="features-showcase-image" />
+          <ProductImageSlot label="CheckStation workspace overview" caption="Image placeholder — add an original CheckStation screenshot here later." aspect="16 / 8" className="features-showcase-image" />
         </section>
 
-        <section className="features-stories" aria-label="Check Station capabilities">
+        <section className="features-stories" aria-label="CheckStation capabilities">
           {FEATURE_STORIES.map((story, index) => (
-            <article className={`features-story features-story-${index % 2 ? "reverse" : "normal"}`} data-reveal key={story.title}>
-              <ProductImageSlot label={story.label} caption={story.caption} aspect="4 / 3" className="features-story-image" />
-              <div className="features-story-copy"><p className="features-kicker">{story.eyebrow}</p><h2>{story.title}</h2><p className="features-story-body">{story.body}</p><ul className="features-point-list">{story.points.map((point) => <li key={point}><CheckIcon />{point}</li>)}</ul></div>
-            </article>
+            story.type === "group-email" ? (
+              <article className={`features-story features-email-story features-story-${index % 2 ? "reverse" : "normal"}`} data-reveal key={story.title}>
+                <div className="features-email-flow" aria-label="Future Group email and notification screenshots">
+                  <ProductImageSlot label="Group sender connection" aspect="16 / 8" className="features-email-flow-slot features-email-flow-sender" />
+                  <ProductImageSlot label="Action notification rules" aspect="4 / 3" className="features-email-flow-slot" />
+                  <ProductImageSlot label="Recipients and forwarding" aspect="4 / 3" className="features-email-flow-slot" />
+                </div>
+                <div className="features-story-copy features-email-copy">
+                  <p className="features-kicker">{story.eyebrow}</p>
+                  <h2>{story.title}</h2>
+                  <p className="features-story-body">{story.body}</p>
+                  <ul className="features-point-list features-email-capabilities">{story.points.map((point) => <li key={point}><CheckIcon />{point}</li>)}</ul>
+                  <div className="features-email-examples">
+                    <article><span>School Group</span><p>Send from the school email, notify parents on arrival or check-out, and forward copies to the director.</p></article>
+                    <article><span>Café / staff Group</span><p>Use a different café business sender with its own staff notifications and forwarding rules.</p></article>
+                  </div>
+                </div>
+              </article>
+            ) : (
+              <article className={`features-story features-story-${index % 2 ? "reverse" : "normal"}`} data-reveal key={story.title}>
+                <ProductImageSlot label={story.label} caption={story.caption} aspect="4 / 3" className="features-story-image" />
+                <div className="features-story-copy"><p className="features-kicker">{story.eyebrow}</p><h2>{story.title}</h2><p className="features-story-body">{story.body}</p><ul className="features-point-list">{story.points.map((point) => <li key={point}><CheckIcon />{point}</li>)}</ul></div>
+              </article>
+            )
           ))}
         </section>
 
         <section className="features-platform" data-reveal>
-          <div className="features-platform-copy"><p className="features-kicker">Ready wherever work happens</p><h2>One check-in experience across every screen.</h2><p>Check Station is designed for the browser, iPhone and iPad, Android phones and tablets, Mac, and Windows. Use the device that fits the space — at the front desk, in a classroom, or at a shared kiosk.</p><Link className="features-text-link" to="/how-it-works">Explore the workflow <span aria-hidden="true">→</span></Link></div>
+          <div className="features-platform-copy"><p className="features-kicker">Ready wherever work happens</p><h2>One check-in experience across every screen.</h2><p>CheckStation is designed for the browser, iPhone and iPad, Android phones and tablets, Mac, and Windows. Use the device that fits the space — at the front desk, in a classroom, or at a shared kiosk.</p><Link className="features-text-link" to="/how-it-works">Explore the workflow <span aria-hidden="true">→</span></Link></div>
           <div className="features-platform-list">{PLATFORMS.map((platform) => <div className="features-platform-item" key={platform}><PlatformIcon name={platform} /><span>{platform}</span><span className="features-platform-arrow" aria-hidden="true">↗</span></div>)}</div>
         </section>
 

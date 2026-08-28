@@ -1,0 +1,12 @@
+{% extends "admin/change_form.html" %}
+
+{% block form_top %}
+  {{ block.super }}
+  <div class="messagelist">
+    <div class="info">
+      <strong>Display text only.</strong>
+      This setting does not change prices, discounts, Stripe coupons, promotions,
+      trials, limits, entitlements, or pricing templates.
+    </div>
+  </div>
+{% endblock %}

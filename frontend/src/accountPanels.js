@@ -456,7 +456,7 @@ export function AccountBillingPanel({
       "p",
       { className: "account-panel-intro" },
       isApple
-        ? "Apple-managed subscriptions are handled outside Check Station."
+        ? "Apple-managed subscriptions are handled outside CheckStation."
         : "Stripe payment method, invoices, and receipts for this workspace.",
     ),
     portalNotice

@@ -192,6 +192,27 @@ CATEGORY_DEFINITIONS = (
         "models": (
             {
                 "app_label": "core",
+                "object_name": "platformpricingtemplatesettings",
+                "label": "Price Templates",
+                "description": (
+                    "Choose the presentation shared by public and workspace "
+                    "pricing cards."
+                ),
+                "prefer_add": False,
+                "count": lambda: 1,
+                "stats": lambda: _pricing_template_stats(),
+            },
+            {
+                "app_label": "core",
+                "object_name": "platformpromotionaltextsettings",
+                "label": "Promotional Text",
+                "description": "Manage display-only copy shown near pricing cards.",
+                "prefer_add": False,
+                "count": lambda: 1,
+                "stats": lambda: _promotional_text_stats(),
+            },
+            {
+                "app_label": "core",
                 "object_name": "platformpromotionsettings",
                 "label": "Promotions",
                 "description": "Eligibility-based promotion groups for all clients.",
@@ -266,6 +287,25 @@ def _advertising_stats():
         {
             "label": "Status",
             "value": "Enabled" if enabled else "Disabled",
+        }
+    ]
+
+
+def _pricing_template_stats():
+    from core.pricing_templates import pricing_template_payload
+
+    template = pricing_template_payload()
+    return [{"label": "Active", "value": template["display_name"]}]
+
+
+def _promotional_text_stats():
+    from core.promotional_text import promotional_text_payload
+
+    promotional_text = promotional_text_payload()
+    return [
+        {
+            "label": "Status",
+            "value": "Enabled" if promotional_text["enabled"] else "Disabled",
         }
     ]
 

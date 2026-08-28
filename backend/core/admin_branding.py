@@ -50,6 +50,8 @@ ADMIN_MODEL_ORDER = {
     "billing": ("workspacesubscription", "providerevent"),
     "content": ("document", "faqentry"),
     "core": (
+        "platformpricingtemplatesettings",
+        "platformpromotionaltextsettings",
         "platformpromotionsettings",
         "platformpromotionmodechange",
         "platformadvertisingsettings",

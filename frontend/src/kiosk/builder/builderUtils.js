@@ -75,6 +75,30 @@ export function normalizeHex(raw) {
   return null;
 }
 
+export const HEX_COLOR_ERROR = "Enter a hex color like #3B82F6.";
+
+export function evaluateHexDraft(raw) {
+  const draft = String(raw ?? "");
+  const color = normalizeHex(draft);
+  return {
+    draft,
+    color,
+    error: color ? "" : HEX_COLOR_ERROR,
+  };
+}
+
+export function replaceHexDraftSelection(raw, clipboardText, selectionStart, selectionEnd) {
+  const current = String(raw ?? "");
+  const pasted = String(clipboardText ?? "").trim();
+  const start = Number.isInteger(selectionStart) ? selectionStart : current.length;
+  const end = Number.isInteger(selectionEnd) ? selectionEnd : start;
+  const draft = `${current.slice(0, start)}${pasted}${current.slice(end)}`;
+  return {
+    draft,
+    caret: start + pasted.length,
+  };
+}
+
 export function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }

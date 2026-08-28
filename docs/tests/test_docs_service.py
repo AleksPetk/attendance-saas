@@ -97,6 +97,14 @@ class DocsHttpTests(unittest.TestCase):
             self.assertNotIn("public-footer", html)
             self.assertIn("/config.js", html)
             self.assertIn("viewport", html)
+            self.assertIn('/favicon.ico?v=20260828', html)
+
+    def test_favicon_assets_are_served(self):
+        for path in ("/favicon.ico", "/favicon-32x32.png", "/apple-touch-icon.png"):
+            code, body, headers = self._get(path)
+            self.assertEqual(code, 200)
+            self.assertTrue(headers.get("Content-Type", "").startswith("image/"))
+            self.assertGreater(len(body), 100)
 
     def test_config_js_uses_browser_facing_api(self):
         code, body, headers = self._get("/config.js")

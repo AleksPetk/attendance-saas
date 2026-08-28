@@ -1,0 +1,19 @@
+{% extends "admin/base_site.html" %}
+
+{% block content %}
+<div id="content-main">
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="template" value="{{ candidate }}">
+    <input type="hidden" name="confirm" value="1">
+    <div class="module">
+      <h2>{{ confirm_title }}</h2>
+      <p>{{ confirm_body }}</p>
+    </div>
+    <div class="submit-row">
+      <a class="button cancel-link" href="{{ cancel_url }}">Cancel</a>
+      <button type="submit" class="default">{{ confirm_label }}</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

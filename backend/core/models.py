@@ -188,6 +188,175 @@ class PlatformPromotionModeChange(models.Model):
         return f"{self.group}: {self.old_value} → {self.new_value}"
 
 
+class PricingCardTemplate(models.TextChoices):
+    NORMAL = "normal", "Normal"
+    SPRING = "spring", "Spring"
+    SUMMER = "summer", "Summer"
+    AUTUMN = "autumn", "Autumn"
+    WINTER = "winter", "Winter"
+    HALLOWEEN = "halloween", "Halloween"
+    CHRISTMAS_NEW_YEAR = "christmas_new_year", "Christmas & New Year"
+    BLACK_FRIDAY = "black_friday", "Black Friday"
+
+
+class PlatformPricingTemplateSettings(models.Model):
+    """Singleton presentation setting for pricing cards.
+
+    This setting must not influence catalog prices, promotions, Stripe,
+    subscriptions, trials, plan limits, or entitlements.
+    """
+
+    SINGLETON_PK = 1
+
+    active_template = models.CharField(
+        max_length=24,
+        choices=PricingCardTemplate.choices,
+        default=PricingCardTemplate.NORMAL,
+        help_text="Presentation only. Normal is the safe default.",
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+    changed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="+",
+    )
+
+    class Meta:
+        verbose_name = "Price Templates"
+        verbose_name_plural = "Price Templates"
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(id=1),
+                name="core_platformpricingtemplatesettings_singleton_pk",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(active_template__in=PricingCardTemplate.values),
+                name="core_platformpricingtemplatesettings_template_valid",
+            ),
+        ]
+
+    def __str__(self):
+        return f"Price Templates ({self.get_active_template_display()})"
+
+    def save(self, *args, **kwargs):
+        self.pk = self.SINGLETON_PK
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ProtectedError(
+            "Platform pricing template settings cannot be deleted.",
+            [self],
+        )
+
+    @classmethod
+    def load(cls):
+        obj, _created = cls.objects.get_or_create(
+            pk=cls.SINGLETON_PK,
+            defaults={"active_template": PricingCardTemplate.NORMAL},
+        )
+        return obj
+
+
+class PromotionalTextStyle(models.TextChoices):
+    NORMAL = "normal", "Normal"
+    SPRING = "spring", "Spring"
+    SUMMER = "summer", "Summer"
+    AUTUMN = "autumn", "Autumn"
+    WINTER = "winter", "Winter"
+    HALLOWEEN = "halloween", "Halloween"
+    CHRISTMAS_NEW_YEAR = "christmas_new_year", "Christmas & New Year"
+    BLACK_FRIDAY = "black_friday", "Black Friday"
+    LUXURY_GOLD = "luxury_gold", "Luxury Gold"
+    CYBERPUNK = "cyberpunk", "Cyberpunk"
+    RETRO_SALE = "retro_sale", "Retro Sale"
+    DARK_FANTASY = "dark_fantasy", "Dark Fantasy"
+    EDITORIAL = "editorial", "Editorial"
+    IMPACT_SALE = "impact_sale", "Impact Sale"
+    ARCADE = "arcade", "Arcade"
+
+
+class PlatformPromotionalTextSettings(models.Model):
+    """Singleton display-copy setting for pricing surfaces only.
+
+    This copy is independent from prices, discounts, Stripe coupons,
+    promotions, trials, limits, entitlements, and pricing templates.
+    """
+
+    SINGLETON_PK = 1
+
+    enabled = models.BooleanField(
+        default=False,
+        help_text="Show this display text on public and workspace pricing areas.",
+    )
+    text = models.CharField(
+        max_length=280,
+        blank=True,
+        default="",
+        verbose_name="Message",
+        help_text=(
+            "Display text only. It does not change prices, discounts, "
+            "promotions, or Stripe coupons."
+        ),
+    )
+    text_style = models.CharField(
+        max_length=32,
+        choices=PromotionalTextStyle.choices,
+        default=PromotionalTextStyle.NORMAL,
+        verbose_name="Text Style",
+        help_text="Presentation only. This is independent from Pricing Card Templates.",
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+    changed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="+",
+    )
+
+    class Meta:
+        verbose_name = "Promotional Text"
+        verbose_name_plural = "Promotional Text"
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(id=1),
+                name="core_platformpromotionaltextsettings_singleton_pk",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(text_style__in=PromotionalTextStyle.values),
+                name="core_platformpromotionaltextsettings_style_valid",
+            ),
+        ]
+
+    def __str__(self):
+        status = "Enabled" if self.enabled else "Disabled"
+        return f"Promotional Text ({status})"
+
+    def save(self, *args, **kwargs):
+        self.pk = self.SINGLETON_PK
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ProtectedError(
+            "Platform promotional text settings cannot be deleted.",
+            [self],
+        )
+
+    @classmethod
+    def load(cls):
+        obj, _created = cls.objects.get_or_create(
+            pk=cls.SINGLETON_PK,
+            defaults={
+                "enabled": False,
+                "text": "",
+                "text_style": PromotionalTextStyle.NORMAL,
+            },
+        )
+        return obj
+
+
 class PlatformAdminActionType(models.TextChoices):
     CHECKSTATION_ACCOUNT_ON = "checkstation_account_on", "CheckStation Account ON"
     CHECKSTATION_ACCOUNT_OFF = "checkstation_account_off", "CheckStation Account OFF"

@@ -609,7 +609,7 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
   async function handleDeleteAccount(event) {
     event.preventDefault();
     const confirmed = window.confirm(
-      "This cannot be undone. Permanently delete your Check Station account and workspace?"
+      "This cannot be undone. Permanently delete your CheckStation account and workspace?"
     );
     if (!confirmed) return;
     setDeleting(true);
@@ -1351,7 +1351,7 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
           {!deleteOpen ? (
             <div className="danger-zone">
               <p>
-                Permanently delete your Check Station account, this workspace, and
+                Permanently delete your CheckStation account, this workspace, and
                 customer-created operational data. This cannot be undone.
               </p>
               <button type="button" className="btn-danger btn-sm" onClick={() => setDeleteOpen(true)}>
@@ -1363,7 +1363,7 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
               <div className="danger-zone-warning">
                 <p>
                   <strong>This cannot be undone.</strong> Permanent deletion removes
-                  your Check Station account, this workspace, and customer-created
+                  your CheckStation account, this workspace, and customer-created
                   operational data such as Members, Groups, kiosk configuration,
                   staff logins, and history.
                 </p>

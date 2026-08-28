@@ -12,9 +12,13 @@ from billing.promotion import (
 from core.models import (
     PlatformAdminAction,
     PlatformAdvertisingSettings,
+    PlatformPricingTemplateSettings,
+    PlatformPromotionalTextSettings,
     PlatformPromotionModeChange,
     PlatformPromotionSettings,
+    PricingCardTemplate,
 )
+from core.pricing_templates import set_pricing_template
 
 
 DISABLE_CONFIRM_COPY = (
@@ -367,6 +371,151 @@ class PlatformPromotionModeChangeAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
+
+
+@admin.register(PlatformPricingTemplateSettings)
+class PlatformPricingTemplateSettingsAdmin(admin.ModelAdmin):
+    """View-only setting; presentation changes require confirmation."""
+
+    change_form_template = "admin/core/platformpricingtemplatesettings/change_form.html"
+    list_display = ("active_template", "updated_at", "changed_by")
+    readonly_fields = ("active_template", "updated_at", "changed_by")
+    fields = readonly_fields
+
+    def has_add_permission(self, request):
+        return not PlatformPricingTemplateSettings.objects.exists()
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    def changelist_view(self, request, extra_context=None):
+        settings_obj = PlatformPricingTemplateSettings.load()
+        return redirect(
+            reverse(
+                "admin:core_platformpricingtemplatesettings_change",
+                args=[settings_obj.pk],
+            )
+        )
+
+    def change_view(self, request, object_id, form_url="", extra_context=None):
+        settings_obj = PlatformPricingTemplateSettings.load()
+        extra_context = extra_context or {}
+        extra_context["set_template_url"] = reverse(
+            "admin:core_platformpricingtemplatesettings_set_template"
+        )
+        extra_context["template_choices"] = [
+            {
+                "value": value,
+                "label": label,
+                "selected": settings_obj.active_template == value,
+            }
+            for value, label in PricingCardTemplate.choices
+        ]
+        extra_context["show_save"] = False
+        extra_context["show_save_and_continue"] = False
+        extra_context["show_save_and_add_another"] = False
+        extra_context["has_editable_inline_admin_formsets"] = False
+        return super().change_view(
+            request, object_id, form_url, extra_context=extra_context
+        )
+
+    def get_urls(self):
+        urls = super().get_urls()
+        extra = [
+            path(
+                "set-template/",
+                self.admin_site.admin_view(self.set_template_view),
+                name="core_platformpricingtemplatesettings_set_template",
+            ),
+        ]
+        return extra + urls
+
+    def set_template_view(self, request):
+        settings_obj = PlatformPricingTemplateSettings.load()
+        change_url = reverse(
+            "admin:core_platformpricingtemplatesettings_change",
+            args=[settings_obj.pk],
+        )
+        candidate = (
+            request.POST.get("template")
+            if request.method == "POST"
+            else request.GET.get("template")
+        )
+        candidate = str(candidate or "").strip().lower()
+        labels = dict(PricingCardTemplate.choices)
+        if candidate not in PricingCardTemplate.values:
+            messages.error(request, "Select a valid pricing card template.")
+            return redirect(change_url)
+        if candidate == settings_obj.active_template:
+            messages.info(request, f"{labels[candidate]} is already active.")
+            return redirect(change_url)
+
+        if request.method == "POST" and (request.POST.get("confirm") or "").strip() == "1":
+            updated, changed = set_pricing_template(candidate, actor=request.user)
+            if changed:
+                self.log_change(
+                    request,
+                    updated,
+                    (
+                        f'Changed pricing card template from "{settings_obj.active_template}" '
+                        f'to "{candidate}".'
+                    ),
+                )
+                messages.success(
+                    request,
+                    f"Price Templates is now {labels[candidate]}.",
+                )
+            return redirect(change_url)
+
+        context = {
+            **self.admin_site.each_context(request),
+            "title": f"Use the {labels[candidate]} pricing card template?",
+            "confirm_title": f"Use the {labels[candidate]} pricing card template?",
+            "confirm_body": (
+                "This changes presentation only on public and workspace pricing cards. "
+                "Prices, promotions, Stripe, trials, plan limits, and entitlements are unchanged."
+            ),
+            "confirm_label": f"Use {labels[candidate]}",
+            "candidate": candidate,
+            "cancel_url": change_url,
+            "change_url": change_url,
+            "opts": self.model._meta,
+            "original": settings_obj,
+        }
+        return render(
+            request,
+            "admin/core/platformpricingtemplatesettings/confirm_set_template.html",
+            context,
+        )
+
+
+@admin.register(PlatformPromotionalTextSettings)
+class PlatformPromotionalTextSettingsAdmin(admin.ModelAdmin):
+    """Editable singleton for display-only promotional copy."""
+
+    change_form_template = "admin/core/platformpromotionaltextsettings/change_form.html"
+    list_display = ("enabled", "text", "updated_at", "changed_by")
+    fields = ("enabled", "text", "text_style", "updated_at", "changed_by")
+    readonly_fields = ("updated_at", "changed_by")
+
+    def has_add_permission(self, request):
+        return not PlatformPromotionalTextSettings.objects.exists()
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    def changelist_view(self, request, extra_context=None):
+        settings_obj = PlatformPromotionalTextSettings.load()
+        return redirect(
+            reverse(
+                "admin:core_platformpromotionaltextsettings_change",
+                args=[settings_obj.pk],
+            )
+        )
+
+    def save_model(self, request, obj, form, change):
+        obj.changed_by = request.user
+        super().save_model(request, obj, form, change)
 
 
 @admin.register(PlatformAdminAction)

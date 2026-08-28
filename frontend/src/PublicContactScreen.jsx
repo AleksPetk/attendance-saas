@@ -240,7 +240,7 @@ export default function PublicContactScreen() {
   return (
     <PublicPageShell>
       <PageTitle
-        title="Contact — Check Station"
+        title="Contact — CheckStation"
         description="Contact CheckStation. Choose a topic to see related help, then send a message if you still need us."
         canonicalPath="/contact"
       />

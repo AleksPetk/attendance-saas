@@ -121,6 +121,16 @@ NAV_GROUPS = (
         "models": (
             {
                 "app_label": "core",
+                "object_name": "platformpricingtemplatesettings",
+                "label": "Price Templates",
+            },
+            {
+                "app_label": "core",
+                "object_name": "platformpromotionaltextsettings",
+                "label": "Promotional Text",
+            },
+            {
+                "app_label": "core",
                 "object_name": "platformpromotionsettings",
                 "label": "Promotions",
             },
@@ -189,6 +199,67 @@ def build_promotion_status():
         "summary": " · ".join(
             f"{card['label']}: {card['value'].upper()}" for card in cards
         ),
+        "change_url": change_url,
+        "updated_at": settings_obj.updated_at,
+    }
+
+
+def build_pricing_template_status():
+    from django.urls import NoReverseMatch, reverse
+
+    from core.models import PlatformPricingTemplateSettings, PricingCardTemplate
+    from core.pricing_templates import pricing_template_payload
+
+    settings_obj = PlatformPricingTemplateSettings.load()
+    active = pricing_template_payload(settings_obj=settings_obj)
+    try:
+        change_url = reverse(
+            "admin:core_platformpricingtemplatesettings_change",
+            args=[settings_obj.pk],
+        )
+        set_url = reverse(
+            "admin:core_platformpricingtemplatesettings_set_template"
+        )
+    except NoReverseMatch:
+        change_url = ""
+        set_url = ""
+
+    return {
+        "key": active["key"],
+        "label": active["display_name"],
+        "change_url": change_url,
+        "set_url": set_url,
+        "choices": [
+            {
+                "value": value,
+                "label": label,
+                "selected": value == active["key"],
+            }
+            for value, label in PricingCardTemplate.choices
+        ],
+        "updated_at": settings_obj.updated_at,
+    }
+
+
+def build_promotional_text_status():
+    from django.urls import NoReverseMatch, reverse
+
+    from core.models import PlatformPromotionalTextSettings
+    from core.promotional_text import promotional_text_payload
+
+    settings_obj = PlatformPromotionalTextSettings.load()
+    payload = promotional_text_payload(settings_obj=settings_obj)
+    try:
+        change_url = reverse(
+            "admin:core_platformpromotionaltextsettings_change",
+            args=[settings_obj.pk],
+        )
+    except NoReverseMatch:
+        change_url = ""
+
+    return {
+        **payload,
+        "label": "Enabled" if payload["enabled"] else "Disabled",
         "change_url": change_url,
         "updated_at": settings_obj.updated_at,
     }
@@ -546,6 +617,8 @@ def build_dashboard_context(request):
         "dashboard_plans": build_plan_metrics(),
         "dashboard_advertising": build_advertising_status(),
         "dashboard_promotion": build_promotion_status(),
+        "dashboard_pricing_template": build_pricing_template_status(),
+        "dashboard_promotional_text": build_promotional_text_status(),
         "dashboard_activity": build_recent_activity(),
         "dashboard_registrations": build_recent_registrations(),
         "dashboard_quick_links": build_quick_links(),

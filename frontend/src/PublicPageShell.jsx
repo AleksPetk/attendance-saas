@@ -85,7 +85,7 @@ export default function PublicPageShell({ children }) {
   return (
     <div className="public-shell">
       <header className="public-nav">
-        <Link to="/" className="public-nav-brand" aria-label="Check Station">
+        <Link to="/" className="public-nav-brand" aria-label="CheckStation">
           <Wordmark logo />
         </Link>
         <button
@@ -141,7 +141,7 @@ export default function PublicPageShell({ children }) {
       <footer className="public-footer">
         <div className="public-footer-inner">
           <div className="public-footer-brand">
-            <Link to="/" className="public-footer-brand-link" aria-label="Check Station">
+            <Link to="/" className="public-footer-brand-link" aria-label="CheckStation">
               <BrandPicture asset={brandLogoText} className="public-footer-logo-text" />
             </Link>
             <p className="public-footer-tagline">Configurable check-in platform</p>

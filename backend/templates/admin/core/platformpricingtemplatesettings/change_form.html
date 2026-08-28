@@ -1,0 +1,19 @@
+{% extends "admin/change_form.html" %}
+
+{% block after_related_objects %}
+<div class="module aligned">
+  <h2>Price Templates</h2>
+  <div class="form-row">
+    <p>Presentation only. Pricing data, promotions, Stripe, trials, limits, and entitlements are not changed.</p>
+    <label for="id_pricing_template">Active template</label>
+    <select id="id_pricing_template" name="template">
+      {% for choice in template_choices %}
+      <option value="{{ choice.value }}"{% if choice.selected %} selected{% endif %}>{{ choice.label }}</option>
+      {% endfor %}
+    </select>
+    <input type="submit" class="default" formaction="{{ set_template_url }}" formmethod="get" value="Review change">
+  </div>
+</div>
+{% endblock %}
+
+{% block submit_buttons_bottom %}{% endblock %}
