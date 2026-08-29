@@ -91,3 +91,6 @@ logs/
 
 # Local uploaded media (runtime files; never commit customer photos)
 backend/media/
+
+# Local master/source assets (optimized production copies live elsewhere)
+/original_assets/
