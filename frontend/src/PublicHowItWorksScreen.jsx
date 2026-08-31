@@ -1,7 +1,20 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import PublicPageShell from "./PublicPageShell.jsx";
 import ProductImageSlot from "./ProductImageSlot.jsx";
+import section2StandardStructuredGroups from "./assets/how-it-works/section2-standard-structured-groups-1200.webp";
+import section3Browser from "./assets/how-it-works/section3-browser-1200.webp";
+import section3Ipad from "./assets/how-it-works/section3-ipad-960.webp";
+import section3Iphone from "./assets/how-it-works/section3-iphone-675.webp";
+import section4Admin from "./assets/how-it-works/section4-admin-1200.webp";
+import section4Teacher from "./assets/how-it-works/section4-teacher-1200.webp";
+import section4Manager from "./assets/how-it-works/section4-manager-1200.webp";
+import section4Reception from "./assets/how-it-works/section4-reception-1200.webp";
+import {
+  HOW_IT_WORKS_SLIDESHOW_INTERVAL_MS,
+  nextSlideshowIndex,
+  shouldRunSlideshow,
+} from "./howItWorksSlideshow.js";
 
 const JOURNEY_STEPS = [
   {
@@ -54,6 +67,61 @@ const STAFF_EXAMPLES = [
   ["Reception", "Give a front-desk teammate access to the check-in Groups they run."],
 ];
 
+const SECTION_TWO_ARTWORK = {
+  alt: "CheckStation Standard Group kiosk beside a Structured Group class kiosk.",
+  width: 1200,
+  height: 900,
+  sizes: "(max-width: 880px) calc(100vw - 3rem), min(50vw, 35rem)",
+  fallbackSrc: section2StandardStructuredGroups,
+};
+
+const SECTION_THREE_DEVICES = {
+  browser: {
+    alt: "Northgate Warehouse browser kiosk showing employee check-in cards.",
+    width: 1200,
+    height: 675,
+    sizes: "(max-width: 700px) calc(100vw - 3rem), min(74vw, 49rem)",
+    fallbackSrc: section3Browser,
+  },
+  tablet: {
+    alt: "Northgate Warehouse tablet kiosk showing employee check-in cards.",
+    width: 960,
+    height: 720,
+    sizes: "(max-width: 560px) calc(100vw - 4rem), min(45vw, 29rem)",
+    fallbackSrc: section3Ipad,
+  },
+  phone: {
+    alt: "Northgate Warehouse phone kiosk showing employee check-in cards.",
+    width: 675,
+    height: 1200,
+    sizes: "(max-width: 560px) min(52vw, 11rem), min(21vw, 12.5rem)",
+    fallbackSrc: section3Iphone,
+  },
+};
+
+const SECTION_FOUR_SLIDES = [
+  {
+    role: "Admin",
+    src: section4Admin,
+    alt: "Admin Staff Management view showing Group access assignments for workspace staff.",
+  },
+  {
+    role: "Teacher",
+    src: section4Teacher,
+    alt: "Teacher staff workspace showing assigned School and Sels Groups.",
+  },
+  {
+    role: "Manager",
+    src: section4Manager,
+    alt: "Manager staff workspace showing an attendance report limited to assigned Groups.",
+  },
+  {
+    role: "Reception",
+    src: section4Reception,
+    alt: "Reception staff dashboard showing activity from assigned Groups.",
+  },
+];
+
 function PageTitle() {
   useEffect(() => {
     const title = "How it works — CheckStation";
@@ -77,6 +145,139 @@ function PageTitle() {
 
 function CheckMark() {
   return <span className="how-check" aria-hidden="true">✓</span>;
+}
+
+function StaffWorkspaceSlideshow() {
+  const rootRef = useRef(null);
+  const [activeSlide, setActiveSlide] = useState(0);
+  const [direction, setDirection] = useState(1);
+  const [timerVersion, setTimerVersion] = useState(0);
+  const [inViewport, setInViewport] = useState(false);
+  const [interacting, setInteracting] = useState(false);
+  const [reducedMotion, setReducedMotion] = useState(false);
+  const [pageVisible, setPageVisible] = useState(
+    () => typeof document === "undefined" || document.visibilityState === "visible",
+  );
+
+  useEffect(() => {
+    const node = rootRef.current;
+    if (!node || !("IntersectionObserver" in window)) {
+      setInViewport(true);
+      return undefined;
+    }
+    const observer = new IntersectionObserver(
+      ([entry]) => setInViewport(entry.isIntersecting),
+      { threshold: 0.2 },
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const media = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const update = () => setReducedMotion(media.matches);
+    update();
+    media.addEventListener?.("change", update);
+    return () => media.removeEventListener?.("change", update);
+  }, []);
+
+  useEffect(() => {
+    const update = () => setPageVisible(document.visibilityState === "visible");
+    document.addEventListener("visibilitychange", update);
+    return () => document.removeEventListener("visibilitychange", update);
+  }, []);
+
+  useEffect(() => {
+    if (!shouldRunSlideshow({ inViewport, interacting, reducedMotion, pageVisible })) {
+      return undefined;
+    }
+    const timer = window.setTimeout(() => {
+      setDirection(1);
+      setActiveSlide((current) =>
+        nextSlideshowIndex(current, SECTION_FOUR_SLIDES.length, 1),
+      );
+    }, HOW_IT_WORKS_SLIDESHOW_INTERVAL_MS);
+    return () => window.clearTimeout(timer);
+  }, [activeSlide, inViewport, interacting, pageVisible, reducedMotion, timerVersion]);
+
+  function navigate(directionDelta) {
+    setDirection(directionDelta);
+    setActiveSlide((current) =>
+      nextSlideshowIndex(current, SECTION_FOUR_SLIDES.length, directionDelta),
+    );
+    setTimerVersion((current) => current + 1);
+  }
+
+  function selectSlide(index) {
+    setDirection(index >= activeSlide ? 1 : -1);
+    setActiveSlide(index);
+    setTimerVersion((current) => current + 1);
+  }
+
+  return (
+    <div
+      ref={rootRef}
+      className="how-staff-slideshow"
+      data-direction={direction > 0 ? "next" : "previous"}
+      onMouseEnter={() => setInteracting(true)}
+      onMouseLeave={() => setInteracting(false)}
+      onFocusCapture={() => setInteracting(true)}
+      onBlurCapture={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) setInteracting(false);
+      }}
+      aria-roledescription="carousel"
+      aria-label="Admin and staff workspace views"
+    >
+      <div className="how-staff-slideshow-frame">
+        <div className="how-staff-slides">
+          {SECTION_FOUR_SLIDES.map((slide, index) => (
+            <figure
+              key={slide.role}
+              className={`how-staff-slide${index === activeSlide ? " is-active" : ""}`}
+              aria-hidden={index !== activeSlide}
+            >
+              <img
+                src={slide.src}
+                alt={index === activeSlide ? slide.alt : ""}
+                width="1200"
+                height="675"
+                loading={index === 0 ? "eager" : "lazy"}
+                fetchPriority={index === 0 ? "high" : "auto"}
+              />
+            </figure>
+          ))}
+        </div>
+        <button
+          type="button"
+          className="how-staff-slide-arrow is-previous"
+          onClick={() => navigate(-1)}
+          aria-label="Previous workspace view"
+        >
+          ‹
+        </button>
+        <button
+          type="button"
+          className="how-staff-slide-arrow is-next"
+          onClick={() => navigate(1)}
+          aria-label="Next workspace view"
+        >
+          ›
+        </button>
+      </div>
+      <div className="how-staff-slide-dots" role="group" aria-label="Choose workspace view">
+        {SECTION_FOUR_SLIDES.map((slide, index) => (
+          <button
+            key={slide.role}
+            type="button"
+            className={index === activeSlide ? "is-active" : ""}
+            onClick={() => selectSlide(index)}
+            aria-label={`Show ${slide.role} workspace view`}
+            aria-current={index === activeSlide ? "true" : undefined}
+          />
+        ))}
+      </div>
+    </div>
+  );
 }
 
 export default function PublicHowItWorksScreen() {
@@ -130,23 +331,46 @@ export default function PublicHowItWorksScreen() {
 
         <section className="how-structure" data-reveal>
           <div className="how-structure-copy"><p className="how-kicker">Organize without compromise</p><h2>Simple Groups when they are enough. Structure when you need it.</h2><p>Start with the everyday Groups that make sense for your team. When a school or larger program needs another layer, Structured Groups give you classes and sections within the same workspace.</p><div className="how-structure-points"><span><CheckMark /> Standard Groups for everyday flows</span><span><CheckMark /> Structured Groups for classes and sections</span><span><CheckMark /> One workspace, a clear view of it all</span></div></div>
-          <ProductImageSlot label="Standard and Structured Groups" caption="Image placeholder — add an original Groups screenshot here later." aspect="4 / 3" className="how-image-slot" />
+          <ProductImageSlot label="Standard and Structured Groups" image={SECTION_TWO_ARTWORK} aspect="4 / 3" className="how-image-slot how-section2-artwork" />
         </section>
 
         <section className="how-simultaneous" data-reveal>
           <div className="how-section-heading how-heading-light"><p className="how-kicker">Made to move together</p><h2>One workspace. Different Groups. Different devices. All running together.</h2><p>Open each Group’s own check-in experience where it belongs, while the rest of your workspace keeps moving.</p></div>
-          <div className="how-device-network">
-            <span className="how-network-line how-network-line-a" aria-hidden="true" /><span className="how-network-line how-network-line-b" aria-hidden="true" /><span className="how-network-line how-network-line-c" aria-hidden="true" />
-            <div className="how-device-card how-device-tablet"><span className="how-device-label">Group A · shared tablet</span><ProductImageSlot label="Group A iPad kiosk" caption="Future iPad kiosk screenshot" aspect="4 / 3" className="how-device-image" /></div>
-            <div className="how-device-card how-device-desktop"><span className="how-device-label">Welcome desk · browser</span><ProductImageSlot label="Staff browser kiosk" caption="Future browser kiosk screenshot" aspect="16 / 10" className="how-device-image" /></div>
-            <div className="how-device-card how-device-phone"><span className="how-device-label">Structured Group · class</span><ProductImageSlot label="Structured Group class check-in" caption="Future class check-in screenshot" aspect="4 / 5" className="how-device-image" /></div>
-            <div className="how-network-hub" aria-hidden="true"><span>One</span><b>workspace</b></div>
+          <div className="how-device-stage">
+            <div className="how-device how-device-browser">
+              <span className="how-device-label">Admin · browser</span>
+              <div className="how-device-shell how-device-shell-browser">
+                <div className="how-browser-chrome" aria-hidden="true">
+                  <span /><span /><span /><i />
+                </div>
+                <div className="how-device-viewport how-device-viewport-browser">
+                  <ProductImageSlot label="Staff browser kiosk" image={SECTION_THREE_DEVICES.browser} aspect="16 / 9" className="how-device-image" />
+                </div>
+              </div>
+            </div>
+            <div className="how-device how-device-tablet">
+              <span className="how-device-label">Group A · tablet</span>
+              <div className="how-device-shell how-device-shell-tablet">
+                <div className="how-device-viewport how-device-viewport-tablet">
+                  <ProductImageSlot label="Group A iPad kiosk" image={SECTION_THREE_DEVICES.tablet} aspect="4 / 3" className="how-device-image" />
+                </div>
+              </div>
+            </div>
+            <div className="how-device how-device-phone">
+              <span className="how-device-label">Class · phone</span>
+              <div className="how-device-shell how-device-shell-phone">
+                <span className="how-phone-island" aria-hidden="true" />
+                <div className="how-device-viewport how-device-viewport-phone">
+                  <ProductImageSlot label="Structured Group class check-in" image={SECTION_THREE_DEVICES.phone} aspect="9 / 16" className="how-device-image" />
+                </div>
+              </div>
+            </div>
           </div>
           <div className="how-simultaneous-foot"><span><CheckMark /> Each Group owns its kiosk setup</span><span><CheckMark /> Kiosks run independently</span><span><CheckMark /> Admin workspace stays separate</span></div>
         </section>
 
         <section className="how-staff" data-reveal>
-          <ProductImageSlot label="Staff account and Group access" caption="Image placeholder — add an original staff access screenshot here later." aspect="4 / 3" className="how-image-slot" />
+          <StaffWorkspaceSlideshow />
           <div className="how-staff-copy"><p className="how-kicker">The right people, in the right Groups</p><h2>Give staff a focused place to help.</h2><p>Create staff accounts for the people who run check-in with you, then choose the Groups each staff account can view and operate.</p><div className="how-staff-examples">{STAFF_EXAMPLES.map(([title, body]) => <article key={title}><span>{title.slice(0, 1)}</span><div><h3>{title}</h3><p>{body}</p></div></article>)}</div><p className="how-staff-note">Whether they are a teacher, manager, or receptionist, the access stays tied to the Groups you choose.</p></div>
         </section>
 

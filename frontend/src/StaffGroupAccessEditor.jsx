@@ -6,6 +6,7 @@ import {
   assignedGroupIds,
   clearStaffGroupSelection,
   restoreStaffGroupSelection,
+  saveStaffGroupAccessFlow,
   selectVisibleStaffGroups,
   toggleStaffGroupAssignment,
 } from "./staffGroupAccess.js";
@@ -73,11 +74,17 @@ export default function StaffGroupAccessEditor({ staff, onClose, onSaved, onErro
         setSaving(true);
         onError("");
         try {
-          const groupIds = assignedGroupIds(items);
-          await api.setWorkspaceStaffGroupAccess(null, staff.id, { group_ids: groupIds });
-          setBaselineIds(groupIds);
-          setSavedNotice("Group access saved.");
-          onSaved();
+          await saveStaffGroupAccessFlow({
+            staffId: staff.id,
+            items,
+            saveAccess: (staffId, payload) =>
+              api.setWorkspaceStaffGroupAccess(null, staffId, payload),
+            onSaved: (savedItems, groupIds) => {
+              setBaselineIds(groupIds);
+              onSaved(savedItems);
+            },
+            onClose,
+          });
         } catch (e) {
           onError(errorMessage(e));
         } finally {

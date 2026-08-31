@@ -8,6 +8,7 @@ from attendance.views import (
     GroupKioskPerformView,
     GroupKioskStartView,
     WorkspaceAttendanceReportExportView,
+    WorkspaceAttendanceReportOptionsView,
     WorkspaceAttendanceReportView,
     WorkspaceHistoryListView,
     WorkspaceHistoryReportGroupsView,
@@ -41,6 +42,11 @@ urlpatterns = [
         "history/report-groups/",
         WorkspaceHistoryReportGroupsView.as_view(),
         name="workspace-history-report-groups",
+    ),
+    path(
+        "history/attendance-report/options/",
+        WorkspaceAttendanceReportOptionsView.as_view(),
+        name="workspace-attendance-report-options",
     ),
     path(
         "history/attendance-report/",

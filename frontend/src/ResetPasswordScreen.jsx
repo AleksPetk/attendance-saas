@@ -51,7 +51,7 @@ export default function ResetPasswordScreen() {
   return (
     <AuthLayout
       title="Reset password"
-      lead="Choose a new password for your Check Station owner account."
+      lead="Choose a new password for your CheckStation owner account."
       footnote={
         <p>
           <Link to="/forgot-password">Request a new reset link</Link>

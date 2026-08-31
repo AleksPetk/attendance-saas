@@ -27,15 +27,37 @@ class CurrentWorkspaceSerializer(serializers.Serializer):
     account_mode = serializers.CharField(required=False)
     workspace_status = serializers.CharField(required=False, allow_null=True)
     builtin_trial = serializers.DictField(required=False)
+    tutorial = serializers.DictField(required=False)
     kiosk_locked = serializers.BooleanField(required=False, default=False)
     kiosk_group_id = serializers.IntegerField(required=False, allow_null=True, default=None)
     kiosk_available = serializers.BooleanField(required=False, default=False)
+
+
+class WorkspaceTutorialStateUpdateSerializer(serializers.Serializer):
+    status = serializers.ChoiceField(choices=("in_progress", "completed", "skipped"))
+    last_module = serializers.CharField(required=False, allow_blank=True, max_length=80)
+    last_step = serializers.CharField(required=False, allow_blank=True, max_length=80)
+
+
+class WorkspaceTutorialModuleCompletionSerializer(serializers.Serializer):
+    module_id = serializers.RegexField(
+        regex=r"^[a-z0-9]+(?:-[a-z0-9]+)*$",
+        max_length=80,
+    )
+
+    def validate_module_id(self, value):
+        if value == "workspace-overview":
+            raise serializers.ValidationError(
+                "Workspace Overview uses the onboarding lifecycle endpoint."
+            )
+        return value
 
 
 class RegisterOwnerSerializer(serializers.Serializer):
     email = serializers.EmailField()
     password = serializers.CharField(write_only=True)
     password_confirm = serializers.CharField(write_only=True)
+    legal_acknowledgement = serializers.BooleanField(write_only=True, required=True)
     first_name = serializers.CharField(required=False, allow_blank=True)
     last_name = serializers.CharField(required=False, allow_blank=True)
 
@@ -44,11 +66,17 @@ class RegisterOwnerSerializer(serializers.Serializer):
         password = attrs.get("password")
         password_confirm = attrs.get("password_confirm")
 
+        if attrs.get("legal_acknowledgement") is not True:
+            raise serializers.ValidationError(
+                {
+                    "legal_acknowledgement": (
+                        "You must agree to the Terms of Use and acknowledge the Privacy Policy."
+                    )
+                }
+            )
+
         if password != password_confirm:
             raise serializers.ValidationError({"password_confirm": "Passwords do not match."})
-
-        if User.objects.filter(email__iexact=email).exists():
-            raise serializers.ValidationError({"email": "An account with this email already exists."})
 
         # Enforce configured Django password validators.
         user_for_validation = User(email=email)
@@ -85,6 +113,7 @@ class WorkspaceStaffAccountListSerializer(serializers.Serializer):
     status = serializers.CharField()
     plan_unlocked = serializers.BooleanField()
     is_plan_locked = serializers.SerializerMethodField()
+    group_access = serializers.SerializerMethodField()
 
     def get_is_plan_locked(self, obj):
         from organizations.entitlements.plan_locks import (
@@ -92,6 +121,23 @@ class WorkspaceStaffAccountListSerializer(serializers.Serializer):
         )
 
         return not is_staff_account_plan_unlocked(obj)
+
+    def get_group_access(self, obj):
+        if obj.role != WorkspaceStaffRole.STAFF:
+            return []
+        access_rows = getattr(obj, "active_group_access_for_summary", None)
+        if access_rows is None:
+            access_rows = obj.group_access.select_related("group").filter(
+                group__status="active"
+            ).order_by("group__name", "group_id")
+        return [
+            {
+                "group_id": access.group_id,
+                "name": access.group.name,
+                "group_type": access.group.group_type,
+            }
+            for access in access_rows
+        ]
 
 
 class WorkspaceStaffAccountCreateSerializer(serializers.Serializer):

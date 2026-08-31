@@ -6,6 +6,7 @@ from django.conf import settings
 from django.contrib.auth import get_user_model, update_session_auth_hash
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db import transaction
 from django.utils import timezone
 from django.utils.encoding import force_str
 from django.utils.http import urlsafe_base64_decode
@@ -55,6 +56,13 @@ def _cooldown_remaining(last_sent_at, cooldown_seconds):
     return remaining if remaining > 0 else 0
 
 
+def verification_cooldown_remaining(user):
+    return _cooldown_remaining(
+        user.email_verification_last_sent_at,
+        getattr(settings, "EMAIL_VERIFICATION_RESEND_COOLDOWN", 60),
+    )
+
+
 def _mark_verification_sent(user):
     user.email_verification_last_sent_at = timezone.now()
     user.save(update_fields=["email_verification_last_sent_at"])
@@ -80,10 +88,7 @@ def send_verification_email_for_user(user):
 def resend_verification_authenticated(user):
     if user.email_verified:
         return "already_verified"
-    remaining = _cooldown_remaining(
-        user.email_verification_last_sent_at,
-        getattr(settings, "EMAIL_VERIFICATION_RESEND_COOLDOWN", 60),
-    )
+    remaining = verification_cooldown_remaining(user)
     if remaining:
         raise EmailCooldown(remaining)
     send_verification_email_for_user(user)
@@ -101,10 +106,7 @@ def resend_verification_public(email):
     user = User.objects.filter(email=normalized, is_active=True).first()
     if user is None or user.email_verified:
         return RESEND_PUBLIC_MESSAGE
-    remaining = _cooldown_remaining(
-        user.email_verification_last_sent_at,
-        getattr(settings, "EMAIL_VERIFICATION_RESEND_COOLDOWN", 60),
-    )
+    remaining = verification_cooldown_remaining(user)
     if remaining:
         return RESEND_PUBLIC_MESSAGE
     try:
@@ -114,6 +116,30 @@ def resend_verification_public(email):
     return RESEND_PUBLIC_MESSAGE
 
 
+def _provision_verified_owner_locked(user):
+    """Mark a pending owner verified and idempotently create its workspace."""
+    if not user.email_verified:
+        user.email_verified = True
+        user.email_verified_at = timezone.now()
+        user.save(update_fields=["email_verified", "email_verified_at"])
+
+    if user.is_staff or user.is_superuser:
+        return user, None, False
+
+    from organizations.models import Organization
+
+    organization, created = Organization.objects.get_or_create(owner=user)
+    return user, organization, created
+
+
+@transaction.atomic
+def provision_verified_owner(user):
+    """Provision one owner workspace exactly once for a verified account."""
+    locked = User.objects.select_for_update().get(pk=user.pk)
+    return _provision_verified_owner_locked(locked)
+
+
+@transaction.atomic
 def verify_email_uid_token(uid, token):
     """
     Return ("verified", user), ("expired", None), or ("invalid", None).
@@ -121,11 +147,11 @@ def verify_email_uid_token(uid, token):
     user = get_user_from_uid(uid)
     if user is None or not user.is_active:
         return "invalid", None
+    user = User.objects.select_for_update().get(pk=user.pk)
     status = email_verification_token_generator.inspect(user, token)
     if status != "valid":
         return status, None
-    if not user.email_verified:
-        user.mark_email_verified()
+    user, _organization, _created = _provision_verified_owner_locked(user)
     return "verified", user
 
 

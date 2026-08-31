@@ -1,6 +1,9 @@
 """Canonical public documents (Docs, Privacy, Terms, future help)."""
 
+from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db import models
+from django.db.models import Q
 from django.utils import timezone
 
 
@@ -180,3 +183,205 @@ class Document(models.Model):
         if self.status == PublicationStatus.PUBLISHED and self.published_at is None:
             self.published_at = timezone.now()
         super().save(*args, **kwargs)
+
+
+class AnnouncementSeverity(models.TextChoices):
+    INFO = "info", "Info"
+    MAINTENANCE = "maintenance", "Maintenance"
+    IMPORTANT = "important", "Important"
+
+
+class AnnouncementAudience(models.TextChoices):
+    ALL = "all", "All Workspaces"
+    PLAN = "plan", "Effective Plan"
+    WORKSPACES = "workspaces", "Specific Workspaces"
+
+
+class Announcement(models.Model):
+    """
+    Platform-published Workspace announcement.
+
+    Eligibility is evaluated server-side from publication state, expiry,
+    and audience targeting (all / effective plan / specific Organizations).
+    """
+
+    title = models.CharField(max_length=160)
+    message = models.TextField()
+    severity = models.CharField(
+        max_length=16,
+        choices=AnnouncementSeverity.choices,
+        default=AnnouncementSeverity.INFO,
+        db_index=True,
+    )
+    status = models.CharField(
+        max_length=16,
+        choices=PublicationStatus.choices,
+        default=PublicationStatus.DRAFT,
+        db_index=True,
+    )
+    audience = models.CharField(
+        max_length=16,
+        choices=AnnouncementAudience.choices,
+        default=AnnouncementAudience.ALL,
+        db_index=True,
+    )
+    target_plans = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Effective plan keys when audience is plan: basic, plus, and/or business.",
+    )
+    target_workspaces = models.ManyToManyField(
+        "organizations.Organization",
+        blank=True,
+        related_name="platform_announcements",
+        help_text="Target Organizations when audience is specific workspaces.",
+    )
+    published_at = models.DateTimeField(null=True, blank=True)
+    expires_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text=(
+            "Optional. After this time the announcement is no longer eligible. "
+            "Announcement Admin enters/displays this in Asia/Tokyo; stored timezone-aware."
+        ),
+    )
+    include_status_link = models.BooleanField(
+        default=False,
+        help_text="When enabled, Workspace clients may show a View Status action.",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    admin_notes = models.TextField(
+        blank=True,
+        help_text="Internal review notes. Never exposed by the Workspace API.",
+    )
+
+    class Meta:
+        ordering = ("-published_at", "-id")
+        verbose_name = "Announcement"
+        verbose_name_plural = "Announcements"
+
+    def __str__(self):
+        return self.title
+
+    def clean(self):
+        super().clean()
+        from organizations.models import OrganizationPlan
+
+        plans = self._normalized_target_plans()
+        valid = {choice.value for choice in OrganizationPlan}
+        invalid = [key for key in plans if key not in valid]
+        if invalid:
+            raise ValidationError({"target_plans": f"Invalid plan keys: {', '.join(invalid)}."})
+
+        if self.audience == AnnouncementAudience.ALL:
+            if plans:
+                raise ValidationError(
+                    {"target_plans": "Clear plan targets when audience is All Workspaces."}
+                )
+        elif self.audience == AnnouncementAudience.PLAN:
+            if not plans:
+                raise ValidationError(
+                    {"target_plans": "Select at least one effective plan."}
+                )
+        elif self.audience == AnnouncementAudience.WORKSPACES:
+            if plans:
+                raise ValidationError(
+                    {"target_plans": "Clear plan targets when audience is Specific Workspaces."}
+                )
+
+        if (
+            self.expires_at
+            and self.published_at
+            and self.expires_at <= self.published_at
+        ):
+            raise ValidationError({"expires_at": "Expiry must be after publish time."})
+
+    def save(self, *args, **kwargs):
+        self.target_plans = self._normalized_target_plans()
+        if self.status == PublicationStatus.PUBLISHED and self.published_at is None:
+            self.published_at = timezone.now()
+        if self.audience == AnnouncementAudience.ALL:
+            self.target_plans = []
+        elif self.audience == AnnouncementAudience.WORKSPACES:
+            self.target_plans = []
+        self.full_clean(exclude={"target_workspaces"})
+        super().save(*args, **kwargs)
+
+    def _normalized_target_plans(self):
+        raw = self.target_plans or []
+        if isinstance(raw, str):
+            raw = [part.strip() for part in raw.split(",") if part.strip()]
+        if not isinstance(raw, (list, tuple)):
+            return []
+        seen = []
+        for item in raw:
+            key = str(item or "").strip().lower()
+            if key and key not in seen:
+                seen.append(key)
+        return seen
+
+
+class AnnouncementAcknowledgement(models.Model):
+    """
+    Per-actor read state for an announcement.
+
+    Exactly one of user or workspace_staff_account must be set.
+    """
+
+    announcement = models.ForeignKey(
+        Announcement,
+        on_delete=models.CASCADE,
+        related_name="acknowledgements",
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name="announcement_acknowledgements",
+    )
+    workspace_staff_account = models.ForeignKey(
+        "organizations.WorkspaceStaffAccount",
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name="announcement_acknowledgements",
+    )
+    read_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                condition=(
+                    Q(user__isnull=False, workspace_staff_account__isnull=True)
+                    | Q(user__isnull=True, workspace_staff_account__isnull=False)
+                ),
+                name="announcement_ack_actor_xor",
+            ),
+            models.UniqueConstraint(
+                fields=("announcement", "user"),
+                condition=Q(user__isnull=False),
+                name="announcement_ack_unique_user",
+            ),
+            models.UniqueConstraint(
+                fields=("announcement", "workspace_staff_account"),
+                condition=Q(workspace_staff_account__isnull=False),
+                name="announcement_ack_unique_staff",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=("user", "announcement")),
+            models.Index(fields=("workspace_staff_account", "announcement")),
+        ]
+
+    def __str__(self):
+        actor = self.user_id or self.workspace_staff_account_id
+        return f"Ack {self.announcement_id} by {actor}"
+
+    def clean(self):
+        super().clean()
+        has_user = self.user_id is not None
+        has_staff = self.workspace_staff_account_id is not None
+        if has_user == has_staff:
+            raise ValidationError("Exactly one of user or workspace_staff_account is required.")

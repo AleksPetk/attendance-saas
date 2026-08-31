@@ -28,7 +28,7 @@ export default function ForgotPasswordScreen() {
   return (
     <AuthLayout
       title="Forgot password"
-      lead="Enter the email for your Check Station owner account. If an account exists, we will send a reset link."
+      lead="Enter the email for your CheckStation owner account. If an account exists, we will send a reset link."
       footnote={
         <p>
           Remembered it? <Link to="/login">Back to login</Link>

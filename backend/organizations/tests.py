@@ -689,12 +689,13 @@ class SessionAuthEndpointsTests(TestCase):
             role=WorkspaceStaffRole.STAFF,
         )
 
-    def test_owner_registration_creates_single_workspace(self):
+    def test_owner_registration_waits_for_verification_before_workspace(self):
         api2 = APIClient()
         payload = {
             "email": "newowner@example.com",
             "password": "secure-password",
             "password_confirm": "secure-password",
+            "legal_acknowledgement": True,
         }
         with patch("organizations.views.send_verification_email_for_user") as send_mail:
             resp = api2.post("/api/auth/register/", payload, format="json")
@@ -702,13 +703,13 @@ class SessionAuthEndpointsTests(TestCase):
         self.assertEqual(resp.data["email"], "newowner@example.com")
         self.assertFalse(resp.data["email_verified"])
         self.assertTrue(resp.data["verification_email_sent"])
-        self.assertTrue(resp.data["workspace_created"])
+        self.assertFalse(resp.data["workspace_created"])
         send_mail.assert_called_once()
         user = User.objects.get(email="newowner@example.com")
         self.assertFalse(user.email_verified)
         self.assertFalse(user.is_staff)
         self.assertFalse(user.is_superuser)
-        self.assertEqual(Organization.objects.filter(owner=user).count(), 1)
+        self.assertEqual(Organization.objects.filter(owner=user).count(), 0)
 
         workspace = api2.get("/api/workspace/")
         self.assertEqual(workspace.status_code, status.HTTP_403_FORBIDDEN)

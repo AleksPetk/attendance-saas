@@ -228,6 +228,7 @@ export default function MembersScreen({ session, setSession, onNavigate }) {
             <button
               type="button"
               className="btn-primary"
+              data-tutorial-target="members-add"
               onClick={() => onNavigate({ name: "member-create" })}
             >
               Add Member
@@ -257,7 +258,7 @@ export default function MembersScreen({ session, setSession, onNavigate }) {
         </div>
       ) : null}
 
-      <div className="toolbar card-surface">
+      <div className="toolbar card-surface" data-tutorial-target="members-list">
         <input
           className="search-input"
           placeholder="Search name, email, phone, address, or #ID"

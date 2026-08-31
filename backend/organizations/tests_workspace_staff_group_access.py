@@ -204,6 +204,22 @@ class WorkspaceStaffGroupAccessManagementTests(WorkspaceStaffGroupAccessBase):
         }
         self.assertEqual(assigned, {self.group_a.pk, self.group_b.pk})
 
+    def test_staff_list_includes_saved_group_access_summary(self):
+        response = self.api.get(reverse("workspace-staff-list"))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        staff_row = next(row for row in response.data if row["id"] == self.staff.pk)
+        self.assertEqual(
+            staff_row["group_access"],
+            [
+                {
+                    "group_id": self.group_a.pk,
+                    "name": self.group_a.name,
+                    "group_type": self.group_a.group_type,
+                }
+            ],
+        )
+
     def test_cannot_assign_cross_tenant_group(self):
         response = self.api.put(
             reverse("workspace-staff-group-access", args=[self.staff.pk]),

@@ -51,7 +51,7 @@ export default function VerifyEmailScreen({ onSignedIn }) {
 
   if (status === "loading") {
     return (
-      <AuthLayout title="Verifying email" lead="Please wait while we confirm your Check Station email.">
+      <AuthLayout title="Verifying email" lead="Please wait while we confirm your CheckStation email.">
         <LoadingState label="Verifying…" />
       </AuthLayout>
     );
@@ -61,7 +61,7 @@ export default function VerifyEmailScreen({ onSignedIn }) {
     return (
       <AuthLayout
         title="Email verified"
-        lead="Your Check Station email is confirmed."
+        lead="Your CheckStation email is confirmed."
         footnote={
           <p>
             Need to sign in on another device? <Link to="/login">Go to login</Link>
@@ -72,7 +72,7 @@ export default function VerifyEmailScreen({ onSignedIn }) {
           <SuccessBanner message={message} />
           {sessionReady ? (
             <button type="button" className="btn-primary btn-block" onClick={() => navigate("/dashboard")}>
-              Continue to Check Station
+              Continue to CheckStation
             </button>
           ) : (
             <Link className="btn-primary btn-block" to="/login?verified=1">

@@ -9,9 +9,11 @@ from django.template.loader import render_to_string
 from core.mail import EmailConfigurationError, frontend_url
 
 CANONICAL_PRODUCT_NAME = "CheckStation"
-BRAND_LOGO_PATH = ("brand", "logo-text.png")
-BRAND_LOGO_WIDTH = 180
-BRAND_LOGO_HEIGHT = 60
+BRAND_LOGO_PATH = ("email", "checkstation-icon.png")
+BRAND_LOGO_WIDTH = 36
+BRAND_LOGO_HEIGHT = 36
+BRAND_STAMP_WIDTH = 24
+BRAND_STAMP_HEIGHT = 24
 
 _LOCAL_HOSTS = {
     "localhost",
@@ -78,7 +80,7 @@ def _frontend_logo_candidate():
 
 def brand_logo_url():
     """
-    Public HTTPS URL for the official wordmark, or empty.
+    Public HTTPS URL for the transactional-email CheckStation icon, or empty.
 
     Transactional mail uses a hosted <img src> only when a reachable public
     HTTPS URL is configured. The file is never added as a MIME/Resend
@@ -121,6 +123,8 @@ def render_branded_email(
         "brand_logo_url": logo_url,
         "brand_logo_width": BRAND_LOGO_WIDTH,
         "brand_logo_height": BRAND_LOGO_HEIGHT,
+        "brand_stamp_width": BRAND_STAMP_WIDTH,
+        "brand_stamp_height": BRAND_STAMP_HEIGHT,
         "home_url": home_url(),
         "subject": heading,
         "heading": heading,

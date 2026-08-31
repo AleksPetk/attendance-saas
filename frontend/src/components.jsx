@@ -6,7 +6,7 @@ import { brandLogoText } from "./assets/brand/brandLogo.js";
 /* Brand                                                               */
 /* ------------------------------------------------------------------ */
 
-export function Wordmark({ subtitle, className = "", logo = false, name = "Check Station" }) {
+export function Wordmark({ subtitle, className = "", logo = false, name = "CheckStation" }) {
   return (
     <div className={`wordmark ${logo ? "wordmark-with-logo" : ""} ${className}`.trim()}>
       {logo ? (
@@ -84,17 +84,28 @@ export function ConnectionVisual({ className = "" }) {
 /* Auth layout                                                         */
 /* ------------------------------------------------------------------ */
 
-export function AuthLayout({ title, lead, footnote, children, variant = "owner" }) {
+export function AuthLayout({
+  title,
+  lead,
+  footnote,
+  children,
+  variant = "owner",
+  visualContent = null,
+}) {
   return (
     <div className={`auth-page auth-page-${variant}`}>
       <div className="auth-page-visual">
-        <Link to="/" className="auth-page-brand">
-          <Wordmark subtitle="Configurable check-in platform" />
-        </Link>
-        <ConnectionVisual className="auth-connection" />
-        <p className="auth-page-tagline">
-          Connect Members, Groups, kiosks, and history in one workspace.
-        </p>
+        {visualContent || (
+          <>
+            <Link to="/" className="auth-page-brand">
+              <Wordmark subtitle="Configurable check-in platform" />
+            </Link>
+            <ConnectionVisual className="auth-connection" />
+            <p className="auth-page-tagline">
+              Connect Members, Groups, kiosks, and history in one workspace.
+            </p>
+          </>
+        )}
       </div>
       <div className="auth-page-form-wrap">
         <div className="auth-card">
@@ -569,9 +580,13 @@ export function PasswordInput({
   );
 }
 
-export function SectionCard({ title, description, children, className = "", id }) {
+export function SectionCard({ title, description, children, className = "", id, tutorialTarget }) {
   return (
-    <section className={`section-card ${className}`.trim()} id={id}>
+    <section
+      className={`section-card ${className}`.trim()}
+      id={id}
+      data-tutorial-target={tutorialTarget || undefined}
+    >
       <header className="section-card-header">
         <h2>{title}</h2>
         {description ? <p>{description}</p> : null}

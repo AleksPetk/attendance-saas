@@ -15,7 +15,7 @@ PLACEHOLDERS = {
     "LEGAL_CONTACT_EMAIL": {
         "setting": "LEGAL_CONTACT_EMAIL",
         "fallback": (
-            "contact@checkstation.alekspetk.com"
+            "contact@checkstation.app"
         ),
     },
     "LEGAL_GOVERNING_LAW": {

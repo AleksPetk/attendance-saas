@@ -4,15 +4,14 @@ import {
   canManageOwnerAccount,
   canManageStaffAccounts,
   canViewGlobalMembers,
-  workspaceRoleLabel,
   workspaceTopbarNotice,
 } from "./workspaceSession.js";
+import { SidebarAccountChip } from "./workspaceSidebarAccount.js";
+import WorkspaceAnnouncementBell from "./WorkspaceAnnouncementBell.jsx";
 import {
   canAccessStaffManagement,
   shouldShowLockedStaffNav,
 } from "./workspaceEntitlements.js";
-import WorkspaceOnboarding from "./WorkspaceOnboarding.jsx";
-import { shouldShowWorkspaceOnboarding } from "./workspaceOnboarding.js";
 import workspaceHeaderIcon from "./assets/brand/workspace-header-icon.webp";
 
 const NAV_ITEMS = [
@@ -56,13 +55,8 @@ function isNavActive(routeName, itemName) {
 }
 
 export default function WorkspaceLayout({ session, route, onNavigate, onSignOut, children }) {
-  const workspace = session.workspace;
-  const roleLabel = workspaceRoleLabel(session);
   const topbarNotice = workspaceTopbarNotice(session);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [onboardingOpen, setOnboardingOpen] = useState(() =>
-    shouldShowWorkspaceOnboarding(session),
-  );
   const pageTitle = PAGE_TITLES[route.name] || "Workspace";
 
   const roleCanManageStaff = canManageStaffAccounts(session);
@@ -78,12 +72,6 @@ export default function WorkspaceLayout({ session, route, onNavigate, onSignOut,
 
   return (
     <div className="workspace-shell">
-      {onboardingOpen ? (
-        <WorkspaceOnboarding
-          session={session}
-          onClose={() => setOnboardingOpen(false)}
-        />
-      ) : null}
       {sidebarOpen ? (
         <button
           type="button"
@@ -107,6 +95,7 @@ export default function WorkspaceLayout({ session, route, onNavigate, onSignOut,
                   lockedStaff ? " is-plan-locked" : ""
                 }`}
                 title={lockedStaff ? "Staff management requires Plus or Business" : undefined}
+                data-tutorial-target={`sidebar-${item.name}`}
                 onClick={() => {
                   onNavigate({ name: item.name });
                   setSidebarOpen(false);
@@ -126,10 +115,7 @@ export default function WorkspaceLayout({ session, route, onNavigate, onSignOut,
           })}
         </nav>
         <div className="sidebar-account">
-          <div className="account-chip">
-            <span className="account-email">{workspace.identity}</span>
-            <span className="account-role">{roleLabel}</span>
-          </div>
+          <SidebarAccountChip session={session} />
           <button type="button" className="btn-text" onClick={onSignOut}>
             Sign out
           </button>
@@ -154,15 +140,18 @@ export default function WorkspaceLayout({ session, route, onNavigate, onSignOut,
           {topbarNotice ? (
             <p className="notice">{topbarNotice}</p>
           ) : null}
-          <img
-            className="workspace-header-icon"
-            src={workspaceHeaderIcon}
-            alt=""
-            width="36"
-            height="36"
-            decoding="async"
-            aria-hidden="true"
-          />
+          <div className="workspace-topbar-actions">
+            <WorkspaceAnnouncementBell session={session} onNavigate={onNavigate} />
+            <img
+              className="workspace-header-icon"
+              src={workspaceHeaderIcon}
+              alt=""
+              width="36"
+              height="36"
+              decoding="async"
+              aria-hidden="true"
+            />
+          </div>
         </header>
         <div className="content">
           <div className="content-inner">{children}</div>

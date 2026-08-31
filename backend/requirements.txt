@@ -11,3 +11,5 @@ cryptography>=44.0,<47
 reportlab>=4.2,<5
 openpyxl>=3.1,<4
 stripe>=15.5,<16
+google-auth>=2.40,<3
+PyJWT>=2.10,<3

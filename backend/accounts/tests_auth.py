@@ -1,8 +1,12 @@
+from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
+from threading import Barrier
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.db import close_old_connections
+from django.test import TestCase, TransactionTestCase
+from django.utils import timezone
 from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_encode
 from rest_framework import status
@@ -11,8 +15,10 @@ from rest_framework.test import APIClient
 from accounts.services import FORGOT_PASSWORD_MESSAGE, RESEND_PUBLIC_MESSAGE
 from accounts.testing import force_platform_admin_login
 from accounts.tokens import email_verification_token_generator
+from billing.builtin_trial import builtin_trial_is_active
+from billing.models import WorkspaceBuiltinTrial
 from core.mail import EmailSendError
-from organizations.models import Organization
+from organizations.models import Organization, OrganizationPlan
 
 User = get_user_model()
 
@@ -33,16 +39,19 @@ class OwnerAuthEmailTests(TestCase):
                     "email": email,
                     "password": password,
                     "password_confirm": password,
+                    "legal_acknowledgement": True,
                 },
                 format="json",
             )
 
-    def test_registration_creates_unverified_user_and_one_workspace(self):
+    def test_registration_creates_only_unverified_user(self):
         response = self._register()
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertFalse(response.data["workspace_created"])
         user = User.objects.get(email="newowner@example.com")
         self.assertFalse(user.email_verified)
-        self.assertEqual(Organization.objects.filter(owner=user).count(), 1)
+        self.assertEqual(Organization.objects.filter(owner=user).count(), 0)
+        self.assertEqual(WorkspaceBuiltinTrial.objects.count(), 0)
 
     def test_registration_calls_verification_email_service(self):
         with patch("organizations.views.send_verification_email_for_user") as send_mail:
@@ -52,6 +61,7 @@ class OwnerAuthEmailTests(TestCase):
                     "email": "owner@example.com",
                     "password": "secure-password",
                     "password_confirm": "secure-password",
+                    "legal_acknowledgement": True,
                 },
                 format="json",
             )
@@ -71,6 +81,7 @@ class OwnerAuthEmailTests(TestCase):
                         "email": "owner@example.com",
                         "password": "secure-password",
                         "password_confirm": "secure-password",
+                        "legal_acknowledgement": True,
                     },
                     format="json",
                 )
@@ -78,7 +89,8 @@ class OwnerAuthEmailTests(TestCase):
         self.assertFalse(response.data["verification_email_sent"])
         user = User.objects.get(email="owner@example.com")
         self.assertFalse(user.email_verified)
-        self.assertTrue(Organization.objects.filter(owner=user).exists())
+        self.assertFalse(Organization.objects.filter(owner=user).exists())
+        self.assertFalse(WorkspaceBuiltinTrial.objects.exists())
 
     def test_registration_ignores_privilege_flags(self):
         with patch("organizations.views.send_verification_email_for_user"):
@@ -88,6 +100,7 @@ class OwnerAuthEmailTests(TestCase):
                     "email": "owner@example.com",
                     "password": "secure-password",
                     "password_confirm": "secure-password",
+                    "legal_acknowledgement": True,
                     "is_staff": True,
                     "is_superuser": True,
                     "email_verified": True,
@@ -100,12 +113,33 @@ class OwnerAuthEmailTests(TestCase):
         self.assertFalse(user.is_superuser)
         self.assertFalse(user.email_verified)
 
+    def test_registration_requires_legal_acknowledgement(self):
+        payload = {
+            "email": "owner@example.com",
+            "password": "secure-password",
+            "password_confirm": "secure-password",
+        }
+
+        missing = self.api.post("/api/auth/register/", payload, format="json")
+        declined = self.api.post(
+            "/api/auth/register/",
+            {**payload, "legal_acknowledgement": False},
+            format="json",
+        )
+
+        self.assertEqual(missing.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("legal_acknowledgement", missing.data)
+        self.assertEqual(declined.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("legal_acknowledgement", declined.data)
+        self.assertFalse(User.objects.filter(email="owner@example.com").exists())
+
     def test_valid_verification_token_marks_email_verified(self):
         self._register()
         user = User.objects.get(email="newowner@example.com")
+        self.assertFalse(Organization.objects.filter(owner=user).exists())
+        self.assertFalse(WorkspaceBuiltinTrial.objects.exists())
         token = email_verification_token_generator.make_token(user)
-        client = APIClient()
-        response = client.post(
+        response = self.api.post(
             "/api/auth/verify-email/",
             {"uid": uid_for(user), "token": token},
             format="json",
@@ -115,17 +149,64 @@ class OwnerAuthEmailTests(TestCase):
         user.refresh_from_db()
         self.assertTrue(user.email_verified)
         self.assertIsNotNone(user.email_verified_at)
+        organization = Organization.objects.get(owner=user)
+        organization.refresh_from_db()
+        self.assertEqual(organization.plan, OrganizationPlan.BUSINESS)
+        self.assertTrue(builtin_trial_is_active(organization))
+        self.assertEqual(
+            WorkspaceBuiltinTrial.objects.filter(organization=organization).count(),
+            1,
+        )
+        workspace = self.api.get("/api/workspace/")
+        self.assertEqual(workspace.status_code, status.HTTP_200_OK)
+        self.assertEqual(workspace.data["workspace_id"], organization.workspace_id)
 
-    def test_verification_token_cannot_be_reused(self):
+    def test_repeated_verification_is_idempotent(self):
         self._register()
         user = User.objects.get(email="newowner@example.com")
         token = email_verification_token_generator.make_token(user)
         payload = {"uid": uid_for(user), "token": token}
         first = self.api.post("/api/auth/verify-email/", payload, format="json")
+        organization = Organization.objects.get(owner=user)
+        trial = WorkspaceBuiltinTrial.objects.get(organization=organization)
+        started_at = trial.started_at
         second = self.api.post("/api/auth/verify-email/", payload, format="json")
         self.assertEqual(first.status_code, 200)
-        self.assertEqual(second.status_code, 400)
-        self.assertEqual(second.data["code"], "token_invalid")
+        self.assertEqual(second.status_code, 200)
+        self.assertEqual(second.data["code"], "verified")
+        self.assertEqual(Organization.objects.filter(owner=user).count(), 1)
+        self.assertEqual(
+            WorkspaceBuiltinTrial.objects.filter(organization=organization).count(),
+            1,
+        )
+        trial.refresh_from_db()
+        self.assertEqual(trial.started_at, started_at)
+
+    def test_verification_preserves_legacy_pending_workspace(self):
+        user = User.objects.create_user(
+            email="legacy-pending@example.com",
+            password="secure-password",
+            email_verified=False,
+        )
+        organization = Organization.objects.create_with_owner(owner=user)
+        trial = WorkspaceBuiltinTrial.objects.get(organization=organization)
+        started_at = trial.started_at
+        token = email_verification_token_generator.make_token(user)
+
+        response = self.api.post(
+            "/api/auth/verify-email/",
+            {"uid": uid_for(user), "token": token},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(Organization.objects.filter(owner=user).count(), 1)
+        self.assertEqual(
+            WorkspaceBuiltinTrial.objects.filter(organization=organization).count(),
+            1,
+        )
+        trial.refresh_from_db()
+        self.assertEqual(trial.started_at, started_at)
 
     def test_expired_verification_token(self):
         self._register()
@@ -207,7 +288,13 @@ class OwnerAuthEmailTests(TestCase):
     def test_verified_user_can_login_and_access_workspace(self):
         self._register()
         user = User.objects.get(email="newowner@example.com")
-        user.mark_email_verified()
+        token = email_verification_token_generator.make_token(user)
+        verified = self.api.post(
+            "/api/auth/verify-email/",
+            {"uid": uid_for(user), "token": token},
+            format="json",
+        )
+        self.assertEqual(verified.status_code, 200)
         client = APIClient()
         response = client.post(
             "/api/auth/login/",
@@ -218,6 +305,74 @@ class OwnerAuthEmailTests(TestCase):
         self.assertEqual(response.data["account_kind"], "owner")
         workspace = client.get("/api/workspace/")
         self.assertEqual(workspace.status_code, 200)
+
+    def test_verified_email_cannot_register_again(self):
+        self._register()
+        user = User.objects.get(email="newowner@example.com")
+        token = email_verification_token_generator.make_token(user)
+        self.api.post(
+            "/api/auth/verify-email/",
+            {"uid": uid_for(user), "token": token},
+            format="json",
+        )
+
+        response = self._register(password="another-secure-password")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("email", response.data)
+        self.assertEqual(User.objects.filter(email=user.email).count(), 1)
+        self.assertEqual(Organization.objects.filter(owner=user).count(), 1)
+
+    def test_unverified_email_can_restart_registration_without_duplicates(self):
+        self._register(password="first-secure-password")
+        original = User.objects.get(email="newowner@example.com")
+
+        response = self._register(password="replacement-secure-password")
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        restarted = User.objects.get(email="newowner@example.com")
+        self.assertEqual(restarted.pk, original.pk)
+        self.assertTrue(restarted.check_password("replacement-secure-password"))
+        self.assertFalse(restarted.check_password("first-secure-password"))
+        self.assertEqual(User.objects.filter(email=restarted.email).count(), 1)
+        self.assertFalse(Organization.objects.filter(owner=restarted).exists())
+        self.assertFalse(WorkspaceBuiltinTrial.objects.exists())
+
+    def test_registration_restart_respects_verification_cooldown(self):
+        self._register(password="first-secure-password")
+        user = User.objects.get(email="newowner@example.com")
+        user.email_verification_last_sent_at = timezone.now()
+        user.save(update_fields=["email_verification_last_sent_at"])
+
+        response = self._register(password="replacement-secure-password")
+
+        self.assertEqual(response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+        user.refresh_from_db()
+        self.assertTrue(user.check_password("first-secure-password"))
+        self.assertFalse(Organization.objects.filter(owner=user).exists())
+
+    def test_mistyped_pending_email_can_be_reclaimed_and_provisioned(self):
+        self._register(email="mistyped@example.com")
+        pending = User.objects.get(email="mistyped@example.com")
+        self.assertFalse(Organization.objects.filter(owner=pending).exists())
+
+        restarted = self._register(
+            email="mistyped@example.com",
+            password="owner-chosen-password",
+        )
+        self.assertEqual(restarted.status_code, status.HTTP_201_CREATED)
+        pending.refresh_from_db()
+        token = email_verification_token_generator.make_token(pending)
+        verified = self.api.post(
+            "/api/auth/verify-email/",
+            {"uid": uid_for(pending), "token": token},
+            format="json",
+        )
+
+        self.assertEqual(verified.status_code, status.HTTP_200_OK)
+        self.assertEqual(User.objects.filter(email=pending.email).count(), 1)
+        self.assertEqual(Organization.objects.filter(owner=pending).count(), 1)
+        self.assertEqual(WorkspaceBuiltinTrial.objects.count(), 1)
 
     def test_authenticated_resend_verification(self):
         self._register()
@@ -281,6 +436,44 @@ class OwnerAuthEmailTests(TestCase):
         force_platform_admin_login(self.client, admin)
         response = self.client.get("/admin/")
         self.assertEqual(response.status_code, 200)
+
+
+class OwnerVerificationRaceTests(TransactionTestCase):
+    reset_sequences = True
+
+    def test_concurrent_verification_creates_one_workspace_and_trial(self):
+        user = User.objects.create_user(
+            email="race@example.com",
+            password="secure-password",
+            email_verified=False,
+        )
+        token = email_verification_token_generator.make_token(user)
+        payload = {"uid": uid_for(user), "token": token}
+        barrier = Barrier(2)
+
+        def verify_once():
+            close_old_connections()
+            try:
+                barrier.wait(timeout=5)
+                response = APIClient().post(
+                    "/api/auth/verify-email/",
+                    payload,
+                    format="json",
+                )
+                return response.status_code, response.data.get("code")
+            finally:
+                close_old_connections()
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            results = list(pool.map(lambda _index: verify_once(), range(2)))
+
+        self.assertEqual(sorted(results), [(200, "verified"), (200, "verified")])
+        self.assertEqual(Organization.objects.filter(owner=user).count(), 1)
+        organization = Organization.objects.get(owner=user)
+        self.assertEqual(
+            WorkspaceBuiltinTrial.objects.filter(organization=organization).count(),
+            1,
+        )
 
 
 class ForgotPasswordTests(TestCase):

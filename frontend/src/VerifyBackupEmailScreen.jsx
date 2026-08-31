@@ -48,7 +48,7 @@ export default function VerifyBackupEmailScreen() {
     return (
       <AuthLayout
         title="Backup email verified"
-        lead="Your Check Station backup email is confirmed."
+        lead="Your CheckStation backup email is confirmed."
         footnote={
           <p>
             <Link to="/account/security">Return to account</Link>

@@ -55,7 +55,11 @@ export default function MemberCreateScreen({ session, onNavigate }) {
         }
       />
 
-      <form className="form-card card-surface member-create-form" onSubmit={handleSubmit}>
+      <form
+        className="form-card card-surface member-create-form"
+        data-tutorial-target="member-create-form"
+        onSubmit={handleSubmit}
+      >
         <div className="member-create-photo">
           <EditableProfilePhoto
             url={photoPreview || null}

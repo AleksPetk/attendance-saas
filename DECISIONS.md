@@ -940,6 +940,17 @@ Only log decisions supported by approved product planning. Do not invent decisio
 | **Clarifies** | DEC-035, DEC-072, DEC-076, DEC-081 |
 | **Supersedes** | [DEC-078](#dec-078--business-trial-commercial-rules) |
 
+### DEC-094 — Optional Google and Apple owner sign-in methods
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-08-31 |
+| **Decision** | Paying owner accounts (`accounts.User`) may support independent sign-in methods: CheckStation email + password, Google, and Apple. All methods belong to the same User; OAuth must never create a parallel owner identity once linked. Canonical OAuth identity is `(provider, provider_subject)` (OIDC `sub`); provider email is snapshot-only. Do not auto-merge accounts by email — require explicit connect from Account → Security after password login when email collides. At least one sign-in method must always remain; password cannot be removed once set. Owner CheckStation 2FA applies after every first-factor login (password, Google, Apple) and must not be bypassed by OAuth. V1: no OAuth step-up re-auth; OAuth-only owners must set a CheckStation password before password-gated sensitive actions. Staff (`WorkspaceStaffAccount`), workspace-ID staff login, and platform admin auth remain unchanged. |
+| **Reason** | Reduce friction for owner login/registration while preserving tenant isolation, existing security architecture, and explicit account linking. |
+| **Status** | confirmed |
+| **Implementation plan** | [OWNER_SIGN_IN_METHODS.md](./OWNER_SIGN_IN_METHODS.md) — **Phases 1–7 complete** (2026-08-31) |
+| **Does not change** | WorkspaceStaffAccount auth, platform admin 2FA, Group email OAuth |
+
 ---
 
 ## Open Decisions

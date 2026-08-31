@@ -31,7 +31,7 @@ Check Station is operated by {{LEGAL_OPERATOR_NAME}}.
 
 A dedicated operator legal name, registered address, and principal place of business have not been designated in this Policy beyond the product identity **Check Station**. Until those details are designated, privacy inquiries may be directed to {{LEGAL_CONTACT_EMAIL}} or through the public Contact page on the Check Station website.
 
-Platform transactional notices are sent from the configured Check Station account mailbox (currently used as `accounts@checkstation.alekspetk.com` unless a customer environment is configured otherwise). That address is a sending identity for account mail. It is not, by itself, a guaranteed inbound privacy helpdesk.
+Platform transactional notices are sent from the configured Check Station account mailbox (currently used as `accounts@checkstation.app` unless a customer environment is configured otherwise). That address is a sending identity for account mail. It is not, by itself, a guaranteed inbound privacy helpdesk.
 
 ## 3. Roles: customer and Check Station
 
@@ -155,7 +155,7 @@ The public **Contact** page (and later in-app Contact clients that use the same 
 - subject and message
 - technical anti-spam data required to operate the form, which may include IP address used for rate limiting, Cloudflare Turnstile challenge results, and similar abuse-prevention metadata
 
-Contact submissions are stored as Contact request records so a message is not lost if outbound email fails. Accepted submissions are emailed to the published Check Station contact address (`contact@checkstation.alekspetk.com` unless a deployment is configured otherwise). That address is a public routing address. Check Station does not publish a private forwarding mailbox in this Policy or in application configuration.
+Contact submissions are stored as Contact request records so a message is not lost if outbound email fails. Accepted submissions are emailed to the published Check Station contact address (`contact@checkstation.app` unless a deployment is configured otherwise). That address is a public routing address. Check Station does not publish a private forwarding mailbox in this Policy or in application configuration.
 
 Privacy, legal, and data requests submitted through Contact are **captured and routed**. They are not automatically executed.
 

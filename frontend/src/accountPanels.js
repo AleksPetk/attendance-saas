@@ -13,7 +13,11 @@ export function AccountSubNav({ session = null }) {
   const sections = visibleAccountSections(session);
   return createElement(
     "nav",
-    { className: "account-subnav", "aria-label": "Account sections" },
+    {
+      className: "account-subnav",
+      "aria-label": "Account sections",
+      "data-tutorial-target": "account-navigation",
+    },
     sections.map((section) =>
       createElement(
         NavLink,
@@ -451,7 +455,7 @@ export function AccountBillingPanel({
 
   return createElement(
     "div",
-    { className: "account-panel account-panel-billing" },
+    { className: "account-panel account-panel-billing", "data-tutorial-target": "account-billing" },
     createElement(
       "p",
       { className: "account-panel-intro" },

@@ -49,10 +49,22 @@ env = environ.Env(
     STRIPE_COUPON_PLUS_MONTHLY_TO_PLUS_YEARLY=(str, ""),
     STRIPE_COUPON_BUSINESS_MONTHLY_TO_YEARLY=(str, ""),
     BILLING_PROVIDER=(str, "stripe"),
-    CONTACT_TO_EMAIL=(str, "contact@checkstation.alekspetk.com"),
+    CONTACT_TO_EMAIL=(str, "contact@checkstation.app"),
     TURNSTILE_SITE_KEY=(str, ""),
     TURNSTILE_SECRET_KEY=(str, ""),
     TURNSTILE_TIMEOUT_SECONDS=(int, 8),
+    GOOGLE_OAUTH_CLIENT_ID=(str, ""),
+    GOOGLE_OAUTH_CLIENT_SECRET=(str, ""),
+    GOOGLE_OAUTH_REDIRECT_URI=(str, ""),
+    GOOGLE_OAUTH_STATE_TTL_SECONDS=(int, 600),
+    GOOGLE_OAUTH_HTTP_TIMEOUT_SECONDS=(int, 15),
+    APPLE_OAUTH_CLIENT_ID=(str, ""),
+    APPLE_OAUTH_TEAM_ID=(str, ""),
+    APPLE_OAUTH_KEY_ID=(str, ""),
+    APPLE_OAUTH_PRIVATE_KEY=(str, ""),
+    APPLE_OAUTH_REDIRECT_URI=(str, ""),
+    APPLE_OAUTH_STATE_TTL_SECONDS=(int, 600),
+    APPLE_OAUTH_HTTP_TIMEOUT_SECONDS=(int, 15),
 )
 
 env_file = REPO_ROOT / ".env"
@@ -211,10 +223,10 @@ PRODUCT_NAME = "CheckStation"
 # Never accept a user-supplied redirect target for these emails.
 FRONTEND_BASE_URL = env("FRONTEND_BASE_URL", default="http://localhost:5173").rstrip("/")
 
-# Optional public HTTPS URL for the CheckStation wordmark in transactional
+# Optional public HTTPS URL for the CheckStation icon in transactional
 # emails. Gmail fetches this from the public internet. Do not use CID,
-# localhost, or http://. Leave empty to render a text wordmark. Set this
-# when a real public HTTPS asset URL exists (deployment, not local default).
+# localhost, or http://. When empty, a public HTTPS FRONTEND_BASE_URL uses
+# /email/checkstation-icon.png; local/private origins render a text wordmark.
 EMAIL_BRAND_LOGO_URL = env("EMAIL_BRAND_LOGO_URL", default="").strip()
 
 # Public Docs origin used in document canonical_url metadata.
@@ -241,7 +253,7 @@ PASSWORD_RESET_RESEND_COOLDOWN = env("PASSWORD_RESET_RESEND_COOLDOWN")
 RESEND_API_KEY = env("RESEND_API_KEY", default="")
 RESEND_FROM_EMAIL = env(
     "RESEND_FROM_EMAIL",
-    default="accounts@checkstation.alekspetk.com",
+    default="accounts@checkstation.app",
 )
 RESEND_FROM_NAME = env("RESEND_FROM_NAME", default=PRODUCT_NAME)
 RESEND_TIMEOUT_SECONDS = env("RESEND_TIMEOUT_SECONDS")
@@ -253,6 +265,24 @@ PLATFORM_2FA_ENCRYPTION_KEY = env("PLATFORM_2FA_ENCRYPTION_KEY", default="")
 # Optional Fernet key for reversible app secrets (Group SMTP passwords, etc.).
 # Local DEBUG may derive a key from SECRET_KEY when this is empty.
 APP_SECRETS_ENCRYPTION_KEY = env("APP_SECRETS_ENCRYPTION_KEY", default="")
+
+# Owner Google OAuth (optional). Password login continues when unset.
+GOOGLE_OAUTH_CLIENT_ID = env("GOOGLE_OAUTH_CLIENT_ID", default="")
+GOOGLE_OAUTH_CLIENT_SECRET = env("GOOGLE_OAUTH_CLIENT_SECRET", default="")
+# Optional override. When empty, callback URL is derived from the incoming request.
+GOOGLE_OAUTH_REDIRECT_URI = env("GOOGLE_OAUTH_REDIRECT_URI", default="")
+GOOGLE_OAUTH_STATE_TTL_SECONDS = env("GOOGLE_OAUTH_STATE_TTL_SECONDS")
+GOOGLE_OAUTH_HTTP_TIMEOUT_SECONDS = env("GOOGLE_OAUTH_HTTP_TIMEOUT_SECONDS")
+
+# Owner Apple OAuth (optional). Password/Google login continue when unset.
+APPLE_OAUTH_CLIENT_ID = env("APPLE_OAUTH_CLIENT_ID", default="")
+APPLE_OAUTH_TEAM_ID = env("APPLE_OAUTH_TEAM_ID", default="")
+APPLE_OAUTH_KEY_ID = env("APPLE_OAUTH_KEY_ID", default="")
+# PEM contents; escaped \\n in .env is supported.
+APPLE_OAUTH_PRIVATE_KEY = env("APPLE_OAUTH_PRIVATE_KEY", default="")
+APPLE_OAUTH_REDIRECT_URI = env("APPLE_OAUTH_REDIRECT_URI", default="")
+APPLE_OAUTH_STATE_TTL_SECONDS = env("APPLE_OAUTH_STATE_TTL_SECONDS")
+APPLE_OAUTH_HTTP_TIMEOUT_SECONDS = env("APPLE_OAUTH_HTTP_TIMEOUT_SECONDS")
 
 # Stripe TEST-mode billing. Empty placeholders until credentials exist.
 # Never commit live keys. Permanent list prices stay in billing.catalog.
@@ -300,7 +330,7 @@ BILLING_PROVIDER = env("BILLING_PROVIDER", default="stripe")
 # forwarding destination. DEBUG may use Cloudflare dummy Turnstile keys.
 CONTACT_TO_EMAIL = env(
     "CONTACT_TO_EMAIL",
-    default="contact@checkstation.alekspetk.com",
+    default="contact@checkstation.app",
 )
 TURNSTILE_SITE_KEY = env("TURNSTILE_SITE_KEY", default="")
 TURNSTILE_SECRET_KEY = env("TURNSTILE_SECRET_KEY", default="")

@@ -8,17 +8,22 @@ import { test } from "node:test";
 
 import { StaffGroupAccessPanel } from "./staffGroupAccess.js";
 import {
+  StaffGroupAccessSummary,
   assignedGroupIds,
+  assignedGroupSummary,
   clearStaffGroupSelection,
+  compactGroupAccess,
   filterStaffGroupAccessItems,
   groupAccessIsDirty,
   groupTypeBadgeLabel,
   restoreStaffGroupSelection,
+  saveStaffGroupAccessFlow,
   selectVisibleStaffGroups,
   selectedCountLabel,
   selectedGroupCount,
   staffGroupAccessEmptyMessage,
   toggleStaffGroupAssignment,
+  updateStaffGroupAccessSummary,
 } from "./staffGroupAccess.js";
 
 function groups() {
@@ -180,4 +185,82 @@ test("filter buttons expose selected state", () => {
   const html = renderPanel({ filter: "selected" });
   assert.match(html, /aria-pressed="true"[^>]*>Selected</);
   assert.match(html, /Search groups/);
+});
+
+test("staff card summary uses compact saved Group chips and +N overflow", () => {
+  const assigned = Array.from({ length: 5 }, (_, index) => ({
+    group_id: index + 1,
+    name: `Group ${index + 1}`,
+    group_type: "standard",
+  }));
+  const compact = compactGroupAccess(assigned, 3);
+  assert.equal(compact.visible.length, 3);
+  assert.equal(compact.remaining, 2);
+
+  const html = renderToStaticMarkup(
+    createElement(StaffGroupAccessSummary, { groups: assigned }),
+  );
+  assert.match(html, /Group 1/);
+  assert.match(html, /Group 3/);
+  assert.doesNotMatch(html, />Group 4</);
+  assert.match(html, /\+2 more/);
+});
+
+test("staff card summary shows the empty saved-access state", () => {
+  const html = renderToStaticMarkup(
+    createElement(StaffGroupAccessSummary, { groups: [] }),
+  );
+  assert.match(html, /No Group access/);
+});
+
+test("successful save updates from the server response and closes the editor", async () => {
+  const draft = toggleStaffGroupAssignment(groups(), 2);
+  const serverItems = draft.map((item) => ({
+    ...item,
+    assigned: item.group_id === 2 || item.group_id === 4,
+  }));
+  let summary = [{ id: 9, group_access: [] }];
+  let closed = false;
+
+  await saveStaffGroupAccessFlow({
+    staffId: 9,
+    items: draft,
+    saveAccess: async (_staffId, payload) => {
+      assert.deepEqual(payload.group_ids, assignedGroupIds(draft));
+      return { data: { items: serverItems } };
+    },
+    onSaved: (savedItems) => {
+      summary = updateStaffGroupAccessSummary(summary, 9, savedItems);
+    },
+    onClose: () => {
+      closed = true;
+    },
+  });
+
+  assert.equal(closed, true);
+  assert.deepEqual(summary[0].group_access, assignedGroupSummary(serverItems));
+});
+
+test("failed save keeps the editor open and leaves draft selections intact", async () => {
+  const draft = toggleStaffGroupAssignment(groups(), 2);
+  const before = structuredClone(draft);
+  let closed = false;
+
+  await assert.rejects(
+    saveStaffGroupAccessFlow({
+      staffId: 9,
+      items: draft,
+      saveAccess: async () => {
+        throw new Error("Save failed");
+      },
+      onSaved: () => assert.fail("failed saves must not publish a summary"),
+      onClose: () => {
+        closed = true;
+      },
+    }),
+    /Save failed/,
+  );
+
+  assert.equal(closed, false);
+  assert.deepEqual(draft, before);
 });

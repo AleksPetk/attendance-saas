@@ -1,7 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { api, errorMessage } from "./api.js";
 import {
   CopyButton,
+  ConfirmDialog,
   EmptyState,
   ErrorBanner,
   Field,
@@ -9,6 +11,7 @@ import {
   PageHeader,
   PasswordInput,
   StatusBadge,
+  SuccessBanner,
 } from "./components.jsx";
 import {
   canManageStaffAccounts,
@@ -25,6 +28,10 @@ import {
 import PlanLockSelectionPanel from "./PlanLockSelectionPanel.jsx";
 import StaffGroupAccessEditor from "./StaffGroupAccessEditor.jsx";
 import {
+  StaffGroupAccessSummary,
+  updateStaffGroupAccessSummary,
+} from "./staffGroupAccess.js";
+import {
   STAFF_EMAIL_DUPLICATE_MESSAGE,
   isStaffEmailRequired,
   staffEmailFieldLabel,
@@ -33,19 +40,49 @@ import {
   isStaffAccountPlanLocked,
   partitionStaffByPlanAvailability,
 } from "./staffListOrdering.js";
+import {
+  firstTutorialStaffAccount,
+  staffTutorialRequestsGroupAccess,
+} from "./staffTutorial.js";
+import {
+  canBeginStaffDelete,
+  canCancelStaffDelete,
+  canPermanentlyDeleteStaffAccount,
+  removeDeletedStaffAccount,
+  staffAccountLifecycleAction,
+  staffDeleteConfirmation,
+} from "./staffDeletion.js";
 
-function StaffRow({
+export function StaffDeleteDialog({ staff, busy, onCancel, onConfirm }) {
+  const confirmation = staffDeleteConfirmation(staff);
+  if (!confirmation) return null;
+  return (
+    <ConfirmDialog
+      title={confirmation.title}
+      body={confirmation.body}
+      confirmLabel={confirmation.confirmLabel}
+      danger
+      busy={busy}
+      onCancel={onCancel}
+      onConfirm={onConfirm}
+    />
+  );
+}
+
+export function StaffRow({
   staff,
   readOnly,
   onDeactivateToggle,
+  onDelete,
   onResetPassword,
   onManageAccess,
   managingAccess,
 }) {
   const planLocked = isStaffAccountPlanLocked(staff);
+  const lifecycleAction = staffAccountLifecycleAction(staff, planLocked);
   return (
-    <article className={`person-row${planLocked ? " person-row-plan-locked" : ""}`}>
-      <div className="person-copy" style={{ flex: 1 }}>
+    <article className={`person-row staff-account-row${planLocked ? " person-row-plan-locked" : ""}`}>
+      <div className="person-copy staff-account-identity">
         <strong>{staff.username}</strong>
         <p className="person-subtitle">
           <span className="staff-role-badge">{staff.role}</span>
@@ -56,26 +93,34 @@ function StaffRow({
         {planLocked ? <p className="plan-locked-copy">Locked by current plan</p> : null}
         {staff.email ? <p className="hint" style={{ marginTop: "0.35rem" }}>{staff.email}</p> : null}
       </div>
+      {staff.role === "staff" ? <StaffGroupAccessSummary groups={staff.group_access} /> : <span />}
       {!readOnly ? (
-        <div className="person-meta" style={{ alignItems: "flex-start", flexDirection: "column" }}>
+        <div
+          className="person-meta staff-account-actions"
+          style={{ alignItems: "flex-start", flexDirection: "column" }}
+          data-tutorial-target="staff-account-actions"
+        >
           {staff.role === "staff" && !planLocked ? (
             <button type="button" className="btn-secondary btn-sm" onClick={onManageAccess}>
               {managingAccess ? "Close access" : "Group access"}
             </button>
           ) : null}
-          {staff.status === "active" || !planLocked ? (
-            <button
-              type="button"
-              className="btn-secondary btn-sm"
-              onClick={onDeactivateToggle}
-              disabled={planLocked && staff.status !== "active"}
-              title={
-                planLocked && staff.status !== "active"
-                  ? "Locked by current plan"
-                  : undefined
-              }
-            >
-              {staff.status === "active" ? "Deactivate" : "Reactivate"}
+          <button
+            type="button"
+            className="btn-secondary btn-sm"
+            onClick={onDeactivateToggle}
+            disabled={lifecycleAction.disabled}
+            title={
+              planLocked && staff.status !== "active"
+                ? "Locked by current plan"
+                : undefined
+            }
+          >
+            {lifecycleAction.label}
+          </button>
+          {canPermanentlyDeleteStaffAccount(staff) ? (
+            <button type="button" className="btn-danger-soft btn-sm" onClick={onDelete}>
+              Delete
             </button>
           ) : null}
           <button type="button" className="btn-ghost btn-sm" onClick={onResetPassword}>
@@ -88,8 +133,10 @@ function StaffRow({
 }
 
 export default function StaffManagementScreen({ session, setSession }) {
+  const location = useLocation();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
   const [staff, setStaff] = useState([]);
 
   const canManageStaffRole = canManageStaffAccounts(session);
@@ -105,6 +152,9 @@ export default function StaffManagementScreen({ session, setSession }) {
   const [creating, setCreating] = useState(false);
   const [accessStaffId, setAccessStaffId] = useState(null);
   const [changeKind, setChangeKind] = useState(null);
+  const [pendingDelete, setPendingDelete] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+  const deleteInFlightRef = useRef(false);
 
   const effectiveCreateRole = canManageAdmins ? createRole : "staff";
   const createEmailRequired = isStaffEmailRequired(effectiveCreateRole);
@@ -131,6 +181,12 @@ export default function StaffManagementScreen({ session, setSession }) {
       cancelled = true;
     };
   }, [canManageStaff]);
+
+  useEffect(() => {
+    if (!staffTutorialRequestsGroupAccess(location.search) || accessStaffId) return;
+    const tutorialStaff = firstTutorialStaffAccount(staff);
+    if (tutorialStaff) setAccessStaffId(tutorialStaff.id);
+  }, [accessStaffId, location.search, staff]);
 
   async function refresh() {
     const result = await api.listWorkspaceStaff(null);
@@ -169,12 +225,40 @@ export default function StaffManagementScreen({ session, setSession }) {
 
   async function toggleDeactivate(staffId, currentStatus) {
     try {
+      setSuccessMessage("");
       await api.updateWorkspaceStaff(null, staffId, {
         status: currentStatus === "active" ? "inactive" : "active",
       });
       await refresh();
     } catch (e) {
       setError(errorMessage(e));
+    }
+  }
+
+  function requestDelete(account) {
+    if (!account || account.status !== "inactive") return;
+    setError("");
+    setSuccessMessage("");
+    setPendingDelete(account);
+  }
+
+  async function confirmDelete() {
+    if (!canBeginStaffDelete(pendingDelete, deleteInFlightRef.current)) return;
+    deleteInFlightRef.current = true;
+    setDeleting(true);
+    setError("");
+    const deletedAccount = pendingDelete;
+    try {
+      await api.deleteWorkspaceStaff(null, deletedAccount.id);
+      setStaff((current) => removeDeletedStaffAccount(current, deletedAccount.id));
+      setAccessStaffId((current) => (current === deletedAccount.id ? null : current));
+      setPendingDelete(null);
+      setSuccessMessage(`${deletedAccount.username} was permanently deleted.`);
+    } catch (e) {
+      setError(errorMessage(e));
+    } finally {
+      deleteInFlightRef.current = false;
+      setDeleting(false);
     }
   }
 
@@ -291,13 +375,18 @@ export default function StaffManagementScreen({ session, setSession }) {
             setAccessStaffId((current) => (current === s.id ? null : s.id))
           }
           onDeactivateToggle={() => toggleDeactivate(s.id, s.status)}
+          onDelete={() => requestDelete(s)}
           onResetPassword={() => resetPassword(s.id)}
         />
         {accessStaffId === s.id && s.role === "staff" && !isStaffAccountPlanLocked(s) ? (
           <StaffGroupAccessEditor
             staff={s}
             onClose={() => setAccessStaffId(null)}
-            onSaved={refresh}
+            onSaved={(savedItems) => {
+              setStaff((current) =>
+                updateStaffGroupAccessSummary(current, s.id, savedItems),
+              );
+            }}
             onError={setError}
           />
         ) : null}
@@ -306,7 +395,7 @@ export default function StaffManagementScreen({ session, setSession }) {
   }
 
   return (
-    <div className="page">
+    <div className="page" data-tutorial-target="staff-overview">
       <PageHeader
         title="Staff management"
         description={
@@ -350,7 +439,7 @@ export default function StaffManagementScreen({ session, setSession }) {
         </div>
       ) : null}
 
-      <div className="workspace-id-card">
+      <div className="workspace-id-card" data-tutorial-target="staff-workspace-id">
         <h3>Workspace ID</h3>
         <div className="workspace-id-value">
           <span className="workspace-id-code">{workspaceId}</span>
@@ -362,6 +451,7 @@ export default function StaffManagementScreen({ session, setSession }) {
       </div>
 
       <ErrorBanner message={error} />
+      <SuccessBanner message={successMessage} />
 
       <div className="staff-grid">
         <section className="section-card">
@@ -439,7 +529,11 @@ export default function StaffManagementScreen({ session, setSession }) {
           </div>
         </section>
 
-        <section className="card-surface" style={{ padding: "var(--space-5)" }}>
+        <section
+          className="card-surface"
+          style={{ padding: "var(--space-5)" }}
+          data-tutorial-target="staff-create-account"
+        >
           <h3 style={{ marginBottom: "var(--space-4)" }}>Create account</h3>
           <form onSubmit={handleCreate} className="auth-form">
             <Field label="Username" hint="Unique within this workspace">
@@ -460,18 +554,20 @@ export default function StaffManagementScreen({ session, setSession }) {
                 required={createEmailRequired}
               />
             </Field>
-            {canManageAdmins ? (
-              <Field label="Role">
-                <select value={createRole} onChange={(e) => setCreateRole(e.target.value)}>
-                  <option value="admin">Admin</option>
-                  <option value="staff">Staff</option>
-                </select>
-              </Field>
-            ) : (
-              <Field label="Role">
-                <input value="Staff" readOnly disabled />
-              </Field>
-            )}
+            <div data-tutorial-target="staff-role-selection">
+              {canManageAdmins ? (
+                <Field label="Role">
+                  <select value={createRole} onChange={(e) => setCreateRole(e.target.value)}>
+                    <option value="admin">Admin</option>
+                    <option value="staff">Staff</option>
+                  </select>
+                </Field>
+              ) : (
+                <Field label="Role">
+                  <input value="Staff" readOnly disabled />
+                </Field>
+              )}
+            </div>
             <Field label="Password">
               <PasswordInput
                 value={createPassword}
@@ -486,6 +582,14 @@ export default function StaffManagementScreen({ session, setSession }) {
           </form>
         </section>
       </div>
+      <StaffDeleteDialog
+        staff={pendingDelete}
+        busy={deleting}
+        onCancel={() => {
+          if (canCancelStaffDelete(deleteInFlightRef.current)) setPendingDelete(null);
+        }}
+        onConfirm={confirmDelete}
+      />
     </div>
   );
 }

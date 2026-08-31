@@ -208,6 +208,7 @@ class OwnerPermanentDeleteAPITests(TestCase):
                     "email": "owner@example.com",
                     "password": "new-secure-password",
                     "password_confirm": "new-secure-password",
+                    "legal_acknowledgement": True,
                 },
                 format="json",
             )
@@ -215,7 +216,7 @@ class OwnerPermanentDeleteAPITests(TestCase):
         new_user = User.objects.get(email="owner@example.com")
         self.assertNotEqual(new_user.pk, self.owner.pk)
         self.assertFalse(new_user.email_verified)
-        self.assertEqual(Organization.objects.filter(owner=new_user).count(), 1)
+        self.assertEqual(Organization.objects.filter(owner=new_user).count(), 0)
 
     def test_archive_does_not_permanently_delete(self):
         organization = self.seed["organization"]
@@ -274,6 +275,7 @@ class UnverifiedPermanentDeleteTests(TestCase):
                     "email": "unverified@example.com",
                     "password": "secure-password",
                     "password_confirm": "secure-password",
+                    "legal_acknowledgement": True,
                 },
                 format="json",
             )

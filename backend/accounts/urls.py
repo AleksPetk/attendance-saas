@@ -1,5 +1,12 @@
 from django.urls import path
 
+from accounts.apple_oauth_views import AppleOAuthCallbackView, AppleOAuthStartView
+from accounts.google_oauth_views import GoogleOAuthCallbackView, GoogleOAuthStartView
+from accounts.owner_sign_in_method_views import (
+    AppleUnlinkView,
+    GoogleUnlinkView,
+    SetPasswordView,
+)
 from accounts.views import (
     AccountView,
     BackupEmailCancelView,
@@ -46,6 +53,9 @@ urlpatterns = [
     path("auth/forgot-password/", ForgotPasswordView.as_view(), name="forgot-password"),
     path("auth/reset-password/", ResetPasswordView.as_view(), name="reset-password"),
     path("auth/change-password/", ChangePasswordView.as_view(), name="change-password"),
+    path("auth/set-password/", SetPasswordView.as_view(), name="set-password"),
+    path("auth/google/unlink/", GoogleUnlinkView.as_view(), name="google-unlink"),
+    path("auth/apple/unlink/", AppleUnlinkView.as_view(), name="apple-unlink"),
     path("auth/account/", AccountView.as_view(), name="account"),
     path("auth/account/delete/", DeleteAccountView.as_view(), name="delete-account"),
     path(
@@ -107,5 +117,17 @@ urlpatterns = [
         "auth/owner-2fa/disable/",
         OwnerTOTPDisableView.as_view(),
         name="owner-2fa-disable",
+    ),
+    path("auth/google/start/", GoogleOAuthStartView.as_view(), name="google-oauth-start"),
+    path(
+        "auth/google/callback/",
+        GoogleOAuthCallbackView.as_view(),
+        name="google-oauth-callback",
+    ),
+    path("auth/apple/start/", AppleOAuthStartView.as_view(), name="apple-oauth-start"),
+    path(
+        "auth/apple/callback/",
+        AppleOAuthCallbackView.as_view(),
+        name="apple-oauth-callback",
     ),
 ]

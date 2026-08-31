@@ -6,6 +6,8 @@ import { featuresShowcaseImages } from "./assets/features/first-section/showcase
 import { membersGroupsStoryImages } from "./assets/features/second-section/storyImages.js";
 import { configurableFlowDemo } from "./assets/features/third-section/demoVideos.js";
 import { emailNotificationPairs } from "./assets/features/fourth-section/emailNotificationImages.js";
+import { historyFeatureImages } from "./assets/features/fifth-section/historyImages.js";
+import { platformIcons } from "./assets/features/sixth-section/platformIcons.js";
 
 function PageTitle({ title, description }) {
   useEffect(() => {
@@ -60,6 +62,7 @@ const FEATURE_STORIES = [
     ],
   },
   {
+    type: "history",
     eyebrow: "Capture the moment",
     title: "Record the actions that matter — automatically.",
     body: "Turn a quick participant interaction into dependable history. Enable the actions each Group needs, from check-in and check-out to breaks, then review the record whenever you need it.",
@@ -88,8 +91,11 @@ function CheckIcon() {
 }
 
 function PlatformIcon({ name }) {
-  const symbols = { Browser: "◎", "iPhone & iPad": "▯", "Android phone & tablet": "▱", Mac: "⌘", Windows: "⊞" };
-  return <span className="features-platform-icon" aria-hidden="true">{symbols[name]}</span>;
+  return (
+    <span className="features-platform-icon" aria-hidden="true">
+      <img src={platformIcons[name]} alt="" width="128" height="128" />
+    </span>
+  );
 }
 
 function FeaturesShowcaseCarousel() {
@@ -308,6 +314,38 @@ function FeaturesEmailGallery() {
   );
 }
 
+function FeaturesHistoryComposition() {
+  const { main, inset } = historyFeatureImages;
+
+  return (
+    <figure
+      className="features-story-image features-history-composition"
+      aria-label="Recorded actions and attendance reporting"
+    >
+      <div className="features-history-main">
+        <img
+          src={main.src}
+          alt={main.alt}
+          width={main.width}
+          height={main.height}
+          loading="lazy"
+          decoding="async"
+        />
+      </div>
+      <div className="features-history-inset">
+        <img
+          src={inset.src}
+          alt={inset.alt}
+          width={inset.width}
+          height={inset.height}
+          loading="lazy"
+          decoding="async"
+        />
+      </div>
+    </figure>
+  );
+}
+
 export default function PublicFeaturesScreen() {
   useEffect(() => {
     const page = document.querySelector(".features-page");
@@ -388,7 +426,7 @@ export default function PublicFeaturesScreen() {
               </article>
             ) : (
               <article className={`features-story features-story-${index % 2 ? "reverse" : "normal"}`} data-reveal key={story.title}>
-                {story.images ? <FeaturesStoryCarousel images={story.images} label={story.label} /> : story.demo ? <FeaturesStoryVideo demo={story.demo} label={story.label} /> : <ProductImageSlot label={story.label} caption={story.caption} aspect="4 / 3" className="features-story-image" />}
+                {story.images ? <FeaturesStoryCarousel images={story.images} label={story.label} /> : story.demo ? <FeaturesStoryVideo demo={story.demo} label={story.label} /> : story.type === "history" ? <FeaturesHistoryComposition /> : <ProductImageSlot label={story.label} caption={story.caption} aspect="4 / 3" className="features-story-image" />}
                 <div className="features-story-copy"><p className="features-kicker">{story.eyebrow}</p><h2>{story.title}</h2><p className="features-story-body">{story.body}</p><ul className="features-point-list">{story.points.map((point) => <li key={point}><CheckIcon />{point}</li>)}</ul></div>
               </article>
             )
@@ -405,7 +443,6 @@ export default function PublicFeaturesScreen() {
           <div className="features-included-grid">{INCLUDED_FEATURES.map(([title, body]) => <article className="features-included-card" key={title}><span className="features-included-icon"><CheckIcon /></span><div><h3>{title}</h3><p>{body}</p></div></article>)}</div>
         </section>
 
-        <section className="features-final-cta" data-reveal><div><p className="features-kicker features-kicker-light">Make attendance feel effortless</p><h2>Give your team a better way to keep track.</h2><p>Start with a workspace that is ready for your people, your Groups, and the way your organization runs.</p></div><Link className="btn-primary features-final-button" to="/register">Create your workspace <span aria-hidden="true">→</span></Link></section>
       </div>
     </PublicPageShell>
   );

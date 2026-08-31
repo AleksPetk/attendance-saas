@@ -108,12 +108,15 @@ test("default account section is security", () => {
   assert.equal(resolveAccountSection("unknown"), "security");
 });
 
-test("account section ids cover security subscription billing", () => {
-  assert.deepEqual(ACCOUNT_SECTION_IDS, ["security", "subscription", "billing"]);
-  assert.equal(ACCOUNT_SECTIONS.length, 3);
+test("account section ids include the owner Tutorial and Status areas", () => {
+  assert.deepEqual(ACCOUNT_SECTION_IDS, ["security", "subscription", "billing", "info", "tutorial", "status"]);
+  assert.equal(ACCOUNT_SECTIONS.length, 6);
   assert.ok(isAccountSectionId("security"));
   assert.ok(isAccountSectionId("subscription"));
   assert.ok(isAccountSectionId("billing"));
+  assert.ok(isAccountSectionId("info"));
+  assert.ok(isAccountSectionId("tutorial"));
+  assert.ok(isAccountSectionId("status"));
   assert.equal(isAccountSectionId("settings"), false);
 });
 
@@ -121,9 +124,12 @@ test("account section routes are absolute and stable", () => {
   assert.equal(accountSectionMeta("security").path, "/account/security");
   assert.equal(accountSectionMeta("subscription").path, "/account/subscription");
   assert.equal(accountSectionMeta("billing").path, "/account/billing");
+  assert.equal(accountSectionMeta("info").path, "/account/info");
+  assert.equal(accountSectionMeta("tutorial").path, "/account/tutorial");
+  assert.equal(accountSectionMeta("status").path, "/account/status");
 });
 
-test("account subnav renders all three sections for a billing-capable owner", () => {
+test("account subnav renders all six sections for a billing-capable owner", () => {
   const session = {
     workspace: {
       capabilities: { can_view_billing: true, can_manage_subscription: true },
@@ -140,9 +146,14 @@ test("account subnav renders all three sections for a billing-capable owner", ()
   assert.match(html, /Security/);
   assert.match(html, /Subscription/);
   assert.match(html, /Billing/);
+  assert.match(html, /Info/);
+  assert.match(html, /Tutorial/);
+  assert.match(html, /Status/);
   assert.match(html, /href="\/account\/security"/);
   assert.match(html, /href="\/account\/subscription"/);
   assert.match(html, /href="\/account\/billing"/);
+  assert.match(html, /href="\/account\/info"/);
+  assert.match(html, /href="\/account\/status"/);
   assert.match(html, /is-active/);
 });
 
@@ -1222,7 +1233,7 @@ test("subscription panel summarizes plan locks without attention actions", () =>
   assert.doesNotMatch(html, /href="\/members"/);
 });
 
-test("direct account section routes resolve through MemoryRouter", () => {
+test("direct Info account route resolves through MemoryRouter", () => {
   const session = {
     workspace: {
       capabilities: { can_view_billing: true, can_manage_subscription: true },
@@ -1234,7 +1245,7 @@ test("direct account section routes resolve through MemoryRouter", () => {
   const html = renderToStaticMarkup(
     createElement(
       MemoryRouter,
-      { initialEntries: ["/account/billing"] },
+      { initialEntries: ["/account/info"] },
       createElement(
         Routes,
         null,
@@ -1242,19 +1253,70 @@ test("direct account section routes resolve through MemoryRouter", () => {
       ),
     ),
   );
-  assert.match(html, /href="\/account\/billing"/);
+  assert.match(html, /href="\/account\/info"/);
   assert.match(html, /is-active/);
 });
 
-test("CheckStation-managed account hides Subscription and Billing", () => {
+test("direct Tutorial route is registered for owners and Account remains owner-gated", () => {
+  const session = {
+    workspace: {
+      capabilities: {
+        can_manage_owner_account: true,
+        can_view_billing: true,
+        can_manage_subscription: true,
+      },
+    },
+  };
+  assert.equal(resolveAccountSection("tutorial", session), "tutorial");
+  const html = renderToStaticMarkup(
+    createElement(
+      MemoryRouter,
+      { initialEntries: ["/account/tutorial"] },
+      createElement(AccountSubNav, { session }),
+    ),
+  );
+  assert.match(html, /href="\/account\/tutorial"/);
+  assert.match(html, /is-active/);
+  assert.match(readSrc("App.jsx"), /canManageOwnerAccount\(session\)[\s\S]*?<AccountScreen/);
+});
+
+test("direct Status route resolves inside owner Account navigation", () => {
+  const session = {
+    workspace: {
+      capabilities: {
+        can_manage_owner_account: true,
+        can_view_billing: true,
+        can_manage_subscription: true,
+      },
+    },
+  };
+  assert.equal(resolveAccountSection("status", session), "status");
+  const html = renderToStaticMarkup(
+    createElement(
+      MemoryRouter,
+      { initialEntries: ["/account/status"] },
+      createElement(AccountSubNav, { session }),
+    ),
+  );
+  assert.match(html, /href="\/account\/status"/);
+  assert.match(html, /is-active/);
+});
+
+test("CheckStation-managed account hides billing sections but keeps Info, Tutorial, and Status", () => {
   const session = {
     workspace: {
       capabilities: { can_view_billing: false, can_manage_subscription: false },
     },
   };
-  assert.deepEqual(visibleAccountSectionIds(session), ["security"]);
+  assert.deepEqual(visibleAccountSectionIds(session), ["security", "info", "tutorial", "status"]);
   assert.equal(isAccountSectionId("subscription", session), false);
   assert.equal(resolveAccountSection("billing", session), "security");
+  assert.equal(isAccountSectionId("info", session), true);
+  assert.equal(resolveAccountSection("info", session), "info");
+  assert.equal(isAccountSectionId("tutorial", session), true);
+  assert.equal(resolveAccountSection("tutorial", session), "tutorial");
+  assert.equal(isAccountSectionId("status", session), true);
+  assert.equal(resolveAccountSection("status", session), "status");
   const html = renderToStaticMarkup(
     createElement(
       MemoryRouter,
@@ -1263,6 +1325,9 @@ test("CheckStation-managed account hides Subscription and Billing", () => {
     ),
   );
   assert.match(html, /Security/);
+  assert.match(html, /Info/);
+  assert.match(html, /Tutorial/);
+  assert.match(html, /Status/);
   assert.doesNotMatch(html, /Subscription/);
   assert.doesNotMatch(html, /Billing/);
 });

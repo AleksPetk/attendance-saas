@@ -48,7 +48,7 @@ ADMIN_MODEL_ORDER = {
         "kioskdesign",
     ),
     "billing": ("workspacesubscription", "providerevent"),
-    "content": ("document", "faqentry"),
+    "content": ("announcement", "document", "faqentry"),
     "core": (
         "platformpricingtemplatesettings",
         "platformpromotionaltextsettings",

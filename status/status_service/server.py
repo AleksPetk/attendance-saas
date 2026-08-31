@@ -23,6 +23,13 @@ CORS_HEADERS = (
 )
 
 
+def _content_type_for(path):
+    suffix = path.suffix.lower()
+    if suffix == ".ico":
+        return "image/x-icon"
+    return mimetypes.guess_type(str(path))[0] or "application/octet-stream"
+
+
 def create_handler(store, config):
     static_dir = config["static_dir"]
 
@@ -63,8 +70,7 @@ def create_handler(store, config):
                     self._send(404, b"Not found", content_type="text/plain; charset=utf-8")
                     return
                 if target.is_file():
-                    content_type = mimetypes.guess_type(str(target))[0] or "application/octet-stream"
-                    self._file(target, content_type)
+                    self._file(target, _content_type_for(target))
                     return
             self._send(404, b"Not found", content_type="text/plain; charset=utf-8")
 

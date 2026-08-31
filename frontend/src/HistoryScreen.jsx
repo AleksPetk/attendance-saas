@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { PageHeader } from "./components.jsx";
 import ActivityLogPanel from "./history/ActivityLogPanel.jsx";
 import AttendanceReportPanel from "./history/AttendanceReportPanel.jsx";
@@ -9,16 +9,22 @@ const VIEWS = [
 ];
 
 export default function HistoryScreen({ session }) {
-  const [view, setView] = useState("activity");
+  const location = useLocation();
+  const navigate = useNavigate();
+  const view = new URLSearchParams(location.search).get("view") === "report" ? "report" : "activity";
+
+  function selectView(nextView) {
+    navigate(nextView === "report" ? "/history?view=report" : "/history");
+  }
 
   return (
     <div className="page">
       <PageHeader
         title="History"
-        description="Review recent activity or build an attendance report for one Group."
+        description="Review recent activity or build focused Member and Group attendance reports."
       />
 
-      <div className="history-view-switch" role="tablist" aria-label="History views">
+      <div className="history-view-switch" data-tutorial-target="history-tabs" role="tablist" aria-label="History views">
         {VIEWS.map((item) => {
           const isActive = view === item.id;
           return (
@@ -31,7 +37,7 @@ export default function HistoryScreen({ session }) {
               aria-controls={`history-panel-${item.id}`}
               tabIndex={isActive ? 0 : -1}
               className={`history-view-tab${isActive ? " is-active" : ""}`}
-              onClick={() => setView(item.id)}
+              onClick={() => selectView(item.id)}
             >
               {item.label}
             </button>

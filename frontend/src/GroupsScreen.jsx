@@ -268,7 +268,7 @@ export default function GroupsScreen({ session, onNavigate, setSession }) {
         }
         actions={
           canConfigure && !mustSelect ? (
-            <button type="button" className="btn-primary" onClick={() => onNavigate({ name: "group-editor" })}>
+            <button type="button" className="btn-primary" data-tutorial-target="groups-create" onClick={() => onNavigate({ name: "group-editor" })}>
               Create Group
             </button>
           ) : null
@@ -295,7 +295,7 @@ export default function GroupsScreen({ session, onNavigate, setSession }) {
           </button>
         </div>
       ) : null}
-      <div className="toolbar card-surface toolbar-compact">
+      <div className="toolbar card-surface toolbar-compact" data-tutorial-target="groups-list">
         <input
           className="search-input"
           placeholder="Search Group name"
@@ -307,7 +307,11 @@ export default function GroupsScreen({ session, onNavigate, setSession }) {
             }
           }}
         />
-        <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+        <select
+          value={statusFilter}
+          data-tutorial-target="groups-status-filter"
+          onChange={(event) => setStatusFilter(event.target.value)}
+        >
           <option value="active">Active</option>
           <option value="archived">Archived</option>
         </select>

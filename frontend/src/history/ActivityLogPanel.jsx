@@ -84,7 +84,7 @@ export default function ActivityLogPanel({ session }) {
       <ErrorBanner message={error} />
 
       <div className="history-toolbar activity-log-toolbar">
-        <div className="history-toolbar-filters">
+        <div className="history-toolbar-filters" data-tutorial-target="activity-log-filters">
           <HistorySelect
             id="activity-log-group"
             label="Group"

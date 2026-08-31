@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import logging
 
-from django.contrib.auth import get_user_model, login
+from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.utils import timezone
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -22,9 +22,8 @@ from rest_framework.views import APIView
 
 from accounts.customer_two_factor_models import OwnerRecoveryCode, OwnerTOTPDevice
 from accounts.exceptions import EmailNotVerified
+from accounts.owner_authentication import establish_owner_session
 from accounts.owner_two_factor import (
-    OWNER_AUTHENTICATION_BACKEND,
-    begin_pending_owner_2fa,
     clear_owner_2fa_for_user,
     clear_pending_owner_2fa,
     confirm_device,
@@ -50,14 +49,9 @@ from accounts.owner_two_factor import (
     owner_setup_label,
 )
 
+from accounts.owner_sensitive_auth import password_not_available_response
+from accounts.sign_in_methods import owner_password_enabled
 from accounts.verification import customer_must_verify_email
-from attendance.kiosk_lock import attach_kiosk_status
-from organizations.entitlements import build_entitlement_payload
-from organizations.entitlements.advertising import attach_workspace_advertising
-from billing.builtin_trial import attach_builtin_trial
-from organizations.models import Organization, OrganizationStatus
-from organizations.permissions import workspace_capabilities
-from organizations.serializers import CurrentWorkspaceSerializer
 
 logger = logging.getLogger("accounts.owner_2fa")
 User = get_user_model()
@@ -81,25 +75,9 @@ def _require_owner(actor):
 
 
 def _active_owner_workspace(user):
-    return Organization.objects.filter(owner=user, status=OrganizationStatus.ACTIVE).first()
+    from accounts.owner_authentication import get_active_owner_organization
 
-
-def _workspace_payload(request, user):
-    org = _active_owner_workspace(user)
-    if org is None:
-        return None
-    payload = {
-        "account_kind": "owner",
-        "role": "owner",
-        "identity": user.email,
-        "is_platform_operator": bool(getattr(user, "is_staff", False) or getattr(user, "is_superuser", False)),
-        "workspace_id": org.workspace_id,
-        "capabilities": workspace_capabilities(user),
-        "entitlements": build_entitlement_payload(org),
-    }
-    attach_workspace_advertising(payload, org)
-    attach_builtin_trial(payload, org)
-    return CurrentWorkspaceSerializer(attach_kiosk_status(request, payload)).data
+    return get_active_owner_organization(user)
 
 
 class OwnerTOTPSetupStartView(APIView):
@@ -114,6 +92,8 @@ class OwnerTOTPSetupStartView(APIView):
             raise EmailNotVerified()
 
         current_password = request.data.get("current_password") or ""
+        if not owner_password_enabled(actor):
+            return password_not_available_response()
         if not actor.check_password(current_password):
             return Response({"current_password": "Current password is incorrect."}, status=400)
 
@@ -254,8 +234,7 @@ class OwnerTOTPLoginChallengeView(APIView):
 
         # Authentication succeeded. Complete the login and establish a normal owner session.
         clear_pending_owner_2fa(request)
-        login(request, pending_user, backend=OWNER_AUTHENTICATION_BACKEND)
-        workspace = _workspace_payload(request, pending_user)
+        workspace = establish_owner_session(request, pending_user)
         if workspace is None:
             return Response({"detail": "No active workspace for this account."}, status=404)
         return Response(workspace)
@@ -276,6 +255,8 @@ class OwnerTOTPRecoveryCodesRegenerateView(APIView):
             return Response({"detail": "Two-factor authentication is not enabled."}, status=400)
 
         current_password = request.data.get("current_password") or ""
+        if not owner_password_enabled(actor):
+            return password_not_available_response()
         if not actor.check_password(current_password):
             return Response({"current_password": "Current password is incorrect."}, status=400)
 
@@ -338,6 +319,8 @@ class OwnerTOTPDisableView(APIView):
             return Response({"detail": "Two-factor authentication is not enabled."}, status=400)
 
         current_password = request.data.get("current_password") or ""
+        if not owner_password_enabled(actor):
+            return password_not_available_response()
         if not actor.check_password(current_password):
             return Response({"current_password": "Current password is incorrect."}, status=400)
 

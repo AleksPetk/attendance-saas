@@ -19,7 +19,7 @@ from core.email_branding import (
 from core.mail import format_from_address
 from groups.email_providers.test_message import group_sender_test_email
 
-PUBLIC_LOGO_URL = "https://cdn.example.com/brand/logo-text.png"
+PUBLIC_LOGO_URL = "https://cdn.example.com/brand/checkstation-icon.png"
 
 
 def _img_srcs(html):
@@ -97,8 +97,11 @@ class BrandLogoUrlTests(SimpleTestCase):
         FRONTEND_BASE_URL="https://app.example.com",
         EMAIL_BRAND_LOGO_URL="",
     )
-    def test_public_https_frontend_serves_wordmark(self):
-        self.assertEqual(brand_logo_url(), "https://app.example.com/brand/logo-text.png")
+    def test_public_https_frontend_serves_existing_icon(self):
+        self.assertEqual(
+            brand_logo_url(),
+            "https://app.example.com/email/checkstation-icon.png",
+        )
 
     def test_module_does_not_hardcode_future_checkstation_domains(self):
         source = inspect.getsource(email_branding_module)
@@ -148,11 +151,17 @@ class BrandedEmailTemplateTests(SimpleTestCase):
             action_label="Verify email",
             action_url="http://localhost:5173/verify-email/x/y",
         )
-        self.assertEqual(_img_srcs(html), [PUBLIC_LOGO_URL])
+        self.assertEqual(_img_srcs(html), [PUBLIC_LOGO_URL, PUBLIC_LOGO_URL])
         self.assertIn(f'src="{PUBLIC_LOGO_URL}"', html)
         self.assertIn('alt="CheckStation"', html)
-        self.assertIn('width="180"', html)
-        self.assertIn('height="60"', html)
+        self.assertIn('width="36"', html)
+        self.assertIn('height="36"', html)
+        self.assertIn('width="24"', html)
+        self.assertIn('height="24"', html)
+        self.assertIn("opacity:0.48", html)
+        self.assertIn('bgcolor="#071426"', html)
+        self.assertIn('bgcolor="#0b1f36"', html)
+        self.assertIn('content="dark"', html)
         self.assertNotIn("cid:", html)
         self.assertNotIn("localhost:5173/brand/", html)
 
@@ -195,6 +204,10 @@ class AccountEmailBrandingTests(TestCase):
         self.assertEqual(reset["subject"], "Reset your CheckStation password")
         self.assertEqual(_header_strategy(verify["html_body"]), ("text", None))
         self.assertEqual(_header_strategy(reset["html_body"]), ("text", None))
+        self.assertIn("/verify-email/", verify["html_body"])
+        self.assertIn("/verify-email/", verify["text_body"])
+        self.assertIn("/reset-password/", reset["html_body"])
+        self.assertIn("/reset-password/", reset["text_body"])
         for payload in (verify, reset):
             self.assertEqual(_img_srcs(payload["html_body"]), [])
             self.assertNotIn("<img", payload["html_body"])
@@ -374,7 +387,10 @@ class AccountEmailResendPayloadTests(TestCase):
         verify, reset = captured
         for payload in (verify, reset):
             self.assertNotIn("attachments", payload)
-            self.assertEqual(_img_srcs(payload["html"]), [PUBLIC_LOGO_URL])
+            self.assertEqual(
+                _img_srcs(payload["html"]),
+                [PUBLIC_LOGO_URL, PUBLIC_LOGO_URL],
+            )
             self.assertNotIn("cid:", payload["html"])
         self.assertEqual(_header_strategy(verify["html"]), ("img", PUBLIC_LOGO_URL))
         self.assertEqual(_header_strategy(reset["html"]), ("img", PUBLIC_LOGO_URL))
@@ -428,7 +444,7 @@ class SmtpHostedLogoTests(SimpleTestCase):
         )
         raw = message.as_string()
         content_types = [part.get_content_type() for part in message.walk()]
-        self.assertEqual(_img_srcs(html), [PUBLIC_LOGO_URL])
+        self.assertEqual(_img_srcs(html), [PUBLIC_LOGO_URL, PUBLIC_LOGO_URL])
         self.assertNotIn("cid:", raw)
         self.assertNotIn("image/png", content_types)
         self.assertNotIn("Content-ID:", raw)

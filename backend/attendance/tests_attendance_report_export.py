@@ -18,6 +18,7 @@ from attendance.report_export import (
     enrich_report_for_export,
 )
 from attendance.report_export.fonts import font_for_text
+from attendance.report_export.common import report_context_lines
 from groups.deletion import permanently_delete_group
 from groups.models import Group, GroupStatus
 from members.models import Member
@@ -99,7 +100,7 @@ class AttendanceReportExportUnitTests(TestCase):
         sheet = workbook.active
         values = [[cell.value for cell in row] for row in sheet.iter_rows(min_row=1, max_col=5)]
         flat = [v for row in values for v in row if v]
-        self.assertIn("SELS Kids", flat)
+        self.assertIn("Group: SELS Kids", flat)
         self.assertIn("Attendance Report", flat)
         self.assertIn("Date", flat)
         self.assertIn("Aleks", flat)
@@ -118,10 +119,35 @@ class AttendanceReportExportUnitTests(TestCase):
         self.assertGreater(stringWidth("Нами", "AttendanceReportSans", 10), 0)
         self.assertGreater(stringWidth("田中", "HeiseiKakuGo-W5", 10), 0)
 
-    def test_filename_rules(self):
+    def test_shared_export_context_covers_group_and_member_modes(self):
         self.assertEqual(
-            build_export_filename(SAMPLE_REPORT, "xlsx"),
-            "sels-kids-attendance-2026-12-12-to-2026-12-25.xlsx",
+            report_context_lines(SAMPLE_REPORT),
+            [
+                "Group: SELS Kids",
+                "Participants: All",
+                "Date range: 12 December 2026 - 25 December 2026",
+            ],
+        )
+        self.assertEqual(
+            report_context_lines({
+                **SAMPLE_REPORT,
+                "report_by": "member",
+                "member_name": "Jasmine",
+                "group_name": "",
+                "source_group_id": None,
+            }),
+            [
+                "Member: Jasmine",
+                "Groups: All member Groups",
+                "Date range: 12 December 2026 - 25 December 2026",
+            ],
+        )
+
+    def test_filename_rules(self):
+        filename = build_export_filename(SAMPLE_REPORT, "xlsx")
+        self.assertRegex(
+            filename,
+            r"^attendance_sels-kids_all-participants_2026-12-12_to_2026-12-25_\d{8}-\d{6}-\d{6}-[0-9a-f]{6}\.xlsx$",
         )
         month_report = {
             **SAMPLE_REPORT,
@@ -129,10 +155,25 @@ class AttendanceReportExportUnitTests(TestCase):
             "date_to": "2026-12-31",
             "date_label": "December 2026",
         }
-        self.assertEqual(
+        self.assertRegex(
             build_export_filename(month_report, "pdf"),
-            "sels-kids-attendance-december-2026.pdf",
+            r"^attendance_sels-kids_all-participants_december-2026_\d{8}-\d{6}-\d{6}-[0-9a-f]{6}\.pdf$",
         )
+
+    def test_filenames_are_unique_and_do_not_include_sensitive_contact_data(self):
+        report = {
+            **SAMPLE_REPORT,
+            "participant": {
+                "name": "Jasmine",
+                "participant_code": "G12-ABCD",
+                "email": "private@example.com",
+            },
+        }
+        first = build_export_filename(report, "csv")
+        second = build_export_filename(report, "csv")
+        self.assertNotEqual(first, second)
+        self.assertNotIn("example", first)
+        self.assertNotIn("@", first)
 
     def test_enrich_organization_name(self):
         org = Organization(workspace_id="WS123456", internal_label="North Branch")

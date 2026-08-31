@@ -245,77 +245,95 @@ export default function PublicContactScreen() {
         canonicalPath="/contact"
       />
       <section className="public-section contact-page">
-        <h1>Contact CheckStation</h1>
-        <p className="public-lead">
-          What do you need help with? Choose a topic first. We will show related answers from CheckStation help before you send a message.
-        </p>
+        <header className="contact-intro">
+          <p className="contact-eyebrow">Support</p>
+          <h1>Contact CheckStation</h1>
+          <p>
+            Choose a topic and we’ll suggest relevant answers first. If they don’t solve the issue, send us a message below.
+          </p>
+        </header>
 
         {success ? (
           <div className="contact-success" role="status">
-            <h2>{success.delivered === false ? "Message saved" : "Message sent"}</h2>
-            <p>{success.message || "We've received your message."}</p>
-            {success.reference ? (
-              <p className="contact-reference">Reference {success.reference}</p>
-            ) : null}
-            <button type="button" className="contact-secondary-btn" onClick={() => setSuccess(null)}>
-              Send another message
-            </button>
+            <span className="contact-success-mark" aria-hidden="true">✓</span>
+            <div>
+              <h2>{success.delivered === false ? "Message saved" : "Message sent"}</h2>
+              <p>{success.message || "We've received your message."}</p>
+              {success.reference ? (
+                <p className="contact-reference">Reference {success.reference}</p>
+              ) : null}
+              <button type="button" className="contact-secondary-btn" onClick={() => setSuccess(null)}>
+                Send another message
+              </button>
+            </div>
           </div>
         ) : null}
 
         <form className="contact-form" onSubmit={handleSubmit} noValidate>
-          <div className="contact-grid">
-            <div className="contact-field">
-              <label htmlFor="contact-category">Category</label>
-              <select
-                id="contact-category"
-                value={categoryId}
-                onChange={(event) => {
-                  setCategoryId(event.target.value);
-                  setSubcategoryId("");
-                  setSubjectTouched(false);
-                }}
-                aria-invalid={errors.category ? "true" : "false"}
-                aria-describedby={errors.category ? "contact-category-error" : undefined}
-                required
-              >
-                <option value="">Select a category</option>
-                {(catalog.categories || []).map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.label}
-                  </option>
-                ))}
-              </select>
-              <FieldError id="contact-category-error" message={errors.category} />
+          <section className="contact-topic-card" aria-labelledby="contact-topic-title">
+            <div className="contact-section-heading">
+              <p className="contact-eyebrow">Get help</p>
+              <h2 id="contact-topic-title">What do you need help with?</h2>
+              <p>Choose the closest topic so we can surface the most useful CheckStation guidance.</p>
             </div>
-            <div className="contact-field">
-              <label htmlFor="contact-subcategory">Subcategory</label>
-              <select
-                id="contact-subcategory"
-                value={subcategoryId}
-                onChange={(event) => {
-                  setSubcategoryId(event.target.value);
-                  setSubjectTouched(false);
-                }}
-                disabled={!category}
-                aria-invalid={errors.subcategory ? "true" : "false"}
-                aria-describedby={errors.subcategory ? "contact-subcategory-error" : undefined}
-                required
-              >
-                <option value="">Select a subcategory</option>
-                {(category?.subcategories || []).map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.label}
-                  </option>
-                ))}
-              </select>
-              <FieldError id="contact-subcategory-error" message={errors.subcategory} />
+            <div className="contact-grid contact-topic-grid">
+              <div className="contact-field">
+                <label htmlFor="contact-category">Category</label>
+                <select
+                  id="contact-category"
+                  value={categoryId}
+                  onChange={(event) => {
+                    setCategoryId(event.target.value);
+                    setSubcategoryId("");
+                    setSubjectTouched(false);
+                  }}
+                  aria-invalid={errors.category ? "true" : "false"}
+                  aria-describedby={errors.category ? "contact-category-error" : undefined}
+                  required
+                >
+                  <option value="">Select a category</option>
+                  {(catalog.categories || []).map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+                <FieldError id="contact-category-error" message={errors.category} />
+              </div>
+              <div className={`contact-field contact-dependent-field${category ? " is-ready" : ""}`}>
+                <label htmlFor="contact-subcategory">Subcategory</label>
+                <select
+                  id="contact-subcategory"
+                  value={subcategoryId}
+                  onChange={(event) => {
+                    setSubcategoryId(event.target.value);
+                    setSubjectTouched(false);
+                  }}
+                  disabled={!category}
+                  aria-invalid={errors.subcategory ? "true" : "false"}
+                  aria-describedby={errors.subcategory ? "contact-subcategory-error" : undefined}
+                  required
+                >
+                  <option value="">Select a subcategory</option>
+                  {(category?.subcategories || []).map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+                {!category ? <span className="contact-field-hint">Choose a category first</span> : null}
+                <FieldError id="contact-subcategory-error" message={errors.subcategory} />
+              </div>
             </div>
-          </div>
+          </section>
 
           {classified ? (
-            <section className="contact-help" aria-live="polite">
-              <h2>We may already have an answer for this</h2>
+            <section className="contact-help" aria-live="polite" aria-labelledby="contact-help-title">
+              <div className="contact-section-heading contact-help-heading">
+                <p className="contact-eyebrow">Suggested answers</p>
+                <h2 id="contact-help-title">You may find your answer here</h2>
+                <p>These answers match the topic you selected.</p>
+              </div>
               {suggestions.length === 0 ? (
                 <p className="contact-help-empty">No matching help articles for this topic yet.</p>
               ) : (
@@ -332,7 +350,8 @@ export default function PublicContactScreen() {
                           id={`contact-help-q-${item.slug}`}
                           onClick={() => setOpenSlug(open ? "" : item.slug)}
                         >
-                          {item.question}
+                          <span>{item.question}</span>
+                          <span className="contact-help-chevron" aria-hidden="true">⌄</span>
                         </button>
                         <div
                           className="contact-help-answer"
@@ -361,8 +380,6 @@ export default function PublicContactScreen() {
                   })}
                 </ul>
               )}
-              <h2>Still need help?</h2>
-              <p>Complete the form below. You can always send a message.</p>
             </section>
           ) : null}
 
@@ -379,82 +396,91 @@ export default function PublicContactScreen() {
           </div>
 
           {classified ? (
-            <>
-          <div className="contact-grid">
-            <div className="contact-field">
-              <label htmlFor="contact-email">Email</label>
-              <input
-                id="contact-email"
-                type="email"
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                autoComplete="email"
-                required
-                maxLength={254}
-                aria-invalid={errors.email ? "true" : "false"}
-                aria-describedby={errors.email ? "contact-email-error" : undefined}
-              />
-              <FieldError id="contact-email-error" message={errors.email} />
-            </div>
-            <div className="contact-field">
-              <label htmlFor="contact-name">Name (optional)</label>
-              <input
-                id="contact-name"
-                type="text"
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                autoComplete="name"
-                maxLength={80}
-              />
-            </div>
-          </div>
+            <section className="contact-message-section" aria-labelledby="contact-message-title">
+              <div className="contact-section-heading">
+                <p className="contact-eyebrow">Still need help?</p>
+                <h2 id="contact-message-title">Send us a message</h2>
+                <p>Tell us what happened and we’ll route your message to the right place.</p>
+              </div>
+              <div className="contact-message-card">
+                <div className="contact-grid">
+                  <div className="contact-field">
+                    <label htmlFor="contact-email">Email</label>
+                    <input
+                      id="contact-email"
+                      type="email"
+                      value={email}
+                      onChange={(event) => setEmail(event.target.value)}
+                      autoComplete="email"
+                      required
+                      maxLength={254}
+                      aria-invalid={errors.email ? "true" : "false"}
+                      aria-describedby={errors.email ? "contact-email-error" : undefined}
+                    />
+                    <FieldError id="contact-email-error" message={errors.email} />
+                  </div>
+                  <div className="contact-field">
+                    <label htmlFor="contact-name">Name (optional)</label>
+                    <input
+                      id="contact-name"
+                      type="text"
+                      value={name}
+                      onChange={(event) => setName(event.target.value)}
+                      autoComplete="name"
+                      maxLength={80}
+                    />
+                  </div>
+                </div>
 
-          <div className="contact-field">
-            <label htmlFor="contact-subject">Subject</label>
-            <input
-              id="contact-subject"
-              type="text"
-              value={subject}
-              onChange={(event) => {
-                setSubjectTouched(true);
-                setSubject(event.target.value);
-              }}
-              required
-              minLength={SUBJECT_MIN}
-              maxLength={SUBJECT_MAX}
-              aria-invalid={errors.subject ? "true" : "false"}
-              aria-describedby={errors.subject ? "contact-subject-error" : undefined}
-            />
-            <FieldError id="contact-subject-error" message={errors.subject} />
-          </div>
+                <div className="contact-field">
+                  <label htmlFor="contact-subject">Subject</label>
+                  <input
+                    id="contact-subject"
+                    type="text"
+                    value={subject}
+                    onChange={(event) => {
+                      setSubjectTouched(true);
+                      setSubject(event.target.value);
+                    }}
+                    required
+                    minLength={SUBJECT_MIN}
+                    maxLength={SUBJECT_MAX}
+                    aria-invalid={errors.subject ? "true" : "false"}
+                    aria-describedby={errors.subject ? "contact-subject-error" : undefined}
+                  />
+                  <FieldError id="contact-subject-error" message={errors.subject} />
+                </div>
 
-          <div className="contact-field">
-            <label htmlFor="contact-message">Message</label>
-            <textarea
-              id="contact-message"
-              value={message}
-              onChange={(event) => setMessage(event.target.value)}
-              required
-              minLength={MESSAGE_MIN}
-              maxLength={MESSAGE_MAX}
-              rows={7}
-              aria-invalid={errors.message ? "true" : "false"}
-              aria-describedby={errors.message ? "contact-message-error" : undefined}
-            />
-            <FieldError id="contact-message-error" message={errors.message} />
-          </div>
+                <div className="contact-field">
+                  <label htmlFor="contact-message">Message</label>
+                  <textarea
+                    id="contact-message"
+                    value={message}
+                    onChange={(event) => setMessage(event.target.value)}
+                    required
+                    minLength={MESSAGE_MIN}
+                    maxLength={MESSAGE_MAX}
+                    rows={7}
+                    aria-invalid={errors.message ? "true" : "false"}
+                    aria-describedby={errors.message ? "contact-message-error" : undefined}
+                  />
+                  <FieldError id="contact-message-error" message={errors.message} />
+                </div>
 
-          <div className="contact-turnstile" ref={widgetRef} />
-          {!catalog.turnstile_site_key ? (
-            <p className="contact-field-error" role="alert">
-              Contact protection is not configured on this environment.
-            </p>
-          ) : null}
+                <div className="contact-turnstile" ref={widgetRef} />
+                {!catalog.turnstile_site_key ? (
+                  <p className="contact-field-error" role="alert">
+                    Contact protection is not configured on this environment.
+                  </p>
+                ) : null}
 
-          <button type="submit" className="contact-submit" disabled={loading}>
-            {loading ? "Sending…" : "Send message"}
-          </button>
-            </>
+                <div className="contact-submit-row">
+                  <button type="submit" className="contact-submit" disabled={loading}>
+                    {loading ? "Sending…" : "Send message"}
+                  </button>
+                </div>
+              </div>
+            </section>
           ) : null}
 
           {formError ? (

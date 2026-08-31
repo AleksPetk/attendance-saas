@@ -1,8 +1,8 @@
 /**
- * Owner Account area navigation — Security / Subscription / Billing.
+ * Owner Account area navigation — Security / Subscription / Billing / Info / Tutorial / Status.
  */
 
-export const ACCOUNT_SECTION_IDS = ["security", "subscription", "billing"];
+export const ACCOUNT_SECTION_IDS = ["security", "subscription", "billing", "info", "tutorial", "status"];
 
 export const ACCOUNT_SECTIONS = [
   {
@@ -23,6 +23,24 @@ export const ACCOUNT_SECTIONS = [
     path: "/account/billing",
     description: "Invoices, receipts, and payment details.",
   },
+  {
+    id: "info",
+    label: "Info",
+    path: "/account/info",
+    description: "Documentation, legal information, and help from CheckStation.",
+  },
+  {
+    id: "tutorial",
+    label: "Tutorial",
+    path: "/account/tutorial",
+    description: "Replay the Workspace introduction or choose a focused guided tutorial.",
+  },
+  {
+    id: "status",
+    label: "Status",
+    path: "/account/status",
+    description: "Live CheckStation service health, incidents, and scheduled maintenance.",
+  },
 ];
 
 export const DEFAULT_ACCOUNT_SECTION = "security";
@@ -35,7 +53,7 @@ export function visibleAccountSectionIds(session) {
       ? Boolean(caps.can_manage_subscription)
       : canView;
   if (canView && canManage) return ACCOUNT_SECTION_IDS;
-  return ["security"];
+  return ["security", "info", "tutorial", "status"];
 }
 
 export function visibleAccountSections(session) {

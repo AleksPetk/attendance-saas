@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { Navigate, useParams, useSearchParams } from "react-router-dom";
 import { api, errorMessage } from "./api.js";
+import AccountSignInMethodsPanel from "./AccountSignInMethodsPanel.jsx";
+import AccountInfoPanel from "./AccountInfoPanel.js";
+import AccountTutorialPanel from "./AccountTutorialPanel.jsx";
+import AccountStatusPanel from "./AccountStatusPanel.jsx";
 import { openStripePortalSafely } from "./billingExternalLinks.js";
 import { AccountSettingsSection } from "./accountAccordion.js";
 import {
@@ -34,12 +38,23 @@ import {
   emailAccordionStatusSummary,
   twoFactorStatusPills,
 } from "./accountScreenUi.js";
+import {
+  isOAuthVerifiedResult,
+  oauthAccountSecurityResultMessage,
+  passwordNotAvailableGuidance,
+  signInMethodsStatusPills,
+  signInMethodsStatusSummary,
+} from "./signInMethodsUi.js";
 
 function fieldError(error, name) {
   const value = error?.data?.[name];
   if (Array.isArray(value) && value.length) return value[0];
   if (typeof value === "string") return value;
   return "";
+}
+
+function sensitiveActionErrorMessage(error) {
+  return passwordNotAvailableGuidance(error) || errorMessage(error);
 }
 
 function EmailActionRow({ label, email, status, children }) {
@@ -110,6 +125,10 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
   const [deleteFieldErrors, setDeleteFieldErrors] = useState({});
   const [deleting, setDeleting] = useState(false);
   const [emailExpanded, setEmailExpanded] = useState(false);
+  const [signInMethodsExpanded, setSignInMethodsExpanded] = useState(false);
+  const [signInMethodsNotice, setSignInMethodsNotice] = useState("");
+  const [signInMethodsError, setSignInMethodsError] = useState("");
+  const [oauthReauthReady, setOauthReauthReady] = useState(false);
   const [passwordExpanded, setPasswordExpanded] = useState(false);
   const [twoFactorExpanded, setTwoFactorExpanded] = useState(false);
   const [twoFactorAction, setTwoFactorAction] = useState(null); // "setup" | "regen" | "disable"
@@ -434,6 +453,30 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
     loadAccount();
   }, [loadAccount]);
 
+  useEffect(() => {
+    if (section !== "security") return undefined;
+    const oauthProvider = searchParams.get("oauth");
+    const oauthResult = searchParams.get("result");
+    if (!oauthProvider || !oauthResult) return undefined;
+
+    const message = oauthAccountSecurityResultMessage(oauthProvider, oauthResult);
+    if (isOAuthVerifiedResult(oauthResult)) {
+      setOauthReauthReady(true);
+      setSignInMethodsNotice(message);
+      setSignInMethodsError("");
+    } else if (oauthResult === "linked" || oauthResult === "already_linked") {
+      setSignInMethodsNotice(message);
+      setSignInMethodsError("");
+      loadAccount();
+    } else {
+      setSignInMethodsError(message);
+      setSignInMethodsNotice("");
+    }
+    setSignInMethodsExpanded(true);
+    setSearchParams({}, { replace: true });
+    return undefined;
+  }, [section, searchParams, setSearchParams, loadAccount]);
+
   async function handleChangePassword(event) {
     event.preventDefault();
     setSaving(true);
@@ -485,9 +528,10 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
       setEmailSuccess("Verification email sent to your new login email address.");
       await loadAccount();
     } catch (err) {
+      const guidance = passwordNotAvailableGuidance(err);
       const next = {
         email: fieldError(err, "email"),
-        current_password: fieldError(err, "current_password"),
+        current_password: guidance || fieldError(err, "current_password"),
       };
       if (next.email || next.current_password) {
         setPrimaryFieldErrors(next);
@@ -517,9 +561,10 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
       setEmailSuccess("Verification email sent to your backup email address.");
       await loadAccount();
     } catch (err) {
+      const guidance = passwordNotAvailableGuidance(err);
       const next = {
         email: fieldError(err, "email"),
-        current_password: fieldError(err, "current_password"),
+        current_password: guidance || fieldError(err, "current_password"),
       };
       if (next.email || next.current_password) {
         setBackupFieldErrors(next);
@@ -545,7 +590,8 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
       setEmailSuccess("Backup email removed.");
       await loadAccount();
     } catch (err) {
-      const message = fieldError(err, "current_password");
+      const guidance = passwordNotAvailableGuidance(err);
+      const message = guidance || fieldError(err, "current_password");
       if (message) {
         setBackupFieldErrors({ current_password: message });
       } else {
@@ -623,8 +669,9 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
       });
       if (onAccountDeleted) onAccountDeleted();
     } catch (err) {
+      const guidance = passwordNotAvailableGuidance(err);
       const next = {
-        current_password: fieldError(err, "current_password"),
+        current_password: guidance || fieldError(err, "current_password"),
         confirmation: fieldError(err, "confirmation"),
       };
       if (next.current_password || next.confirmation) {
@@ -641,7 +688,7 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
     return <Navigate to="/account/security" replace />;
   }
 
-  if (section === "subscription" || section === "billing") {
+  if (section === "subscription" || section === "billing" || section === "info" || section === "tutorial" || section === "status") {
     return (
       <div className="page account-page">
         <PageHeader title="Account" description={sectionMeta.description} />
@@ -679,6 +726,9 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
             onOpenPortal={handleOpenPortal}
           />
         ) : null}
+        {section === "info" ? <AccountInfoPanel /> : null}
+        {section === "tutorial" ? <AccountTutorialPanel /> : null}
+        {section === "status" ? <AccountStatusPanel /> : null}
       </div>
     );
   }
@@ -700,9 +750,10 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
   }
 
   const backupStatus = account.backup_email_status || "none";
+  const passwordEnabled = Boolean(account.sign_in_methods?.password?.enabled);
 
   return (
-    <div className="page account-page">
+    <div className="page account-page" data-tutorial-target="account-security">
       <PageHeader title="Account" description={sectionMeta.description} />
       <AccountSubNav session={session} />
       <div className="account-settings-stack">
@@ -907,6 +958,35 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
         </AccountSettingsSection>
 
         <AccountSettingsSection
+          id="sign-in-methods"
+          title="Sign-in methods"
+          description="Password, Google, and Apple sign-in options"
+          statusSummary={signInMethodsStatusSummary(account.sign_in_methods)}
+          statusPills={signInMethodsStatusPills(account.sign_in_methods)}
+          variant="signInMethods"
+          isOpen={signInMethodsExpanded}
+          onToggle={() => setSignInMethodsExpanded((open) => !open)}
+        >
+          <AccountSignInMethodsPanel
+            account={account}
+            twoFactorEnabled={account?.two_factor_status === "enabled"}
+            oauthReauthReady={oauthReauthReady}
+            onOpenChangePassword={() => {
+              setPasswordExpanded(true);
+              setSignInMethodsExpanded(false);
+            }}
+            onRefreshAccount={async (nextAccount) => {
+              setAccount(nextAccount || (await api.account()).data);
+              setOauthReauthReady(false);
+              setSignInMethodsNotice("");
+            }}
+          />
+          <ErrorBanner message={signInMethodsError} />
+          <SuccessBanner message={signInMethodsNotice} />
+        </AccountSettingsSection>
+
+        {passwordEnabled ? (
+        <AccountSettingsSection
           id="password"
           title="Change password"
           description="Update your account password"
@@ -950,6 +1030,7 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
             </button>
           </form>
         </AccountSettingsSection>
+        ) : null}
 
         <AccountSettingsSection
           id="two-factor"
@@ -1025,7 +1106,7 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
                       const result = await api.owner2faRegenerateRecoveryCodes(payload);
                       setRegenRecoveryCodes(result.data.recovery_codes || result.data.recoveryCodes || []);
                     } catch (err) {
-                      setRegenError(errorMessage(err));
+                      setRegenError(sensitiveActionErrorMessage(err));
                     } finally {
                       setRegenBusy(false);
                     }
@@ -1127,7 +1208,7 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
                       setTwoFactorAction(null);
                       await loadAccount();
                     } catch (err) {
-                      setDisableError(errorMessage(err));
+                      setDisableError(sensitiveActionErrorMessage(err));
                     } finally {
                       setDisableBusy(false);
                     }
@@ -1219,7 +1300,7 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
                           setSetupKey(result.data.setup_key);
                           setSetupStep("verifying");
                         } catch (err) {
-                          setSetupError(errorMessage(err));
+                          setSetupError(sensitiveActionErrorMessage(err));
                         } finally {
                           setSetupBusy(false);
                         }
@@ -1247,7 +1328,7 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
                           const result = await api.owner2faVerifySetup({ code: setupCode });
                           setSetupRecoveryCodes(result.data.recovery_codes || result.data.recoveryCodes || []);
                         } catch (err) {
-                          setSetupError(errorMessage(err));
+                          setSetupError(sensitiveActionErrorMessage(err));
                         } finally {
                           setSetupBusy(false);
                         }

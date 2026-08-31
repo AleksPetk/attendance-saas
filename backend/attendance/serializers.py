@@ -1,6 +1,10 @@
 from rest_framework import serializers
 
-from attendance.attendance_report import REPORT_DATE_PRESETS, normalize_report_timezone_name
+from attendance.attendance_report import (
+    REPORT_BY_CHOICES,
+    REPORT_DATE_PRESETS,
+    normalize_report_timezone_name,
+)
 from attendance.models import ActionRecord, ActionSource, ActionType
 
 
@@ -62,7 +66,17 @@ class HistoryQuerySerializer(serializers.Serializer):
 
 
 class AttendanceReportQuerySerializer(serializers.Serializer):
-    source_group_id = serializers.IntegerField(required=True, min_value=1)
+    report_by = serializers.ChoiceField(
+        choices=[(value, value) for value in REPORT_BY_CHOICES],
+        default="group",
+    )
+    member_id = serializers.IntegerField(required=False, min_value=1)
+    source_group_id = serializers.IntegerField(required=False, min_value=1)
+    participant_kind = serializers.ChoiceField(
+        required=False,
+        choices=[("member", "member"), ("group_only_participant", "group_only_participant")],
+    )
+    participant_id = serializers.IntegerField(required=False, min_value=1)
     preset = serializers.ChoiceField(choices=[(v, v) for v in REPORT_DATE_PRESETS])
     date_from = serializers.DateField(required=False)
     date_to = serializers.DateField(required=False)
@@ -75,6 +89,23 @@ class AttendanceReportQuerySerializer(serializers.Serializer):
             raise serializers.ValidationError("Invalid timezone.") from exc
 
     def validate(self, attrs):
+        report_by = attrs.get("report_by", "group")
+        source_group_id = attrs.get("source_group_id")
+        member_id = attrs.get("member_id")
+        participant_kind = attrs.get("participant_kind")
+        participant_id = attrs.get("participant_id")
+        if report_by == "member":
+            if member_id is None:
+                raise serializers.ValidationError({"member_id": "Member mode requires a Member."})
+            if participant_kind is not None or participant_id is not None:
+                raise serializers.ValidationError({"participant_id": "Member mode does not use a participant selection."})
+        else:
+            if source_group_id is None:
+                raise serializers.ValidationError({"source_group_id": "Group mode requires a Group."})
+            if (participant_kind is None) != (participant_id is None):
+                raise serializers.ValidationError(
+                    {"participant_id": "Participant kind and ID must be supplied together."}
+                )
         preset = attrs.get("preset")
         date_from = attrs.get("date_from")
         date_to = attrs.get("date_to")
@@ -94,6 +125,18 @@ class AttendanceReportExportQuerySerializer(AttendanceReportQuerySerializer):
     export_format = serializers.ChoiceField(
         choices=[("pdf", "pdf"), ("xlsx", "xlsx"), ("csv", "csv")],
     )
+
+
+class AttendanceReportOptionsQuerySerializer(serializers.Serializer):
+    member_id = serializers.IntegerField(required=False, min_value=1)
+    source_group_id = serializers.IntegerField(required=False, min_value=1)
+
+    def validate(self, attrs):
+        if attrs.get("member_id") and attrs.get("source_group_id"):
+            raise serializers.ValidationError(
+                "Choose either a Member or a Group when loading report options."
+            )
+        return attrs
 
 
 class KioskIdentifyRequestSerializer(serializers.Serializer):

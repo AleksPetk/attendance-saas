@@ -59,10 +59,23 @@ This document records **security requirements and direction**. It does not defin
 | Account type | Requirement | Status |
 |--------------|-------------|--------|
 | **Platform admin / staff** (Django admin and future platform-operator tooling) | **Mandatory TOTP** for `is_staff` / `is_superuser` | Implemented for Django `/admin/` |
-| **Paying customer User accounts** (workspace owner login) | **Optional**, but should be **prominently recommended** for account safety | Not implemented yet |
+| **Paying customer User accounts** (workspace owner login) | **Optional**, but should be **prominently recommended** for account safety | Implemented (owner TOTP; see `OwnerTOTPDevice`) |
 | **WorkspaceStaffAccount** (customer-created admin/staff) | Undecided; not designed yet | Not implemented yet |
 
-Platform-operator 2FA uses standard TOTP (Google Authenticator and other TOTP apps). After a correct admin password, the operator is held in a pending admin-session state until setup or a TOTP/recovery-code challenge succeeds. Existing authenticated admin sessions from before this slice may continue until logout; the next `/admin/` login must complete 2FA. Recovery codes are shown once and stored hashed. A successful recovery-code login grants a 10-minute admin-session recovery authorization that can replace a lost authenticator without the old TOTP; that authorization is not granted by an ordinary TOTP admin session. Replacing the authenticator immediately disables the old TOTP secret; old recovery codes are invalidated only after the new authenticator is verified. Break-glass CLI: `python manage.py reset_platform_2fa <email> --yes`. Customer owner login and WorkspaceStaffAccount login are unchanged and have no 2FA in this slice. TOTP secrets are encrypted at rest with `PLATFORM_2FA_ENCRYPTION_KEY`, or a key derived from `SECRET_KEY` in local DEBUG.
+Platform-operator 2FA uses standard TOTP (Google Authenticator and other TOTP apps). After a correct admin password, the operator is held in a pending admin-session state until setup or a TOTP/recovery-code challenge succeeds. Existing authenticated admin sessions from before this slice may continue until logout; the next `/admin/` login must complete 2FA. Recovery codes are shown once and stored hashed. A successful recovery-code login grants a 10-minute admin-session recovery authorization that can replace a lost authenticator without the old TOTP; that authorization is not granted by an ordinary TOTP admin session. Replacing the authenticator immediately disables the old TOTP secret; old recovery codes are invalidated only after the new authenticator is verified. Break-glass CLI: `python manage.py reset_platform_2fa <email> --yes`. **Owner** optional TOTP uses the same challenge pattern after password **or OAuth** first-factor login (`OwnerTOTPDevice`, pending owner session). WorkspaceStaffAccount login is unchanged and has no 2FA. TOTP secrets are encrypted at rest with `PLATFORM_2FA_ENCRYPTION_KEY` (platform) or owner-equivalent keys for customer owner devices, or a key derived from `SECRET_KEY` in local DEBUG.
+
+### Owner sign-in methods (Google / Apple) — implemented
+
+Confirmed per [DEC-094](./DECISIONS.md#dec-094--optional-google-and-apple-owner-sign-in-methods) and [OWNER_SIGN_IN_METHODS.md](./OWNER_SIGN_IN_METHODS.md):
+
+- Owner may use CheckStation email + password, Google, and/or Apple on the same `accounts.User`.
+- OAuth identity is `(provider, provider_subject)`; provider email is informational only.
+- No automatic account merge by email; explicit connect from Account → Security after password login.
+- At least one sign-in method must remain; password cannot be removed once set (V1).
+- **Owner CheckStation 2FA applies after every first-factor login** (password, Google, Apple). OAuth callbacks call `complete_owner_authentication()`; they never call `establish_owner_session()` directly.
+- V1: OAuth-only owners must set a CheckStation password before password-gated sensitive actions (`password_not_available`); no OAuth step-up re-auth on those endpoints.
+- **Not** added to WorkspaceStaffAccount, workspace-ID staff login, or platform admin auth.
+- Provider-link rows cascade-delete with the owner User on permanent account deletion.
 
 ## Paying customer email verification
 

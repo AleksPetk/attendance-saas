@@ -27,7 +27,7 @@ class ContactReplyToMailTests(SimpleTestCase):
 
         with patch("core.mail.urllib.request.urlopen", side_effect=fake_urlopen):
             send_transactional_email(
-                to_email="contact@checkstation.alekspetk.com",
+                to_email="contact@checkstation.app",
                 subject="Hello",
                 html_body="<p>Hi</p>",
                 text_body="Hi",

@@ -91,7 +91,7 @@ export default function DashboardScreen({ session }) {
       />
       <AdBanner session={session} placement={PLACEMENT_DASHBOARD_BANNER} />
 
-      <div className="dashboard-metrics">
+      <div className="dashboard-metrics" data-tutorial-target="workspace-dashboard">
         {showMembers ? (
           <StatCard
             label="Members"
@@ -116,7 +116,7 @@ export default function DashboardScreen({ session }) {
         />
       </div>
 
-      <div className="dashboard-row">
+      <div className="dashboard-row" data-tutorial-target="dashboard-workflow">
         <section className="section-card">
           <header className="section-card-header">
             <h2>Recent activity</h2>

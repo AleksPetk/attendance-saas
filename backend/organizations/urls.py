@@ -14,6 +14,8 @@ from organizations.views import (
     WorkspaceStaffGroupAccessView,
     WorkspaceStaffResetPasswordView,
     WorkspaceDashboardView,
+    WorkspaceTutorialStateView,
+    WorkspaceTutorialModuleCompletionView,
 )
 
 urlpatterns = [
@@ -42,4 +44,10 @@ urlpatterns = [
         name="workspace-staff-group-access",
     ),
     path("dashboard/", WorkspaceDashboardView.as_view(), name="workspace-dashboard"),
+    path("tutorial/state/", WorkspaceTutorialStateView.as_view(), name="workspace-tutorial-state"),
+    path(
+        "tutorial/modules/<slug:module_id>/complete/",
+        WorkspaceTutorialModuleCompletionView.as_view(),
+        name="workspace-tutorial-module-complete",
+    ),
 ]

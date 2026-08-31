@@ -47,7 +47,7 @@ export default function KioskAttendanceResetSettings({ form, onPatch, onResetNow
 
   return (
     <div className="ks-attendance-reset">
-      <div className="kiosk-settings-subsection">
+      <div className="kiosk-settings-subsection" data-tutorial-target="kiosk-reset-mode">
         <h4>Reset mode</h4>
         <div className="kiosk-segment-picker" role="radiogroup" aria-label="Attendance reset mode">
           {[
@@ -71,7 +71,7 @@ export default function KioskAttendanceResetSettings({ form, onPatch, onResetNow
       </div>
 
       {isDaily ? (
-        <div className="kiosk-settings-subsection">
+        <div className="kiosk-settings-subsection" data-tutorial-target="kiosk-reset-schedule">
           <h4>Reset at</h4>
           <div className="kiosk-segment-picker" role="radiogroup" aria-label="Daily reset time">
             {DAILY_RESET_PRESETS.map((preset) => (
@@ -107,7 +107,7 @@ export default function KioskAttendanceResetSettings({ form, onPatch, onResetNow
       ) : null}
 
       {isRolling ? (
-        <div className="kiosk-settings-subsection">
+        <div className="kiosk-settings-subsection" data-tutorial-target="kiosk-reset-schedule">
           <h4>Reset after</h4>
           <div className="kiosk-segment-picker" role="radiogroup" aria-label="Rolling reset duration">
             {ROLLING_RESET_PRESETS.map((preset) => (
@@ -164,7 +164,7 @@ export default function KioskAttendanceResetSettings({ form, onPatch, onResetNow
         </div>
       ) : null}
 
-      <div className="ks-reset-manual">
+      <div className="ks-reset-manual" data-tutorial-target="kiosk-reset-now">
         <h4>Manual reset</h4>
         <p className="hint kiosk-settings-helper">
           Need a fresh cycle before the scheduled reset?

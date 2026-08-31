@@ -1,5 +1,5 @@
-import { Link, useLocation } from "react-router-dom";
-import { useMemo, useState } from "react";
+import { Link, useLocation, useNavigationType } from "react-router-dom";
+import { useLayoutEffect, useMemo, useState } from "react";
 import { Wordmark } from "./components.jsx";
 import { brandLogoMark, brandLogoText } from "./assets/brand/brandLogo.js";
 import {
@@ -66,9 +66,22 @@ function FooterLinkColumn({ title, items }) {
 
 export default function PublicPageShell({ children }) {
   const location = useLocation();
+  const navigationType = useNavigationType();
   const path = location.pathname;
   const [menuOpen, setMenuOpen] = useState(false);
   const copyrightYear = new Date().getFullYear();
+
+  useLayoutEffect(() => {
+    if (location.hash) {
+      const targetId = decodeURIComponent(location.hash.slice(1));
+      document.getElementById(targetId)?.scrollIntoView();
+      return;
+    }
+
+    if (navigationType !== "POP") {
+      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    }
+  }, [location.key, location.hash, navigationType]);
 
   const active = useMemo(() => {
     if (path === "/") return "home";

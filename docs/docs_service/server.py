@@ -17,6 +17,31 @@ CORS_HEADERS = (
     ("Access-Control-Max-Age", "600"),
 )
 
+# Missing files with these suffixes must 404 — never fall through to the SPA HTML shell
+# (browsers would treat text/html as a broken/wrong favicon).
+STATIC_ASSET_SUFFIXES = {
+    ".css",
+    ".gif",
+    ".ico",
+    ".jpeg",
+    ".jpg",
+    ".js",
+    ".map",
+    ".png",
+    ".svg",
+    ".txt",
+    ".webp",
+    ".woff",
+    ".woff2",
+    ".xml",
+}
+
+
+def _content_type_for(path: Path) -> str:
+    if path.suffix.lower() == ".ico":
+        return "image/x-icon"
+    return mimetypes.guess_type(str(path))[0] or "application/octet-stream"
+
 
 def _safe_static_path(static_dir, relative):
     target = (static_dir / relative).resolve()
@@ -79,14 +104,18 @@ def create_handler(config):
                 return
             if path.startswith("/"):
                 relative = path.lstrip("/")
+                suffix = Path(relative).suffix.lower() if relative else ""
+                if relative and suffix in STATIC_ASSET_SUFFIXES:
+                    target = _safe_static_path(static_dir, relative)
+                    if target is not None:
+                        self._file(target, _content_type_for(target))
+                        return
+                    self._send(404, b"Not found", content_type="text/plain; charset=utf-8")
+                    return
                 if relative and "." in Path(relative).name:
                     target = _safe_static_path(static_dir, relative)
                     if target is not None:
-                        content_type = (
-                            mimetypes.guess_type(str(target))[0]
-                            or "application/octet-stream"
-                        )
-                        self._file(target, content_type)
+                        self._file(target, _content_type_for(target))
                         return
             self._html(path)
 

@@ -17,9 +17,9 @@ from core.mail import EmailSendError
 @override_settings(
     TURNSTILE_SITE_KEY=DUMMY_PASS_SITE_KEY,
     TURNSTILE_SECRET_KEY=DUMMY_PASS_SECRET,
-    CONTACT_TO_EMAIL="contact@checkstation.alekspetk.com",
+    CONTACT_TO_EMAIL="contact@checkstation.app",
     RESEND_API_KEY="re_test",
-    RESEND_FROM_EMAIL="accounts@checkstation.alekspetk.com",
+    RESEND_FROM_EMAIL="accounts@checkstation.app",
 )
 class ContactApiTests(TestCase):
     def setUp(self):
@@ -97,7 +97,7 @@ class ContactApiTests(TestCase):
         self.assertEqual(row.email, "customer@example.com")
         self.assertEqual(row.category_id, "kiosk")
         self.assertEqual(row.delivery_status, DeliveryStatus.SENT)
-        self.assertEqual(captured["to_email"], "contact@checkstation.alekspetk.com")
+        self.assertEqual(captured["to_email"], "contact@checkstation.app")
         self.assertEqual(captured["reply_to"], "customer@example.com")
         self.assertIn("Kiosk will not start", captured["text_body"])
         self.assertNotIn("@gmail.com", captured["text_body"])

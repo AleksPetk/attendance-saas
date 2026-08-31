@@ -74,6 +74,8 @@ services:
     ports:
       - "8090:8090"
     volumes:
+      # Match frontend: serve host static/HTML so favicons stay in sync with source.
+      - ./status:/app
       - status_data:/data
 
   docs:
@@ -89,6 +91,9 @@ services:
       STATUS_PUBLIC_URL: ${VITE_STATUS_PUBLIC_URL:-http://localhost:8090}
     ports:
       - "8091:8091"
+    volumes:
+      # Match frontend: serve host static/HTML so favicons stay in sync with source.
+      - ./docs:/app
 
 volumes:
   postgres_data:

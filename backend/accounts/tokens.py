@@ -1,10 +1,13 @@
 """
 HMAC email-verification tokens using Django's password-reset primitive.
 
-Raw tokens are never stored. Successful verification changes the hash input
-(`email_verified` / `email_verified_at`), so the same token cannot be reused.
-Changing the email or password also invalidates outstanding tokens.
+Raw tokens are never stored. Changing the email or password invalidates
+outstanding tokens. After successful email verification, the exact original
+token remains recognizable until its normal expiry so repeated verification
+requests can complete idempotently.
 """
+
+from copy import copy
 
 from django.conf import settings
 from django.contrib.auth.tokens import PasswordResetTokenGenerator
@@ -43,13 +46,25 @@ class EmailVerificationTokenGenerator(PasswordResetTokenGenerator):
         except (ValueError, AttributeError, TypeError):
             return "invalid"
 
+        candidates = [user]
+        if getattr(user, "email_verified", False):
+            # The token was issued while this account was pending. Preserve
+            # recognition of that exact token after provisioning so retries or
+            # concurrent callbacks do not create an error after success.
+            pending_state = copy(user)
+            pending_state.email_verified = False
+            pending_state.email_verified_at = None
+            candidates.append(pending_state)
+
         secrets = [self.secret, *self.secret_fallbacks]
-        matched = False
-        for secret in secrets:
-            candidate = self._make_token_with_timestamp(user, timestamp, secret)
-            if constant_time_compare(candidate, token):
-                matched = True
-                break
+        matched = any(
+            constant_time_compare(
+                self._make_token_with_timestamp(candidate_user, timestamp, secret),
+                token,
+            )
+            for candidate_user in candidates
+            for secret in secrets
+        )
         if not matched:
             return "invalid"
 

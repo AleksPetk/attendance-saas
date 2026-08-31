@@ -11,10 +11,9 @@ from openpyxl.utils import get_column_letter
 from attendance.report_export.common import (
     cell_text,
     flatten_report_rows,
-    period_lines,
+    report_context_lines,
     report_identity_headers,
     report_identity_values,
-    report_shows_class_column,
     status_label,
 )
 
@@ -34,7 +33,7 @@ def build_attendance_report_xlsx(report: dict) -> bytes:
     sheet.cell(row_idx, 1, report.get("organization_name") or "").font = meta_font
     row_idx += 1
 
-    sheet.cell(row_idx, 1, report.get("group_name") or "Group").font = title_font
+    sheet.cell(row_idx, 1, "Attendance Report").font = title_font
     row_idx += 1
 
     status = status_label(report.get("group_status"))
@@ -42,10 +41,7 @@ def build_attendance_report_xlsx(report: dict) -> bytes:
         sheet.cell(row_idx, 1, f"Status: {status}").font = meta_font
         row_idx += 1
 
-    sheet.cell(row_idx, 1, "Attendance Report").font = bold
-    row_idx += 1
-
-    for line in period_lines(report):
+    for line in report_context_lines(report):
         sheet.cell(row_idx, 1, line).font = meta_font
         row_idx += 1
 
@@ -64,7 +60,7 @@ def build_attendance_report_xlsx(report: dict) -> bytes:
 
     sheet.freeze_panes = f"A{header_row + 1}"
 
-    identity_count = 3 if report_shows_class_column(report) else 2
+    identity_count = len(report_identity_headers(report))
     for row in flatten_report_rows(report):
         row_idx += 1
         values = [
@@ -77,10 +73,7 @@ def build_attendance_report_xlsx(report: dict) -> bytes:
             if col_idx > identity_count:
                 cell.number_format = "@"
 
-    if report_shows_class_column(report):
-        widths = [18, 16, 22] + [14] * len(columns)
-    else:
-        widths = [18, 22] + [14] * len(columns)
+    widths = [18] + [22] * (identity_count - 1) + [14] * len(columns)
     for idx, width in enumerate(widths, start=1):
         sheet.column_dimensions[get_column_letter(idx)].width = width
 

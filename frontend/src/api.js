@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+const API_BASE_URL = import.meta.env?.VITE_API_BASE_URL || "http://localhost:8000";
 
 function getCookie(name) {
   if (typeof document === "undefined") return "";
@@ -26,7 +26,7 @@ function shouldAttachCsrf(method) {
   return !["GET", "HEAD", "OPTIONS"].includes(m);
 }
 
-async function request(path, { method = "GET", json, formData } = {}) {
+async function request(path, { method = "GET", json, formData, cache } = {}) {
   const headers = {};
   const m = method.toUpperCase();
 
@@ -50,6 +50,7 @@ async function request(path, { method = "GET", json, formData } = {}) {
     headers,
     body,
     credentials: "include",
+    ...(cache ? { cache } : {}),
   });
   if (response.status === 204) {
     return { ok: true, status: 204, data: null };
@@ -113,6 +114,9 @@ export const api = {
   forgotPassword: (payload) => request("/api/auth/forgot-password/", { method: "POST", json: payload }),
   resetPassword: (payload) => request("/api/auth/reset-password/", { method: "POST", json: payload }),
   changePassword: (payload) => request("/api/auth/change-password/", { method: "POST", json: payload }),
+  setPassword: (payload) => request("/api/auth/set-password/", { method: "POST", json: payload }),
+  unlinkGoogle: (payload) => request("/api/auth/google/unlink/", { method: "POST", json: payload }),
+  unlinkApple: (payload) => request("/api/auth/apple/unlink/", { method: "POST", json: payload }),
   account: () => request("/api/auth/account/"),
   deleteAccount: (payload) => request("/api/auth/account/delete/", { method: "POST", json: payload }),
   requestBackupEmail: (payload) =>
@@ -148,6 +152,20 @@ export const api = {
 
   /* Workspace data endpoints (cookie session auth; `auth` arg kept for compatibility) */
   loadWorkspace: (_auth) => request("/api/workspace/"),
+  getTutorialState: () => request("/api/tutorial/state/"),
+  updateTutorialState: (payload) =>
+    request("/api/tutorial/state/", { method: "PATCH", json: payload }),
+  completeTutorialModule: (moduleId) =>
+    request(`/api/tutorial/modules/${encodeURIComponent(moduleId)}/complete/`, {
+      method: "POST",
+      json: {},
+    }),
+  listAnnouncements: () =>
+    request("/api/announcements/", { cache: "no-store" }),
+  markAnnouncementRead: (id) =>
+    request(`/api/announcements/${id}/read/`, { method: "POST", json: {} }),
+  markAnnouncementsRead: () =>
+    request("/api/announcements/mark-read/", { method: "POST", json: {} }),
   dashboard: (_auth) => request("/api/dashboard/"),
   getPlanLockSelection: (_auth, kind) =>
     request(`/api/plan-locks/selection/?kind=${encodeURIComponent(kind)}`),
@@ -294,6 +312,8 @@ export const api = {
     request(`/api/groups/${groupId}/kiosk/perform/`, { method: "POST", json: payload }),
   listHistory: (_auth, params = "") => request(`/api/history/${params}`),
   listHistoryReportGroups: (_auth) => request("/api/history/report-groups/"),
+  getAttendanceReportOptions: (_auth, params = "") =>
+    request(`/api/history/attendance-report/options/${params}`),
   getAttendanceReport: (_auth, params = "") =>
     request(`/api/history/attendance-report/${params}`),
   exportAttendanceReport: (_auth, params = "") =>
@@ -308,6 +328,19 @@ export const api = {
       `/api/contact/suggestions/?category=${encodeURIComponent(category)}&subcategory=${encodeURIComponent(subcategory)}`,
     ),
   submitContact: (payload) => request("/api/contact/", { method: "POST", json: payload }),
+
+  /* Canonical published documentation/help content. */
+  listContentDocuments: () => request("/api/content/documents/"),
+  getContentDocument: (slug) =>
+    request(`/api/content/documents/${encodeURIComponent(slug)}/`),
+  listContentFaq: ({ category = "", q = "" } = {}) => {
+    const query = new URLSearchParams();
+    if (category) query.set("category", category);
+    if (q) query.set("q", q);
+    const suffix = query.toString() ? `?${query.toString()}` : "";
+    return request(`/api/content/faq/${suffix}`);
+  },
+
   startBillingCheckout: (json) =>
     request("/api/billing/checkout/", { method: "POST", json }),
   previewBillingUpgrade: (json = {}) =>
@@ -334,6 +367,8 @@ export const api = {
     request("/api/workspace-staff/", { method: "POST", json }),
   updateWorkspaceStaff: (_auth, staffId, json) =>
     request(`/api/workspace-staff/${staffId}/`, { method: "PATCH", json }),
+  deleteWorkspaceStaff: (_auth, staffId) =>
+    request(`/api/workspace-staff/${staffId}/`, { method: "DELETE" }),
   resetWorkspaceStaffPassword: (_auth, staffId, json) =>
     request(`/api/workspace-staff/${staffId}/reset-password/`, { method: "POST", json }),
   getWorkspaceStaffGroupAccess: (_auth, staffId) =>

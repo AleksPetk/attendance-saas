@@ -71,4 +71,8 @@ from accounts.customer_two_factor_models import (  # noqa: E402,F401
     OwnerRecoveryCode,
     OwnerTOTPDevice,
 )
+from accounts.owner_auth_provider_models import (  # noqa: E402,F401
+    OwnerAuthProvider,
+    OwnerAuthProviderLink,
+)
 from accounts.two_factor_models import PlatformRecoveryCode, PlatformTOTPDevice  # noqa: E402,F401

@@ -231,6 +231,15 @@ CATEGORY_DEFINITIONS = (
             },
             {
                 "app_label": "content",
+                "object_name": "announcement",
+                "label": "Announcements",
+                "description": "Platform announcements shown in Workspace notification centers.",
+                "prefer_add": True,
+                "count": lambda: _safe_model_count("content", "Announcement"),
+                "stats": lambda: [],
+            },
+            {
+                "app_label": "content",
                 "object_name": "document",
                 "label": "Public documents",
                 "description": "Canonical Docs, Privacy, Terms, and FAQ content.",

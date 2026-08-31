@@ -16,7 +16,10 @@ from django.http import HttpResponse
 from attendance.attendance_report import (
     build_attendance_report,
     get_report_timezone,
+    list_group_report_participants,
+    list_member_report_groups,
     list_report_groups,
+    list_report_members,
 )
 from attendance.report_export import render_attendance_report_export
 from attendance.kiosk_lock import (
@@ -38,6 +41,7 @@ from attendance.models import ActionRecord, ActionSource, ActionType
 from attendance.serializers import (
     ActionRecordSerializer,
     AttendanceReportExportQuerySerializer,
+    AttendanceReportOptionsQuerySerializer,
     AttendanceReportQuerySerializer,
     HistoryQuerySerializer,
     KioskIdentifyRequestSerializer,
@@ -100,6 +104,59 @@ def _authorize_attendance_report_source(request, organization, source_group_id: 
         return
     if get_staff_assigned_group_ids(request.user) is not None:
         raise NotFound("Group not found for attendance report in this workspace.")
+
+
+def _allowed_attendance_report_group_ids(request, organization):
+    assigned_ids = get_staff_assigned_group_ids(request.user)
+    if assigned_ids is None:
+        return None
+    return set(
+        Group.objects.filter(
+            organization=organization,
+            pk__in=assigned_ids,
+            plan_unlocked=True,
+        ).values_list("id", flat=True)
+    )
+
+
+def _authorize_attendance_report_member(request, organization, member_id, allowed_group_ids):
+    visible_ids = {
+        item["id"]
+        for item in list_report_members(
+            organization=organization,
+            allowed_group_ids=allowed_group_ids,
+        )
+    }
+    if member_id not in visible_ids:
+        raise NotFound("Member not found for attendance report in this workspace.")
+
+
+def _build_attendance_report_for_request(request, organization, data):
+    report_by = data.get("report_by", "group")
+    source_group_id = data.get("source_group_id")
+    allowed_group_ids = _allowed_attendance_report_group_ids(request, organization)
+    if source_group_id is not None:
+        _authorize_attendance_report_source(request, organization, source_group_id)
+    if report_by == "member":
+        _authorize_attendance_report_member(
+            request,
+            organization,
+            data["member_id"],
+            allowed_group_ids,
+        )
+    return build_attendance_report(
+        organization=organization,
+        report_by=report_by,
+        member_id=data.get("member_id"),
+        source_group_id=source_group_id,
+        participant_kind=data.get("participant_kind"),
+        participant_id=data.get("participant_id"),
+        allowed_group_ids=allowed_group_ids,
+        preset=data["preset"],
+        date_from=data.get("date_from"),
+        date_to=data.get("date_to"),
+        timezone_name=data.get("timezone"),
+    )
 
 
 def _kiosk_start_payload(request, group, payload):
@@ -713,6 +770,54 @@ class WorkspaceHistoryReportGroupsView(OwnedWorkspaceMixin, APIView):
         )
 
 
+class WorkspaceAttendanceReportOptionsView(OwnedWorkspaceMixin, APIView):
+    """Canonical, permission-scoped selectors for both report modes."""
+
+    def get(self, request):
+        query = AttendanceReportOptionsQuerySerializer(data=request.query_params)
+        query.is_valid(raise_exception=True)
+        data = query.validated_data
+        allowed_group_ids = _allowed_attendance_report_group_ids(
+            request,
+            self.organization,
+        )
+        payload = {
+            "members": list_report_members(
+                organization=self.organization,
+                allowed_group_ids=allowed_group_ids,
+            ),
+            "groups": list_report_groups(
+                organization=self.organization,
+                allowed_group_ids=allowed_group_ids,
+            ),
+        }
+        member_id = data.get("member_id")
+        source_group_id = data.get("source_group_id")
+        if member_id is not None:
+            _authorize_attendance_report_member(
+                request,
+                self.organization,
+                member_id,
+                allowed_group_ids,
+            )
+            payload["member_groups"] = list_member_report_groups(
+                organization=self.organization,
+                member_id=member_id,
+                allowed_group_ids=allowed_group_ids,
+            )
+        if source_group_id is not None:
+            _authorize_attendance_report_source(
+                request,
+                self.organization,
+                source_group_id,
+            )
+            payload["participants"] = list_group_report_participants(
+                organization=self.organization,
+                source_group_id=source_group_id,
+            )
+        return Response(payload)
+
+
 class WorkspaceAttendanceReportView(OwnedWorkspaceMixin, APIView):
     """
     Aggregated attendance report for one Group over a date range.
@@ -725,20 +830,8 @@ class WorkspaceAttendanceReportView(OwnedWorkspaceMixin, APIView):
         query.is_valid(raise_exception=True)
         data = query.validated_data
 
-        source_group_id = data["source_group_id"]
-        _authorize_attendance_report_source(
-            request, self.organization, source_group_id
-        )
-
         try:
-            report = build_attendance_report(
-                organization=self.organization,
-                source_group_id=source_group_id,
-                preset=data["preset"],
-                date_from=data.get("date_from"),
-                date_to=data.get("date_to"),
-                timezone_name=data.get("timezone"),
-            )
+            report = _build_attendance_report_for_request(request, self.organization, data)
         except ValueError as exc:
             raise ValidationError({"detail": str(exc)}) from exc
 
@@ -768,20 +861,8 @@ class WorkspaceAttendanceReportExportView(OwnedWorkspaceMixin, APIView):
         if export_feature is not None:
             deny_plan_feature(self.organization, export_feature)
 
-        source_group_id = data["source_group_id"]
-        _authorize_attendance_report_source(
-            request, self.organization, source_group_id
-        )
-
         try:
-            report = build_attendance_report(
-                organization=self.organization,
-                source_group_id=source_group_id,
-                preset=data["preset"],
-                date_from=data.get("date_from"),
-                date_to=data.get("date_to"),
-                timezone_name=data.get("timezone"),
-            )
+            report = _build_attendance_report_for_request(request, self.organization, data)
         except ValueError as exc:
             raise ValidationError({"detail": str(exc)}) from exc
 
@@ -881,4 +962,3 @@ class GroupKioskExitView(APIView):
         payload = {"ok": True}
         payload.update(kiosk_status_payload(request))
         return Response(payload)
-

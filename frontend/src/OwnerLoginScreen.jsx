@@ -1,30 +1,40 @@
-import { useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { api, errorMessage } from "./api.js";
+import AuthProviderButtons, { AuthMethodDivider } from "./AuthProviderButtons.jsx";
 import { AuthLayout, ErrorBanner, Field, PasswordInput, SuccessBanner } from "./components.jsx";
 
 export default function OwnerLoginScreen({ onSignedIn }) {
   const [searchParams] = useSearchParams();
+  const location = useLocation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
+  const [error, setError] = useState(() => location.state?.oauthError || "");
   const [info, setInfo] = useState(() => {
     if (searchParams.get("verified") === "1") return "Email verified. Sign in to continue.";
     if (searchParams.get("reset") === "1") return "Password updated. Sign in with your new password.";
     if (searchParams.get("deleted") === "1") {
-      return "Your Check Station account and workspace have been permanently deleted.";
+      return "Your CheckStation account and workspace have been permanently deleted.";
     }
     return "";
   });
   const [loading, setLoading] = useState(false);
   const [needsVerification, setNeedsVerification] = useState(false);
-  const [needsTwoFactor, setNeedsTwoFactor] = useState(false);
+  const [needsTwoFactor, setNeedsTwoFactor] = useState(
+    () => searchParams.get("two_factor") === "1",
+  );
   const [twoFactorCode, setTwoFactorCode] = useState("");
   const [twoFactorRecoveryCode, setTwoFactorRecoveryCode] = useState("");
   const [useRecoveryCode, setUseRecoveryCode] = useState(false);
   const [twoFactorError, setTwoFactorError] = useState("");
   const [resendLoading, setResendLoading] = useState(false);
   const [resendMessage, setResendMessage] = useState("");
+
+  useEffect(() => {
+    if (searchParams.get("two_factor") === "1") {
+      setNeedsTwoFactor(true);
+    }
+  }, [searchParams]);
 
   async function handleSubmit(event) {
     event.preventDefault();
@@ -142,6 +152,8 @@ export default function OwnerLoginScreen({ onSignedIn }) {
           <p className="hint" style={{ textAlign: "center" }}>
             <Link to="/forgot-password">Forgot password?</Link>
           </p>
+          <AuthMethodDivider />
+          <AuthProviderButtons intent="login" />
         </form>
       ) : (
         <form onSubmit={handleTwoFactorVerify} className="auth-form">

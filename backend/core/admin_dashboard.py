@@ -140,6 +140,21 @@ NAV_GROUPS = (
                 "label": "Advertising",
             },
             {
+                "app_label": "content",
+                "object_name": "announcement",
+                "label": "Announcements",
+            },
+            {
+                "app_label": "content",
+                "object_name": "document",
+                "label": "Public documents",
+            },
+            {
+                "app_label": "content",
+                "object_name": "faqentry",
+                "label": "FAQ entries",
+            },
+            {
                 "app_label": "core",
                 "object_name": "platformadminaction",
                 "label": "Platform admin actions",

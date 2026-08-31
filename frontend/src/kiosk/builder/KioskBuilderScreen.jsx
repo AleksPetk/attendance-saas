@@ -363,7 +363,7 @@ function KioskBuilderEditor({ session, groupId, initial, onNavigate }) {
 
   return (
     <div className="kb-fullscreen">
-      <div className="kb-canvas">
+      <div className="kb-canvas" data-tutorial-target="kiosk-design-preview">
         <KioskBuilderPreview
           design={design}
           config={design.config}

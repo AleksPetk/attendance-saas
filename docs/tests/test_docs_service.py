@@ -68,9 +68,16 @@ class DocsHttpTests(unittest.TestCase):
         self.server.shutdown()
         self.server.server_close()
 
-    def _get(self, path):
-        with urlopen(self.base + path, timeout=3) as response:
-            return response.getcode(), response.read(), dict(response.headers)
+    def _get(self, path, *, allow_error=False):
+        from urllib.error import HTTPError
+
+        try:
+            with urlopen(self.base + path, timeout=3) as response:
+                return response.getcode(), response.read(), dict(response.headers)
+        except HTTPError as exc:
+            if not allow_error:
+                raise
+            return exc.code, exc.read(), dict(exc.headers)
 
     def test_home_and_direct_legal_routes_serve_docs_shell(self):
         for path in (
@@ -97,7 +104,7 @@ class DocsHttpTests(unittest.TestCase):
             self.assertNotIn("public-footer", html)
             self.assertIn("/config.js", html)
             self.assertIn("viewport", html)
-            self.assertIn('/favicon.ico?v=20260828', html)
+            self.assertIn('/favicon.ico?v=20260831', html)
 
     def test_favicon_assets_are_served(self):
         for path in ("/favicon.ico", "/favicon-32x32.png", "/apple-touch-icon.png"):
@@ -105,6 +112,21 @@ class DocsHttpTests(unittest.TestCase):
             self.assertEqual(code, 200)
             self.assertTrue(headers.get("Content-Type", "").startswith("image/"))
             self.assertGreater(len(body), 100)
+
+    def test_missing_static_asset_does_not_return_html(self):
+        code, body, headers = self._get("/favicon-missing-test.ico", allow_error=True)
+        self.assertEqual(code, 404)
+        self.assertIn("text/plain", headers.get("Content-Type", ""))
+        self.assertNotIn(b"<!DOCTYPE html>", body)
+        self.assertNotIn(b"<html", body)
+
+    def test_html_does_not_use_logo_mark_as_favicon(self):
+        code, body, _headers = self._get("/")
+        self.assertEqual(code, 200)
+        html = body.decode("utf-8")
+        self.assertIn('/favicon.ico?v=20260831', html)
+        self.assertNotIn('rel="icon" href="/brand/logo-mark.png"', html)
+        self.assertNotIn("vite.svg", html)
 
     def test_config_js_uses_browser_facing_api(self):
         code, body, headers = self._get("/config.js")

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { api, errorMessage } from "./api.js";
 import {
   ConfirmDialog,
@@ -24,6 +25,7 @@ import {
   canCreateStructuredGroups,
   canUseGroupForwardEmails,
 } from "./workspaceEntitlements.js";
+import { groupEmailTutorialPanels } from "./groupEmailTutorial.js";
 
 const PROVIDER_CUSTOM_SMTP = "custom_smtp";
 const PROVIDER_GMAIL = "gmail";
@@ -116,6 +118,7 @@ function senderStatusLabel(sender) {
 }
 
 export default function GroupEditorScreen({ session, groupId, onNavigate }) {
+  const location = useLocation();
   const isEdit = Boolean(groupId);
   const structuredAllowed = canCreateStructuredGroups(session);
   const forwardEmailsAllowed = canUseGroupForwardEmails(session);
@@ -146,6 +149,13 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
   const [leaveDialogOpen, setLeaveDialogOpen] = useState(false);
   const [planAccessDenied, setPlanAccessDenied] = useState(false);
   const skipLeaveConfirmRef = useRef(false);
+
+  useEffect(() => {
+    const panels = groupEmailTutorialPanels(location.search);
+    if (panels.advanced) setAdvancedOpen(true);
+    if (panels.sender) setEmailSenderOpen(true);
+    if (panels.forwarding) setForwardEmailsOpen(true);
+  }, [location.search]);
 
   const dirty = useMemo(() => {
     if (isEdit) {
@@ -728,9 +738,18 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
         </div>
       ) : null}
 
-      <form id="group-editor-form" className="group-form group-form-dashboard" onSubmit={handleSubmit}>
+      <form
+        id="group-editor-form"
+        className="group-form group-form-dashboard"
+        data-tutorial-target="group-editor-form"
+        onSubmit={handleSubmit}
+      >
         {!isEdit ? (
-          <SectionCard title="Group type" className="section-group-type">
+          <SectionCard
+            title="Group type"
+            className="section-group-type"
+            tutorialTarget="group-editor-type"
+          >
             <div className="group-type-selector" role="radiogroup" aria-label="Group type">
               <button
                 type="button"
@@ -787,7 +806,11 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
           </SectionCard>
         )}
 
-        <SectionCard title="Group name" className="section-name">
+        <SectionCard
+          title="Group name"
+          className="section-name"
+          tutorialTarget="group-editor-name"
+        >
           <Field label="Name">
             <input
               value={values.name}
@@ -801,6 +824,7 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
           title="Actions"
           description="What this Group can perform."
           className="section-actions"
+          tutorialTarget="group-editor-actions"
         >
           <div className="toggle-grid toggle-grid-compact">
             <Toggle
@@ -844,6 +868,7 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
           title="Participation"
           description="Require participation email or PIN for operational participants."
           className="section-participation"
+          tutorialTarget="group-editor-participation"
         >
           <div className="toggle-grid toggle-grid-compact toggle-grid-stack">
             <Toggle
@@ -881,6 +906,7 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
           title="After-action"
           description="Email participants after enabled actions."
           className={`section-after-action${afterActionDisabled ? " is-disabled" : ""}`}
+          tutorialTarget="group-editor-after-action"
         >
           {afterActionDisabled ? (
             <p className="hint after-action-blocked">
@@ -947,7 +973,7 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
           )}
         </SectionCard>
 
-        <section className="section-card section-advanced">
+        <section className="section-card section-advanced" data-tutorial-target="group-email-settings">
           <header className="advanced-header">
             <div>
               <h2>Advanced</h2>
@@ -956,6 +982,7 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
             <button
               type="button"
               className="btn-secondary btn-sm"
+              data-tutorial-target="group-email-advanced-toggle"
               aria-expanded={advancedOpen}
               onClick={() => setAdvancedOpen((open) => !open)}
             >
@@ -990,7 +1017,10 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
                       <p className="hint">Save the Group first, then configure an email sender here.</p>
                     ) : (
                       <>
-                    <div className="email-sender-status-row">
+                    <div
+                      className="email-sender-status-row"
+                      data-tutorial-target="group-email-sender"
+                    >
                       <Field label="Provider">
                         <select
                           value={senderForm.provider}
@@ -1433,6 +1463,7 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
                 <button
                   type="button"
                   className="advanced-subsection-toggle"
+                  data-tutorial-target="group-forward-emails"
                   aria-expanded={forwardEmailsOpen}
                   onClick={() => setForwardEmailsOpen((open) => !open)}
                 >

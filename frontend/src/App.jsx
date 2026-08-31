@@ -11,6 +11,7 @@ import {
 } from "react-router-dom";
 import SignInScreen from "./SignInScreen.jsx";
 import WorkspaceLayout from "./WorkspaceLayout.jsx";
+import { TutorialProvider } from "./TutorialContext.jsx";
 import MembersScreen from "./MembersScreen.jsx";
 import MemberCreateScreen from "./MemberCreateScreen.jsx";
 import MemberProfileScreen from "./MemberProfileScreen.jsx";
@@ -28,6 +29,7 @@ import PublicFeaturesScreen from "./PublicFeaturesScreen.jsx";
 import PublicHowItWorksScreen from "./PublicHowItWorksScreen.jsx";
 import PublicPricingScreen from "./PublicPricingScreen.jsx";
 import PublicContactScreen from "./PublicContactScreen.jsx";
+import OwnerOAuthResultScreen from "./OwnerOAuthResultScreen.jsx";
 import OwnerLoginScreen from "./OwnerLoginScreen.jsx";
 import StaffLoginScreen from "./StaffLoginScreen.jsx";
 import RegisterScreen from "./RegisterScreen.jsx";
@@ -181,7 +183,9 @@ function isPublicAuthPath(pathname) {
     pathname.startsWith("/verify-backup-email") ||
     pathname.startsWith("/verify-primary-email") ||
     pathname.startsWith("/forgot-password") ||
-    pathname.startsWith("/reset-password")
+    pathname.startsWith("/reset-password") ||
+    pathname.startsWith("/auth/google/result") ||
+    pathname.startsWith("/auth/apple/result")
   );
 }
 
@@ -257,7 +261,9 @@ function WorkspaceRoutes({
       return;
     }
     if (route.name === "dashboard") nav("/dashboard");
-    if (route.name === "account") nav("/account/security");
+    if (route.name === "account") {
+      nav(route.section ? `/account/${route.section}` : "/account/security");
+    }
     if (route.name === "staff") nav("/staff");
     if (route.name === "member-editor" || route.name === "member-create") {
       if (route.memberId) nav(`/members/${route.memberId}`);
@@ -638,16 +644,48 @@ export default function App() {
           <Route path="/forgot-password" element={<ForgotPasswordScreen />} />
           <Route path="/reset-password/:uid/:token" element={<ResetPasswordScreen />} />
           <Route
+            path="/auth/google/result"
+            element={
+              <OwnerOAuthResultScreen
+                provider="google"
+                onSignedIn={(next) => {
+                  setSession(next);
+                }}
+              />
+            }
+          />
+          <Route
+            path="/auth/apple/result"
+            element={
+              <OwnerOAuthResultScreen
+                provider="apple"
+                onSignedIn={(next) => {
+                  setSession(next);
+                }}
+              />
+            }
+          />
+          <Route
             path="/*"
             element={
               <RequireSession loadingSession={loadingSession} session={session}>
-                <WorkspaceRoutes
+                <TutorialProvider
                   session={session}
-                  setSession={setSession}
-                  onKioskEntered={markKioskLocked}
-                  onKioskUnlockedLocally={clearKioskLockLocally}
-                  requestInterstitial={requestInterstitial}
-                />
+                  onTutorialStateChange={(tutorial) => {
+                    setSession((current) => current ? {
+                      ...current,
+                      workspace: { ...current.workspace, tutorial },
+                    } : current);
+                  }}
+                >
+                  <WorkspaceRoutes
+                    session={session}
+                    setSession={setSession}
+                    onKioskEntered={markKioskLocked}
+                    onKioskUnlockedLocally={clearKioskLockLocally}
+                    requestInterstitial={requestInterstitial}
+                  />
+                </TutorialProvider>
               </RequireSession>
             }
           />

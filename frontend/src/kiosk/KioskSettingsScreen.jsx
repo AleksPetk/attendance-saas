@@ -280,9 +280,17 @@ export default function KioskSettingsScreen({ session, groupId, onNavigate }) {
 
       <ErrorBanner message={error} />
 
-      <form id="kiosk-settings-form" className="kiosk-settings-layout" onSubmit={save}>
-        <div className="kiosk-settings-top-row">
-          <section className="kiosk-settings-card card-surface" aria-labelledby="ks-type-title">
+      <form
+        id="kiosk-settings-form"
+        className="kiosk-settings-layout"
+        onSubmit={save}
+      >
+        <div className="kiosk-settings-top-row" data-tutorial-target="kiosk-settings-overview">
+          <section
+            className="kiosk-settings-card card-surface"
+            aria-labelledby="ks-type-title"
+            data-tutorial-target="kiosk-settings-type"
+          >
             <div className="kiosk-settings-card-head">
               <h3 id="ks-type-title">Kiosk Type</h3>
               <p className="hint">
@@ -322,7 +330,11 @@ export default function KioskSettingsScreen({ session, groupId, onNavigate }) {
             )}
           </section>
 
-          <section className="kiosk-settings-card card-surface" aria-labelledby="ks-exit-title">
+          <section
+            className="kiosk-settings-card card-surface"
+            aria-labelledby="ks-exit-title"
+            data-tutorial-target="kiosk-settings-exit"
+          >
             <div className="kiosk-settings-card-head">
               <h3 id="ks-exit-title">Exit Kiosk</h3>
               <p className="hint">Set the code used to leave live kiosk mode.</p>
@@ -386,6 +398,7 @@ export default function KioskSettingsScreen({ session, groupId, onNavigate }) {
         <section
           className="kiosk-settings-card card-surface kiosk-settings-card-wide"
           aria-labelledby="ks-identification-title"
+          data-tutorial-target="kiosk-settings-identification"
         >
           <div className="kiosk-settings-card-head">
             <h3 id="ks-identification-title">Identification</h3>
@@ -394,7 +407,10 @@ export default function KioskSettingsScreen({ session, groupId, onNavigate }) {
 
           {form.mode === "card" || isStructured ? (
             <div className="kiosk-settings-ident-body">
-              <div className="kiosk-settings-subsection">
+              <div
+                className="kiosk-settings-subsection"
+                data-tutorial-target="kiosk-settings-identification-fields"
+              >
                 <h4>Card content</h4>
                 <div className="kiosk-settings-option-stack">
                   <label className="ks-option-row">
@@ -442,7 +458,10 @@ export default function KioskSettingsScreen({ session, groupId, onNavigate }) {
                 </div>
               </div>
 
-              <div className="kiosk-settings-subsection">
+              <div
+                className="kiosk-settings-subsection"
+                data-tutorial-target="kiosk-settings-verification"
+              >
                 <h4>Participant verification</h4>
                 <div className="kiosk-settings-option-stack">
                   <label className={`ks-option-row ${!groupPinOn ? "disabled-option" : ""}`}>
@@ -465,7 +484,10 @@ export default function KioskSettingsScreen({ session, groupId, onNavigate }) {
               </div>
             </div>
           ) : (
-            <div className="kiosk-settings-ident-body">
+            <div
+              className="kiosk-settings-ident-body"
+              data-tutorial-target="kiosk-settings-identification-fields"
+            >
               <div className="kiosk-settings-subsection">
                 <h4>Number of input fields</h4>
                 <div className="kiosk-segment-picker" role="radiogroup" aria-label="Input field count">
@@ -486,7 +508,10 @@ export default function KioskSettingsScreen({ session, groupId, onNavigate }) {
                 </div>
               </div>
 
-              <div className="kiosk-settings-subsection">
+              <div
+                className="kiosk-settings-subsection"
+                data-tutorial-target="kiosk-settings-verification"
+              >
                 <h4>Field configuration</h4>
                 <div className="kiosk-field-config">
                   <div className="kiosk-field-config-row locked">
@@ -541,6 +566,7 @@ export default function KioskSettingsScreen({ session, groupId, onNavigate }) {
         <section
           className="kiosk-settings-card card-surface kiosk-settings-card-wide"
           aria-labelledby="ks-attendance-reset-title"
+          data-tutorial-target="kiosk-settings-reset"
         >
           <div className="kiosk-settings-card-head">
             <h3 id="ks-attendance-reset-title">Attendance Reset</h3>
@@ -557,6 +583,7 @@ export default function KioskSettingsScreen({ session, groupId, onNavigate }) {
         <section
           className="kiosk-settings-card card-surface kiosk-settings-card-wide"
           aria-labelledby="ks-confirmation-title"
+          data-tutorial-target="kiosk-settings-confirmation"
         >
           <div className="kiosk-settings-card-head">
             <h3 id="ks-confirmation-title">Confirmation Screen</h3>

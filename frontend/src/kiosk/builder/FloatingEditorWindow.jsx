@@ -130,6 +130,7 @@ export default function FloatingEditorWindow({
       className={`kb-editor-window ${dragging ? "dragging" : ""}`}
       style={{ left: pos.x, top: pos.y }}
       aria-label="Kiosk builder editor"
+      data-tutorial-target="kiosk-design-editor"
     >
       <div
         className="kb-editor-drag"
@@ -164,6 +165,11 @@ export default function FloatingEditorWindow({
             role="tab"
             aria-selected={activeSection === name}
             className={`kb-editor-section-btn ${activeSection === name ? "active" : ""}`}
+            data-tutorial-target={
+              name === "cards" || name === "input"
+                ? "kiosk-design-tab-presentation"
+                : `kiosk-design-tab-${name}`
+            }
             onClick={() => onSectionChange(name)}
           >
             {kioskEditorSectionLabel(name)}
@@ -175,7 +181,7 @@ export default function FloatingEditorWindow({
 
       {saveError ? <p className="kb-editor-error">{saveError}</p> : null}
 
-      <div className="kb-editor-footer">
+      <div className="kb-editor-footer" data-tutorial-target="kiosk-design-history-actions">
         <div className="kb-editor-footer-row">
           <button
             type="button"

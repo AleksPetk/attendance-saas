@@ -370,7 +370,7 @@ export default function GroupDetailScreen({ session, groupId, onNavigate }) {
         </article>
       </div>
 
-      <div className="kiosk-section-panel">
+      <div className="kiosk-section-panel" data-tutorial-target="group-kiosk-actions">
         <div className="kiosk-section-head">
           <h3>{group.name} Kiosk</h3>
           <p className="hint">
@@ -385,6 +385,7 @@ export default function GroupDetailScreen({ session, groupId, onNavigate }) {
               <button
                 type="button"
                 className="btn-secondary btn-sm"
+                data-tutorial-target="kiosk-settings-action"
                 onClick={() => onNavigate({ name: "kiosk-settings", groupId })}
               >
                 Kiosk Settings
@@ -392,6 +393,7 @@ export default function GroupDetailScreen({ session, groupId, onNavigate }) {
               <button
                 type="button"
                 className="btn-secondary btn-sm"
+                data-tutorial-target="kiosk-design-action"
                 onClick={() => onNavigate({ name: "kiosk-builder", groupId })}
               >
                 Edit Kiosk Design
@@ -402,6 +404,7 @@ export default function GroupDetailScreen({ session, groupId, onNavigate }) {
             <button
               type="button"
               className="btn-success kiosk-action-launch"
+              data-tutorial-target="kiosk-launch-action"
               disabled={launchBlocked}
               title={
                 setupIncomplete

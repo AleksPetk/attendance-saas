@@ -21,7 +21,7 @@ from reportlab.platypus import (
 from attendance.report_export.common import (
     cell_text,
     flatten_report_rows,
-    period_lines,
+    report_context_lines,
     report_identity_headers,
     report_identity_values,
     report_shows_class_column,
@@ -134,15 +134,14 @@ def build_attendance_report_pdf(report: dict) -> bytes:
     if org_name:
         story.append(_paragraph(org_name, org_style))
 
-    story.append(_paragraph(report.get("group_name") or "Group", group_style))
+    story.append(_paragraph("Attendance Report", group_style))
 
     status = status_label(report.get("group_status"))
     if status:
         story.append(_paragraph(f"Status: {status}", meta_style))
 
-    story.append(_paragraph("Attendance Report", title_style))
-    for line in period_lines(report):
-        story.append(_paragraph(line, period_style if line == (report.get("date_label") or "") else meta_style))
+    for line in report_context_lines(report):
+        story.append(_paragraph(line, period_style if line.startswith("Date range:") else meta_style))
 
     story.append(Spacer(1, 8))
 

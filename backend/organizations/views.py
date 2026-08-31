@@ -2,23 +2,29 @@ import logging
 
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth import get_user_model
-from django.db import transaction
+from django.db import IntegrityError, transaction
+from django.db.models import Prefetch
 from django.middleware.csrf import get_token
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import ensure_csrf_cookie
-from rest_framework.exceptions import NotFound
+from rest_framework.exceptions import NotFound, ValidationError
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from accounts.exceptions import EmailNotVerified
-from accounts.services import send_verification_email_for_user
+from accounts.exceptions import EmailCooldown, EmailNotVerified
+from accounts.services import (
+    send_verification_email_for_user,
+    verification_cooldown_remaining,
+)
+from accounts.sessions import invalidate_owner_sessions
 from accounts.verification import customer_must_verify_email
 from core.mail import EmailConfigurationError, EmailSendError
 from organizations.models import (
     Organization,
     OrganizationStatus,
     WorkspaceStaffAccount,
+    WorkspaceStaffGroupAccess,
     WorkspaceStaffRole,
     WorkspaceStaffStatus,
 )
@@ -31,6 +37,8 @@ from organizations.serializers import (
     WorkspaceStaffAccountCreateSerializer,
     WorkspaceStaffAccountListSerializer,
     WorkspaceStaffAccountUpdateSerializer,
+    WorkspaceTutorialModuleCompletionSerializer,
+    WorkspaceTutorialStateUpdateSerializer,
 )
 from organizations.account_mode import account_mode_key
 from attendance.kiosk_lock import attach_kiosk_status
@@ -56,7 +64,18 @@ from organizations.permissions import (
     staff_account_manageable_by_actor,
     workspace_capabilities,
 )
-from accounts.owner_two_factor import begin_pending_owner_2fa, has_confirmed_owner_totp
+from organizations.staff_deletion import (
+    WorkspaceStaffPermanentDeletionError,
+    permanently_delete_workspace_staff_account,
+)
+from organizations.tutorials import (
+    attach_workspace_tutorial,
+    complete_workspace_tutorial_module,
+    get_workspace_tutorial_state,
+    tutorial_state_payload,
+    update_workspace_tutorial_state,
+)
+from accounts.owner_authentication import complete_owner_authentication
 
 from attendance.models import ActionRecord
 from attendance.serializers import ActionRecordSerializer
@@ -136,6 +155,7 @@ class CurrentWorkspaceView(APIView):
             }
             attach_workspace_advertising(payload, organization)
             attach_builtin_trial(payload, organization)
+            attach_workspace_tutorial(payload, organization)
             return Response(CurrentWorkspaceSerializer(attach_kiosk_status(request, payload)).data)
 
         if is_platform_operator:
@@ -151,9 +171,50 @@ class CurrentWorkspaceView(APIView):
         raise NotFound("No active customer workspace.")
 
 
+class WorkspaceTutorialStateView(APIView):
+    permission_classes = [IsWorkspaceOwner]
+
+    def get(self, request):
+        organization = get_active_workspace_organization(request.user)
+        return Response(tutorial_state_payload(get_workspace_tutorial_state(organization)))
+
+    def patch(self, request):
+        serializer = WorkspaceTutorialStateUpdateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        organization = get_active_workspace_organization(request.user)
+        state = update_workspace_tutorial_state(
+            organization,
+            status=serializer.validated_data["status"],
+            last_module=serializer.validated_data.get("last_module", ""),
+            last_step=serializer.validated_data.get("last_step", ""),
+        )
+        return Response(tutorial_state_payload(state))
+
+
+class WorkspaceTutorialModuleCompletionView(APIView):
+    permission_classes = [IsWorkspaceOwner]
+
+    def post(self, request, module_id):
+        serializer = WorkspaceTutorialModuleCompletionSerializer(
+            data={"module_id": module_id},
+        )
+        serializer.is_valid(raise_exception=True)
+        organization = get_active_workspace_organization(request.user)
+        complete_workspace_tutorial_module(
+            organization,
+            module_id=serializer.validated_data["module_id"],
+        )
+        state = get_workspace_tutorial_state(organization)
+        return Response(tutorial_state_payload(state))
+
+
 class OwnerRegistrationView(APIView):
     """
-    Register a new paying customer (accounts.User) and automatically create exactly one Organization.
+    Start owner registration without provisioning tenant resources.
+
+    The pending User is sufficient to authenticate the verification request.
+    Organization creation and the built-in trial happen only after the email
+    verification token succeeds.
     """
 
     permission_classes = [AllowAny]
@@ -166,21 +227,15 @@ class OwnerRegistrationView(APIView):
         first_name = ser.validated_data.get("first_name") or ""
         last_name = ser.validated_data.get("last_name") or ""
 
-        User = get_user_model()
-        with transaction.atomic():
-            user = User.objects.create_user(
-                email=email,
-                password=password,
-                first_name=first_name,
-                last_name=last_name,
-                is_staff=False,
-                is_superuser=False,
-                email_verified=False,
-            )
-            organization = Organization.objects.create_with_owner(owner=user)
-            # Multiple AUTHENTICATION_BACKENDS are configured, so login()
-            # requires an explicit backend for a newly created User.
-            login(request, user, backend=OWNER_AUTHENTICATION_BACKEND)
+        user = self._prepare_pending_user(
+            email=email,
+            password=password,
+            first_name=first_name,
+            last_name=last_name,
+        )
+        # Multiple AUTHENTICATION_BACKENDS are configured, so login() requires
+        # an explicit backend for a newly created or restarted pending User.
+        login(request, user, backend=OWNER_AUTHENTICATION_BACKEND)
 
         verification_email_sent = False
         try:
@@ -195,7 +250,7 @@ class OwnerRegistrationView(APIView):
             verification_email_sent = False
 
         if verification_email_sent:
-            detail = "Check your email to verify your Check Station account."
+            detail = "Check your email to verify your CheckStation account."
         else:
             detail = (
                 "Account created, but we could not send the verification email. "
@@ -206,11 +261,90 @@ class OwnerRegistrationView(APIView):
                 "email": user.email,
                 "email_verified": False,
                 "verification_email_sent": verification_email_sent,
-                "workspace_created": True,
+                "workspace_created": False,
                 "detail": detail,
             },
             status=201,
         )
+
+    @staticmethod
+    def _pending_user_unavailable():
+        raise ValidationError(
+            {"email": "An account with this email already exists."}
+        )
+
+    @classmethod
+    def _restart_pending_user_locked(
+        cls,
+        user,
+        *,
+        password,
+        first_name,
+        last_name,
+    ):
+        if (
+            user.email_verified
+            or not user.is_active
+            or user.is_staff
+            or user.is_superuser
+        ):
+            cls._pending_user_unavailable()
+
+        remaining = verification_cooldown_remaining(user)
+        if remaining:
+            raise EmailCooldown(remaining)
+
+        user.set_password(password)
+        user.first_name = first_name
+        user.last_name = last_name
+        user.save(update_fields=["password", "first_name", "last_name"])
+        invalidate_owner_sessions(user)
+        return user
+
+    @classmethod
+    def _prepare_pending_user(
+        cls,
+        *,
+        email,
+        password,
+        first_name,
+        last_name,
+    ):
+        User = get_user_model()
+        try:
+            with transaction.atomic():
+                existing = (
+                    User.objects.select_for_update()
+                    .filter(email__iexact=email)
+                    .first()
+                )
+                if existing is not None:
+                    return cls._restart_pending_user_locked(
+                        existing,
+                        password=password,
+                        first_name=first_name,
+                        last_name=last_name,
+                    )
+                return User.objects.create_user(
+                    email=email,
+                    password=password,
+                    first_name=first_name,
+                    last_name=last_name,
+                    is_staff=False,
+                    is_superuser=False,
+                    email_verified=False,
+                )
+        except IntegrityError:
+            # A concurrent request may have inserted the normalized email after
+            # our lookup. Resolve it through the same locked restart path.
+            with transaction.atomic():
+                existing = User.objects.select_for_update().get(email__iexact=email)
+                return cls._restart_pending_user_locked(
+                    existing,
+                    password=password,
+                    first_name=first_name,
+                    last_name=last_name,
+                )
 
 
 class OwnerLoginView(APIView):
@@ -226,49 +360,7 @@ class OwnerLoginView(APIView):
         if user is None or not getattr(user, "is_active", False):
             return Response({"detail": "Invalid email or password."}, status=401)
 
-        if customer_must_verify_email(user):
-            return Response(
-                {
-                    "detail": "Please verify your email before continuing.",
-                    "code": "email_not_verified",
-                    "email": user.email,
-                },
-                status=403,
-            )
-
-        organization = Organization.objects.filter(
-            owner=user,
-            status=OrganizationStatus.ACTIVE,
-        ).first()
-        if organization is None:
-            return Response({"detail": "No active workspace for this account."}, status=404)
-
-        if has_confirmed_owner_totp(user):
-            begin_pending_owner_2fa(request, user)
-            return Response(
-                {
-                    "detail": "Two-factor authentication is required.",
-                    "code": "two_factor_required",
-                    "email": user.email,
-                },
-                status=403,
-            )
-
-        login(request, user)
-        payload = {
-            "account_kind": "owner",
-            "role": "owner",
-            "identity": user.email,
-            "is_platform_operator": bool(user.is_staff or user.is_superuser),
-            "workspace_id": organization.workspace_id,
-            "account_mode": account_mode_key(organization),
-            "workspace_status": organization.status,
-            "capabilities": workspace_capabilities(user),
-            "entitlements": build_entitlement_payload(organization),
-        }
-        attach_workspace_advertising(payload, organization)
-        attach_builtin_trial(payload, organization)
-        return Response(CurrentWorkspaceSerializer(attach_kiosk_status(request, payload)).data)
+        return complete_owner_authentication(request, user)
 
 
 class StaffLoginView(APIView):
@@ -451,7 +543,15 @@ class WorkspaceStaffListCreateView(APIView):
 
         deny_plan_feature(organization, FEATURE_STAFF_MANAGEMENT)
 
-        qs = WorkspaceStaffAccount.objects.filter(organization=organization)
+        qs = WorkspaceStaffAccount.objects.filter(organization=organization).prefetch_related(
+            Prefetch(
+                "group_access",
+                queryset=WorkspaceStaffGroupAccess.objects.select_related("group")
+                .filter(group__status=GroupStatus.ACTIVE)
+                .order_by("group__name", "group_id"),
+                to_attr="active_group_access_for_summary",
+            )
+        )
         if self._actor_role(request) == WorkspaceStaffRole.ADMIN:
             qs = qs.filter(role=WorkspaceStaffRole.STAFF)
 
@@ -566,6 +666,34 @@ class WorkspaceStaffDetailView(APIView):
             clear_staff_group_access(staff)
 
         return Response(WorkspaceStaffAccountListSerializer(staff).data)
+
+    def delete(self, request, staff_id: int):
+        staff = self._get_scoped_staff(request, staff_id)
+        if staff is None:
+            return Response(status=404)
+        deny_plan_feature(staff.organization, FEATURE_STAFF_MANAGEMENT)
+        if not staff_account_manageable_by_actor(request.user, staff):
+            return Response(
+                {"detail": "Only the workspace owner can delete admin accounts."},
+                status=403,
+            )
+        if staff.status != WorkspaceStaffStatus.INACTIVE:
+            return Response(
+                {
+                    "code": "account_active",
+                    "detail": "Deactivate this account before deleting it permanently.",
+                },
+                status=409,
+            )
+
+        try:
+            permanently_delete_workspace_staff_account(staff)
+        except WorkspaceStaffPermanentDeletionError as exc:
+            return Response(
+                {"code": "account_not_deletable", "detail": exc.messages[0]},
+                status=409,
+            )
+        return Response(status=204)
 
 
 class WorkspaceStaffResetPasswordView(APIView):

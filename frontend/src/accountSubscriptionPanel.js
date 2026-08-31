@@ -652,7 +652,7 @@ export function AccountSubscriptionPanel({
 
   return createElement(
     "div",
-    { className: "account-panel account-panel-subscription" },
+    { className: "account-panel account-panel-subscription", "data-tutorial-target": "account-subscription" },
     confirmingCheckout
       ? createElement(
           "div",

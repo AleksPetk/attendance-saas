@@ -23,6 +23,79 @@ export function assignedGroupIds(items) {
     .sort((left, right) => left - right);
 }
 
+export function assignedGroupSummary(items) {
+  return (items || [])
+    .filter((item) => item.assigned)
+    .map((item) => ({
+      group_id: item.group_id,
+      name: item.name,
+      group_type: item.group_type,
+    }));
+}
+
+export function compactGroupAccess(groups, visibleLimit = 3) {
+  const normalized = Array.isArray(groups) ? groups : [];
+  const limit = Math.max(0, Number(visibleLimit) || 0);
+  return {
+    visible: normalized.slice(0, limit),
+    remaining: Math.max(0, normalized.length - limit),
+  };
+}
+
+export function updateStaffGroupAccessSummary(accounts, staffId, savedItems) {
+  const savedAccess = assignedGroupSummary(savedItems);
+  return (accounts || []).map((account) =>
+    account.id === staffId ? { ...account, group_access: savedAccess } : account,
+  );
+}
+
+export async function saveStaffGroupAccessFlow({
+  staffId,
+  items,
+  saveAccess,
+  onSaved,
+  onClose,
+}) {
+  const groupIds = assignedGroupIds(items);
+  const result = await saveAccess(staffId, { group_ids: groupIds });
+  const savedItems = result.data?.items || [];
+  onSaved(savedItems, groupIds);
+  onClose();
+  return savedItems;
+}
+
+export function StaffGroupAccessSummary({ groups, visibleLimit = 3 }) {
+  const { visible, remaining } = compactGroupAccess(groups, visibleLimit);
+  return h(
+    "div",
+    { className: "staff-card-access", "aria-label": "Current Group access" },
+    h("span", { className: "staff-card-access-label" }, "Group access"),
+    visible.length === 0
+      ? h("span", { className: "staff-card-access-empty" }, "No Group access")
+      : h(
+          "div",
+          { className: "staff-card-access-chips" },
+          visible.map((group) =>
+            h(
+              "span",
+              { key: group.group_id, className: "staff-card-access-chip", title: group.name },
+              group.name,
+            ),
+          ),
+          remaining > 0
+            ? h(
+                "span",
+                {
+                  className: "staff-card-access-more",
+                  title: `${remaining} additional Group${remaining === 1 ? "" : "s"}`,
+                },
+                `+${remaining} more`,
+              )
+            : null,
+        ),
+  );
+}
+
 export function sameAssignedIds(left, right) {
   const a = [...(left || [])].sort((x, y) => x - y);
   const b = [...(right || [])].sort((x, y) => x - y);
@@ -118,7 +191,11 @@ export function StaffGroupAccessPanel({
 
   return h(
     "section",
-    { className: "staff-group-access", "aria-labelledby": "staff-group-access-title" },
+    {
+      className: "staff-group-access",
+      "aria-labelledby": "staff-group-access-title",
+      "data-tutorial-target": "staff-group-access",
+    },
     h(
       "header",
       { className: "staff-group-access-header" },

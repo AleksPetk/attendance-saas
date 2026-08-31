@@ -52,6 +52,13 @@ class WorkspaceStaffStatus(models.TextChoices):
     INACTIVE = "inactive", "Inactive"
 
 
+class WorkspaceTutorialStatus(models.TextChoices):
+    NOT_STARTED = "not_started", "Not started"
+    IN_PROGRESS = "in_progress", "In progress"
+    COMPLETED = "completed", "Completed"
+    SKIPPED = "skipped", "Skipped"
+
+
 class OrganizationQuerySet(models.QuerySet):
     def delete(self):
         now = timezone.now()
@@ -233,6 +240,67 @@ class Organization(models.Model):
             if not Organization.objects.filter(workspace_id=candidate).exists():
                 return candidate
         raise ValidationError("Could not generate a unique Workspace ID.")
+
+
+class WorkspaceTutorialState(models.Model):
+    """Owner onboarding lifecycle, independent from billing and trial state."""
+
+    organization = models.OneToOneField(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name="tutorial_state",
+    )
+    tutorial_id = models.CharField(max_length=80, default="workspace-introduction")
+    version = models.PositiveSmallIntegerField(default=1)
+    status = models.CharField(
+        max_length=20,
+        choices=WorkspaceTutorialStatus.choices,
+        default=WorkspaceTutorialStatus.NOT_STARTED,
+        db_index=True,
+    )
+    last_module = models.CharField(max_length=80, blank=True, default="")
+    last_step = models.CharField(max_length=80, blank=True, default="")
+    started_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    skipped_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(status__in=WorkspaceTutorialStatus.values),
+                name="organizations_tutorial_status_valid",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.organization.workspace_id}: {self.tutorial_id} ({self.status})"
+
+
+class WorkspaceTutorialModuleCompletion(models.Model):
+    """Durable completion for owner-focused tutorials within one Workspace."""
+
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name="tutorial_module_completions",
+    )
+    module_id = models.SlugField(max_length=80)
+    completed_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("module_id",)
+        constraints = [
+            models.UniqueConstraint(
+                fields=("organization", "module_id"),
+                name="organizations_tutorial_module_completion_unique",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.organization.workspace_id}: {self.module_id}"
 
 
 class WorkspaceStaffAccountQuerySet(models.QuerySet):
@@ -479,4 +547,3 @@ class WorkspaceStaffGroupAccess(models.Model):
     def save(self, *args, **kwargs):
         self.full_clean()
         super().save(*args, **kwargs)
-

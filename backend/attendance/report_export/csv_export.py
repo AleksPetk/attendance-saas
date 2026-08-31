@@ -8,7 +8,7 @@ import io
 from attendance.report_export.common import (
     cell_text,
     flatten_report_rows,
-    period_lines,
+    report_context_lines,
     report_identity_headers,
     report_identity_values,
     status_label,
@@ -19,13 +19,12 @@ def build_attendance_report_csv(report: dict) -> str:
     buffer = io.StringIO()
     writer = csv.writer(buffer)
 
-    writer.writerow([report.get("group_name") or "Group"])
+    writer.writerow(["Attendance Report"])
+    for line in report_context_lines(report):
+        writer.writerow([line])
     status = status_label(report.get("group_status"))
     if status and report.get("group_status") in {"archived", "deleted"}:
         writer.writerow([status])
-    writer.writerow(["Attendance Report"])
-    for line in period_lines(report):
-        writer.writerow([line])
     writer.writerow([])
 
     columns = list(report.get("columns") or [])

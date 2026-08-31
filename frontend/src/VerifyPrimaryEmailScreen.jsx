@@ -48,7 +48,7 @@ export default function VerifyPrimaryEmailScreen() {
     return (
       <AuthLayout
         title="Login email updated"
-        lead="Your Check Station login email has been updated."
+        lead="Your CheckStation login email has been updated."
         footnote={
           <p>
             Sign in with your new email address on any device.{" "}

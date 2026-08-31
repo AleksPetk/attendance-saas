@@ -14,10 +14,18 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from django.utils import timezone
 
 from attendance.models import ActionRecord, ActionType
-from groups.models import Group, GroupStatus, GroupType
+from groups.models import (
+    Group,
+    GroupMembership,
+    GroupOnlyParticipant,
+    GroupStatus,
+    GroupType,
+)
+from members.models import Member
 
 
 REPORT_DATE_PRESETS = ("today", "this_week", "this_month", "custom")
+REPORT_BY_CHOICES = ("member", "group")
 # IANA names are typically short; reject oversized / empty values early.
 TIMEZONE_NAME_MAX_LENGTH = 64
 UNKNOWN_CLASS_LABEL = "Unknown Class"
@@ -341,19 +349,148 @@ def resolve_report_group(*, organization, source_group_id: int):
     }
 
 
+def list_report_members(*, organization, allowed_group_ids=None):
+    """Reusable Members available as report subjects, scoped for Staff."""
+    members = Member.objects.filter(organization=organization)
+    if allowed_group_ids is not None:
+        ids = set(allowed_group_ids)
+        member_ids = set(
+            GroupMembership.objects.filter(
+                organization=organization,
+                group_id__in=ids,
+            ).values_list("member_id", flat=True)
+        )
+        member_ids.update(
+            ActionRecord.objects.filter(
+                organization=organization,
+                source_group_id__in=ids,
+                member_id__isnull=False,
+            ).values_list("member_id", flat=True)
+        )
+        members = members.filter(pk__in=member_ids)
+    return [
+        {"id": member.pk, "name": member.name, "status": member.status}
+        for member in members.order_by("name", "id")
+    ]
+
+
+def report_member_group_ids(*, organization, member_id, allowed_group_ids=None):
+    ids = set(
+        GroupMembership.objects.filter(
+            organization=organization,
+            member_id=member_id,
+        ).values_list("group_id", flat=True)
+    )
+    ids.update(
+        ActionRecord.objects.filter(
+            organization=organization,
+            member_id=member_id,
+            source_group_id__isnull=False,
+        ).values_list("source_group_id", flat=True)
+    )
+    if allowed_group_ids is not None:
+        ids.intersection_update(set(allowed_group_ids))
+    return ids
+
+
+def list_member_report_groups(*, organization, member_id, allowed_group_ids=None):
+    member_ids = report_member_group_ids(
+        organization=organization,
+        member_id=member_id,
+        allowed_group_ids=allowed_group_ids,
+    )
+    return [
+        item
+        for item in list_report_groups(
+            organization=organization,
+            allowed_group_ids=allowed_group_ids,
+        )
+        if item["source_group_id"] in member_ids
+    ]
+
+
+def list_group_report_participants(*, organization, source_group_id):
+    """Current operational Group identities; history itself remains immutable."""
+    memberships = (
+        GroupMembership.objects.filter(
+            organization=organization,
+            group_id=source_group_id,
+        )
+        .operational()
+        .select_related("member")
+        .order_by("member__name", "id")
+    )
+    visitors = (
+        GroupOnlyParticipant.objects.filter(
+            organization=organization,
+            group_id=source_group_id,
+        )
+        .operational()
+        .order_by("name", "id")
+    )
+    items = [
+        {
+            "kind": "member",
+            "id": membership.pk,
+            "name": membership.effective_name,
+            "participant_code": membership.group_participant_code,
+        }
+        for membership in memberships
+    ]
+    items.extend(
+        {
+            "kind": "group_only_participant",
+            "id": participant.pk,
+            "name": participant.name,
+            "participant_code": participant.group_participant_code,
+        }
+        for participant in visitors
+    )
+    return sorted(items, key=lambda item: (item["name"].lower(), item["kind"], item["id"]))
+
+
 def build_attendance_report(
     *,
     organization,
-    source_group_id: int,
+    source_group_id: int | None = None,
+    report_by: str = "group",
+    member_id: int | None = None,
+    participant_kind: str | None = None,
+    participant_id: int | None = None,
+    allowed_group_ids=None,
     preset: str,
     date_from: date | None = None,
     date_to: date | None = None,
     timezone_name: str | None = None,
     now=None,
 ):
-    group_meta = resolve_report_group(organization=organization, source_group_id=source_group_id)
-    if group_meta is None:
-        return None
+    if report_by not in REPORT_BY_CHOICES:
+        raise ValueError("Invalid report mode.")
+
+    group_meta = None
+    member = None
+    selected_participant = None
+    if source_group_id is not None:
+        group_meta = resolve_report_group(
+            organization=organization,
+            source_group_id=source_group_id,
+        )
+        if group_meta is None:
+            return None
+
+    if report_by == "group" and group_meta is None:
+        raise ValueError("Group mode requires a Group.")
+    if report_by == "member":
+        member = Member.objects.filter(organization=organization, pk=member_id).first()
+        if member is None:
+            return None
+        member_group_ids = report_member_group_ids(
+            organization=organization,
+            member_id=member.pk,
+            allowed_group_ids=allowed_group_ids,
+        )
+        if source_group_id is not None and source_group_id not in member_group_ids:
+            return None
 
     start_day, end_day, date_label = resolve_report_date_range(
         preset=preset,
@@ -367,36 +504,90 @@ def build_attendance_report(
     range_start, _ = _local_day_bounds(start_day, tz)
     _, range_end = _local_day_bounds(end_day, tz)
 
-    records = list(
-        ActionRecord.objects.filter(
-            organization=organization,
-            source_group_id=source_group_id,
-            performed_at__gte=range_start,
-            performed_at__lte=range_end,
-        ).order_by("-performed_at", "-id")
+    records_qs = ActionRecord.objects.filter(
+        organization=organization,
+        performed_at__gte=range_start,
+        performed_at__lte=range_end,
     )
+    if allowed_group_ids is not None:
+        records_qs = records_qs.filter(source_group_id__in=set(allowed_group_ids))
+    if source_group_id is not None:
+        records_qs = records_qs.filter(source_group_id=source_group_id)
+    if report_by == "member":
+        records_qs = records_qs.filter(member_id=member.pk)
+    elif participant_id is not None:
+        if participant_kind == "member":
+            membership = GroupMembership.objects.filter(
+                organization=organization,
+                group_id=source_group_id,
+                pk=participant_id,
+            ).select_related("member").first()
+            if membership is None:
+                return None
+            selected_participant = {
+                "kind": "member",
+                "id": membership.pk,
+                "name": membership.effective_name,
+                "participant_code": membership.group_participant_code,
+            }
+            records_qs = records_qs.filter(member_id=membership.member_id)
+        elif participant_kind == "group_only_participant":
+            participant = GroupOnlyParticipant.objects.filter(
+                organization=organization,
+                group_id=source_group_id,
+                pk=participant_id,
+            ).first()
+            if participant is None:
+                return None
+            selected_participant = {
+                "kind": "group_only_participant",
+                "id": participant.pk,
+                "name": participant.name,
+                "participant_code": participant.group_participant_code,
+            }
+            records_qs = records_qs.filter(group_only_participant_id=participant.pk)
+        else:
+            raise ValueError("Invalid participant selection.")
+
+    records = list(records_qs.order_by("-performed_at", "-id"))
 
     action_types_present = {r.action_type for r in records}
     # break_end never drives a column in this MVP.
     action_types_present.discard(ActionType.BREAK_END)
     columns = _visible_columns(action_types_present)
 
-    is_structured = group_meta["group_type"] == GroupType.STRUCTURED
+    show_group_column = report_by == "member" and source_group_id is None
+    is_structured = bool(group_meta and group_meta["group_type"] == GroupType.STRUCTURED)
+    show_class_column = is_structured or any(
+        record.group_type_snapshot == GroupType.STRUCTURED or record.source_section_id
+        for record in records
+    )
 
     # Bucket: local_day -> row_identity_key -> records (chronological later)
     by_day: dict[date, dict[str, list[ActionRecord]]] = defaultdict(lambda: defaultdict(list))
     names: dict[str, str] = {}
     class_names: dict[str, str] = {}
     class_source_ids: dict[str, int | None] = {}
+    group_names: dict[str, str] = {}
     for record in records:
         if record.action_type == ActionType.BREAK_END:
             continue
         local_day = timezone.localtime(record.performed_at, tz).date()
-        key = _row_identity_key(record, structured=is_structured)
+        structured_record = is_structured or (
+            show_group_column
+            and (record.group_type_snapshot == GroupType.STRUCTURED or record.source_section_id)
+        )
+        key = _row_identity_key(record, structured=structured_record)
+        if show_group_column:
+            key = f"group:{record.source_group_id or 'unknown'}|{key}"
         by_day[local_day][key].append(record)
         if key not in names:
             names[key] = record.participant_name_snapshot or "Unknown"
-        if is_structured and key not in class_names:
+        if show_group_column and key not in group_names:
+            group_names[key] = record.group_name_snapshot or (
+                record.group.name if record.group_id and record.group is not None else "Unknown Group"
+            )
+        if show_class_column and key not in class_names:
             class_names[key] = _class_display_name(record)
             class_source_ids[key] = record.source_section_id
 
@@ -404,10 +595,11 @@ def build_attendance_report(
     for day in sorted(by_day.keys(), reverse=True):
         day_participants = by_day[day]
         rows = []
-        if is_structured:
+        if show_group_column or show_class_column:
             sorted_keys = sorted(
                 day_participants.keys(),
                 key=lambda k: (
+                    group_names.get(k, "").lower(),
                     class_names.get(k, "").lower(),
                     names.get(k, "").lower(),
                     k,
@@ -425,7 +617,9 @@ def build_attendance_report(
                 "name": names.get(key, "Unknown"),
                 "cells": {col["key"]: cells.get(col["key"]) for col in columns},
             }
-            if is_structured:
+            if show_group_column:
+                row["group_name"] = group_names.get(key, "Unknown Group")
+            if show_class_column:
                 row["class_name"] = class_names.get(key, UNKNOWN_CLASS_LABEL)
                 row["class_source_id"] = class_source_ids.get(key)
             rows.append(row)
@@ -438,10 +632,17 @@ def build_attendance_report(
         )
 
     return {
-        "group_name": group_meta["name"],
-        "group_status": group_meta["status"],
-        "group_type": group_meta["group_type"],
-        "source_group_id": group_meta["source_group_id"],
+        "report_by": report_by,
+        "member_id": member.pk if member else None,
+        "member_name": member.name if member else "",
+        "member_status": member.status if member else "",
+        "participant": selected_participant,
+        "group_name": group_meta["name"] if group_meta else "",
+        "group_status": group_meta["status"] if group_meta else "",
+        "group_type": group_meta["group_type"] if group_meta else "mixed",
+        "source_group_id": group_meta["source_group_id"] if group_meta else None,
+        "show_group_column": show_group_column,
+        "show_class_column": show_class_column,
         "date_preset": preset,
         "date_from": start_day.isoformat(),
         "date_to": end_day.isoformat(),

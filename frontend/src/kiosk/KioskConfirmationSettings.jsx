@@ -18,12 +18,16 @@ function ConfirmationAccordionSection({
   summary,
   isOpen,
   onToggle,
+  tutorialTarget,
   children,
 }) {
   const panelId = `kc-section-${id}`;
 
   return (
-    <div className={`kc-accordion-section ${isOpen ? "is-open" : ""}`}>
+    <div
+      className={`kc-accordion-section ${isOpen ? "is-open" : ""}`}
+      data-tutorial-target={tutorialTarget}
+    >
       <button
         type="button"
         className="kc-accordion-trigger"
@@ -80,6 +84,7 @@ export default function KioskConfirmationSettings({
         summary={messagesSummary(form, visibleFields)}
         isOpen={openSection === "messages"}
         onToggle={() => toggleSection("messages")}
+        tutorialTarget="kiosk-confirmation-messages"
       >
         <div className="kc-var-helper">
           <span className="kc-var-helper-title">Available variables:</span>
@@ -121,6 +126,7 @@ export default function KioskConfirmationSettings({
         summary={`${returnSeconds} sec`}
         isOpen={openSection === "return"}
         onToggle={() => toggleSection("return")}
+        tutorialTarget="kiosk-confirmation-return"
       >
         <p className="hint kiosk-settings-helper kc-return-helper">
           How long the confirmation stays visible after success.

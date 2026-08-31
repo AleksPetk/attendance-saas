@@ -66,6 +66,14 @@ def account_email_payload(user):
     }
 
 
+def account_payload(user):
+    from accounts.sign_in_methods import sign_in_methods_payload
+
+    payload = account_email_payload(user)
+    payload["sign_in_methods"] = sign_in_methods_payload(user)
+    return payload
+
+
 def _verification_resend_cooldown():
     return getattr(settings, "EMAIL_VERIFICATION_RESEND_COOLDOWN", 60)
 

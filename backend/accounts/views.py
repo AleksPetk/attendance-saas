@@ -8,7 +8,7 @@ from rest_framework.views import APIView
 
 from accounts.deletion import PermanentDeletionError, permanently_delete_customer_account
 from accounts.email_management import (
-    account_email_payload,
+    account_payload,
     cancel_pending_backup,
     cancel_pending_primary_email,
     remove_backup_email,
@@ -39,6 +39,8 @@ from accounts.services import (
     reset_password,
     verify_email_uid_token,
 )
+from accounts.owner_sensitive_auth import password_not_available_response
+from accounts.sign_in_methods import owner_password_enabled
 from accounts.verification import customer_must_verify_email
 from core.mail import EmailConfigurationError, EmailSendError
 from organizations.models import WorkspaceStaffAccount
@@ -182,6 +184,12 @@ class ResetPasswordView(APIView):
         )
 
 
+def _require_owner_password(actor):
+    if not owner_password_enabled(actor):
+        return password_not_available_response()
+    return None
+
+
 class ChangePasswordView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -194,6 +202,10 @@ class ChangePasswordView(APIView):
             )
         if not actor.is_active:
             return Response({"detail": "This account is inactive."}, status=403)
+
+        password_denied = _require_owner_password(actor)
+        if password_denied is not None:
+            return password_denied
 
         serializer = ChangePasswordSerializer(
             data=request.data,
@@ -224,7 +236,7 @@ class AccountView(APIView):
             return denied
         if customer_must_verify_email(actor):
             raise EmailNotVerified()
-        return Response(AccountSerializer(account_email_payload(actor)).data)
+        return Response(AccountSerializer(account_payload(actor)).data)
 
 
 class BackupEmailView(APIView):
@@ -237,6 +249,10 @@ class BackupEmailView(APIView):
             return denied
         if customer_must_verify_email(actor):
             raise EmailNotVerified()
+
+        password_denied = _require_owner_password(actor)
+        if password_denied is not None:
+            return password_denied
 
         serializer = EmailWithPasswordSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -273,6 +289,10 @@ class BackupEmailRemoveView(APIView):
             return denied
         if customer_must_verify_email(actor):
             raise EmailNotVerified()
+
+        password_denied = _require_owner_password(actor)
+        if password_denied is not None:
+            return password_denied
 
         serializer = PasswordOnlySerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -368,6 +388,10 @@ class PrimaryEmailChangeView(APIView):
             return denied
         if customer_must_verify_email(actor):
             raise EmailNotVerified()
+
+        password_denied = _require_owner_password(actor)
+        if password_denied is not None:
+            return password_denied
 
         serializer = EmailWithPasswordSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -494,6 +518,11 @@ class DeleteAccountView(APIView):
 
         serializer = DeleteAccountSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+
+        password_denied = _require_owner_password(actor)
+        if password_denied is not None:
+            return password_denied
+
         if not actor.check_password(serializer.validated_data["current_password"]):
             return Response(
                 {"current_password": "Current password is incorrect."},

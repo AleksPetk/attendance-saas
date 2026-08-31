@@ -1,3 +1,5 @@
+import importlib
+
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from rest_framework import status
@@ -70,7 +72,7 @@ class PublicContentApiTests(TestCase):
         self.assertIn("Stripe", privacy.data["body_markdown"])
         self.assertIn("Resend", privacy.data["body_markdown"])
         self.assertIn("Contact form", privacy.data["body_markdown"])
-        self.assertIn("contact@checkstation.alekspetk.com", privacy.data["body_markdown"])
+        self.assertIn("contact@checkstation.app", privacy.data["body_markdown"])
         self.assertNotIn("@gmail.com", privacy.data["body_markdown"].lower())
         self.assertIn("$9.99", terms.data["body_markdown"])
         self.assertIn("three-day", terms.data["body_markdown"])
@@ -192,6 +194,35 @@ class PublicContentApiTests(TestCase):
         self.assertEqual(updated, [])
         doc.refresh_from_db()
         self.assertEqual(doc.body_markdown, "# Edited by admin")
+
+    def test_legacy_email_migration_preserves_other_admin_edits(self):
+        migration = importlib.import_module(
+            "content.migrations.0007_replace_legacy_checkstation_email_domains"
+        )
+        legacy_domain = "aleks" + "petk.com"
+        doc = Document.objects.get(slug="privacy-policy")
+        doc.body_markdown = (
+            "Admin-edited introduction.\n\n"
+            f"Contact contact@checkstation.{legacy_domain}.\n"
+            f"Sent by accounts@checkstation.{legacy_domain}."
+        )
+        doc.admin_notes = "Keep this counsel note"
+        doc.save()
+
+        class MigrationApps:
+            @staticmethod
+            def get_model(app_label, model_name):
+                self.assertEqual((app_label, model_name), ("content", "Document"))
+                return Document
+
+        migration.replace_legacy_email_domains(MigrationApps(), None)
+
+        doc.refresh_from_db()
+        self.assertIn("Admin-edited introduction.", doc.body_markdown)
+        self.assertIn("contact@checkstation.app", doc.body_markdown)
+        self.assertIn("accounts@checkstation.app", doc.body_markdown)
+        self.assertNotIn(legacy_domain, doc.body_markdown)
+        self.assertEqual(doc.admin_notes, "Keep this counsel note")
 
     @override_settings(DOCS_PUBLIC_URL="http://localhost:8091")
     def test_canonical_url_uses_docs_public_url(self):

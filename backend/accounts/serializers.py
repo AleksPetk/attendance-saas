@@ -61,6 +61,7 @@ class AccountSerializer(serializers.Serializer):
     pending_backup_email = serializers.EmailField(allow_null=True, required=False)
     two_factor_status = serializers.CharField()
     two_factor_label = serializers.CharField()
+    sign_in_methods = serializers.DictField()
 
 
 class EmailWithPasswordSerializer(serializers.Serializer):

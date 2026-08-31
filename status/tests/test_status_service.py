@@ -403,7 +403,7 @@ class StatusHttpTests(unittest.TestCase):
         self.assertEqual(code, 200)
         html = body.decode("utf-8")
         self.assertIn("CheckStation Status", html)
-        self.assertIn('/favicon.ico?v=20260828', html)
+        self.assertIn('/favicon.ico?v=20260831', html)
         self.assertNotIn("Login", html)
         self.assertNotIn("Get started", html)
 
@@ -413,6 +413,14 @@ class StatusHttpTests(unittest.TestCase):
             self.assertEqual(code, 200)
             self.assertTrue(headers.get("Content-Type", "").startswith("image/"))
             self.assertGreater(len(body), 100)
+
+    def test_html_uses_canonical_favicon_not_logo_mark(self):
+        code, _headers, body = self._get("/")
+        self.assertEqual(code, 200)
+        html = body.decode("utf-8")
+        self.assertIn('/favicon.ico?v=20260831', html)
+        self.assertNotIn('rel="icon" href="/brand/logo-mark.png"', html)
+        self.assertNotIn("vite.svg", html)
 
     def test_cors_preflight_and_head_are_uncredentialed(self):
         options = urllib.request.Request(
