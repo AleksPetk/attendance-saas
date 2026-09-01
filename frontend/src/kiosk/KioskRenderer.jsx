@@ -1,8 +1,9 @@
+import { useTranslation } from "react-i18next";
 import KioskFooter from "./KioskFooter.jsx";
 import KioskHeader from "./KioskHeader.jsx";
 import KioskMain from "./KioskMain.jsx";
 import { resolveInputTemplate } from "./inputTemplates.js";
-import { resolveCardTemplate } from "./cardTemplates.js";
+import { CARD_TEMPLATES, resolveCardTemplate } from "./cardTemplates.js";
 import { flowTemplateAccent, resolveFlowTemplate } from "./flowTemplate.js";
 import { resolveKioskMediaUrl } from "./kioskMedia.js";
 import "./kioskFonts.css";
@@ -35,13 +36,18 @@ export default function KioskRenderer({
   onExit,
   children,
 }) {
+  const { t } = useTranslation("kiosk");
   const config = design?.config;
   if (!config) return children;
 
-  const layout = config.main?.layout_preset || "centered";
   const inputTemplate = resolveInputTemplate(config.main || {});
   const cardTemplate = resolveCardTemplate(config.main || {});
   const kioskMode = kioskBehavior?.mode || "card";
+  const layoutPreset = config.main?.layout_preset || "centered";
+  const layout =
+    kioskMode === "card"
+      ? (CARD_TEMPLATES[cardTemplate]?.layout ?? layoutPreset)
+      : layoutPreset;
   const flowTemplate = resolveFlowTemplate(config.main || {}, kioskMode);
   const accent = flowTemplateAccent(flowTemplate);
   const allowBlob = mode === "editor";
@@ -66,8 +72,8 @@ export default function KioskRenderer({
       style={{ "--kr-accent": accent }}
     >
       {showExit ? (
-        <button type="button" className="kr-exit" onClick={onExit} aria-label="Exit kiosk">
-          Exit
+        <button type="button" className="kr-exit" onClick={onExit} aria-label={t("exitKioskAria")}>
+          {t("exit")}
         </button>
       ) : null}
       <KioskHeader config={config} logoUrl={headerLogoUrl} />

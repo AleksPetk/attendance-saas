@@ -39,6 +39,11 @@ test("KioskRenderer exposes flow + behavior attributes", () => {
   assert.match(rendererSrc, /resolveFlowTemplate/);
 });
 
+test("KioskRenderer derives card-mode structural layout from card template", () => {
+  assert.match(rendererSrc, /CARD_TEMPLATES\[cardTemplate\]\?\.layout/);
+  assert.match(rendererSrc, /kioskMode === "card"/);
+});
+
 test("kiosk-flow CSS is scoped by data-flow-template", () => {
   assert.match(inputCss, /\.kr-shell\[data-flow-template\] \.kiosk-flow/);
   assert.doesNotMatch(inputCss, /data-input-template/);
