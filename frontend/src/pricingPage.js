@@ -47,68 +47,141 @@ function limitValue(limits, key) {
   return Number.isFinite(value) ? value : null;
 }
 
-export function pricingFeatureList(catalog, planKey) {
+function localizedCapacityBoost(higher, base, translate, timesKey, countKey, englishLabel) {
+  if (typeof translate === "function") {
+    const times = exactCapacityMultiplier(higher, base);
+    if (times) return translate(timesKey, { times });
+    if (higher != null && Number.isFinite(Number(higher))) {
+      return translate(countKey, { count: Number(higher) });
+    }
+    return null;
+  }
+  return capacityBoostLabel(higher, base, englishLabel);
+}
+
+/**
+ * @param {object} catalog
+ * @param {string} planKey
+ * @param {(key: string, values?: object) => string} [translate] optional promo `t`
+ */
+export function pricingFeatureList(catalog, planKey, translate) {
   const limits = planEntitlementLimits(catalog, planKey) || {};
   const features = planEntitlementFeatures(catalog, planKey) || {};
   const plusLimits = planEntitlementLimits(catalog, "plus") || {};
+  const tr = typeof translate === "function" ? translate : null;
 
   if (planKey === "basic") {
     const groups = limitValue(limits, LIMIT_ACTIVE_STANDARD_GROUPS);
     const members = limitValue(limits, LIMIT_MEMBERS);
     const items = [];
-    if (groups != null) items.push(`${groups} active Groups`);
-    if (members != null) items.push(`${members} Members`);
-    items.push("Kiosk check-in", "Action history");
-    if (features.ads_required) items.push("Ads supported");
+    if (groups != null) {
+      items.push(
+        tr
+          ? tr("pricing.features.activeGroups", { count: groups })
+          : `${groups} active Groups`,
+      );
+    }
+    if (members != null) {
+      items.push(
+        tr ? tr("pricing.features.members", { count: members }) : `${members} Members`,
+      );
+    }
+    items.push(
+      tr ? tr("pricing.features.kioskCheckIn") : "Kiosk check-in",
+      tr ? tr("pricing.features.actionHistory") : "Action history",
+    );
+    if (features.ads_required) {
+      items.push(tr ? tr("pricing.features.adsSupported") : "Ads supported");
+    }
     return items;
   }
 
   if (planKey === "plus") {
     const groups = limitValue(limits, LIMIT_ACTIVE_STANDARD_GROUPS);
     const members = limitValue(limits, LIMIT_MEMBERS);
-    const items = ["Everything in Basic"];
+    const items = [
+      tr ? tr("pricing.features.everythingInBasic") : "Everything in Basic",
+    ];
     if (groups != null && members != null) {
-      items.push(`${groups} active Groups / ${members} Members`);
+      items.push(
+        tr
+          ? tr("pricing.features.groupsAndMembers", { groups, members })
+          : `${groups} active Groups / ${members} Members`,
+      );
     } else if (groups != null) {
-      items.push(`${groups} active Groups`);
+      items.push(
+        tr
+          ? tr("pricing.features.activeGroups", { count: groups })
+          : `${groups} active Groups`,
+      );
     } else if (members != null) {
-      items.push(`${members} Members`);
+      items.push(
+        tr ? tr("pricing.features.members", { count: members }) : `${members} Members`,
+      );
     }
-    if (features.staff_management) items.push("Workspace Staff management");
-    if (features.report_export_csv) items.push("Attendance Report export");
-    if (features.group_forward_emails) items.push("Group Forward Emails");
-    if (features.ads_required === false) items.push("No ads");
+    if (features.staff_management) {
+      items.push(
+        tr ? tr("pricing.features.staffManagement") : "Workspace Staff management",
+      );
+    }
+    if (features.report_export_csv) {
+      items.push(tr ? tr("pricing.features.reportExport") : "Attendance Report export");
+    }
+    if (features.group_forward_emails) {
+      items.push(tr ? tr("pricing.features.groupForwardEmails") : "Group Forward Emails");
+    }
+    if (features.ads_required === false) {
+      items.push(tr ? tr("pricing.features.noAds") : "No ads");
+    }
     return items;
   }
 
-  const items = ["Everything in Plus"];
-  if (features.structured_groups) items.push("Structured Groups");
+  const items = [tr ? tr("pricing.features.everythingInPlus") : "Everything in Plus"];
+  if (features.structured_groups) {
+    items.push(tr ? tr("pricing.features.structuredGroups") : "Structured Groups");
+  }
 
-  const groupBoost = capacityBoostLabel(
+  const groupBoost = localizedCapacityBoost(
     limitValue(limits, LIMIT_ACTIVE_STANDARD_GROUPS),
     limitValue(plusLimits, LIMIT_ACTIVE_STANDARD_GROUPS),
+    tr,
+    "pricing.features.groupCapacityTimes",
+    "pricing.features.groupCapacityCount",
     "Group capacity",
   );
-  const memberBoost = capacityBoostLabel(
+  const memberBoost = localizedCapacityBoost(
     limitValue(limits, LIMIT_MEMBERS),
     limitValue(plusLimits, LIMIT_MEMBERS),
+    tr,
+    "pricing.features.memberCapacityTimes",
+    "pricing.features.memberCapacityCount",
     "Member capacity",
   );
-  const adminBoost = capacityBoostLabel(
+  const adminBoost = localizedCapacityBoost(
     limitValue(limits, LIMIT_WORKSPACE_ADMINS),
     limitValue(plusLimits, LIMIT_WORKSPACE_ADMINS),
+    tr,
+    "pricing.features.adminSeatsTimes",
+    "pricing.features.adminSeatsCount",
     "Admin seats",
   );
-  const staffBoost = capacityBoostLabel(
+  const staffBoost = localizedCapacityBoost(
     limitValue(limits, LIMIT_WORKSPACE_STAFF),
     limitValue(plusLimits, LIMIT_WORKSPACE_STAFF),
+    tr,
+    "pricing.features.staffSeatsTimes",
+    "pricing.features.staffSeatsCount",
     "Staff seats",
   );
   for (const line of [groupBoost, memberBoost, adminBoost, staffBoost]) {
     if (line) items.push(line);
   }
   if (features.structured_snapshot_import) {
-    items.push("Structured snapshot import");
+    items.push(
+      tr
+        ? tr("pricing.features.structuredSnapshotImport")
+        : "Structured snapshot import",
+    );
   }
   return items;
 }
@@ -117,16 +190,22 @@ export function isPaidCommercialPlan(planKey) {
   return PAID_PLAN_KEYS.has(planKey);
 }
 
-export function pricingCta(planKey, { signedIn, canOpenSubscription, currentPlanKey }) {
+/**
+ * @param {string} planKey
+ * @param {{ signedIn: boolean, canOpenSubscription: boolean, currentPlanKey: string|null }} options
+ * @param {{ getStartedFree?: string, choosePlus?: string, goBusiness?: string, manageSubscription?: string }} [labels]
+ */
+export function pricingCta(planKey, { signedIn, canOpenSubscription, currentPlanKey }, labels = null) {
   const showManageOnBasic =
     planKey === "basic" &&
     Boolean(canOpenSubscription) &&
     isPaidCommercialPlan(currentPlanKey);
 
-  let label = "Get Started Free";
-  if (planKey === "plus") label = "Choose Plus";
-  else if (planKey === "business") label = "Go Business";
-  else if (showManageOnBasic) label = "Manage subscription";
+  const L = labels && typeof labels === "object" ? labels : {};
+  let label = L.getStartedFree || "Get Started Free";
+  if (planKey === "plus") label = L.choosePlus || "Choose Plus";
+  else if (planKey === "business") label = L.goBusiness || "Go Business";
+  else if (showManageOnBasic) label = L.manageSubscription || "Manage subscription";
 
   const to = canOpenSubscription
     ? "/account/subscription"

@@ -11,6 +11,7 @@ import {
   publicDocsPageUrl,
   publicStatusPageUrl,
   splitFooterItemsIntoColumns,
+  workspaceStatusHomeUrl,
 } from "./publicFooterLinks.js";
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
@@ -237,4 +238,10 @@ test("splitFooterItemsIntoColumns fills left column first", () => {
       ["Contact", "Status"],
     ],
   );
+});
+
+test("workspace Status outbound URLs include locale prefix", () => {
+  assert.equal(workspaceStatusHomeUrl("en"), "http://localhost:8090/en/");
+  assert.equal(workspaceStatusHomeUrl("ja"), "http://localhost:8090/ja/");
+  assert.notEqual(workspaceStatusHomeUrl("ja"), publicStatusPageUrl());
 });

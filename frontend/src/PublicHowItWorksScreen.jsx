@@ -2,96 +2,56 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import PublicPageShell from "./PublicPageShell.jsx";
 import ProductImageSlot from "./ProductImageSlot.jsx";
+import LocalizedPromoImage from "./promo/LocalizedPromoImage.jsx";
+import { usePromoLocale } from "./promo/PromoLocaleContext.jsx";
+import { applyPromoSeo } from "./promo/seo.js";
 import section2StandardStructuredGroups from "./assets/how-it-works/section2-standard-structured-groups-1200.webp";
+import section2StandardStructuredGroupsJa from "./assets/how-it-works/section2-standard-structured-groups-ja-1200.webp";
 import section3Browser from "./assets/how-it-works/section3-browser-1200.webp";
+import section3BrowserJa from "./assets/how-it-works/section3-browser-ja-1200.webp";
 import section3Ipad from "./assets/how-it-works/section3-ipad-960.webp";
+import section3IpadJa from "./assets/how-it-works/section3-ipad-ja-960.webp";
 import section3Iphone from "./assets/how-it-works/section3-iphone-675.webp";
+import section3IphoneJa from "./assets/how-it-works/section3-iphone-ja-675.webp";
 import section4Admin from "./assets/how-it-works/section4-admin-1200.webp";
 import section4Teacher from "./assets/how-it-works/section4-teacher-1200.webp";
 import section4Manager from "./assets/how-it-works/section4-manager-1200.webp";
 import section4Reception from "./assets/how-it-works/section4-reception-1200.webp";
+import section5EverythingConnects from "./assets/how-it-works/section5-everything-connects-1200.webp";
 import {
   HOW_IT_WORKS_SLIDESHOW_INTERVAL_MS,
   nextSlideshowIndex,
   shouldRunSlideshow,
 } from "./howItWorksSlideshow.js";
 
-const JOURNEY_STEPS = [
-  {
-    number: "01",
-    eyebrow: "Start in minutes",
-    title: "Create your workspace",
-    body: "Register once and your CheckStation workspace is ready to shape around the way your organization runs.",
-    detail: "One workspace gives your team a single place to set up, run, and review attendance.",
-  },
-  {
-    number: "02",
-    eyebrow: "Bring in your people",
-    title: "Add Members and staff",
-    body: "Create reusable Member profiles and staff accounts for the people who help keep things moving.",
-    detail: "Keep your people organized now, so every new check-in flow starts with a strong foundation.",
-  },
-  {
-    number: "03",
-    eyebrow: "Match your real world",
-    title: "Build the right Group structure",
-    body: "Use standard Groups for everyday check-in, or Structured Groups when you need classes and sections inside a larger setup.",
-    detail: "A school can organize by class. A workplace can organize by team. The workspace stays clear either way.",
-  },
-  {
-    number: "04",
-    eyebrow: "Make every flow feel right",
-    title: "Configure each check-in experience",
-    body: "Give every Group its own actions, identification method, rules, people, and kiosk presentation.",
-    detail: "The front desk can run a different flow from the classroom — without creating another workspace.",
-  },
-  {
-    number: "05",
-    eyebrow: "Open the right screen",
-    title: "Launch wherever it makes sense",
-    body: "Run a kiosk on a shared tablet, use the browser with staff, or keep several Group experiences moving at once.",
-    detail: "Every Group kiosk stays separate from the admin workspace and independent from the others.",
-  },
-  {
-    number: "06",
-    eyebrow: "Stay in the loop",
-    title: "Review what happened",
-    body: "Each check-in, check-out, and break becomes a record your team can revisit whenever they need it.",
-    detail: "Filter activity by Group, person, action, or day and keep the full story close at hand.",
-  },
-];
-
-const STAFF_EXAMPLES = [
-  ["Teacher", "Assign the classes or Groups they should view and operate."],
-  ["Manager", "Keep the Groups they oversee close to hand for everyday operations."],
-  ["Reception", "Give a front-desk teammate access to the check-in Groups they run."],
-];
-
 const SECTION_TWO_ARTWORK = {
-  alt: "CheckStation Standard Group kiosk beside a Structured Group class kiosk.",
   width: 1200,
   height: 900,
   sizes: "(max-width: 880px) calc(100vw - 3rem), min(50vw, 35rem)",
   fallbackSrc: section2StandardStructuredGroups,
 };
 
+const SECTION_TWO_JA_ARTWORK = {
+  width: 1200,
+  height: 675,
+  sizes: "(max-width: 880px) calc(100vw - 3rem), min(50vw, 35rem)",
+  fallbackSrc: section2StandardStructuredGroupsJa,
+};
+
 const SECTION_THREE_DEVICES = {
   browser: {
-    alt: "Northgate Warehouse browser kiosk showing employee check-in cards.",
     width: 1200,
     height: 675,
     sizes: "(max-width: 700px) calc(100vw - 3rem), min(74vw, 49rem)",
     fallbackSrc: section3Browser,
   },
   tablet: {
-    alt: "Northgate Warehouse tablet kiosk showing employee check-in cards.",
     width: 960,
     height: 720,
     sizes: "(max-width: 560px) calc(100vw - 4rem), min(45vw, 29rem)",
     fallbackSrc: section3Ipad,
   },
   phone: {
-    alt: "Northgate Warehouse phone kiosk showing employee check-in cards.",
     width: 675,
     height: 1200,
     sizes: "(max-width: 560px) min(52vw, 11rem), min(21vw, 12.5rem)",
@@ -99,55 +59,51 @@ const SECTION_THREE_DEVICES = {
   },
 };
 
-const SECTION_FOUR_SLIDES = [
-  {
-    role: "Admin",
-    src: section4Admin,
-    alt: "Admin Staff Management view showing Group access assignments for workspace staff.",
+const SECTION_THREE_JA_DEVICES = {
+  browser: {
+    width: 1200,
+    height: 675,
+    sizes: "(max-width: 700px) calc(100vw - 3rem), min(74vw, 49rem)",
+    fallbackSrc: section3BrowserJa,
   },
-  {
-    role: "Teacher",
-    src: section4Teacher,
-    alt: "Teacher staff workspace showing assigned School and Sels Groups.",
+  tablet: {
+    width: 960,
+    height: 720,
+    sizes: "(max-width: 560px) calc(100vw - 4rem), min(45vw, 29rem)",
+    fallbackSrc: section3IpadJa,
   },
-  {
-    role: "Manager",
-    src: section4Manager,
-    alt: "Manager staff workspace showing an attendance report limited to assigned Groups.",
+  phone: {
+    width: 675,
+    height: 1200,
+    sizes: "(max-width: 560px) min(52vw, 11rem), min(21vw, 12.5rem)",
+    fallbackSrc: section3IphoneJa,
   },
-  {
-    role: "Reception",
-    src: section4Reception,
-    alt: "Reception staff dashboard showing activity from assigned Groups.",
-  },
+};
+
+const SECTION_FOUR_SRCS = [
+  section4Admin,
+  section4Teacher,
+  section4Manager,
+  section4Reception,
 ];
 
-function PageTitle() {
-  useEffect(() => {
-    const title = "How it works — CheckStation";
-    document.title = title;
-    const ensure = (name, content) => {
-      let el = document.querySelector(`meta[name="${name}"]`);
-      if (!el) {
-        el = document.createElement("meta");
-        el.setAttribute("name", name);
-        document.head.appendChild(el);
-      }
-      el.setAttribute("content", content);
-    };
-    ensure("description", "Set up flexible check-in flows, run them across your devices, and keep every action connected in one CheckStation workspace.");
-    ensure("og:title", title);
-    ensure("og:description", "A flexible check-in flow for every Group, all from one workspace.");
-    ensure("og:type", "website");
-  }, []);
-  return null;
-}
+const SECTION_FIVE_ARTWORK = {
+  width: 1200,
+  height: 900,
+  sizes: "(max-width: 880px) calc(100vw - 3rem), min(55vw, 42rem)",
+  fallbackSrc: section5EverythingConnects,
+};
 
 function CheckMark() {
-  return <span className="how-check" aria-hidden="true">✓</span>;
+  return (
+    <span className="how-check" aria-hidden="true">
+      ✓
+    </span>
+  );
 }
 
 function StaffWorkspaceSlideshow() {
+  const { t, locale } = usePromoLocale();
   const rootRef = useRef(null);
   const [activeSlide, setActiveSlide] = useState(0);
   const [direction, setDirection] = useState(1);
@@ -158,6 +114,12 @@ function StaffWorkspaceSlideshow() {
   const [pageVisible, setPageVisible] = useState(
     () => typeof document === "undefined" || document.visibilityState === "visible",
   );
+  const isJa = locale === "ja";
+  const staffSlides = t("howItWorks.staffSlides");
+  const slides = (Array.isArray(staffSlides) ? staffSlides : []).map((slide, index) => ({
+    ...slide,
+    src: SECTION_FOUR_SRCS[index],
+  }));
 
   useEffect(() => {
     const node = rootRef.current;
@@ -188,23 +150,29 @@ function StaffWorkspaceSlideshow() {
   }, []);
 
   useEffect(() => {
+    if (isJa) return undefined;
     if (!shouldRunSlideshow({ inViewport, interacting, reducedMotion, pageVisible })) {
       return undefined;
     }
     const timer = window.setTimeout(() => {
       setDirection(1);
-      setActiveSlide((current) =>
-        nextSlideshowIndex(current, SECTION_FOUR_SLIDES.length, 1),
-      );
+      setActiveSlide((current) => nextSlideshowIndex(current, slides.length, 1));
     }, HOW_IT_WORKS_SLIDESHOW_INTERVAL_MS);
     return () => window.clearTimeout(timer);
-  }, [activeSlide, inViewport, interacting, pageVisible, reducedMotion, timerVersion]);
+  }, [
+    activeSlide,
+    inViewport,
+    interacting,
+    isJa,
+    pageVisible,
+    reducedMotion,
+    slides.length,
+    timerVersion,
+  ]);
 
   function navigate(directionDelta) {
     setDirection(directionDelta);
-    setActiveSlide((current) =>
-      nextSlideshowIndex(current, SECTION_FOUR_SLIDES.length, directionDelta),
-    );
+    setActiveSlide((current) => nextSlideshowIndex(current, slides.length, directionDelta));
     setTimerVersion((current) => current + 1);
   }
 
@@ -226,160 +194,311 @@ function StaffWorkspaceSlideshow() {
         if (!event.currentTarget.contains(event.relatedTarget)) setInteracting(false);
       }}
       aria-roledescription="carousel"
-      aria-label="Admin and staff workspace views"
+      aria-label={t("howItWorks.staffSlideshowAria")}
     >
       <div className="how-staff-slideshow-frame">
         <div className="how-staff-slides">
-          {SECTION_FOUR_SLIDES.map((slide, index) => (
-            <figure
-              key={slide.role}
-              className={`how-staff-slide${index === activeSlide ? " is-active" : ""}`}
-              aria-hidden={index !== activeSlide}
-            >
-              <img
-                src={slide.src}
-                alt={index === activeSlide ? slide.alt : ""}
-                width="1200"
-                height="675"
-                loading={index === 0 ? "eager" : "lazy"}
-                fetchPriority={index === 0 ? "high" : "auto"}
+          {isJa ? (
+            <figure className="how-staff-slide is-active">
+              <LocalizedPromoImage
+                as="div"
+                aspectRatio="16 / 9"
+                width={1200}
+                height={675}
+                alt={t("imagePlaceholder")}
               />
             </figure>
+          ) : (
+            slides.map((slide, index) => (
+              <figure
+                key={slide.role}
+                className={`how-staff-slide${index === activeSlide ? " is-active" : ""}`}
+                aria-hidden={index !== activeSlide}
+              >
+                <img
+                  src={slide.src}
+                  alt={index === activeSlide ? slide.alt : ""}
+                  width="1200"
+                  height="675"
+                  loading={index === 0 ? "eager" : "lazy"}
+                  fetchPriority={index === 0 ? "high" : "auto"}
+                />
+              </figure>
+            ))
+          )}
+        </div>
+        {!isJa ? (
+          <>
+            <button
+              type="button"
+              className="how-staff-slide-arrow is-previous"
+              onClick={() => navigate(-1)}
+              aria-label={t("howItWorks.staffPrevAria")}
+            >
+              ‹
+            </button>
+            <button
+              type="button"
+              className="how-staff-slide-arrow is-next"
+              onClick={() => navigate(1)}
+              aria-label={t("howItWorks.staffNextAria")}
+            >
+              ›
+            </button>
+          </>
+        ) : null}
+      </div>
+      {!isJa ? (
+        <div className="how-staff-slide-dots" role="group" aria-label={t("howItWorks.staffDotsAria")}>
+          {slides.map((slide, index) => (
+            <button
+              key={slide.role}
+              type="button"
+              className={index === activeSlide ? "is-active" : ""}
+              onClick={() => selectSlide(index)}
+              aria-label={t("howItWorks.staffShowViewAria", { role: slide.role })}
+              aria-current={index === activeSlide ? "true" : undefined}
+            />
           ))}
         </div>
-        <button
-          type="button"
-          className="how-staff-slide-arrow is-previous"
-          onClick={() => navigate(-1)}
-          aria-label="Previous workspace view"
-        >
-          ‹
-        </button>
-        <button
-          type="button"
-          className="how-staff-slide-arrow is-next"
-          onClick={() => navigate(1)}
-          aria-label="Next workspace view"
-        >
-          ›
-        </button>
-      </div>
-      <div className="how-staff-slide-dots" role="group" aria-label="Choose workspace view">
-        {SECTION_FOUR_SLIDES.map((slide, index) => (
-          <button
-            key={slide.role}
-            type="button"
-            className={index === activeSlide ? "is-active" : ""}
-            onClick={() => selectSlide(index)}
-            aria-label={`Show ${slide.role} workspace view`}
-            aria-current={index === activeSlide ? "true" : undefined}
-          />
-        ))}
-      </div>
+      ) : null}
     </div>
   );
 }
 
 export default function PublicHowItWorksScreen() {
+  const { t, locale, pathFor } = usePromoLocale();
   const [activeStep, setActiveStep] = useState(0);
+  const steps = t("howItWorks.steps");
+  const structurePoints = t("howItWorks.structurePoints");
+  const simultaneousFoot = t("howItWorks.simultaneousFoot");
+  const staffExamples = t("howItWorks.staffExamples");
+  const journeySteps = Array.isArray(steps) ? steps : [];
+  const selected = journeySteps[activeStep] || journeySteps[0] || {};
+
+  useEffect(() => {
+    applyPromoSeo({
+      locale,
+      title: t("meta.howItWorksTitle"),
+      description: t("meta.howItWorksDescription"),
+      ogDescription: t("meta.howItWorksOgDescription"),
+      canonicalPath: pathFor("/how-it-works"),
+    });
+  }, [locale, pathFor, t]);
 
   useEffect(() => {
     const page = document.querySelector(".how-page");
     if (!page) return undefined;
     const items = [...page.querySelectorAll("[data-reveal]")];
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches || !("IntersectionObserver" in window)) {
+    if (
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches ||
+      !("IntersectionObserver" in window)
+    ) {
       items.forEach((item) => item.classList.add("is-visible"));
       return undefined;
     }
     const observer = new IntersectionObserver(
-      (entries) => entries.forEach((entry) => {
-        if (entry.isIntersecting) {
-          entry.target.classList.add("is-visible");
-          observer.unobserve(entry.target);
-        }
-      }),
-      { threshold: 0.14 }
+      (entries) =>
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add("is-visible");
+            observer.unobserve(entry.target);
+          }
+        }),
+      { threshold: 0.14 },
     );
     items.forEach((item) => observer.observe(item));
     return () => observer.disconnect();
   }, []);
 
-  const selected = JOURNEY_STEPS[activeStep];
-
   return (
     <PublicPageShell>
       <div className="how-page">
-        <PageTitle />
-
         <section id="your-journey" className="how-journey how-journey-hero" data-reveal>
-          <div className="how-section-heading how-journey-heading"><p className="how-kicker">Your journey</p><h1>From setup to daily attendance — it just clicks.</h1><p>Choose a step to see how CheckStation helps your setup take shape.</p></div>
+          <div className="how-section-heading how-journey-heading">
+            <p className="how-kicker">{t("howItWorks.journeyKicker")}</p>
+            <h1>{t("howItWorks.journeyTitle")}</h1>
+            <p>{t("howItWorks.journeyLead")}</p>
+          </div>
           <div className="how-journey-layout">
             <ol className="how-step-list">
-              {JOURNEY_STEPS.map((step, index) => (
+              {journeySteps.map((step, index) => (
                 <li key={step.number}>
-                  <button type="button" className={index === activeStep ? "how-step-button is-active" : "how-step-button"} onClick={() => setActiveStep(index)} onMouseEnter={() => setActiveStep(index)}>
-                    <span className="how-step-number">{step.number}</span><span><b>{step.title}</b><small>{step.eyebrow}</small></span><span className="how-step-arrow" aria-hidden="true">→</span>
+                  <button
+                    type="button"
+                    className={index === activeStep ? "how-step-button is-active" : "how-step-button"}
+                    onClick={() => setActiveStep(index)}
+                    onMouseEnter={() => setActiveStep(index)}
+                  >
+                    <span className="how-step-number">{step.number}</span>
+                    <span>
+                      <b>{step.title}</b>
+                      <small>{step.navSub || step.eyebrow}</small>
+                    </span>
+                    <span className="how-step-arrow" aria-hidden="true">
+                      →
+                    </span>
                   </button>
                 </li>
               ))}
             </ol>
             <div key={selected.number} className="how-step-detail" aria-live="polite">
-              <p className="how-kicker">{selected.eyebrow}</p><span className="how-detail-number">{selected.number}</span><h3>{selected.title}</h3><p>{selected.body}</p><div className="how-detail-note"><CheckMark />{selected.detail}</div>
+              <p className="how-kicker">{selected.eyebrow}</p>
+              <span className="how-detail-number">{selected.number}</span>
+              <h3>{selected.title}</h3>
+              <p>{selected.body}</p>
+              <div className="how-detail-note">
+                <CheckMark />
+                {selected.detail}
+              </div>
             </div>
           </div>
         </section>
 
         <section className="how-structure" data-reveal>
-          <div className="how-structure-copy"><p className="how-kicker">Organize without compromise</p><h2>Simple Groups when they are enough. Structure when you need it.</h2><p>Start with the everyday Groups that make sense for your team. When a school or larger program needs another layer, Structured Groups give you classes and sections within the same workspace.</p><div className="how-structure-points"><span><CheckMark /> Standard Groups for everyday flows</span><span><CheckMark /> Structured Groups for classes and sections</span><span><CheckMark /> One workspace, a clear view of it all</span></div></div>
-          <ProductImageSlot label="Standard and Structured Groups" image={SECTION_TWO_ARTWORK} aspect="4 / 3" className="how-image-slot how-section2-artwork" />
+          <div className="how-structure-copy">
+            <p className="how-kicker">{t("howItWorks.structureKicker")}</p>
+            <h2>{t("howItWorks.structureTitle")}</h2>
+            <p>{t("howItWorks.structureLead")}</p>
+            <div className="how-structure-points">
+              {(Array.isArray(structurePoints) ? structurePoints : []).map((point) => (
+                <span key={point}>
+                  <CheckMark /> {point}
+                </span>
+              ))}
+            </div>
+          </div>
+          <ProductImageSlot
+            label={t("howItWorks.structureImageLabel")}
+            image={{ ...SECTION_TWO_ARTWORK, alt: t("howItWorks.structureImageAlt") }}
+            jaImage={{ ...SECTION_TWO_JA_ARTWORK, alt: t("howItWorks.structureImageAlt") }}
+            aspect="4 / 3"
+            className={`how-image-slot how-section2-artwork${locale === "ja" ? " how-section2-artwork-ja" : ""}`}
+          />
         </section>
 
         <section className="how-simultaneous" data-reveal>
-          <div className="how-section-heading how-heading-light"><p className="how-kicker">Made to move together</p><h2>One workspace. Different Groups. Different devices. All running together.</h2><p>Open each Group’s own check-in experience where it belongs, while the rest of your workspace keeps moving.</p></div>
+          <div className="how-section-heading how-heading-light">
+            <p className="how-kicker">{t("howItWorks.simultaneousKicker")}</p>
+            <h2>{t("howItWorks.simultaneousTitle")}</h2>
+            <p>{t("howItWorks.simultaneousLead")}</p>
+          </div>
           <div className="how-device-stage">
             <div className="how-device how-device-browser">
-              <span className="how-device-label">Admin · browser</span>
+              <span className="how-device-label">{t("howItWorks.deviceAdminBrowser")}</span>
               <div className="how-device-shell how-device-shell-browser">
                 <div className="how-browser-chrome" aria-hidden="true">
-                  <span /><span /><span /><i />
+                  <span />
+                  <span />
+                  <span />
+                  <i />
                 </div>
                 <div className="how-device-viewport how-device-viewport-browser">
-                  <ProductImageSlot label="Staff browser kiosk" image={SECTION_THREE_DEVICES.browser} aspect="16 / 9" className="how-device-image" />
+                  <ProductImageSlot
+                    label={t("howItWorks.deviceBrowserLabel")}
+                    image={{
+                      ...SECTION_THREE_DEVICES.browser,
+                      alt: t("howItWorks.deviceBrowserAlt"),
+                    }}
+                    jaImage={{
+                      ...SECTION_THREE_JA_DEVICES.browser,
+                      alt: t("howItWorks.deviceBrowserAlt"),
+                    }}
+                    aspect="16 / 9"
+                    className="how-device-image"
+                  />
                 </div>
               </div>
             </div>
             <div className="how-device how-device-tablet">
-              <span className="how-device-label">Group A · tablet</span>
+              <span className="how-device-label">{t("howItWorks.deviceGroupTablet")}</span>
               <div className="how-device-shell how-device-shell-tablet">
                 <div className="how-device-viewport how-device-viewport-tablet">
-                  <ProductImageSlot label="Group A iPad kiosk" image={SECTION_THREE_DEVICES.tablet} aspect="4 / 3" className="how-device-image" />
+                  <ProductImageSlot
+                    label={t("howItWorks.deviceTabletLabel")}
+                    image={{
+                      ...SECTION_THREE_DEVICES.tablet,
+                      alt: t("howItWorks.deviceTabletAlt"),
+                    }}
+                    jaImage={{
+                      ...SECTION_THREE_JA_DEVICES.tablet,
+                      alt: t("howItWorks.deviceTabletAlt"),
+                    }}
+                    aspect="4 / 3"
+                    className="how-device-image"
+                  />
                 </div>
               </div>
             </div>
             <div className="how-device how-device-phone">
-              <span className="how-device-label">Class · phone</span>
+              <span className="how-device-label">{t("howItWorks.deviceClassPhone")}</span>
               <div className="how-device-shell how-device-shell-phone">
                 <span className="how-phone-island" aria-hidden="true" />
                 <div className="how-device-viewport how-device-viewport-phone">
-                  <ProductImageSlot label="Structured Group class check-in" image={SECTION_THREE_DEVICES.phone} aspect="9 / 16" className="how-device-image" />
+                  <ProductImageSlot
+                    label={t("howItWorks.devicePhoneLabel")}
+                    image={{
+                      ...SECTION_THREE_DEVICES.phone,
+                      alt: t("howItWorks.devicePhoneAlt"),
+                    }}
+                    jaImage={{
+                      ...SECTION_THREE_JA_DEVICES.phone,
+                      alt: t("howItWorks.devicePhoneAlt"),
+                    }}
+                    aspect="9 / 16"
+                    className="how-device-image"
+                  />
                 </div>
               </div>
             </div>
           </div>
-          <div className="how-simultaneous-foot"><span><CheckMark /> Each Group owns its kiosk setup</span><span><CheckMark /> Kiosks run independently</span><span><CheckMark /> Admin workspace stays separate</span></div>
+          <div className="how-simultaneous-foot">
+            {(Array.isArray(simultaneousFoot) ? simultaneousFoot : []).map((item) => (
+              <span key={item}>
+                <CheckMark /> {item}
+              </span>
+            ))}
+          </div>
         </section>
 
         <section className="how-staff" data-reveal>
           <StaffWorkspaceSlideshow />
-          <div className="how-staff-copy"><p className="how-kicker">The right people, in the right Groups</p><h2>Give staff a focused place to help.</h2><p>Create staff accounts for the people who run check-in with you, then choose the Groups each staff account can view and operate.</p><div className="how-staff-examples">{STAFF_EXAMPLES.map(([title, body]) => <article key={title}><span>{title.slice(0, 1)}</span><div><h3>{title}</h3><p>{body}</p></div></article>)}</div><p className="how-staff-note">Whether they are a teacher, manager, or receptionist, the access stays tied to the Groups you choose.</p></div>
+          <div className="how-staff-copy">
+            <p className="how-kicker">{t("howItWorks.staffKicker")}</p>
+            <h2>{t("howItWorks.staffTitle")}</h2>
+            <p>{t("howItWorks.staffLead")}</p>
+            <div className="how-staff-examples">
+              {(Array.isArray(staffExamples) ? staffExamples : []).map((example) => (
+                <article key={example.title}>
+                  <span>{String(example.title).slice(0, 1)}</span>
+                  <div>
+                    <h3>{example.title}</h3>
+                    <p>{example.body}</p>
+                  </div>
+                </article>
+              ))}
+            </div>
+            <p className="how-staff-note">{t("howItWorks.staffNote")}</p>
+          </div>
         </section>
 
         <section className="how-history" data-reveal>
-          <div><p className="how-kicker">Everything connects</p><h2>Every action becomes a clearer picture.</h2><p>When people check in, check out, or take a break, CheckStation keeps the activity connected to the Group. Your team can return to the workspace, filter the history, and understand what happened without chasing down scattered notes.</p><Link className="how-text-link" to="/features">Explore all features <span aria-hidden="true">→</span></Link></div>
-          <ProductImageSlot label="Activity history" caption="Image placeholder — add an original history screenshot here later." aspect="16 / 10" className="how-history-image" />
+          <div>
+            <p className="how-kicker">{t("howItWorks.historyKicker")}</p>
+            <h2>{t("howItWorks.historyTitle")}</h2>
+            <p>{t("howItWorks.historyLead")}</p>
+            <Link className="how-text-link" to={pathFor("/features")}>
+              {t("howItWorks.exploreFeatures")} <span aria-hidden="true">→</span>
+            </Link>
+          </div>
+          <LocalizedPromoImage
+            image={{ ...SECTION_FIVE_ARTWORK, alt: t("howItWorks.historyImageAlt") }}
+            shared
+            alt={t("howItWorks.historyImageAlt")}
+            figureClassName="product-image-slot product-image-slot-filled how-history-image how-section5-artwork"
+            aspectRatio="4 / 3"
+          />
         </section>
-
-        <section className="how-final-cta" data-reveal><div><p className="how-kicker how-kicker-light">Ready when you are</p><h2>Start your first check-in today.</h2><p>Create a workspace, build your first Group, and make attendance feel easier from the first day.</p></div><Link className="btn-primary how-final-button" to="/register">Create your workspace <span aria-hidden="true">→</span></Link></section>
       </div>
     </PublicPageShell>
   );

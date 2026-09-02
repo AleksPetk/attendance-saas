@@ -1,0 +1,42 @@
+{
+  "plans": {
+    "basic": "Basic",
+    "plus": "Plus",
+    "business": "Business"
+  },
+  "usageLabels": {
+    "active_standard_groups": "スタンダードグループ",
+    "active_structured_groups": "構造化グループ",
+    "archived_groups": "アーカイブグループ",
+    "members": "メンバー",
+    "workspace_admins": "ワークスペース管理者",
+    "workspace_staff": "ワークスペーススタッフ",
+    "participants_per_standard_group": "スタンダードグループあたりの参加者",
+    "classes_per_structured_group": "構造化グループあたりのクラス",
+    "participants_per_class": "クラスあたりの参加者",
+    "groups": "グループ"
+  },
+  "capacity": {
+    "available": "{{limit}} 件中 {{unlocked}} 件利用可能",
+    "recordsAvailable": "{{total}} {{recordWord}} · {{limit}} 件中 {{unlocked}} 件利用可能",
+    "recordsLocked": "{{total}} {{recordWord}} · {{unlocked}} 件利用可能 · {{locked}} 件プランでロック",
+    "record": "件",
+    "records": "件",
+    "limit": "上限: {{limit}}"
+  },
+  "usageOf": "{{usage}} / {{limit}}",
+  "adsRequired": "Basic プランでは広告が表示されます",
+  "planLockCandidates": {
+    "structuredGroup": "構造化グループ",
+    "standardGroup": "スタンダードグループ",
+    "workspaceAdmin": "ワークスペース管理者",
+    "workspaceStaff": "ワークスペーススタッフ",
+    "recordNumber": "レコード #{{id}}"
+  },
+  "advertising": {
+    "ariaLabel": "広告",
+    "kicker": "広告",
+    "headline": "開発用プレースホルダー",
+    "continue": "続行"
+  }
+}

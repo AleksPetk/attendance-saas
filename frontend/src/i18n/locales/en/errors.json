@@ -1,0 +1,14 @@
+{
+  "generic": "Something went wrong.",
+  "planFeatureLocked": "Your current plan does not include this feature.",
+  "planCapacityReached": "You have reached the limit for your current plan.",
+  "planAccountLocked": "This workspace account is locked by the current plan.",
+  "emailNotVerified": "Please verify your email before continuing.",
+  "twoFactorRequired": "Two-factor authentication is required.",
+  "checkstationManaged": "This workspace is managed by CheckStation and does not use customer billing.",
+  "notStripeBilling": "This workspace is not on Stripe-managed billing.",
+  "appleBilling": "Apple-managed subscriptions cannot use Stripe Checkout.",
+  "billingGeneric": "Billing could not be completed.",
+  "stripeNotConfigured": "Paid checkout is not configured in this environment.",
+  "invalidLanguage": "Preferred language must be English or Japanese."
+}

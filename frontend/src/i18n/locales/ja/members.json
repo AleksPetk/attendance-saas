@@ -1,0 +1,108 @@
+{
+  "title": "メンバー",
+  "addMember": "メンバーを追加",
+  "searchPlaceholder": "名前、メール、電話、住所、または #ID で検索",
+  "loading": "メンバーを読み込み中…",
+  "loadingOne": "メンバーを読み込み中…",
+  "noContactDetails": "連絡先情報なし",
+  "planLockedCopy": "現在のプランでロック中",
+  "usage": {
+    "label": "メンバー利用状況",
+    "memberCount": "メンバー {{count}} 人",
+    "memberCount_other": "メンバー {{count}} 人",
+    "remaining": "残り {{count}} 人",
+    "unlimited": "上限なし",
+    "progressLabel": "メンバープランの利用状況",
+    "progressValue": "上限 {{limit}} 人中 {{count}} 人を使用"
+  },
+  "views": {
+    "ariaLabel": "メンバー表示",
+    "active": "有効なメンバー",
+    "archived": "アーカイブ済みメンバー"
+  },
+  "filters": {
+    "search": "検索",
+    "sortBy": "並び順",
+    "profile": "プロフィール",
+    "allMembers": "すべてのメンバー",
+    "withEmail": "メールあり",
+    "withoutEmail": "メールなし",
+    "withPhone": "電話番号あり",
+    "withoutPhone": "電話番号なし",
+    "clear": "クリア"
+  },
+  "sort": {
+    "newest": "新しい順",
+    "oldest": "古い順",
+    "nameAsc": "名前 A–Z",
+    "nameDesc": "名前 Z–A"
+  },
+  "archive": "アーカイブ",
+  "restore": "復元",
+  "deletePermanently": "完全に削除",
+  "confirmArchive": "{{name}} をアーカイブしますか？復元するまでグループとキオスクから非表示になります。",
+  "confirmDeleteTitle": "メンバーを完全に削除しますか？",
+  "confirmDeleteBody": "{{name}} (#{{id}}) を完全に削除しますか？この操作は元に戻せません。",
+  "planSelection": {
+    "needsDecision": "プラン上限の選択が必要です",
+    "noticeWithLimit": "{{planName}} プランにはメンバー {{limit}} 件が含まれます。利用可能にする {{limit}} 件を選択してください。",
+    "noticeWithLimit_other": "{{planName}} プランにはメンバー {{limit}} 件が含まれます。利用可能にする {{limit}} 件を選択してください。",
+    "noticeGeneric": "現在のプランで利用可能なメンバーを選択してください。",
+    "hint": "選択が完了するまで、メンバープロフィールの管理はロックされます。既存のグループ参加は保持されます。",
+    "chooseButton": "利用可能なメンバーを選択",
+    "panelTitle": "利用可能なメンバーを選択",
+    "panelDescription": "メンバーは事前選択されていません。プラン上限の件数を正確に選択してください。大規模なワークスペースでは検索をご利用ください。"
+  },
+  "sections": {
+    "available": "利用可能なメンバー",
+    "locked": "現在のプランでロック中",
+    "availableAria": "利用可能なメンバー",
+    "lockedAria": "現在のプランでロック中"
+  },
+  "count": {
+    "availableOfLimit": "{{available}} / {{limit}}",
+    "lockedMembers": "メンバー {{count}} 件",
+    "lockedMembers_other": "メンバー {{count}} 件"
+  },
+  "empty": {
+    "filteredTitle": "条件に一致するメンバーがありません",
+    "filteredBody": "検索条件またはプロフィールフィルターを変更してください。",
+    "activeTitle": "メンバーがまだありません",
+    "activeBody": "名前だけでもメンバーを追加できます。必要に応じてグループに追加してください。",
+    "archivedTitle": "アーカイブ済みメンバーはありません",
+    "archivedBody": "アーカイブしたメンバーはここに表示されます。復元するか完全に削除できます。"
+  },
+  "create": {
+    "title": "メンバーを追加",
+    "description": "名前のみ必須です。名前だけのメンバーも有効です。",
+    "creating": "作成中…",
+    "submit": "メンバーを作成"
+  },
+  "profile": {
+    "back": "← メンバー一覧に戻る",
+    "addNewMember": "新しいメンバーを追加",
+    "backToList": "メンバー一覧に戻る",
+    "unavailable": "メンバープロフィールを利用できません",
+    "lockedMessage": "このメンバーは現在のプランでロックされています。",
+    "saving": "保存中…",
+    "sections": {
+      "contact": "連絡先",
+      "personal": "個人情報",
+      "notes": "メモ"
+    },
+    "noNotes": "メモなし"
+  },
+  "fields": {
+    "name": "名前",
+    "email": "メール",
+    "phone": "電話",
+    "address": "住所",
+    "notes": "メモ",
+    "dateOfBirth": "生年月日",
+    "required": "必須"
+  },
+  "form": {
+    "memberId": "メンバー #{{id}}",
+    "emptyValue": "—"
+  }
+}

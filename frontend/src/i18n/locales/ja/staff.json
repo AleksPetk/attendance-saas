@@ -1,0 +1,120 @@
+{
+  "loading": "スタッフアカウントを読み込み中…",
+  "management": {
+    "title": "スタッフ管理",
+    "descriptionOwner": "ワークスペース管理者とスタッフのアカウントを作成します。スタッフがサインインできるよう、ワークスペース ID を共有してください。",
+    "descriptionAdmin": "スタッフアカウントを作成・管理します。管理者アカウントはワークスペースオーナーのみが管理できます。",
+    "resolveDescription": "現在のプランで利用可能なアカウントを選択してください。"
+  },
+  "usage": {
+    "label": "スタッフアカウント利用状況",
+    "admins": "管理者",
+    "staff": "スタッフ",
+    "summary": "{{count}} 件使用中 · 残り {{remaining}} 件",
+    "progressLabel": "{{type}}のプラン利用状況",
+    "progressValue": "{{type}}は上限 {{limit}} 件中 {{count}} 件を使用"
+  },
+  "planLock": {
+    "chooseAdminsTitle": "利用可能な管理者を選択",
+    "chooseStaffTitle": "利用可能なスタッフを選択",
+    "chooseAdminsDescription": "このワークスペースにアクセスできる管理者アカウントを選択してください。",
+    "chooseStaffDescription": "このワークスペースにアクセスできるスタッフアカウントを選択してください。",
+    "changeAdmins": "利用可能な管理者を変更",
+    "changeStaff": "利用可能なスタッフを変更",
+    "lockedCopy": "現在のプランではロック中",
+    "lockedSection": "現在のプランではロック中",
+    "lockedAdminAccounts": "管理者アカウント",
+    "lockedStaffAccounts": "スタッフアカウント"
+  },
+  "empty": {
+    "lockedTitle": "スタッフ管理は利用できません",
+    "lockedBody": "Basic プランにはワークスペース管理者およびスタッフアカウントは含まれません。Staff ページを利用するには Plus または Business にアップグレードしてください。",
+    "notAvailableTitle": "利用できません",
+    "notAvailableBody": "スタッフアカウントを管理できるのは、ワークスペースオーナーまたは管理者のみです。",
+    "noAccountsTitle": "スタッフアカウントはまだありません",
+    "noAccountsBodyOwner": "ワークスペースへのアクセスが必要な方の管理者またはスタッフアカウントを作成してください。",
+    "noAccountsBodyAdmin": "ワークスペースへのアクセスが必要な方のスタッフアカウントを作成してください。"
+  },
+  "workspaceId": {
+    "title": "ワークスペース ID",
+    "copyLabel": "ID をコピー",
+    "hint": "スタッフはこの ID とユーザー名、パスワードを使ってスタッフログインページからサインインします。"
+  },
+  "sections": {
+    "existingAccounts": "既存のアカウント",
+    "existingAccountsOwner": "このワークスペースにアクセスできる管理者とスタッフ。",
+    "existingAccountsAdmin": "このワークスペースで管理できるスタッフアカウント。",
+    "availableAdmins": "利用可能な管理者",
+    "availableStaff": "利用可能なスタッフ",
+    "accountCount_one": "{{count}} アカウント",
+    "accountCount_other": "{{count}} アカウント"
+  },
+  "create": {
+    "title": "アカウントを作成",
+    "usernameLabel": "ユーザー名",
+    "usernameHint": "このワークスペース内で一意",
+    "roleLabel": "ロール",
+    "passwordLabel": "パスワード",
+    "submit": "アカウントを作成",
+    "submitting": "作成中…",
+    "adminEmailHint": "管理者アカウントでは必須"
+  },
+  "row": {
+    "groupAccess": "グループアクセス",
+    "closeAccess": "アクセスを閉じる",
+    "resetPassword": "パスワードをリセット",
+    "delete": "削除",
+    "planLockedTitle": "現在のプランではロック中"
+  },
+  "lifecycle": {
+    "deactivate": "一時停止",
+    "reactivate": "再開"
+  },
+  "delete": {
+    "title": "アカウントを完全に削除しますか？",
+    "bodyAdmin": "管理者アカウント「{{username}}」を完全に削除しますか？サインイン情報と非公開のアクセス割り当てが削除されます。この操作は元に戻せません。",
+    "bodyStaff": "スタッフアカウント「{{username}}」を完全に削除しますか？サインイン情報と非公開のアクセス割り当てが削除されます。この操作は元に戻せません。",
+    "confirmLabel": "完全に削除",
+    "success": "{{username}} を完全に削除しました。"
+  },
+  "email": {
+    "label": "メール",
+    "labelOptional": "メール（任意）",
+    "duplicate": "このメールのアカウントはすでにこのワークスペースに存在します。"
+  },
+  "resetPassword": {
+    "prompt": "このスタッフアカウントの新しいパスワードを入力してください:"
+  },
+  "groupAccess": {
+    "loading": "グループアクセスを読み込み中…",
+    "title": "グループアクセス — {{username}}",
+    "description": "このスタッフアカウントが表示・操作できるグループを選択してください。",
+    "currentAriaLabel": "現在のグループアクセス",
+    "label": "グループアクセス",
+    "empty": "グループアクセスなし",
+    "moreTitle_one": "追加のグループ {{count}} 件",
+    "moreTitle_other": "追加のグループ {{count}} 件",
+    "more": "他 {{count}} 件",
+    "searchLabel": "グループを検索",
+    "searchPlaceholder": "グループを検索...",
+    "filterAriaLabel": "グループを絞り込み",
+    "filters": {
+      "all": "すべて",
+      "selected": "選択済み",
+      "unselected": "未選択",
+      "standard": "標準",
+      "structured": "構造化"
+    },
+    "selectedCount": "{{count}} 件選択",
+    "selectAllVisible": "表示中をすべて選択",
+    "clearSelection": "選択をクリア",
+    "save": "アクセスを保存",
+    "saving": "保存中…",
+    "emptyNoGroups": "利用可能なアクティブなグループがありません。",
+    "emptyNoSearchResults": "検索条件に一致するグループがありません。",
+    "emptyNoSelected": "選択されたグループがありません。",
+    "emptyNoUnselected": "未選択のグループがありません。",
+    "groupTypeStandard": "標準",
+    "groupTypeStructured": "構造化"
+  }
+}

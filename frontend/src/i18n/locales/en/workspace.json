@@ -1,0 +1,605 @@
+{
+  "settings": "Settings",
+  "language": "Language",
+  "workspaceSubtitle": "Workspace",
+  "brandTagline": "Configurable check-in platform",
+  "brandLead": "Connect Members, Groups, kiosks, and history in one workspace.",
+  "nav": {
+    "dashboard": "Dashboard",
+    "members": "Members",
+    "groups": "Groups",
+    "history": "History",
+    "staff": "Staff",
+    "account": "Account"
+  },
+  "pageTitles": {
+    "dashboard": "Dashboard",
+    "members": "Members",
+    "groups": "Groups",
+    "kioskSettings": "Kiosk Settings",
+    "kioskBuilder": "Kiosk Builder",
+    "history": "History",
+    "staff": "Staff management",
+    "account": "Account",
+    "workspace": "Workspace"
+  },
+  "staffNavLocked": "Staff management requires Plus or Business",
+  "roles": {
+    "owner": "Owner",
+    "admin": "Admin",
+    "staff": "Staff",
+    "workspace": "Workspace"
+  },
+  "topbar": {
+    "adminNotice": "Admin view — full workspace management except owner account and billing.",
+    "staffScopedNotice": "Staff view — assigned Groups only. Participant and kiosk operations within those Groups.",
+    "staffLimitedNotice": "Staff view — editing is limited to permitted areas."
+  },
+  "visualLabels": {
+    "members": "Members",
+    "groups": "Groups",
+    "kiosk": "Kiosk",
+    "history": "History"
+  },
+  "dashboard": {
+    "eyebrow": "Overview",
+    "title": "Dashboard",
+    "description": "Your workspace at a glance — real counts and recent check-in activity.",
+    "loading": "Loading dashboard…",
+    "loadErrorTitle": "Could not load dashboard",
+    "stats": {
+      "members": "Members",
+      "membersHint": "Reusable people in workspace",
+      "groups": "Groups",
+      "groupsHintMembers": "Check-in configurations",
+      "groupsHintStaff": "Assigned Groups",
+      "recentActions": "Recent actions",
+      "recentActionsHint": "Shown below"
+    },
+    "recentActivity": {
+      "title": "Recent activity",
+      "description": "Latest action records from kiosk operations."
+    },
+    "empty": {
+      "title": "No activity yet",
+      "body": "Launch a kiosk and record a check-in to see activity here.",
+      "action": "Go to Groups"
+    },
+    "quickActions": {
+      "title": "Quick actions",
+      "addMember": "Add Member",
+      "createGroup": "Create Group",
+      "viewHistory": "View history",
+      "launchKiosk": "Launch kiosk"
+    }
+  },
+  "accountSections": {
+    "security": "Security",
+    "subscription": "Subscription",
+    "billing": "Billing",
+    "info": "Info",
+    "tutorial": "Tutorial",
+    "status": "Status"
+  },
+  "accountSectionDescriptions": {
+    "security": "Login email, backup email, password, two-factor authentication, and account deletion.",
+    "subscription": "Current plan, usage, and plan changes.",
+    "billing": "Invoices, receipts, and payment details.",
+    "info": "Documentation, legal information, and help from CheckStation.",
+    "tutorial": "Replay the Workspace introduction or choose a focused guided tutorial.",
+    "status": "Live CheckStation service health, incidents, and scheduled maintenance."
+  },
+  "loadingWorkspace": "Loading workspace…",
+  "notifications": {
+    "title": "Notifications",
+    "aria": "Notifications",
+    "unreadAria": "Notifications, {{count}} unread",
+    "refreshFailed": "Could not refresh.",
+    "empty": "No announcements yet.",
+    "viewStatus": "View Status"
+  },
+  "announcementSeverity": {
+    "maintenance": "Maintenance",
+    "important": "Important",
+    "info": "Info"
+  },
+  "planLock": {
+    "loading": "Loading plan availability…",
+    "planAllows": "This plan allows {{limit}}.",
+    "kicker": "Plan capacity",
+    "selectedCount": "{{selected}} / {{limit}} selected",
+    "searchPlaceholder": "Search name, email, or #ID",
+    "searchAria": "Search candidates",
+    "noMatches": "No matching records.",
+    "noRecords": "There are no records to select.",
+    "guidance": "Choose exactly {{count}} record to match this plan's available capacity.",
+    "guidance_plural": "Choose exactly {{count}} records to match this plan's available capacity.",
+    "confirmAvailability": "Confirm availability"
+  },
+  "authVisual": {
+    "brandTagline": "Configurable check-in platform",
+    "brandLead": "Connect Members, Groups, kiosks, and history in one workspace.",
+    "members": "Members",
+    "groups": "Groups",
+    "kiosk": "Kiosk",
+    "history": "History"
+  },
+  "tutorialHub": {
+    "unavailable": "This tutorial is not available for the current Workspace.",
+    "feedbackComplete": "{{title}} tutorial complete.",
+    "status": {
+      "completed": "Completed",
+      "available": "Available",
+      "skipped": "Skipped",
+      "inProgress": "In progress",
+      "notStarted": "Not started"
+    },
+    "actions": {
+      "continue": "Continue",
+      "restart": "Restart",
+      "replay": "Replay",
+      "start": "Start"
+    },
+    "panel": {
+      "eyebrow": "Guided help",
+      "title": "Learn CheckStation in the Workspace",
+      "description": "Choose a short guide. Tutorials use the pages and features currently available to this owner account.",
+      "activeHint": "A tutorial is currently open."
+    }
+  },
+  "tutorialOverlay": {
+    "back": "Back",
+    "skipTutorial": "Skip tutorial",
+    "close": "Close",
+    "finish": "Finish",
+    "next": "Next",
+    "progressOf": "{{current}} of {{total}}",
+    "tourSkipped": "Tour skipped",
+    "tourComplete": "Tour complete",
+    "alwaysHereTitle": "Tutorials are always here",
+    "alwaysHereBody": "Reopen this tour or choose a focused guide anytime from Account → Tutorial.",
+    "viewTutorials": "View tutorials",
+    "goToDashboard": "Go to Dashboard",
+    "preparingArea": "Preparing this area…",
+    "scrollingArea": "Bringing this area into view…",
+    "missingTarget": "This control is not visible in the current layout or data state, so you can continue with this explanation."
+  },
+  "tutorialSummary": {
+    "overviewComplete": "Workspace Overview complete",
+    "workspaceReady": "Your Workspace is ready",
+    "trialActiveTitle": "Your 7-day Business trial is active.",
+    "trialActiveBody": "Business access is currently available through {{date}}.",
+    "trialActiveBodyOpen": "Business access is currently available in this Workspace.",
+    "planReadyTitle": "Your current plan is ready to use.",
+    "planReadyBody": "Tutorials never create or change your plan. You can review current access in Account → Subscription."
+  },
+  "tutorial": {
+    "modules": {
+      "workspace-overview": {
+        "title": "Workspace Overview",
+        "description": "A complete guided introduction to how the Workspace fits together.",
+        "duration": "About 8 minutes"
+      },
+      "members": {
+        "title": "Members",
+        "description": "See where reusable people are added and managed.",
+        "duration": "About 1 minute"
+      },
+      "groups": {
+        "title": "Groups",
+        "description": "Follow the complete setup flow for Standard and Structured attendance Groups.",
+        "duration": "About 4 minutes"
+      },
+      "kiosks": {
+        "title": "Kiosks Overview",
+        "description": "Find the Group-specific controls for kiosk behavior, design, and live launch.",
+        "duration": "About 2 minutes"
+      },
+      "kiosk-settings": {
+        "title": "Kiosk Settings",
+        "description": "Learn identification, exit protection, attendance reset, and confirmation behavior.",
+        "duration": "About 5 minutes"
+      },
+      "kiosk-design": {
+        "title": "Kiosk Design",
+        "description": "Learn the visual editor, responsive preview, templates, and safe editing controls.",
+        "duration": "About 4 minutes"
+      },
+      "launch-kiosk": {
+        "title": "Launch Kiosk",
+        "description": "Understand readiness, live kiosk mode, browser locking, and secure exit.",
+        "duration": "About 2 minutes"
+      },
+      "attendance-history": {
+        "title": "Attendance & History",
+        "description": "Review check-ins, check-outs, breaks, and attendance records.",
+        "duration": "About 2 minutes"
+      },
+      "email-notifications": {
+        "title": "Email & Notifications",
+        "description": "See where each Group controls its sender and notification rules.",
+        "duration": "About 2 minutes"
+      },
+      "staff-permissions": {
+        "title": "Staff & Permissions",
+        "description": "Create operational accounts with the access their work requires.",
+        "duration": "About 3 minutes"
+      },
+      "account-security": {
+        "title": "Account & Security",
+        "description": "Tour Security, Subscription, Billing, Info, Tutorial, and Status across Account.",
+        "duration": "About 3 minutes",
+        "durationShort": "About 2 minutes"
+      }
+    },
+    "steps": {
+      "kiosk-overview-fallback": {
+        "title": "Kiosks belong to Groups",
+        "description": "Create and open a Group first. Its page contains Kiosk Settings, design, and live launch controls."
+      },
+      "kiosk-overview": {
+        "title": "One Group, one kiosk experience",
+        "description": "Kiosk behavior, design, and launch controls belong to this Group, so every Group can run differently."
+      },
+      "kiosk-overview-settings": {
+        "title": "Control kiosk behavior",
+        "description": "Kiosk Settings controls identification, exit security, attendance reset, and the confirmation screen."
+      },
+      "kiosk-overview-design": {
+        "title": "Shape the kiosk design",
+        "description": "Edit Kiosk Design controls the Header, Main area, Footer, and the Card or Input presentation used by this Group."
+      },
+      "kiosk-overview-launch": {
+        "title": "Launch the live kiosk",
+        "description": "Launch Kiosk starts the participant experience and locks this browser session. An authorized operator uses the Group’s exit code to return."
+      },
+      "kiosk-settings-overview": {
+        "title": "Behavior for this Group’s kiosk",
+        "description": "These settings control how participants identify themselves, when attendance cycles reset, what success looks like, and how operators exit live mode."
+      },
+      "kiosk-settings-type": {
+        "title": "Choose Card or Input",
+        "description": "Standard Groups can show participant cards to tap or ask people to enter their Group Participant Code. Structured Groups use a Class card → Participant card flow."
+      },
+      "kiosk-settings-identification": {
+        "title": "Show or request the right details",
+        "description": "Card mode can show Name, Group or Class Participant Code, and Email when enabled for the Group. Codes are assigned automatically when people join the Group; Input mode always starts with that code and can add one supported second field."
+      },
+      "kiosk-settings-verification": {
+        "title": "Choose kiosk verification",
+        "description": "When PIN is enabled in Group configuration, Card mode can require it after selection and Input mode can use it as the second field. The kiosk choice remains separate from the Group requirement."
+      },
+      "kiosk-settings-exit": {
+        "title": "Protect the way out",
+        "description": "The Group’s 4–10 character exit code prevents participants from casually leaving the live kiosk session. It stays hidden here unless an operator chooses to change it."
+      },
+      "kiosk-settings-reset": {
+        "title": "Start fresh attendance cycles",
+        "description": "Daily resets start a new cycle at a chosen clock time. Rolling resets start a new cycle after the configured duration for each participant."
+      },
+      "kiosk-settings-reset-schedule": {
+        "title": "Use a preset or custom schedule",
+        "description": "Daily offers midnight, noon, or a custom time. Rolling offers 8 hours, 12 hours, or a custom hours-and-minutes duration."
+      },
+      "kiosk-settings-reset-now": {
+        "title": "Reset manually when needed",
+        "description": "Reset now lets every participant begin a new attendance cycle immediately without deleting attendance history. This tutorial never triggers it."
+      },
+      "kiosk-settings-confirmation": {
+        "title": "Confirm every successful action",
+        "description": "The Confirmation Screen is what participants see after Check-in, Check-out, or Break actions that the Group has enabled."
+      },
+      "kiosk-settings-messages": {
+        "title": "Make confirmation messages useful",
+        "description": "Customize messages for enabled Actions with the supported {name}, {time}, and {group} variables. Time uses 24-hour format."
+      },
+      "kiosk-settings-return": {
+        "title": "Return to the kiosk automatically",
+        "description": "Return time controls how long a successful confirmation remains visible before the kiosk becomes ready for the next participant."
+      },
+      "kiosk-design-overview": {
+        "title": "Design without changing behavior",
+        "description": "The editor changes presentation while Kiosk Settings remain responsible for identification and attendance behavior."
+      },
+      "kiosk-design-preview": {
+        "title": "Preview the real layout",
+        "description": "The canvas shows Header, Main, Footer, and sample participant content responsively. Sample people in the editor are never saved."
+      },
+      "kiosk-design-header": {
+        "title": "Brand the Header",
+        "description": "Header controls its background, content alignment, optional title, text style, logo, and logo size."
+      },
+      "kiosk-design-main": {
+        "title": "Build the Main experience",
+        "description": "Main controls backgrounds, optional images, overlays, title styling, and the central participant interaction area."
+      },
+      "kiosk-design-footer": {
+        "title": "Finish with the Footer",
+        "description": "Footer has its own background, text, style, and optional image, independent from the Header logo."
+      },
+      "kiosk-design-presentation": {
+        "title": "Choose the interaction look",
+        "description": "The final tab follows Kiosk Settings: Card templates for Card or Structured flows, and Input templates for Input flows."
+      },
+      "kiosk-design-history": {
+        "title": "Experiment safely",
+        "description": "Undo and Redo manage editor changes. Save publishes them; Cancel leaves without saving. This tutorial does not press either action."
+      },
+      "kiosk-launch-overview": {
+        "title": "Run this Group’s kiosk",
+        "description": "Launch uses this Group’s participants, Actions, Kiosk Settings, and saved design as one live attendance experience."
+      },
+      "kiosk-launch-readiness": {
+        "title": "Complete setup before launch",
+        "description": "Launch stays unavailable until Group participant setup and required Kiosk Settings are ready."
+      },
+      "kiosk-launch-participant": {
+        "title": "A focused participant experience",
+        "description": "Participants see the configured Card or Input flow, choose an available Action, and receive the configured confirmation before the kiosk returns."
+      },
+      "kiosk-launch-lock": {
+        "title": "The browser becomes the kiosk",
+        "description": "Launching locks this browser session into live kiosk mode so ordinary Workspace navigation is not available to participants."
+      },
+      "kiosk-launch-exit": {
+        "title": "Exit with operator authorization",
+        "description": "An authorized operator selects Exit and enters this Group’s exit code to unlock the browser and return to the Workspace. This tutorial never launches live mode."
+      },
+      "account-security": {
+        "title": "Security settings",
+        "description": "Manage login and backup email, password, two-factor authentication, and account deletion here. This tour does not open any of those controls."
+      },
+      "account-subscription": {
+        "title": "Subscription and plan",
+        "description": "Review your current plan, trial or subscription status, usage, and upgrade or downgrade options. Entitlement details reflect what this workspace can use today."
+      },
+      "account-billing": {
+        "title": "Billing and invoices",
+        "description": "Payment method, invoices, and receipts for this workspace appear here when billing is managed through CheckStation."
+      },
+      "account-info": {
+        "title": "Help inside the Workspace",
+        "description": "Info brings CheckStation guides, FAQs, and legal documents into the Workspace so you can read product guidance without leaving the app."
+      },
+      "account-tutorial": {
+        "title": "Replay guided tutorials",
+        "description": "Start or replay focused tutorials any time from this page. Completed guides show Completed with a Replay option."
+      },
+      "account-status": {
+        "title": "Service status",
+        "description": "Status shows live CheckStation service health, active incidents, and scheduled maintenance from the shared status source—useful for checking whether a problem is system-wide."
+      },
+      "welcome": {
+        "title": "Welcome to your CheckStation workspace",
+        "description": "This tour connects the main parts of CheckStation—from reusable people and Group setup to kiosks, attendance, staff, and Account tools."
+      },
+      "overview-dashboard": {
+        "title": "Your Workspace at a glance",
+        "description": "Dashboard shows Member and Group totals alongside recent attendance activity, so you can see the shape of the Workspace quickly."
+      },
+      "overview-dashboard-workflow": {
+        "title": "Recent activity and quick actions",
+        "description": "Review the latest check-ins, check-outs, and breaks, then use Quick actions to add people, create a Group, open History, or find a kiosk."
+      },
+      "overview-members": {
+        "title": "Members are reusable people",
+        "description": "Create a person once, then attach that Member to multiple Groups without re-entering the same information."
+      },
+      "overview-member-create": {
+        "title": "Start with only a name",
+        "description": "Only Name is required. Add a photo or other details later; an email is especially useful when reusing this Member across Groups. This tour does not create anyone."
+      },
+      "overview-groups": {
+        "title": "Groups define attendance operations"
+      },
+      "overview-group-capacity": {
+        "title": "Keep active work clear"
+      },
+      "overview-group-create": {
+        "title": "Create each attendance flow here",
+        "description": "Open Create Group to define a new operational setup. The tour can show the form safely, but it never submits it."
+      },
+      "overview-group-configuration": {
+        "title": "Shape the Group at a high level"
+      },
+      "overview-group-advanced": {
+        "title": "Advanced communication is still Group-specific",
+        "description": "Advanced is where the Group’s outgoing email configuration begins. Sender setup, after-action email, and forwarding remain separate from simply enabling an Action."
+      },
+      "overview-kiosk-controls": {
+        "title": "One Group, one kiosk experience",
+        "description": "Each Group owns its Kiosk Settings, visual design, and Launch control, so different Groups can operate in different ways."
+      },
+      "overview-kiosk-settings": {
+        "title": "Control kiosk behavior",
+        "description": "Choose Card or Input flow, the identification content participants use, optional PIN verification, and the protected exit code—without changing anything in this tour."
+      },
+      "overview-kiosk-reset": {
+        "title": "Define an attendance cycle",
+        "description": "Attendance Reset controls when participants begin a fresh cycle. Daily, rolling, and manual controls preserve History; this tour never triggers Reset now."
+      },
+      "overview-kiosk-confirmation": {
+        "title": "Finish each action clearly",
+        "description": "The Confirmation Screen controls the success message and return timing participants see after an enabled Action."
+      },
+      "overview-kiosk-design": {
+        "title": "Design the participant experience",
+        "description": "Use Header, Main, Footer, branding, backgrounds, and presentation controls while the responsive preview shows the result. Undo and Redo are available; Save publishes changes. This tour saves nothing."
+      },
+      "overview-kiosk-launch": {
+        "title": "Launch the live kiosk",
+        "description": "Launch Kiosk starts the participant-facing flow using this Group’s enabled Actions. The exit code protects live mode; this tour explains Launch without entering it."
+      },
+      "overview-kiosk-fallback": {
+        "title": "Kiosks begin with a Group",
+        "description": "Create and open a Group to reach Kiosk Settings, Edit Kiosk Design, and Launch Kiosk. No sample Group or kiosk is created for this tour."
+      },
+      "overview-history": {
+        "title": "Actions become useful History",
+        "description": "Activity Log shows individual check-ins, check-outs, and breaks. Attendance Report summarizes attendance by Member or Group."
+      },
+      "overview-attendance-report": {
+        "title": "Filter, report, and export",
+        "description": "Choose Member or Group reporting, narrow the date range and optional participant context, then export the same filtered report in formats available to the current plan."
+      },
+      "overview-email": {
+        "title": "Every Group communicates its own way",
+        "description": "Advanced keeps the Group’s sender or SMTP setup, per-Action participant emails, and optional forwarding together. This tour neither changes credentials nor sends email."
+      },
+      "overview-staff-login": {
+        "title": "Operational accounts use the Workspace ID",
+        "description": "Admins and Staff combine this Workspace ID with their own credentials to sign in to the correct operational Workspace."
+      },
+      "overview-staff-roles": {
+        "title": "Give each account the right reach",
+        "description": "Admins manage operational Workspace areas allowed by their role. Staff work only with assigned Groups; Group access controls what they can operate. This tour creates and changes nothing."
+      },
+      "overview-account-security": {
+        "title": "Owner Account and security",
+        "description": "Security contains login email, password, two-factor authentication, backup email, and ownership-sensitive controls."
+      },
+      "overview-account-sections": {
+        "title": "Plans, help, tutorials, and service health"
+      },
+      "overview-notifications": {
+        "title": "Platform announcements stay close",
+        "description": "The notification bell shows CheckStation announcements. An unread badge means something is new; opening the panel marks visible announcements read for this account across devices."
+      },
+      "overview-plan": {
+        "title": "Your effective access at a glance",
+        "description": "The sidebar badge shows the Workspace’s current effective Basic, Plus, or Business access. An active Business trial is shown as Business."
+      },
+      "members-list": {
+        "title": "Your reusable people",
+        "description": "Members can be attached to more than one Group without being recreated."
+      },
+      "members-add": {
+        "title": "Add people when you’re ready",
+        "description": "Start with a name, then add more participant details as your workflow needs them."
+      },
+      "member-create": {
+        "title": "Create a Member",
+        "description": "Only the name is required, so you can create a Member quickly and add more details later. A photo helps with recognition, and an email makes the Member easier to reuse across Groups."
+      },
+      "groups-overview": {
+        "title": "Everything the flow needs",
+        "description": "A Group keeps participants, Actions, participation rules, operational settings, and after-action behavior together."
+      },
+      "groups-capacity": {
+        "title": "Active and archived Groups"
+      },
+      "groups-create": {
+        "title": "Create a Group",
+        "description": "Open the real setup form without creating anything yet. This tutorial never saves or submits the Group."
+      },
+      "group-name": {
+        "title": "Name the attendance flow",
+        "description": "Give the Group a clear name so people can recognize where this attendance flow belongs."
+      },
+      "group-type": {
+        "title": "Match the structure to the work"
+      },
+      "group-participation": {
+        "title": "Choose participation requirements",
+        "description": "Require email and Require PIN define the participant details or identification this Group expects."
+      },
+      "group-actions": {
+        "title": "Enable only the Actions you need",
+        "description": "Use Check-in alone, add Check-out, or include Breaks. Every Group can run the combination that fits its workflow."
+      },
+      "group-after-action": {
+        "title": "Actions and emails are separate",
+        "description": "Enabling an Action does not require an email. For example, allow Check-in and Check-out but send email only after Check-out."
+      },
+      "group-email": {
+        "title": "Connect the Group’s sender",
+        "description": "Advanced holds the outgoing sender. Save the Group first, then configure and verify Gmail, Outlook / Microsoft 365, Yahoo, or Custom SMTP before enabling after-action email."
+      },
+      "group-next": {
+        "title": "Ready for people and attendance",
+        "description": "After creation, attach reusable Members or manage Group-specific participants. This setup becomes the basis for the Group’s kiosk and attendance flow."
+      },
+      "history-tabs": {
+        "title": "Activity Log or Attendance Report",
+        "description": "Activity Log shows individual check-ins, check-outs, and breaks. Attendance Report summarizes attendance for one Group and date range."
+      },
+      "activity-log-filters": {
+        "title": "Find the actions you need",
+        "description": "Filter Activity Log by Group, Action, participant search, or Day to focus the timeline."
+      },
+      "attendance-report": {
+        "title": "Build an Attendance Report",
+        "description": "Report by reusable Member across their Groups, or by Group with an optional participant. Then choose Today, This week, This month, or a custom range."
+      },
+      "attendance-export": {
+        "title": "Export the report you built"
+      },
+      "group-email-overview": {
+        "title": "Communication belongs to this Group",
+        "description": "Each Group independently controls its outgoing sender, participant emails, and forwarding behavior."
+      },
+      "group-email-advanced": {
+        "title": "Open Advanced",
+        "description": "Advanced keeps this Group’s sender and forwarding configuration together. The tutorial opens it without changing or saving settings."
+      },
+      "group-email-sender": {
+        "title": "Choose the outgoing sender",
+        "description": "Use Custom SMTP, Gmail, Outlook / Microsoft 365, or Yahoo Mail. This determines the account this Group uses for outgoing email; credentials remain private."
+      },
+      "group-email-after-action": {
+        "title": "Actions and emails stay separate",
+        "description": "A Group can allow Check-in, Check-out, or Breaks without emailing every time. Once the sender is verified, choose participant email separately for each enabled action—for example, email after Check-out only."
+      },
+      "group-email-forwarding": {
+        "title": "Forward a copy when needed"
+      },
+      "staff-login": {
+        "title": "One ID identifies the Workspace",
+        "description": "Admins and Staff sign in with this Workspace ID plus their own username and password. It connects their credentials to the correct CheckStation Workspace."
+      },
+      "staff-create": {
+        "title": "Create an operational account",
+        "description": "Choose a username, password, and role. Admin accounts require an email; Staff email is optional. This tutorial never submits the form."
+      },
+      "staff-admin-role": {
+        "title": "Admin: workspace-wide operations",
+        "description": "Admins can manage Members, Groups, participants, Group and kiosk configuration, attendance, and Staff accounts. They cannot access owner security, subscription or billing, and cannot create or manage other Admin accounts."
+      },
+      "staff-role": {
+        "title": "Staff: assigned operations only",
+        "description": "Staff can work with participants, launch kiosks, and view or export attendance for assigned Groups. They cannot manage global Members, Group or kiosk configuration, Staff accounts, owner Account pages, or unrelated Groups."
+      },
+      "staff-group-access": {
+        "title": "Assign the Groups Staff can operate",
+        "description": "Staff receive no automatic Group access. Choose their permitted Groups here; Admins instead have workspace-wide operational access. The tutorial opens this editor without changing or saving assignments."
+      },
+      "staff-account-management": {
+        "title": "Keep operational access under control",
+        "description": "Deactivate or reactivate an account, or reset its password. Deactivation revokes sign-in access without deleting Workspace attendance or Group data."
+      }
+    },
+    "descriptions": {
+      "groupTypeStructured": "Choose Standard when participants belong directly to the Group, or Structured to organize them inside Classes/Sections.",
+      "groupTypeStandardOnly": "Standard Groups hold participants directly. Structured Groups organize participants inside Classes/Sections, but that option is locked because it is not included in your current plan.",
+      "groupsCapacityWithLimits": "Your {{planName}} plan currently allows {{limits}}. Archived Groups are retained separately from active capacity. Archive an inactive Group to free its active slot; if archived capacity is full, permanently delete an older archived Group before retaining another.",
+      "groupsCapacityGeneric": "Your current plan's live limits are shown on this page. Archived Groups are retained separately from active capacity. Archive an inactive Group to free its active slot; if archived capacity is full, permanently delete an older archived Group before retaining another.",
+      "attendanceExportNone": "Export follows the current Member or Group filters and date range. Report export is available when your plan includes it.",
+      "attendanceExportWithFormats": "Export downloads exactly the current Member or Group report filters and date range. Your plan includes {{formats}}.",
+      "groupForwardingEnabled": "Forward emails sends a copy of this Group's after-action emails to up to three additional addresses.",
+      "groupForwardingLocked": "Forward emails can copy this Group's after-action emails to additional addresses. This control requires Plus or Business on the current plan.",
+      "overviewGroupsStructured": "Groups bring participants, Actions, participation rules, after-action behavior, and kiosks together. Standard Groups hold people directly; Structured Groups organize them into Classes or Sections.",
+      "overviewGroupsStandardOnly": "Groups bring participants, Actions, participation rules, after-action behavior, and kiosks together. Structured Groups add Classes or Sections when the current plan includes them.",
+      "overviewGroupConfigSuffix": " Name the Group, choose its Actions and participation requirements, then decide after-action behavior.",
+      "overviewAccountSectionsBilling": "Subscription shows current access; Billing covers payments and invoices. Info contains canonical documentation, Tutorial reopens every guide, and Status shows service health, incidents, and maintenance.",
+      "overviewAccountSectionsNoBilling": "Info contains canonical documentation, Tutorial reopens every guide, and Status shows service health, incidents, and maintenance.",
+      "groupEmailFallbackWithForward": "Create a Group, then edit it to configure its sender, notification actions, and forwarding recipients.",
+      "groupEmailFallbackNoForward": "Create a Group, then edit it to configure its sender and participant notification actions.",
+      "activeStandardGroup": "active Standard Group",
+      "activeStandardGroups": "active Standard Groups",
+      "activeStructuredGroup": "active Structured Group",
+      "activeStructuredGroups": "active Structured Groups",
+      "archivedGroup": "archived Group",
+      "archivedGroups": "archived Groups"
+    }
+  }
+}

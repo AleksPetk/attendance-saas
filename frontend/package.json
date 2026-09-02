@@ -26,11 +26,15 @@
     "test:how-it-works": "node --test src/howItWorksSlideshow.test.js",
     "test:billing": "node --test src/accountNavigation.test.js src/billingExternalLinks.test.js src/promotionCatalog.test.js src/promotionalText.test.js src/subscriptionPlanOptions.test.js src/workspaceOnboarding.test.js src/pricingPage.test.js src/pricingTemplates.test.js",
     "test:promotion": "node --test src/promotionCatalog.test.js",
-    "test:advertising": "node --test src/advertising/*.test.js src/workspaceEntitlements.test.js"
+    "test:advertising": "node --test src/advertising/*.test.js src/workspaceEntitlements.test.js",
+    "test:i18n": "node --test src/i18n/*.test.js",
+    "test:promo": "node --test src/promo/*.test.js"
   },
   "dependencies": {
+    "i18next": "^26.4.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
+    "react-i18next": "^17.0.12",
     "react-router-dom": "^7.18.2"
   },
   "devDependencies": {

@@ -1,0 +1,42 @@
+{
+  "plans": {
+    "basic": "Basic",
+    "plus": "Plus",
+    "business": "Business"
+  },
+  "usageLabels": {
+    "active_standard_groups": "Standard Groups",
+    "active_structured_groups": "Structured Groups",
+    "archived_groups": "Archived Groups",
+    "members": "Members",
+    "workspace_admins": "Workspace Admins",
+    "workspace_staff": "Workspace Staff",
+    "participants_per_standard_group": "Participants per Standard Group",
+    "classes_per_structured_group": "Classes per Structured Group",
+    "participants_per_class": "Participants per Class",
+    "groups": "Groups"
+  },
+  "capacity": {
+    "available": "{{unlocked}} of {{limit}} available",
+    "recordsAvailable": "{{total}} {{recordWord}} · {{unlocked}} of {{limit}} available",
+    "recordsLocked": "{{total}} {{recordWord}} · {{unlocked}} available · {{locked}} plan locked",
+    "record": "record",
+    "records": "records",
+    "limit": "Limit: {{limit}}"
+  },
+  "usageOf": "{{usage}} of {{limit}}",
+  "adsRequired": "Ads supported on Basic plan",
+  "planLockCandidates": {
+    "structuredGroup": "Structured Group",
+    "standardGroup": "Standard Group",
+    "workspaceAdmin": "Workspace Admin",
+    "workspaceStaff": "Workspace Staff",
+    "recordNumber": "Record #{{id}}"
+  },
+  "advertising": {
+    "ariaLabel": "Advertisement",
+    "kicker": "ADVERTISEMENT",
+    "headline": "Development placeholder",
+    "continue": "Continue"
+  }
+}

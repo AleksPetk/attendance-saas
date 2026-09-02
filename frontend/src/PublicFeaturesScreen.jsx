@@ -1,106 +1,65 @@
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import PublicPageShell from "./PublicPageShell.jsx";
-import ProductImageSlot from "./ProductImageSlot.jsx";
-import { featuresShowcaseImages } from "./assets/features/first-section/showcaseImages.js";
-import { membersGroupsStoryImages } from "./assets/features/second-section/storyImages.js";
-import { configurableFlowDemo } from "./assets/features/third-section/demoVideos.js";
-import { emailNotificationPairs } from "./assets/features/fourth-section/emailNotificationImages.js";
-import { historyFeatureImages } from "./assets/features/fifth-section/historyImages.js";
+import LocalizedPromoImage from "./promo/LocalizedPromoImage.jsx";
+import { usePromoLocale } from "./promo/PromoLocaleContext.jsx";
+import { applyPromoSeo } from "./promo/seo.js";
+import {
+  featuresShowcaseImages,
+  featuresShowcaseJaImages,
+} from "./assets/features/first-section/showcaseImages.js";
+import {
+  membersGroupsStoryImages,
+  membersGroupsStoryJaImages,
+} from "./assets/features/second-section/storyImages.js";
+import {
+  configurableFlowDemo,
+  configurableFlowDemoJa,
+} from "./assets/features/third-section/demoVideos.js";
+import {
+  emailNotificationJaPairs,
+  emailNotificationPairs,
+} from "./assets/features/fourth-section/emailNotificationImages.js";
+import {
+  historyFeatureImages,
+  historyFeatureJaImages,
+} from "./assets/features/fifth-section/historyImages.js";
 import { platformIcons } from "./assets/features/sixth-section/platformIcons.js";
 
-function PageTitle({ title, description }) {
-  useEffect(() => {
-    document.title = title;
-    const ensure = (name, content) => {
-      let el = document.querySelector(`meta[name="${name}"]`);
-      if (!el) {
-        el = document.createElement("meta");
-        el.setAttribute("name", name);
-        document.head.appendChild(el);
-      }
-      el.setAttribute("content", content);
-    };
-    ensure("description", description);
-    ensure("og:title", title);
-    ensure("og:description", description);
-    ensure("og:type", "website");
-  }, [title, description]);
-  return null;
-}
-
-const FEATURE_STORIES = [
-  {
-    eyebrow: "Organize once",
-    title: "Keep every person and Group in one clear place.",
-    body: "Create reusable Member profiles, then organize them into the Groups that reflect how your organization actually works. Add flexible Group-only participants when a reusable profile is not needed.",
-    points: ["Reusable Member profiles", "Long-lived Groups", "Optional profile details and notes"],
-    label: "Members and Groups workspace",
-    caption: "A future screenshot will show the Members and Groups workspace here.",
-    images: membersGroupsStoryImages,
-  },
-  {
-    eyebrow: "Make it yours",
-    title: "Build a check-in flow that fits the room.",
-    body: "Every Group gets its own kiosk experience. Choose how people identify themselves, which actions they can take, and how the kiosk looks and speaks to participants.",
-    points: ["Member list or input mode", "Themes, messages, and display options", "A dedicated kiosk per Group"],
-    label: "Configurable Group kiosk",
-    caption: "A future screenshot will show kiosk configuration and presentation options here.",
-    demo: configurableFlowDemo,
-  },
-  {
-    type: "group-email",
-    eyebrow: "Email & notifications",
-    title: "Let every Group communicate from the right inbox.",
-    body: "A school, café, office, or club can keep its communication distinct without leaving the workspace. Each Group or Structured Group chooses its own sender, recipients, forwarding, and action-based notification rules.",
-    points: [
-      "Gmail, Microsoft / Outlook, Yahoo, or custom SMTP",
-      "A dedicated sender or business email for each Group",
-      "Participant emails on or off independently",
-      "Check-in, check-out, break, or combined notification triggers",
-      "Forwarding emails and up to three participant recipients where supported",
-    ],
-  },
-  {
-    type: "history",
-    eyebrow: "Capture the moment",
-    title: "Record the actions that matter — automatically.",
-    body: "Turn a quick participant interaction into dependable history. Enable the actions each Group needs, from check-in and check-out to breaks, then review the record whenever you need it.",
-    points: ["Check-in, check-out, and break actions", "PIN and identification requirements", "Filter by Group, person, action, or date"],
-    label: "Activity history and actions",
-    caption: "A future screenshot will show recorded actions and history filters here.",
-  },
+const PLATFORM_ICON_KEYS = [
+  "Browser",
+  "iPhone & iPad",
+  "Android phone & tablet",
+  "Mac",
+  "Windows",
 ];
-
-const INCLUDED_FEATURES = [
-  ["Members", "Reusable profiles for the people you track."],
-  ["Groups", "Long-lived contexts for teams, classes, clubs, and more."],
-  ["Group-owned kiosks", "A separate participant experience for each Group."],
-  ["Flexible identification", "Use the identification fields your workflow needs."],
-  ["Configurable actions", "Enable check-in, check-out, breaks, and other actions per Group."],
-  ["Kiosk presentation", "Themes, messages, display options, and participant-friendly flows."],
-  ["History and reporting", "Review action records by person, Group, type, or day."],
-  ["Staff access", "Let workspace staff manage operations with their own sign-in."],
-  ["Workspace isolation", "Keep each organization’s data scoped to its own workspace."],
-];
-
-const PLATFORMS = ["Browser", "iPhone & iPad", "Android phone & tablet", "Mac", "Windows"];
 
 function CheckIcon() {
-  return <span className="features-check" aria-hidden="true">✓</span>;
+  return (
+    <span className="features-check" aria-hidden="true">
+      ✓
+    </span>
+  );
 }
 
-function PlatformIcon({ name }) {
+function PlatformIcon({ iconKey }) {
   return (
     <span className="features-platform-icon" aria-hidden="true">
-      <img src={platformIcons[name]} alt="" width="128" height="128" />
+      <img src={platformIcons[iconKey]} alt="" width="128" height="128" />
     </span>
   );
 }
 
 function FeaturesShowcaseCarousel() {
+  const { t, locale } = usePromoLocale();
   const [activeIndex, setActiveIndex] = useState(0);
   const [reducedMotion, setReducedMotion] = useState(false);
+  const isJa = locale === "ja";
+  const images = isJa ? featuresShowcaseJaImages : featuresShowcaseImages;
+
+  useEffect(() => {
+    setActiveIndex(0);
+  }, [locale]);
 
   useEffect(() => {
     const media = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -113,15 +72,16 @@ function FeaturesShowcaseCarousel() {
   useEffect(() => {
     if (reducedMotion) return undefined;
     const timer = window.setTimeout(() => {
-      setActiveIndex((current) => (current + 1) % featuresShowcaseImages.length);
+      setActiveIndex((current) => (current + 1) % images.length);
     }, 5000);
     return () => window.clearTimeout(timer);
-  }, [activeIndex, reducedMotion]);
+  }, [activeIndex, images.length, reducedMotion]);
 
   function move(direction) {
-    setActiveIndex((current) => (
-      (current + direction + featuresShowcaseImages.length) % featuresShowcaseImages.length
-    ));
+    setActiveIndex(
+      (current) =>
+        (current + direction + images.length) % images.length,
+    );
   }
 
   return (
@@ -129,10 +89,10 @@ function FeaturesShowcaseCarousel() {
       className="features-showcase-carousel"
       role="region"
       aria-roledescription="carousel"
-      aria-label="CheckStation workspace overview"
+      aria-label={t("features.carouselAria")}
     >
       <div className="features-showcase-carousel-stage">
-        {featuresShowcaseImages.map((image, index) => (
+        {images.map((image, index) => (
           <img
             key={image.src}
             className={index === activeIndex ? "is-active" : ""}
@@ -145,17 +105,39 @@ function FeaturesShowcaseCarousel() {
             aria-hidden={index === activeIndex ? undefined : "true"}
           />
         ))}
-        <button type="button" className="features-showcase-arrow features-showcase-arrow-left" aria-label="Previous workspace image" onClick={() => move(-1)}><span aria-hidden="true">‹</span></button>
-        <button type="button" className="features-showcase-arrow features-showcase-arrow-right" aria-label="Next workspace image" onClick={() => move(1)}><span aria-hidden="true">›</span></button>
+        <button
+          type="button"
+          className="features-showcase-arrow features-showcase-arrow-left"
+          aria-label={t("features.carouselPrevAria")}
+          onClick={() => move(-1)}
+        >
+          <span aria-hidden="true">‹</span>
+        </button>
+        <button
+          type="button"
+          className="features-showcase-arrow features-showcase-arrow-right"
+          aria-label={t("features.carouselNextAria")}
+          onClick={() => move(1)}
+        >
+          <span aria-hidden="true">›</span>
+        </button>
       </div>
-      <figcaption className="features-showcase-status" aria-live="polite">{featuresShowcaseImages[activeIndex].label}</figcaption>
+      <figcaption className="features-showcase-status" aria-live="polite">
+        {images[activeIndex].label}
+      </figcaption>
     </figure>
   );
 }
 
 function FeaturesStoryCarousel({ images, label }) {
+  const { t, locale } = usePromoLocale();
   const [activeIndex, setActiveIndex] = useState(0);
   const [reducedMotion, setReducedMotion] = useState(false);
+  const safeActiveIndex = activeIndex % images.length;
+
+  useEffect(() => {
+    setActiveIndex(0);
+  }, [locale]);
 
   useEffect(() => {
     const media = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -178,30 +160,52 @@ function FeaturesStoryCarousel({ images, label }) {
   }
 
   return (
-    <figure className="features-story-image features-story-carousel" role="region" aria-roledescription="carousel" aria-label={label}>
+    <figure
+      className="features-story-image features-story-carousel"
+      role="region"
+      aria-roledescription="carousel"
+      aria-label={label}
+    >
       <div className="features-story-carousel-stage">
         {images.map((image, index) => (
           <img
             key={image.src}
-            className={index === activeIndex ? "is-active" : ""}
+            className={index === safeActiveIndex ? "is-active" : ""}
             src={image.src}
-            alt={index === activeIndex ? image.alt : ""}
+            alt={index === safeActiveIndex ? image.alt : ""}
             width="1200"
             height="900"
             loading="lazy"
             decoding="async"
-            aria-hidden={index === activeIndex ? undefined : "true"}
+            aria-hidden={index === safeActiveIndex ? undefined : "true"}
           />
         ))}
-        <button type="button" className="features-story-carousel-arrow features-story-carousel-arrow-left" aria-label="Previous Members and Groups image" onClick={() => move(-1)}><span aria-hidden="true">‹</span></button>
-        <button type="button" className="features-story-carousel-arrow features-story-carousel-arrow-right" aria-label="Next Members and Groups image" onClick={() => move(1)}><span aria-hidden="true">›</span></button>
+        <button
+          type="button"
+          className="features-story-carousel-arrow features-story-carousel-arrow-left"
+          aria-label={t("features.membersCarouselPrevAria")}
+          onClick={() => move(-1)}
+        >
+          <span aria-hidden="true">‹</span>
+        </button>
+        <button
+          type="button"
+          className="features-story-carousel-arrow features-story-carousel-arrow-right"
+          aria-label={t("features.membersCarouselNextAria")}
+          onClick={() => move(1)}
+        >
+          <span aria-hidden="true">›</span>
+        </button>
       </div>
-      <figcaption className="features-story-carousel-status" aria-live="polite">{images[activeIndex].label}</figcaption>
+      <figcaption className="features-story-carousel-status" aria-live="polite">
+        {images[safeActiveIndex].label}
+      </figcaption>
     </figure>
   );
 }
 
 function FeaturesStoryVideo({ demo, label }) {
+  const { t, locale } = usePromoLocale();
   const frameRef = useRef(null);
   const videoRef = useRef(null);
   const switchTimerRef = useRef(null);
@@ -211,12 +215,33 @@ function FeaturesStoryVideo({ demo, label }) {
   const [reducedMotion, setReducedMotion] = useState(false);
 
   useEffect(() => {
+    window.clearTimeout(switchTimerRef.current);
+    setActiveIndex(0);
+    setIsTransitioning(false);
+  }, [locale]);
+
+  useEffect(() => {
     const media = window.matchMedia("(prefers-reduced-motion: reduce)");
     const updatePreference = () => setReducedMotion(media.matches);
     updatePreference();
     media.addEventListener?.("change", updatePreference);
     return () => media.removeEventListener?.("change", updatePreference);
   }, []);
+
+  useEffect(() => {
+    if (!demo.preloadNext || reducedMotion) return undefined;
+    const nextClip = demo.clips[(activeIndex + 1) % demo.clips.length];
+    const preloader = document.createElement("video");
+    preloader.preload = "auto";
+    preloader.muted = true;
+    preloader.playsInline = true;
+    preloader.src = nextClip.src;
+    preloader.load();
+    return () => {
+      preloader.removeAttribute("src");
+      preloader.load();
+    };
+  }, [activeIndex, demo, reducedMotion]);
 
   useEffect(() => {
     const frame = frameRef.current;
@@ -231,7 +256,7 @@ function FeaturesStoryVideo({ demo, label }) {
     );
     observer.observe(frame);
     return () => observer.disconnect();
-  }, []);
+  }, [demo]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -242,7 +267,7 @@ function FeaturesStoryVideo({ demo, label }) {
       video.pause();
     }
     return undefined;
-  }, [activeIndex, inPlaybackRange, reducedMotion]);
+  }, [activeIndex, demo, inPlaybackRange, reducedMotion]);
 
   useEffect(() => () => window.clearTimeout(switchTimerRef.current), []);
 
@@ -260,9 +285,21 @@ function FeaturesStoryVideo({ demo, label }) {
   }
 
   return (
-    <figure ref={frameRef} className="features-story-image features-story-video" role="group" aria-label={label}>
+    <figure
+      ref={frameRef}
+      className="features-story-image features-story-video"
+      role="group"
+      aria-label={label}
+    >
       <div className="features-story-video-frame">
-        <img className="features-story-video-poster" src={demo.poster} alt={reducedMotion ? "CheckStation Kiosk Editor configuring a Group kiosk." : ""} width="1128" height="720" aria-hidden={reducedMotion ? undefined : "true"} />
+        <img
+          className="features-story-video-poster"
+          src={demo.poster}
+          alt={reducedMotion ? t("features.videoPosterAlt") : ""}
+          width="1128"
+          height="720"
+          aria-hidden={reducedMotion ? undefined : "true"}
+        />
         {!reducedMotion && (
           <video
             ref={videoRef}
@@ -272,24 +309,34 @@ function FeaturesStoryVideo({ demo, label }) {
             autoPlay={inPlaybackRange}
             muted
             playsInline
-            preload="metadata"
+            preload={demo.preloadNext ? "auto" : "metadata"}
             disablePictureInPicture
             controlsList="nodownload noplaybackrate noremoteplayback"
             onEnded={continueSequence}
             onLoadedData={revealCurrentClip}
           />
         )}
-        <span className="features-story-video-status" aria-live="polite">{demo.clips[activeIndex].label}</span>
-        <span className="features-story-video-dots" aria-hidden="true">{demo.clips.map((clip, index) => <i className={index === activeIndex ? "is-active" : ""} key={clip.src} />)}</span>
+        <span className="features-story-video-status" aria-live="polite">
+          {demo.clips[activeIndex].label}
+        </span>
+        <span className="features-story-video-dots" aria-hidden="true">
+          {demo.clips.map((clip, index) => (
+            <i className={index === activeIndex ? "is-active" : ""} key={clip.src} />
+          ))}
+        </span>
       </div>
     </figure>
   );
 }
 
 function FeaturesEmailGallery() {
+  const { t, locale } = usePromoLocale();
+  const isJa = locale === "ja";
+  const pairs = isJa ? emailNotificationJaPairs : emailNotificationPairs;
+
   return (
-    <div className="features-email-flow" aria-label="Group email and notification examples">
-      {emailNotificationPairs.map((pair) => (
+    <div className="features-email-flow" aria-label={t("features.emailGalleryAria")}>
+      {pairs.map((pair) => (
         <div className="features-email-pair" role="group" aria-label={pair.label} key={pair.label}>
           {pair.images.map((image) => (
             <figure className="features-email-window" key={image.src}>
@@ -315,12 +362,14 @@ function FeaturesEmailGallery() {
 }
 
 function FeaturesHistoryComposition() {
-  const { main, inset } = historyFeatureImages;
+  const { t, locale } = usePromoLocale();
+  const isJa = locale === "ja";
+  const { main, inset } = isJa ? historyFeatureJaImages : historyFeatureImages;
 
   return (
     <figure
       className="features-story-image features-history-composition"
-      aria-label="Recorded actions and attendance reporting"
+      aria-label={t("features.historyCompositionAria")}
     >
       <div className="features-history-main">
         <img
@@ -347,6 +396,27 @@ function FeaturesHistoryComposition() {
 }
 
 export default function PublicFeaturesScreen() {
+  const { t, locale, pathFor } = usePromoLocale();
+  const stories = t("features.stories");
+  const included = t("features.included");
+  const platforms = t("features.platforms");
+  const emailExamples = t("features.emailExamples");
+  const membersGroupsImages = locale === "ja"
+    ? membersGroupsStoryJaImages
+    : membersGroupsStoryImages;
+  const configurableFlow = locale === "ja"
+    ? configurableFlowDemoJa
+    : configurableFlowDemo;
+
+  useEffect(() => {
+    applyPromoSeo({
+      locale,
+      title: t("meta.featuresTitle"),
+      description: t("meta.featuresDescription"),
+      canonicalPath: pathFor("/features"),
+    });
+  }, [locale, pathFor, t]);
+
   useEffect(() => {
     const page = document.querySelector(".features-page");
     if (!page) return undefined;
@@ -357,92 +427,211 @@ export default function PublicFeaturesScreen() {
       return undefined;
     }
     const observer = new IntersectionObserver(
-      (entries) => entries.forEach((entry) => {
-        if (entry.isIntersecting) {
-          entry.target.classList.add("is-visible");
-          observer.unobserve(entry.target);
-        }
-      }),
-      { threshold: 0.14 }
+      (entries) =>
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add("is-visible");
+            observer.unobserve(entry.target);
+          }
+        }),
+      { threshold: 0.14 },
     );
     revealItems.forEach((item) => observer.observe(item));
     return () => observer.disconnect();
-  }, []);
+  }, [locale]);
+
+  const storyList = Array.isArray(stories) ? stories : [];
 
   return (
     <PublicPageShell>
       <div className="features-page">
-        <PageTitle title="Features — CheckStation" description="Configure check-in your way, run participant-friendly kiosks, and keep a dependable record of every action." />
-
         <section className="features-hero" data-reveal>
           <div className="features-hero-copy">
-            <p className="features-kicker">A clearer way to manage attendance</p>
-            <h1>Check-in that works the way your organization works.</h1>
-            <p className="features-hero-lead">CheckStation brings people, Groups, kiosk flows, and activity history together in one calm, configurable workspace — so your team can spend less time managing attendance and more time doing the work.</p>
+            <p className="features-kicker">{t("features.heroKicker")}</p>
+            <h1>{t("features.heroTitle")}</h1>
+            <p className="features-hero-lead">{t("features.heroLead")}</p>
             <div className="features-actions">
-              <Link className="btn-primary features-primary-button" to="/pricing">Check out pricing <span aria-hidden="true">→</span></Link>
-              <Link className="btn-secondary features-secondary-button" to="/how-it-works">See how it works</Link>
+              <Link className="btn-primary features-primary-button" to={pathFor("/pricing")}>
+                {t("features.ctaPricing")} <span aria-hidden="true">→</span>
+              </Link>
+              <Link className="btn-secondary features-secondary-button" to={pathFor("/how-it-works")}>
+                {t("features.ctaHowItWorks")}
+              </Link>
             </div>
-            <div className="features-proof-row" aria-label="Key benefits">
-              <span><CheckIcon /> No hardware to install</span>
-              <span><CheckIcon /> Configurable by Group</span>
-              <span><CheckIcon /> Built for everyday use</span>
+            <div className="features-proof-row" aria-label={t("features.proofAria")}>
+              <span>
+                <CheckIcon /> {t("features.proofNoHardware")}
+              </span>
+              <span>
+                <CheckIcon /> {t("features.proofConfigurable")}
+              </span>
+              <span>
+                <CheckIcon /> {t("features.proofEveryday")}
+              </span>
             </div>
           </div>
           <div className="features-hero-orbit" aria-hidden="true">
             <div className="features-orbit-glow" />
             <div className="features-orbit-card features-orbit-card-main">
-              <span className="features-orbit-card-top"><span className="features-status-dot" /> CheckStation</span>
-              <span className="features-orbit-card-title">One workspace.<br /><em>Every action in sync.</em></span>
-              <span className="features-orbit-bars"><i /><i /><i /><i /></span>
+              <span className="features-orbit-card-top">
+                <span className="features-status-dot" /> {t("features.orbitBrand")}
+              </span>
+              <span className="features-orbit-card-title">
+                {t("features.orbitTitle")}
+                <br />
+                <em>{t("features.orbitTitleEm")}</em>
+              </span>
+              <span className="features-orbit-bars">
+                <i />
+                <i />
+                <i />
+                <i />
+              </span>
             </div>
-            <div className="features-orbit-card features-orbit-card-small features-orbit-members"><b>24</b><span>Members</span></div>
-            <div className="features-orbit-card features-orbit-card-small features-orbit-history"><b>✓</b><span>History captured</span></div>
+            <div className="features-orbit-card features-orbit-card-small features-orbit-members">
+              <b>24</b>
+              <span>{t("features.orbitMembers")}</span>
+            </div>
+            <div className="features-orbit-card features-orbit-card-small features-orbit-history">
+              <b>✓</b>
+              <span>{t("features.orbitHistory")}</span>
+            </div>
             <span className="features-orbit-ring features-orbit-ring-one" />
             <span className="features-orbit-ring features-orbit-ring-two" />
           </div>
         </section>
 
         <section className="features-showcase" data-reveal>
-          <div className="features-section-heading"><p className="features-kicker">See the whole picture</p><h2>Everything your attendance workflow needs — without the busywork.</h2><p>Set up the experience once. Then give participants a simple way to take action and your team a reliable way to understand what happened.</p></div>
+          <div className="features-section-heading">
+            <p className="features-kicker">{t("features.showcaseKicker")}</p>
+            <h2>
+              {String(t("features.showcaseTitle"))
+                .split("\n")
+                .map((line, index) => (
+                  <Fragment key={`${line}-${index}`}>
+                    {index > 0 ? <br /> : null}
+                    {line}
+                  </Fragment>
+                ))}
+            </h2>
+            <p>{t("features.showcaseLead")}</p>
+          </div>
           <FeaturesShowcaseCarousel />
         </section>
 
-        <section className="features-stories" aria-label="CheckStation capabilities">
-          {FEATURE_STORIES.map((story, index) => (
-            story.type === "group-email" ? (
-              <article className={`features-story features-email-story features-story-${index % 2 ? "reverse" : "normal"}`} data-reveal key={story.title}>
-                <FeaturesEmailGallery />
-                <div className="features-story-copy features-email-copy">
+        <section className="features-stories" aria-label={t("features.storiesAria")}>
+          {storyList.map((story, index) => {
+            const isEmail = index === 2;
+            const isHistory = index === 3;
+            const hasImages = index === 0;
+            const hasDemo = index === 1;
+
+            if (isEmail) {
+              return (
+                <article
+                  className={`features-story features-email-story features-story-${index % 2 ? "reverse" : "normal"}`}
+                  data-reveal
+                  key={`features-story-${index}`}
+                >
+                  <FeaturesEmailGallery />
+                  <div className="features-story-copy features-email-copy">
+                    <p className="features-kicker">{story.eyebrow}</p>
+                    <h2>{story.title}</h2>
+                    <p className="features-story-body">{story.body}</p>
+                    <ul className="features-point-list features-email-capabilities">
+                      {(story.points || []).map((point) => (
+                        <li key={point}>
+                          <CheckIcon />
+                          {point}
+                        </li>
+                      ))}
+                    </ul>
+                    <div className="features-email-examples">
+                      {(Array.isArray(emailExamples) ? emailExamples : []).map((example) => (
+                        <article key={example.label}>
+                          <span>{example.label}</span>
+                          <p>{example.body}</p>
+                        </article>
+                      ))}
+                    </div>
+                  </div>
+                </article>
+              );
+            }
+
+            return (
+              <article
+                className={`features-story features-story-${index % 2 ? "reverse" : "normal"}`}
+                data-reveal
+                key={`features-story-${index}`}
+              >
+                {hasImages ? (
+                  <FeaturesStoryCarousel images={membersGroupsImages} label={story.label} />
+                ) : hasDemo ? (
+                  <FeaturesStoryVideo demo={configurableFlow} label={story.label} />
+                ) : isHistory ? (
+                  <FeaturesHistoryComposition />
+                ) : null}
+                <div className="features-story-copy">
                   <p className="features-kicker">{story.eyebrow}</p>
                   <h2>{story.title}</h2>
                   <p className="features-story-body">{story.body}</p>
-                  <ul className="features-point-list features-email-capabilities">{story.points.map((point) => <li key={point}><CheckIcon />{point}</li>)}</ul>
-                  <div className="features-email-examples">
-                    <article><span>School Group</span><p>Send from the school email, notify parents on arrival or check-out, and forward copies to the director.</p></article>
-                    <article><span>Café / staff Group</span><p>Use a different café business sender with its own staff notifications and forwarding rules.</p></article>
-                  </div>
+                  <ul className="features-point-list">
+                    {(story.points || []).map((point) => (
+                      <li key={point}>
+                        <CheckIcon />
+                        {point}
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               </article>
-            ) : (
-              <article className={`features-story features-story-${index % 2 ? "reverse" : "normal"}`} data-reveal key={story.title}>
-                {story.images ? <FeaturesStoryCarousel images={story.images} label={story.label} /> : story.demo ? <FeaturesStoryVideo demo={story.demo} label={story.label} /> : story.type === "history" ? <FeaturesHistoryComposition /> : <ProductImageSlot label={story.label} caption={story.caption} aspect="4 / 3" className="features-story-image" />}
-                <div className="features-story-copy"><p className="features-kicker">{story.eyebrow}</p><h2>{story.title}</h2><p className="features-story-body">{story.body}</p><ul className="features-point-list">{story.points.map((point) => <li key={point}><CheckIcon />{point}</li>)}</ul></div>
-              </article>
-            )
-          ))}
+            );
+          })}
         </section>
 
         <section className="features-platform" data-reveal>
-          <div className="features-platform-copy"><p className="features-kicker">Ready wherever work happens</p><h2>One check-in experience across every screen.</h2><p>CheckStation is designed for the browser, iPhone and iPad, Android phones and tablets, Mac, and Windows. Use the device that fits the space — at the front desk, in a classroom, or at a shared kiosk.</p><Link className="features-text-link" to="/how-it-works">Explore the workflow <span aria-hidden="true">→</span></Link></div>
-          <div className="features-platform-list">{PLATFORMS.map((platform) => <div className="features-platform-item" key={platform}><PlatformIcon name={platform} /><span>{platform}</span><span className="features-platform-arrow" aria-hidden="true">↗</span></div>)}</div>
+          <div className="features-platform-copy">
+            <p className="features-kicker">{t("features.platformKicker")}</p>
+            <h2>{t("features.platformTitle")}</h2>
+            <p>{t("features.platformLead")}</p>
+            <Link className="features-text-link" to={pathFor("/how-it-works")}>
+              {t("features.exploreWorkflow")} <span aria-hidden="true">→</span>
+            </Link>
+          </div>
+          <div className="features-platform-list">
+            {(Array.isArray(platforms) ? platforms : []).map((platform, index) => (
+              <div className="features-platform-item" key={PLATFORM_ICON_KEYS[index] || platform}>
+                <PlatformIcon iconKey={PLATFORM_ICON_KEYS[index]} />
+                <span>{platform}</span>
+                <span className="features-platform-arrow" aria-hidden="true">
+                  ↗
+                </span>
+              </div>
+            ))}
+          </div>
         </section>
 
         <section className="features-included" data-reveal>
-          <div className="features-section-heading features-section-heading-centered"><p className="features-kicker">The details that make it useful</p><h2>Everything included.</h2><p>Thoughtful controls for the day-to-day, with enough flexibility to make the system feel like yours.</p></div>
-          <div className="features-included-grid">{INCLUDED_FEATURES.map(([title, body]) => <article className="features-included-card" key={title}><span className="features-included-icon"><CheckIcon /></span><div><h3>{title}</h3><p>{body}</p></div></article>)}</div>
+          <div className="features-section-heading features-section-heading-centered">
+            <p className="features-kicker">{t("features.includedKicker")}</p>
+            <h2>{t("features.includedTitle")}</h2>
+            <p>{t("features.includedLead")}</p>
+          </div>
+          <div className="features-included-grid">
+            {(Array.isArray(included) ? included : []).map((item) => (
+              <article className="features-included-card" key={item.title}>
+                <span className="features-included-icon">
+                  <CheckIcon />
+                </span>
+                <div>
+                  <h3>{item.title}</h3>
+                  <p>{item.body}</p>
+                </div>
+              </article>
+            ))}
+          </div>
         </section>
-
       </div>
     </PublicPageShell>
   );

@@ -1,0 +1,120 @@
+{
+  "loading": "Loading staff accounts…",
+  "management": {
+    "title": "Staff management",
+    "descriptionOwner": "Create workspace admin and staff accounts. Share the Workspace ID so staff can sign in.",
+    "descriptionAdmin": "Create and manage staff accounts. Admin accounts can only be managed by the workspace owner.",
+    "resolveDescription": "Resolve account availability for the current plan."
+  },
+  "usage": {
+    "label": "Staff account usage",
+    "admins": "Admins",
+    "staff": "Staff",
+    "summary": "{{count}} used · {{remaining}} remaining",
+    "progressLabel": "{{type}} plan usage",
+    "progressValue": "{{count}} of {{limit}} {{type}} used"
+  },
+  "planLock": {
+    "chooseAdminsTitle": "Choose available Admins",
+    "chooseStaffTitle": "Choose available Staff",
+    "chooseAdminsDescription": "Select the Admin accounts that can access this workspace.",
+    "chooseStaffDescription": "Select the Staff accounts that can access this workspace.",
+    "changeAdmins": "Change available Admins",
+    "changeStaff": "Change available Staff",
+    "lockedCopy": "Locked by current plan",
+    "lockedSection": "Locked by current plan",
+    "lockedAdminAccounts": "Admin accounts",
+    "lockedStaffAccounts": "Staff accounts"
+  },
+  "empty": {
+    "lockedTitle": "Staff management is locked",
+    "lockedBody": "The Basic plan does not include Workspace Admin or Staff accounts. Upgrade to Plus or Business to unlock the Staff page.",
+    "notAvailableTitle": "Not available",
+    "notAvailableBody": "Only the workspace owner or an admin can manage staff accounts.",
+    "noAccountsTitle": "No staff accounts yet",
+    "noAccountsBodyOwner": "Create an admin or staff account for someone who needs workspace access.",
+    "noAccountsBodyAdmin": "Create a staff account for someone who needs workspace access."
+  },
+  "workspaceId": {
+    "title": "Workspace ID",
+    "copyLabel": "Copy ID",
+    "hint": "Staff use this ID with their username and password to sign in at the staff login page."
+  },
+  "sections": {
+    "existingAccounts": "Existing accounts",
+    "existingAccountsOwner": "Admins and staff who can access this workspace.",
+    "existingAccountsAdmin": "Staff accounts you can manage in this workspace.",
+    "availableAdmins": "Available Admins",
+    "availableStaff": "Available Staff",
+    "accountCount_one": "{{count}} account",
+    "accountCount_other": "{{count}} accounts"
+  },
+  "create": {
+    "title": "Create account",
+    "usernameLabel": "Username",
+    "usernameHint": "Unique within this workspace",
+    "roleLabel": "Role",
+    "passwordLabel": "Password",
+    "submit": "Create account",
+    "submitting": "Creating…",
+    "adminEmailHint": "Required for admin accounts"
+  },
+  "row": {
+    "groupAccess": "Group access",
+    "closeAccess": "Close access",
+    "resetPassword": "Reset password",
+    "delete": "Delete",
+    "planLockedTitle": "Locked by current plan"
+  },
+  "lifecycle": {
+    "deactivate": "Deactivate",
+    "reactivate": "Reactivate"
+  },
+  "delete": {
+    "title": "Permanently delete account?",
+    "bodyAdmin": "Permanently delete the admin account “{{username}}”? Its sign-in credentials and private access assignments will be removed. This action cannot be undone.",
+    "bodyStaff": "Permanently delete the staff account “{{username}}”? Its sign-in credentials and private access assignments will be removed. This action cannot be undone.",
+    "confirmLabel": "Delete permanently",
+    "success": "{{username}} was permanently deleted."
+  },
+  "email": {
+    "label": "Email",
+    "labelOptional": "Email (optional)",
+    "duplicate": "An account with this email already exists in this workspace."
+  },
+  "resetPassword": {
+    "prompt": "Enter new password for this staff account:"
+  },
+  "groupAccess": {
+    "loading": "Loading group access…",
+    "title": "Group access — {{username}}",
+    "description": "Choose which Groups this Staff account can view and operate.",
+    "currentAriaLabel": "Current Group access",
+    "label": "Group access",
+    "empty": "No Group access",
+    "moreTitle_one": "{{count}} additional Group",
+    "moreTitle_other": "{{count}} additional Groups",
+    "more": "+{{count}} more",
+    "searchLabel": "Search groups",
+    "searchPlaceholder": "Search groups...",
+    "filterAriaLabel": "Filter groups",
+    "filters": {
+      "all": "All",
+      "selected": "Selected",
+      "unselected": "Unselected",
+      "standard": "Standard",
+      "structured": "Structured"
+    },
+    "selectedCount": "{{count}} selected",
+    "selectAllVisible": "Select all visible",
+    "clearSelection": "Clear selection",
+    "save": "Save access",
+    "saving": "Saving…",
+    "emptyNoGroups": "No active Groups are available.",
+    "emptyNoSearchResults": "No Groups match your search.",
+    "emptyNoSelected": "No Groups selected.",
+    "emptyNoUnselected": "No unselected Groups.",
+    "groupTypeStandard": "Standard",
+    "groupTypeStructured": "Structured"
+  }
+}

@@ -1,0 +1,69 @@
+{
+  "productName": "CheckStation",
+  "save": "Save",
+  "cancel": "Cancel",
+  "close": "Close",
+  "delete": "Delete",
+  "edit": "Edit",
+  "create": "Create",
+  "add": "Add",
+  "remove": "Remove",
+  "confirm": "Confirm",
+  "search": "Search",
+  "back": "Back",
+  "next": "Next",
+  "finish": "Finish",
+  "skip": "Skip",
+  "copy": "Copy",
+  "copied": "Copied!",
+  "loading": "Loading…",
+  "working": "Working…",
+  "language": "Language",
+  "languageDescription": "Choose the language for CheckStation screens.",
+  "languageMenu": {
+    "aria": "Change language",
+    "activeLabel": "Current language"
+  },
+  "unknown": "Unknown",
+  "yes": "Yes",
+  "no": "No",
+  "optional": "Optional",
+  "required": "Required",
+  "showPassword": "Show password",
+  "hidePassword": "Hide password",
+  "changePhoto": "Change photo",
+  "removePhoto": "Remove photo",
+  "addProfilePhoto": "Add profile photo",
+  "editProfilePhoto": "Edit profile photo",
+  "closeNavigation": "Close navigation",
+  "openMenu": "Open menu",
+  "signOut": "Sign out",
+  "upgradeRequired": "Upgrade required",
+  "locked": "Locked",
+  "planLocked": "Plan locked",
+  "confirmDialog": {
+    "working": "Working…"
+  },
+  "status": {
+    "active": "Active",
+    "archived": "Archived",
+    "deleted": "Deleted",
+    "inactive": "Inactive",
+    "groupOnly": "Group-only",
+    "setupIncomplete": "Setup incomplete"
+  },
+  "actions": {
+    "checkIn": "Check-in",
+    "checkOut": "Check-out",
+    "breakStart": "Break start",
+    "breakEnd": "Break end"
+  },
+  "errors": {
+    "generic": "Something went wrong."
+  },
+  "sending": "Sending…",
+  "saving": "Saving…",
+  "updating": "Updating…",
+  "verifying": "Verifying…",
+  "tryAgain": "Try again"
+}

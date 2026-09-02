@@ -1,20 +1,74 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:xhtml="http://www.w3.org/1999/xhtml">
   <url>
-    <loc>/</loc>
-    <lastmod>2026-08-18</lastmod>
+    <loc>/en/</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="/en/" />
+    <xhtml:link rel="alternate" hreflang="ja" href="/ja/" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="/en/" />
+    <lastmod>2026-09-01</lastmod>
   </url>
   <url>
-    <loc>/features</loc>
-    <lastmod>2026-08-18</lastmod>
+    <loc>/ja/</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="/en/" />
+    <xhtml:link rel="alternate" hreflang="ja" href="/ja/" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="/en/" />
+    <lastmod>2026-09-01</lastmod>
   </url>
   <url>
-    <loc>/how-it-works</loc>
-    <lastmod>2026-08-18</lastmod>
+    <loc>/en/features</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="/en/features" />
+    <xhtml:link rel="alternate" hreflang="ja" href="/ja/features" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="/en/features" />
+    <lastmod>2026-09-01</lastmod>
   </url>
   <url>
-    <loc>/pricing</loc>
-    <lastmod>2026-08-18</lastmod>
+    <loc>/ja/features</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="/en/features" />
+    <xhtml:link rel="alternate" hreflang="ja" href="/ja/features" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="/en/features" />
+    <lastmod>2026-09-01</lastmod>
+  </url>
+  <url>
+    <loc>/en/how-it-works</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="/en/how-it-works" />
+    <xhtml:link rel="alternate" hreflang="ja" href="/ja/how-it-works" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="/en/how-it-works" />
+    <lastmod>2026-09-01</lastmod>
+  </url>
+  <url>
+    <loc>/ja/how-it-works</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="/en/how-it-works" />
+    <xhtml:link rel="alternate" hreflang="ja" href="/ja/how-it-works" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="/en/how-it-works" />
+    <lastmod>2026-09-01</lastmod>
+  </url>
+  <url>
+    <loc>/en/pricing</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="/en/pricing" />
+    <xhtml:link rel="alternate" hreflang="ja" href="/ja/pricing" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="/en/pricing" />
+    <lastmod>2026-09-01</lastmod>
+  </url>
+  <url>
+    <loc>/ja/pricing</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="/en/pricing" />
+    <xhtml:link rel="alternate" hreflang="ja" href="/ja/pricing" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="/en/pricing" />
+    <lastmod>2026-09-01</lastmod>
+  </url>
+  <url>
+    <loc>/en/contact</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="/en/contact" />
+    <xhtml:link rel="alternate" hreflang="ja" href="/ja/contact" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="/en/contact" />
+    <lastmod>2026-09-01</lastmod>
+  </url>
+  <url>
+    <loc>/ja/contact</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="/en/contact" />
+    <xhtml:link rel="alternate" hreflang="ja" href="/ja/contact" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="/en/contact" />
+    <lastmod>2026-09-01</lastmod>
   </url>
 </urlset>
-

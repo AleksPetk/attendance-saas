@@ -1,0 +1,107 @@
+{
+  "title": "履歴",
+  "views": {
+    "ariaLabel": "履歴ビュー",
+    "activity": "アクティビティログ",
+    "report": "出席レポート"
+  },
+  "activity": {
+    "allGroups": "すべてのグループ",
+    "group": "グループ",
+    "action": "アクション",
+    "anyAction": "すべてのアクション",
+    "search": "検索",
+    "searchPlaceholder": "名前、メール、または識別子",
+    "day": "日付",
+    "clear": "クリア",
+    "loading": "履歴を読み込み中…",
+    "empty": {
+      "title": "履歴はまだありません",
+      "body": "キオスクでアクションを実行すると、ここに記録が表示されます。結果が見つからない場合はフィルターを調整してください。"
+    }
+  },
+  "report": {
+    "reportBy": "レポート対象",
+    "member": "メンバー",
+    "group": "グループ",
+    "selectMember": "メンバーを選択",
+    "selectGroup": "グループを選択",
+    "groupOptional": "グループ（任意）",
+    "allMemberGroups": "メンバーのすべてのグループ",
+    "participantOptional": "参加者（任意）",
+    "allParticipants": "すべての参加者",
+    "dateRange": "期間",
+    "selectDateRange": "期間を選択",
+    "from": "開始日",
+    "to": "終了日",
+    "dateValidation": {
+      "incomplete": "日付を最後まで入力してください。",
+      "invalid": "有効な日付を入力してください。"
+    },
+    "datePicker": {
+      "open": "{{field}}のカレンダーを開く",
+      "dialogLabel": "{{field}}を選択",
+      "previousMonth": "前の月",
+      "nextMonth": "次の月",
+      "chooseMonth": "月を選択",
+      "chooseYear": "年を選択",
+      "selectMonth": "月を選択",
+      "previousYears": "前の年を表示",
+      "nextYears": "次の年を表示",
+      "selectDate": "{{date}}を選択"
+    },
+    "presets": {
+      "today": "今日",
+      "thisWeek": "今週",
+      "thisMonth": "今月",
+      "custom": "カスタム期間"
+    },
+    "export": {
+      "label": "エクスポート",
+      "exporting": "エクスポート中…",
+      "locked": "エクスポートはロック中",
+      "pdf": "PDF",
+      "excel": "Excel (.xlsx)",
+      "csv": "CSV",
+      "planRequired": "CSV、Excel、PDF のエクスポートには Plus または Business プランが必要です。",
+      "planRequiredTitle": "レポートのエクスポートには Plus または Business プランが必要です",
+      "readyTitle": "表示中の出席レポートをエクスポート",
+      "disabledTitle": "レポートのフィルターと期間を選択するとエクスポートできます",
+      "filtersRequired": "エクスポートする前に、出席データがあるレポートのフィルターを選択してください。",
+      "failed": "このレポートをエクスポートできませんでした。"
+    },
+    "loadingGroups": "グループを読み込み中…",
+    "generating": "出席レポートを生成中…",
+    "noMembers": {
+      "title": "利用可能なメンバーがありません",
+      "body": "再利用可能なメンバーを作成して、出席状況をレポートできます。"
+    },
+    "noGroups": {
+      "title": "利用可能なグループがありません",
+      "body": "グループを作成し、出席アクションを記録してレポートを作成してください。"
+    },
+    "filtersEmpty": {
+      "title": "レポートはまだありません",
+      "bodyMember": "メンバーと期間を選択して、出席レポートを生成してください。",
+      "bodyGroup": "グループと期間を選択して、出席レポートを生成してください。",
+      "dateRangeInvalid": "終了日は開始日以降の日付を指定してください。"
+    },
+    "noAttendance": {
+      "title": "この期間に出席記録はありません",
+      "body": "レポートのフィルターや期間を変更してください。レポートにはアクション記録がある日のみ含まれます。"
+    },
+    "header": {
+      "kicker": "出席レポート",
+      "group": "グループ: {{name}}",
+      "allMemberGroups": "グループ: メンバーのすべてのグループ",
+      "participant": "参加者: {{name}}",
+      "allParticipants": "参加者: すべて"
+    },
+    "table": {
+      "group": "グループ",
+      "class": "クラス",
+      "name": "名前",
+      "unknownClass": "不明なクラス"
+    }
+  }
+}

@@ -2,11 +2,11 @@ import { Link, useLocation, useNavigationType } from "react-router-dom";
 import { useLayoutEffect, useMemo, useState } from "react";
 import { Wordmark } from "./components.jsx";
 import { brandLogoMark, brandLogoText } from "./assets/brand/brandLogo.js";
-import {
-  PUBLIC_FOOTER_COLUMNS,
-  footerItemIsLinked,
-  splitFooterItemsIntoColumns,
-} from "./publicFooterLinks.js";
+import { footerItemIsLinked, splitFooterItemsIntoColumns } from "./publicFooterLinks.js";
+import { buildPublicFooterColumns } from "./promo/footerColumns.js";
+import PromoLanguageMenu from "./promo/PromoLanguageMenu.jsx";
+import { usePromoLocale } from "./promo/PromoLocaleContext.jsx";
+import { promoLogicalPath } from "./promo/locale.js";
 
 function BrandPicture({ asset, className, decorative = false }) {
   return (
@@ -25,7 +25,7 @@ function BrandPicture({ asset, className, decorative = false }) {
   );
 }
 
-function FooterItemList({ items }) {
+function FooterItemList({ items, handoffToAuth }) {
   return (
     <ul className="public-footer-col-list">
       {items.map((item) => (
@@ -36,6 +36,16 @@ function FooterItemList({ items }) {
               {...(item.external
                 ? { target: "_blank", rel: "noopener noreferrer" }
                 : {})}
+            >
+              {item.label}
+            </a>
+          ) : item.auth && typeof item.to === "string" ? (
+            <a
+              href={item.to}
+              onClick={(event) => {
+                event.preventDefault();
+                handoffToAuth(item.to);
+              }}
             >
               {item.label}
             </a>
@@ -50,15 +60,15 @@ function FooterItemList({ items }) {
   );
 }
 
-function FooterLinkColumn({ title, items }) {
+function FooterLinkColumn({ title, items, handoffToAuth }) {
   const [leftItems, rightItems] = splitFooterItemsIntoColumns(items);
 
   return (
     <div className="public-footer-col">
       <h3 className="public-footer-col-title">{title}</h3>
       <div className="public-footer-col-split">
-        <FooterItemList items={leftItems} />
-        <FooterItemList items={rightItems} />
+        <FooterItemList items={leftItems} handoffToAuth={handoffToAuth} />
+        <FooterItemList items={rightItems} handoffToAuth={handoffToAuth} />
       </div>
     </div>
   );
@@ -67,9 +77,12 @@ function FooterLinkColumn({ title, items }) {
 export default function PublicPageShell({ children }) {
   const location = useLocation();
   const navigationType = useNavigationType();
+  const { t, locale, pathFor, handoffToAuth } = usePromoLocale();
   const path = location.pathname;
+  const logical = promoLogicalPath(path);
   const [menuOpen, setMenuOpen] = useState(false);
   const copyrightYear = new Date().getFullYear();
+  const footerColumns = useMemo(() => buildPublicFooterColumns(locale, t), [locale, t]);
 
   useLayoutEffect(() => {
     if (location.hash) {
@@ -84,95 +97,128 @@ export default function PublicPageShell({ children }) {
   }, [location.key, location.hash, navigationType]);
 
   const active = useMemo(() => {
-    if (path === "/") return "home";
-    if (path.startsWith("/features")) return "features";
-    if (path.startsWith("/how-it-works")) return "how-it-works";
-    if (path.startsWith("/pricing")) return "pricing";
-    if (path.startsWith("/contact")) return "contact";
-    if (path.startsWith("/login")) return "login";
-    if (path.startsWith("/register")) return "register";
-    if (path.startsWith("/staff-login")) return "staff-login";
+    if (logical === "/") return "home";
+    if (logical.startsWith("/features")) return "features";
+    if (logical.startsWith("/how-it-works")) return "how-it-works";
+    if (logical.startsWith("/pricing")) return "pricing";
+    if (logical.startsWith("/contact")) return "contact";
     return "";
-  }, [path]);
+  }, [logical]);
 
   return (
-    <div className="public-shell">
+    <div className={`public-shell${locale === "ja" ? " public-shell--ja" : ""}`}>
       <header className="public-nav">
-        <Link to="/" className="public-nav-brand" aria-label="CheckStation">
+        <Link
+          to={pathFor("/")}
+          className="public-nav-brand"
+          aria-label={t("shell.brandAria")}
+        >
           <Wordmark logo />
         </Link>
-        <button
-          type="button"
-          className="public-nav-toggle"
-          aria-expanded={menuOpen}
-          aria-label="Toggle navigation"
-          onClick={() => setMenuOpen((open) => !open)}
-        >
-          ☰
-        </button>
-        <nav
-          className={menuOpen ? "public-nav-links open" : "public-nav-links"}
-          aria-label="Public navigation"
-        >
-          <Link
-            className={active === "home" ? "public-nav-link active" : "public-nav-link"}
-            to="/"
-            onClick={() => setMenuOpen(false)}
+        <div className="public-nav-end">
+          <nav
+            className={menuOpen ? "public-nav-links open" : "public-nav-links"}
+            aria-label={t("shell.navAria")}
           >
-            Home
-          </Link>
-          <Link
-            className={active === "features" ? "public-nav-link active" : "public-nav-link"}
-            to="/features"
-            onClick={() => setMenuOpen(false)}
+            <Link
+              className={active === "home" ? "public-nav-link active" : "public-nav-link"}
+              to={pathFor("/")}
+              onClick={() => setMenuOpen(false)}
+            >
+              {t("shell.navHome")}
+            </Link>
+            <Link
+              className={active === "features" ? "public-nav-link active" : "public-nav-link"}
+              to={pathFor("/features")}
+              onClick={() => setMenuOpen(false)}
+            >
+              {t("shell.navFeatures")}
+            </Link>
+            <Link
+              className={active === "how-it-works" ? "public-nav-link active" : "public-nav-link"}
+              to={pathFor("/how-it-works")}
+              onClick={() => setMenuOpen(false)}
+            >
+              {t("shell.navHowItWorks")}
+            </Link>
+            <Link
+              className={active === "pricing" ? "public-nav-link active" : "public-nav-link"}
+              to={pathFor("/pricing")}
+              onClick={() => setMenuOpen(false)}
+            >
+              {t("shell.navPricing")}
+            </Link>
+            <a
+              className="public-nav-link"
+              href="/login"
+              onClick={(event) => {
+                event.preventDefault();
+                setMenuOpen(false);
+                handoffToAuth("/login");
+              }}
+            >
+              {t("shell.navLogin")}
+            </a>
+            <a
+              className="public-nav-link primary"
+              href="/register"
+              onClick={(event) => {
+                event.preventDefault();
+                setMenuOpen(false);
+                handoffToAuth("/register");
+              }}
+            >
+              {t("shell.navGetStarted")}
+            </a>
+          </nav>
+          <div className="public-nav-language">
+            <PromoLanguageMenu />
+          </div>
+          <button
+            type="button"
+            className="public-nav-toggle"
+            aria-expanded={menuOpen}
+            aria-label={t("shell.toggleNavAria")}
+            onClick={() => setMenuOpen((open) => !open)}
           >
-            Features
-          </Link>
-          <Link
-            className={active === "how-it-works" ? "public-nav-link active" : "public-nav-link"}
-            to="/how-it-works"
-            onClick={() => setMenuOpen(false)}
-          >
-            How it works
-          </Link>
-          <Link
-            className={active === "pricing" ? "public-nav-link active" : "public-nav-link"}
-            to="/pricing"
-            onClick={() => setMenuOpen(false)}
-          >
-            Pricing
-          </Link>
-          <Link className="public-nav-link" to="/login" onClick={() => setMenuOpen(false)}>
-            Login
-          </Link>
-          <Link className="public-nav-link primary" to="/register" onClick={() => setMenuOpen(false)}>
-            Get started
-          </Link>
-        </nav>
+            ☰
+          </button>
+        </div>
       </header>
       <main className="public-container">{children}</main>
       <footer className="public-footer">
         <div className="public-footer-inner">
           <div className="public-footer-brand">
-            <Link to="/" className="public-footer-brand-link" aria-label="CheckStation">
+            <Link
+              to={pathFor("/")}
+              className="public-footer-brand-link"
+              aria-label={t("shell.brandAria")}
+            >
               <BrandPicture asset={brandLogoText} className="public-footer-logo-text" />
             </Link>
-            <p className="public-footer-tagline">Configurable check-in platform</p>
+            <p className="public-footer-tagline">{t("shell.footerTagline")}</p>
             <div className="public-footer-copy">
-              <p className="public-footer-copy-line">© {copyrightYear} CheckStation</p>
+              <p className="public-footer-copy-line">
+                {t("shell.footerCopyright", { year: copyrightYear })}
+              </p>
               <p className="public-footer-copy-line public-footer-copy-rights">
                 <BrandPicture
                   asset={brandLogoMark}
                   className="public-footer-logo-mark"
                   decorative
                 />
-                <span>All rights reserved.</span>
+                <span>{t("shell.footerRights")}</span>
               </p>
             </div>
           </div>
-          <nav className="public-footer-columns" aria-label="Footer">
-            {PUBLIC_FOOTER_COLUMNS.map((column) => (
-              <FooterLinkColumn key={column.id} title={column.title} items={column.items} />
+          <nav className="public-footer-columns" aria-label={t("shell.footerNavAria")}>
+            {footerColumns.map((column) => (
+              <FooterLinkColumn
+                key={column.id}
+                title={column.title}
+                items={column.items}
+                handoffToAuth={handoffToAuth}
+              />
             ))}
           </nav>
         </div>

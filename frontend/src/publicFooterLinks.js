@@ -16,6 +16,13 @@ export function publicStatusPageUrl() {
   return trimmed || "http://localhost:8090";
 }
 
+/** Standalone Status URL using the current workspace UI locale (not status-site preference). */
+export function workspaceStatusHomeUrl(locale) {
+  const base = publicStatusPageUrl();
+  const lang = locale === "ja" ? "ja" : "en";
+  return `${base}/${lang}/`;
+}
+
 export function publicDocsPageUrl() {
   const raw =
     (typeof import.meta !== "undefined" &&
@@ -26,11 +33,22 @@ export function publicDocsPageUrl() {
   return trimmed || "http://localhost:8091";
 }
 
-export function publicDocsDocumentUrl(slug) {
+export function publicDocsDocumentUrl(slug, locale) {
   const base = publicDocsPageUrl();
   const key = String(slug || "").trim().replace(/^\/+|\/+$/g, "");
-  if (!key || key === "documentation") return `${base}/`;
-  return `${base}/${key}`;
+  const lang = locale === "ja" ? "ja" : locale === "en" ? "en" : "";
+  const prefix = lang ? `/${lang}` : "";
+  if (!key || key === "documentation") return `${base}${prefix}/`;
+  return `${base}${prefix}/${key}`;
+}
+
+/** Standalone Docs URL using the current workspace UI locale (not docs-site preference). */
+export function workspaceDocsDocumentUrl(slug, locale) {
+  return publicDocsDocumentUrl(slug, locale || "en");
+}
+
+export function workspaceDocsHomeUrl(locale) {
+  return workspaceDocsDocumentUrl("documentation", locale);
 }
 
 export const PUBLIC_FOOTER_COLUMNS = [

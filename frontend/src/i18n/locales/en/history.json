@@ -1,0 +1,107 @@
+{
+  "title": "History",
+  "views": {
+    "ariaLabel": "History views",
+    "activity": "Activity Log",
+    "report": "Attendance Report"
+  },
+  "activity": {
+    "allGroups": "All groups",
+    "group": "Group",
+    "action": "Action",
+    "anyAction": "Any action",
+    "search": "Search",
+    "searchPlaceholder": "Name, email, or identifier",
+    "day": "Day",
+    "clear": "Clear",
+    "loading": "Loading history…",
+    "empty": {
+      "title": "No history yet",
+      "body": "Run a kiosk action and records will appear here. Try adjusting filters if you expected results."
+    }
+  },
+  "report": {
+    "reportBy": "Report by",
+    "member": "Member",
+    "group": "Group",
+    "selectMember": "Select a Member",
+    "selectGroup": "Select a Group",
+    "groupOptional": "Group (optional)",
+    "allMemberGroups": "All member Groups",
+    "participantOptional": "Participant (optional)",
+    "allParticipants": "All participants",
+    "dateRange": "Date range",
+    "selectDateRange": "Select date range",
+    "from": "From",
+    "to": "To",
+    "dateValidation": {
+      "incomplete": "Enter a complete date.",
+      "invalid": "Enter a valid calendar date."
+    },
+    "datePicker": {
+      "open": "Open calendar for {{field}}",
+      "dialogLabel": "Choose {{field}} date",
+      "previousMonth": "Previous month",
+      "nextMonth": "Next month",
+      "chooseMonth": "Choose month",
+      "chooseYear": "Choose year",
+      "selectMonth": "Select month",
+      "previousYears": "Previous years",
+      "nextYears": "Next years",
+      "selectDate": "Select {{date}}"
+    },
+    "presets": {
+      "today": "Today",
+      "thisWeek": "This week",
+      "thisMonth": "This month",
+      "custom": "Custom range"
+    },
+    "export": {
+      "label": "Export",
+      "exporting": "Exporting…",
+      "locked": "Export locked",
+      "pdf": "PDF",
+      "excel": "Excel (.xlsx)",
+      "csv": "CSV",
+      "planRequired": "CSV, Excel, and PDF export require Plus or Business.",
+      "planRequiredTitle": "Report export requires Plus or Business",
+      "readyTitle": "Export the currently visible attendance report",
+      "disabledTitle": "Select report filters and a date range to enable export",
+      "filtersRequired": "Choose report filters with attendance data before exporting.",
+      "failed": "Could not export this report."
+    },
+    "loadingGroups": "Loading groups…",
+    "generating": "Generating attendance report…",
+    "noMembers": {
+      "title": "No Members available",
+      "body": "Create a reusable Member to report their attendance."
+    },
+    "noGroups": {
+      "title": "No Groups available",
+      "body": "Create a Group and record attendance actions to build reports."
+    },
+    "filtersEmpty": {
+      "title": "No report yet",
+      "bodyMember": "Choose a Member and date range to generate an attendance report.",
+      "bodyGroup": "Choose a Group and date range to generate an attendance report.",
+      "dateRangeInvalid": "To date must be on or after From date."
+    },
+    "noAttendance": {
+      "title": "No attendance in this range",
+      "body": "Try different report filters or dates. Reports only include days with Action Records."
+    },
+    "header": {
+      "kicker": "Attendance Report",
+      "group": "Group: {{name}}",
+      "allMemberGroups": "Groups: All member Groups",
+      "participant": "Participant: {{name}}",
+      "allParticipants": "Participants: All"
+    },
+    "table": {
+      "group": "Group",
+      "class": "Class",
+      "name": "Name",
+      "unknownClass": "Unknown Class"
+    }
+  }
+}

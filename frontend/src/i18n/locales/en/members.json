@@ -1,0 +1,108 @@
+{
+  "title": "Members",
+  "addMember": "Add Member",
+  "searchPlaceholder": "Search name, email, phone, address, or #ID",
+  "loading": "Loading Members…",
+  "loadingOne": "Loading Member…",
+  "noContactDetails": "No contact details",
+  "planLockedCopy": "Locked by current plan",
+  "usage": {
+    "label": "Member usage",
+    "memberCount": "{{count}} Member",
+    "memberCount_other": "{{count}} Members",
+    "remaining": "{{count}} remaining",
+    "unlimited": "Unlimited",
+    "progressLabel": "Member plan usage",
+    "progressValue": "{{count}} of {{limit}} Members used"
+  },
+  "views": {
+    "ariaLabel": "Member view",
+    "active": "Active Members",
+    "archived": "Archived Members"
+  },
+  "filters": {
+    "search": "Search",
+    "sortBy": "Sort by",
+    "profile": "Profile",
+    "allMembers": "All Members",
+    "withEmail": "With email",
+    "withoutEmail": "Without email",
+    "withPhone": "With phone",
+    "withoutPhone": "Without phone",
+    "clear": "Clear"
+  },
+  "sort": {
+    "newest": "Newest first",
+    "oldest": "Oldest first",
+    "nameAsc": "Name A–Z",
+    "nameDesc": "Name Z–A"
+  },
+  "archive": "Archive",
+  "restore": "Restore",
+  "deletePermanently": "Delete permanently",
+  "confirmArchive": "Archive {{name}}? They will be hidden from Groups and kiosks until restored.",
+  "confirmDeleteTitle": "Permanently delete Member?",
+  "confirmDeleteBody": "Permanently delete {{name}} (#{{id}})? This action cannot be undone.",
+  "planSelection": {
+    "needsDecision": "Plan capacity needs a decision",
+    "noticeWithLimit": "Your {{planName}} plan includes {{limit}} Member. Choose the {{limit}} Members you want to keep available.",
+    "noticeWithLimit_other": "Your {{planName}} plan includes {{limit}} Members. Choose the {{limit}} Members you want to keep available.",
+    "noticeGeneric": "Choose which Members remain available under the current plan.",
+    "hint": "Until you choose, Member profile management stays locked. Existing Group participation is preserved.",
+    "chooseButton": "Choose available Members",
+    "panelTitle": "Choose available Members",
+    "panelDescription": "No Members are preselected. Select exactly the plan allowance. Search to find people in large workspaces."
+  },
+  "sections": {
+    "available": "Available Members",
+    "locked": "Locked by current plan",
+    "availableAria": "Available Members",
+    "lockedAria": "Locked by current plan"
+  },
+  "count": {
+    "availableOfLimit": "{{available}} of {{limit}}",
+    "lockedMembers": "{{count}} Member",
+    "lockedMembers_other": "{{count}} Members"
+  },
+  "empty": {
+    "filteredTitle": "No matching Members",
+    "filteredBody": "Try changing the search or Profile filter.",
+    "activeTitle": "No Members yet",
+    "activeBody": "Add a reusable person with just a name, then attach them to Groups when needed.",
+    "archivedTitle": "No archived Members",
+    "archivedBody": "Archived Members appear here. Restore them or delete them permanently."
+  },
+  "create": {
+    "title": "Add Member",
+    "description": "Only name is required. A Member with just a name is valid.",
+    "creating": "Creating…",
+    "submit": "Create Member"
+  },
+  "profile": {
+    "back": "← Back to Members",
+    "addNewMember": "Add New Member",
+    "backToList": "Back to Members",
+    "unavailable": "Member profile unavailable",
+    "lockedMessage": "This Member is locked by the current plan.",
+    "saving": "Saving…",
+    "sections": {
+      "contact": "Contact",
+      "personal": "Personal",
+      "notes": "Notes"
+    },
+    "noNotes": "No notes"
+  },
+  "fields": {
+    "name": "Name",
+    "email": "Email",
+    "phone": "Phone",
+    "address": "Address",
+    "notes": "Notes",
+    "dateOfBirth": "Date of birth",
+    "required": "Required"
+  },
+  "form": {
+    "memberId": "Member #{{id}}",
+    "emptyValue": "—"
+  }
+}

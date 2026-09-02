@@ -1,7 +1,9 @@
 User-agent: *
 
-# Public marketing pages only.
+# Public marketing pages (locale-prefixed) and shared public assets.
 Allow: /
+Allow: /en/
+Allow: /ja/
 
 # App pages (auth-protected) are not intended for indexing.
 Disallow: /dashboard/
@@ -10,6 +12,10 @@ Disallow: /groups/
 Disallow: /history/
 Disallow: /staff/
 Disallow: /kiosk/
+Disallow: /account/
+Disallow: /login
+Disallow: /register
+Disallow: /staff-login
 
 Sitemap: /sitemap.xml
 

@@ -3,12 +3,14 @@ import { flushSync } from "react-dom";
 import {
   BrowserRouter,
   Navigate,
+  Outlet,
   Route,
   Routes,
   useLocation,
   useNavigate,
   useParams,
 } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import SignInScreen from "./SignInScreen.jsx";
 import WorkspaceLayout from "./WorkspaceLayout.jsx";
 import { TutorialProvider } from "./TutorialContext.jsx";
@@ -29,6 +31,12 @@ import PublicFeaturesScreen from "./PublicFeaturesScreen.jsx";
 import PublicHowItWorksScreen from "./PublicHowItWorksScreen.jsx";
 import PublicPricingScreen from "./PublicPricingScreen.jsx";
 import PublicContactScreen from "./PublicContactScreen.jsx";
+import { PromoLocaleProvider } from "./promo/PromoLocaleContext.jsx";
+import {
+  isPromoMarketingPath,
+  promoPathFor,
+  resolveInitialPromoLocale,
+} from "./promo/locale.js";
 import OwnerOAuthResultScreen from "./OwnerOAuthResultScreen.jsx";
 import OwnerLoginScreen from "./OwnerLoginScreen.jsx";
 import StaffLoginScreen from "./StaffLoginScreen.jsx";
@@ -53,6 +61,7 @@ import {
 import { confirmWorkspaceLeave } from "./kiosk/builder/workspaceLeaveGuard.js";
 import AdInterstitial from "./advertising/AdInterstitial.jsx";
 import { mockProvider } from "./advertising/mockProvider.js";
+import { LanguageProvider } from "./i18n/LanguageProvider.jsx";
 import {
   PLACEMENT_KIOSK_BUILDER_EXIT,
   PLACEMENT_KIOSK_EXIT,
@@ -150,10 +159,11 @@ function KioskByParam({ session, onUnlocked, onKioskEntered }) {
 }
 
 function RequireSession({ loadingSession, session, children }) {
+  const { t } = useTranslation("workspace");
   if (loadingSession) {
     return (
       <div className="page">
-        <LoadingState label="Loading workspace…" />
+        <LoadingState label={t("loadingWorkspace")} />
       </div>
     );
   }
@@ -164,12 +174,31 @@ function RequireSession({ loadingSession, session, children }) {
 }
 
 function isPublicMarketingPath(pathname) {
-  if (pathname === "/") return true;
+  return isPromoMarketingPath(pathname);
+}
+
+function RedirectToPromoLocale({ logicalPath }) {
+  const locale = resolveInitialPromoLocale("/");
+  return <Navigate to={promoPathFor(logicalPath, locale)} replace />;
+}
+
+function PromoLocaleLayout({ locale }) {
   return (
-    pathname.startsWith("/features") ||
-    pathname.startsWith("/how-it-works") ||
-    pathname.startsWith("/pricing") ||
-    pathname.startsWith("/contact")
+    <PromoLocaleProvider locale={locale}>
+      <Outlet />
+    </PromoLocaleProvider>
+  );
+}
+
+function promoMarketingChildRoutes(session) {
+  return (
+    <>
+      <Route index element={<PublicHomeScreen />} />
+      <Route path="features" element={<PublicFeaturesScreen />} />
+      <Route path="how-it-works" element={<PublicHowItWorksScreen />} />
+      <Route path="pricing" element={<PublicPricingScreen session={session} />} />
+      <Route path="contact" element={<PublicContactScreen />} />
+    </>
   );
 }
 
@@ -200,6 +229,7 @@ function RedirectIfSignedIn({ session, children }) {
 }
 
 function KioskLockGate({ loadingSession, session, children }) {
+  const { t } = useTranslation("workspace");
   const location = useLocation();
   const path = location.pathname;
   const publicPath = isPublicMarketingPath(path) || isPublicAuthPath(path);
@@ -208,7 +238,7 @@ function KioskLockGate({ loadingSession, session, children }) {
   if (loadingSession && !publicPath) {
     return (
       <div className="page">
-        <LoadingState label="Loading workspace…" />
+        <LoadingState label={t("loadingWorkspace")} />
       </div>
     );
   }
@@ -589,13 +619,40 @@ export default function App() {
 
   return (
     <BrowserRouter>
-      <KioskLockGate loadingSession={loadingSession} session={session}>
+      <LanguageProvider
+        session={session}
+        updatePreferredLanguage={async (preferred_language) => {
+          const result = await api.updatePreferredLanguage(preferred_language);
+          setSession((current) => {
+            if (!current?.workspace || current.workspace.account_kind !== "owner") {
+              return current;
+            }
+            return {
+              workspace: {
+                ...current.workspace,
+                preferred_language: result.data.preferred_language,
+              },
+            };
+          });
+          return result.data;
+        }}
+      >
+        <KioskLockGate loadingSession={loadingSession} session={session}>
         <Routes>
-          <Route path="/" element={<PublicHomeScreen />} />
-          <Route path="/features" element={<PublicFeaturesScreen />} />
-          <Route path="/how-it-works" element={<PublicHowItWorksScreen />} />
-          <Route path="/pricing" element={<PublicPricingScreen session={session} />} />
-          <Route path="/contact" element={<PublicContactScreen />} />
+          <Route path="/" element={<RedirectToPromoLocale logicalPath="/" />} />
+          <Route path="/features" element={<RedirectToPromoLocale logicalPath="/features" />} />
+          <Route
+            path="/how-it-works"
+            element={<RedirectToPromoLocale logicalPath="/how-it-works" />}
+          />
+          <Route path="/pricing" element={<RedirectToPromoLocale logicalPath="/pricing" />} />
+          <Route path="/contact" element={<RedirectToPromoLocale logicalPath="/contact" />} />
+          <Route path="/en" element={<PromoLocaleLayout locale="en" />}>
+            {promoMarketingChildRoutes(session)}
+          </Route>
+          <Route path="/ja" element={<PromoLocaleLayout locale="ja" />}>
+            {promoMarketingChildRoutes(session)}
+          </Route>
           <Route
             path="/login"
             element={
@@ -698,6 +755,7 @@ export default function App() {
           />
         ) : null}
       </KioskLockGate>
+      </LanguageProvider>
     </BrowserRouter>
   );
 }

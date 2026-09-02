@@ -1,0 +1,672 @@
+{
+  "shell": {
+    "brandAria": "CheckStation",
+    "toggleNavAria": "Toggle navigation",
+    "navAria": "Public navigation",
+    "navHome": "Home",
+    "navFeatures": "Features",
+    "navHowItWorks": "How it works",
+    "navPricing": "Pricing",
+    "navLogin": "Login",
+    "navGetStarted": "Get started",
+    "footerTagline": "Configurable check-in platform",
+    "footerCopyright": "© {{year}} CheckStation",
+    "footerRights": "All rights reserved.",
+    "footerNavAria": "Footer",
+    "languageMenuAria": "Language"
+  },
+  "footer": {
+    "columns": {
+      "website": "Website",
+      "docs": "Docs",
+      "usage": "Usage"
+    },
+    "items": {
+      "features": "Features",
+      "howItWorks": "How it works",
+      "pricing": "Pricing",
+      "login": "Login",
+      "staffLogin": "Staff login",
+      "getStarted": "Get started",
+      "documentation": "Documentation",
+      "gettingStarted": "Getting started",
+      "kioskSetup": "Kiosk setup",
+      "groupsMembers": "Groups & Members",
+      "billingPlans": "Billing & Plans",
+      "faq": "FAQ",
+      "privacyPolicy": "Privacy Policy",
+      "termsOfUse": "Terms of Use",
+      "support": "Support",
+      "contact": "Contact",
+      "status": "Status"
+    }
+  },
+  "imageSlot": {
+    "productScreenshot": "Product screenshot",
+    "comingSoonAria": "{{label}} screenshot coming soon"
+  },
+  "imagePlaceholder": "Image placeholder",
+  "home": {
+    "heroKicker": "Flexible check-in for real-world teams",
+    "heroTitle": "Make attendance feel effortless.",
+    "heroLead": "Bring people, Groups, custom kiosks, and activity history together in one workspace that adapts to the way you already work.",
+    "ctaRegister": "Register now",
+    "ctaHowItWorks": "See how it works",
+    "trialBadge": "7 days",
+    "trialNote": "Try Business free — no card required.",
+    "heroBuiltAround": "Built around",
+    "heroFeatureWords": ["ATTENDANCE", "GROUPS", "KIOSKS", "NOTIFICATIONS", "HISTORY"],
+    "heroNoteKiosksTitle": "Unique kiosks",
+    "heroNoteKiosksBody": "For every Group",
+    "heroNoteWorkspaceTitle": "One workspace",
+    "heroNoteWorkspaceBody": "Everything connected",
+    "carouselAria": "CheckStation workspace overview",
+    "carouselPrevAria": "Previous workspace image",
+    "carouselNextAria": "Next workspace image",
+    "whyKicker": "Why CheckStation",
+    "whyTitle": "Simple for people. Powerful for your team.",
+    "whyLead": "Set up the details once, then give everyone a clear and dependable way to keep attendance moving.",
+    "values": [
+      {
+        "title": "Start quickly",
+        "body": "Create your workspace, add people, and launch your first check-in flow without a complicated rollout."
+      },
+      {
+        "title": "Fit your workflow",
+        "body": "Give every Group its own actions, requirements, identification, and kiosk experience."
+      },
+      {
+        "title": "See what happened",
+        "body": "Turn check-ins, check-outs, and breaks into clear history your team can review."
+      }
+    ],
+    "groupEmailKicker": "Group-level communication",
+    "groupEmailTitle": "Every Group can communicate its own way.",
+    "groupEmailLead": "Give each Group or Structured Group its own Gmail, Microsoft/Outlook, Yahoo, or custom SMTP sender — with forwarding destinations and notification rules that fit the people it serves.",
+    "groupEmailExamples": [
+      {
+        "label": "School",
+        "body": "Use the school business email, notify parents when a child checks in or out, and optionally forward copies to the school director."
+      },
+      {
+        "label": "Café / staff",
+        "body": "Use a completely different café business email and choose whether staff receive check-in and check-out notifications."
+      }
+    ],
+    "groupEmailSummary": "One workspace. Different Groups, senders, recipients, and notification rules.",
+    "groupEmailVisualsAria": "Future Group email settings screenshots",
+    "groupEmailSenderLabel": "Group email sender settings",
+    "groupEmailNotificationsLabel": "Notification and forwarding rules",
+    "featuresKicker": "A complete flow",
+    "featuresTitle": "Everything your check-in needs, working together.",
+    "featuresLead": "From the people you organize to the actions you review later, CheckStation keeps the whole experience connected.",
+    "featureItems": [
+      {
+        "title": "Members & Groups",
+        "body": "Keep reusable people profiles and organize them around the way your operation really works."
+      },
+      {
+        "title": "Independent kiosks",
+        "body": "Run a dedicated participant experience for every Group without exposing the admin workspace."
+      },
+      {
+        "title": "Flexible actions",
+        "body": "Choose check-in, check-out, breaks, identification requirements, and more per Group."
+      },
+      {
+        "title": "Staff access",
+        "body": "Create staff accounts and choose the Groups each staff member can view and operate."
+      }
+    ],
+    "exploreFeatures": "Explore all features",
+    "howKicker": "How it works",
+    "howTitle": "From sign-up to your first attendance flow in four clear steps.",
+    "howLead": "No lengthy implementation. Build the flow you need and open it on the device that fits the space.",
+    "steps": [
+      {
+        "number": "01",
+        "title": "Create your workspace",
+        "body": "Register and start immediately."
+      },
+      {
+        "number": "02",
+        "title": "Add people and Groups",
+        "body": "Build the structure that fits your organization."
+      },
+      {
+        "number": "03",
+        "title": "Shape each kiosk",
+        "body": "Choose the actions, rules, and presentation."
+      },
+      {
+        "number": "04",
+        "title": "Launch and review",
+        "body": "Run check-in on your devices and keep every action connected."
+      }
+    ],
+    "seeHowItWorks": "See how it works",
+    "kioskKicker": "One editor. Practically unlimited looks.",
+    "kioskTitle": "These aren’t templates — they’re examples built with the Kiosk Editor.",
+    "kioskLead": "Every example uses the same flexible editor. Change colors, gradients, fonts, text, logos, images, layout, presentation, and supported actions and flows to create something entirely your own. School, warehouse, café, office, and club are just a few possibilities.",
+    "kioskStylePickerAria": "Kiosk style examples",
+    "kioskStyles": [
+      { "name": "School", "tone": "Calm and welcoming" },
+      { "name": "Warehouse", "tone": "Clear and high-contrast" },
+      { "name": "Café", "tone": "Warm and friendly" },
+      { "name": "Office", "tone": "Clean and professional" },
+      { "name": "Club", "tone": "Energetic and familiar" }
+    ],
+    "kioskResultTitle": "{{name}} kiosk",
+    "kioskPreviewLabel": "{{name}} kiosk preview",
+    "kioskExampleCaption": "{{name}} kiosk example",
+    "kioskPlaceholderCaption": "Image placeholder — add an original kiosk editor screenshot here later.",
+    "learnCustomization": "Learn about customization",
+    "usecasesKicker": "Built for the way you work",
+    "usecasesTitle": "One flexible platform. Plenty of real-world possibilities.",
+    "usecases": [
+      "Schools & classes",
+      "Warehouses & teams",
+      "Cafés & hospitality",
+      "Offices & reception",
+      "Clubs & communities"
+    ],
+    "pricingKicker": "Start without friction",
+    "pricingTitle": "Explore the full experience before you choose a plan.",
+    "pricingLead": "Your new workspace starts with Business free for 7 days. No card required. After the trial, you can keep going with Basic for free or choose the plan that fits.",
+    "viewPricing": "View pricing",
+    "pricingCards": {
+      "startHere": "Start here",
+      "businessTrial": "Business trial",
+      "freeForDays": "Free",
+      "freeForDaysSmall": "for 7 days",
+      "businessTrialBody": "Try the richer CheckStation experience from day one.",
+      "noCardRequired": "No card required",
+      "stayFree": "Stay free",
+      "basic": "Basic",
+      "zeroToStart": "$0",
+      "zeroToStartSmall": "to get started",
+      "basicBody": "Keep a straightforward workspace running without a paid plan.",
+      "upgradeWhenReady": "Upgrade when ready"
+    },
+    "previewKicker": "See your workspace come together",
+    "previewTitle": "One place for people, kiosks, and the full attendance story.",
+    "previewLead": "Move from a clear daily overview to member management and attendance history — all inside the same connected workspace.",
+    "finalKicker": "Ready to make check-in easier?",
+    "finalTitle": "Build your first CheckStation flow today.",
+    "finalLead": "Start free, try Business for one week, and create a check-in experience that fits your world.",
+    "createWorkspace": "Create your workspace"
+  },
+  "features": {
+    "heroKicker": "A clearer way to manage attendance",
+    "heroTitle": "Check-in that works the way your organization works.",
+    "heroLead": "CheckStation brings people, Groups, kiosk flows, and activity history together in one calm, configurable workspace — so your team can spend less time managing attendance and more time doing the work.",
+    "ctaPricing": "Check out pricing",
+    "ctaHowItWorks": "See how it works",
+    "proofAria": "Key benefits",
+    "proofNoHardware": "No hardware to install",
+    "proofConfigurable": "Configurable by Group",
+    "proofEveryday": "Built for everyday use",
+    "orbitBrand": "CheckStation",
+    "orbitTitle": "One workspace.",
+    "orbitTitleEm": "Every action in sync.",
+    "orbitMembers": "Members",
+    "orbitHistory": "History captured",
+    "showcaseKicker": "See the whole picture",
+    "showcaseTitle": "Everything your attendance workflow needs — without the busywork.",
+    "showcaseLead": "Set up the experience once. Then give participants a simple way to take action and your team a reliable way to understand what happened.",
+    "carouselAria": "CheckStation workspace overview",
+    "carouselPrevAria": "Previous workspace image",
+    "carouselNextAria": "Next workspace image",
+    "storiesAria": "CheckStation capabilities",
+    "stories": [
+      {
+        "eyebrow": "Organize once",
+        "title": "Keep every person and Group in one clear place.",
+        "body": "Create reusable Member profiles, then organize them into the Groups that reflect how your organization actually works. Add flexible Group-only participants when a reusable profile is not needed.",
+        "points": [
+          "Reusable Member profiles",
+          "Long-lived Groups",
+          "Optional profile details and notes"
+        ],
+        "label": "Members and Groups workspace",
+        "caption": "A future screenshot will show the Members and Groups workspace here."
+      },
+      {
+        "eyebrow": "Make it yours",
+        "title": "Build a check-in flow that fits the room.",
+        "body": "Every Group gets its own kiosk experience. Choose how people identify themselves, which actions they can take, and how the kiosk looks and speaks to participants.",
+        "points": [
+          "Member list or input mode",
+          "Themes, messages, and display options",
+          "A dedicated kiosk per Group"
+        ],
+        "label": "Configurable Group kiosk",
+        "caption": "A future screenshot will show kiosk configuration and presentation options here."
+      },
+      {
+        "eyebrow": "Email & notifications",
+        "title": "Let every Group communicate from the right inbox.",
+        "body": "A school, café, office, or club can keep its communication distinct without leaving the workspace. Each Group or Structured Group chooses its own sender, recipients, forwarding, and action-based notification rules.",
+        "points": [
+          "Gmail, Microsoft / Outlook, Yahoo, or custom SMTP",
+          "A dedicated sender or business email for each Group",
+          "Participant emails on or off independently",
+          "Check-in, check-out, break, or combined notification triggers",
+          "Forwarding emails and up to three participant recipients where supported"
+        ]
+      },
+      {
+        "eyebrow": "Capture the moment",
+        "title": "Record the actions that matter — automatically.",
+        "body": "Turn a quick participant interaction into dependable history. Enable the actions each Group needs, from check-in and check-out to breaks, then review the record whenever you need it.",
+        "points": [
+          "Check-in, check-out, and break actions",
+          "PIN and identification requirements",
+          "Filter by Group, person, action, or date"
+        ],
+        "label": "Activity history and actions",
+        "caption": "A future screenshot will show recorded actions and history filters here."
+      }
+    ],
+    "membersCarouselPrevAria": "Previous Members and Groups image",
+    "membersCarouselNextAria": "Next Members and Groups image",
+    "videoPosterAlt": "CheckStation Kiosk Editor configuring a Group kiosk.",
+    "emailGalleryAria": "Group email and notification examples",
+    "emailExamples": [
+      {
+        "label": "School Group",
+        "body": "Send from the school email, notify parents on arrival or check-out, and forward copies to the director."
+      },
+      {
+        "label": "Café / staff Group",
+        "body": "Use a different café business sender with its own staff notifications and forwarding rules."
+      }
+    ],
+    "historyCompositionAria": "Recorded actions and attendance reporting",
+    "platformKicker": "Ready wherever work happens",
+    "platformTitle": "One check-in experience across every screen.",
+    "platformLead": "CheckStation is designed for the browser, iPhone and iPad, Android phones and tablets, Mac, and Windows. Use the device that fits the space — at the front desk, in a classroom, or at a shared kiosk.",
+    "exploreWorkflow": "Explore the workflow",
+    "platforms": [
+      "Browser",
+      "iPhone & iPad",
+      "Android phone & tablet",
+      "Mac",
+      "Windows"
+    ],
+    "includedKicker": "The details that make it useful",
+    "includedTitle": "Everything included.",
+    "includedLead": "Thoughtful controls for the day-to-day, with enough flexibility to make the system feel like yours.",
+    "included": [
+      {
+        "title": "Members",
+        "body": "Reusable profiles for the people you track."
+      },
+      {
+        "title": "Groups",
+        "body": "Long-lived contexts for teams, classes, clubs, and more."
+      },
+      {
+        "title": "Group-owned kiosks",
+        "body": "A separate participant experience for each Group."
+      },
+      {
+        "title": "Flexible identification",
+        "body": "Use the identification fields your workflow needs."
+      },
+      {
+        "title": "Configurable actions",
+        "body": "Enable check-in, check-out, breaks, and other actions per Group."
+      },
+      {
+        "title": "Kiosk presentation",
+        "body": "Themes, messages, display options, and participant-friendly flows."
+      },
+      {
+        "title": "History and reporting",
+        "body": "Review action records by person, Group, type, or day."
+      },
+      {
+        "title": "Staff access",
+        "body": "Let workspace staff manage operations with their own sign-in."
+      },
+      {
+        "title": "Workspace isolation",
+        "body": "Keep each organization’s data scoped to its own workspace."
+      }
+    ]
+  },
+  "howItWorks": {
+    "journeyKicker": "Your journey",
+    "journeyTitle": "From setup to daily attendance — it just clicks.",
+    "journeyLead": "Choose a step to see how CheckStation helps your setup take shape.",
+    "steps": [
+      {
+        "number": "01",
+        "eyebrow": "Start in minutes",
+        "title": "Create your workspace",
+        "body": "Register once and your CheckStation workspace is ready to shape around the way your organization runs.",
+        "detail": "One workspace gives your team a single place to set up, run, and review attendance."
+      },
+      {
+        "number": "02",
+        "navSub": "Bring in your people",
+        "eyebrow": "Bring in your people",
+        "title": "Add Members and staff",
+        "body": "Create reusable Member profiles and staff accounts for the people who help keep things moving.",
+        "detail": "Keep your people organized now, so every new check-in flow starts with a strong foundation."
+      },
+      {
+        "number": "03",
+        "eyebrow": "Match your real world",
+        "title": "Build the right Group structure",
+        "body": "Use Standard Groups for simple everyday setups, or Structured Groups when you need classes, sections, or another layer inside the same workspace.",
+        "detail": "A school can organize by class. A workplace can organize by team. CheckStation keeps both clear in one workspace."
+      },
+      {
+        "number": "04",
+        "navSub": "Set the flow for each Group",
+        "eyebrow": "Set the flow for each Group",
+        "title": "Shape each check-in experience",
+        "body": "Choose the actions, identification method, rules, people, and email delivery settings that fit each Group.",
+        "detail": "A front desk can run differently from a classroom — all inside the same workspace."
+      },
+      {
+        "number": "05",
+        "eyebrow": "Match the look to your organization",
+        "title": "Make every kiosk your own",
+        "body": "Use CheckStation’s simple built-in kiosk editor to shape the colors, background, logo, cards, inputs, and layout around your organization.",
+        "detail": "A school, café, office, or club can each create a check-in experience that feels completely their own."
+      },
+      {
+        "number": "06",
+        "eyebrow": "Open the right screen",
+        "title": "Launch wherever it makes sense",
+        "body": "Run a kiosk on a shared tablet, use the browser with staff, or keep several Group experiences moving at once.",
+        "detail": "Every Group kiosk stays separate from the admin workspace and independent from the others."
+      },
+      {
+        "number": "07",
+        "eyebrow": "Stay in the loop",
+        "title": "Review what happened",
+        "body": "Each check-in, check-out, and break becomes a record your team can revisit whenever they need it.",
+        "detail": "Filter activity by Group, person, action, or day and keep the full story close at hand."
+      }
+    ],
+    "structureKicker": "Organize without compromise",
+    "structureTitle": "Simple Groups when they are enough. Structure when you need it.",
+    "structureLead": "Start with the everyday Groups that make sense for your team. When a school or larger program needs another layer, Structured Groups give you classes and sections within the same workspace.",
+    "structurePoints": [
+      "Standard Groups for everyday flows",
+      "Structured Groups for classes and sections",
+      "One workspace, a clear view of it all"
+    ],
+    "structureImageLabel": "Standard and Structured Groups",
+    "structureImageAlt": "CheckStation Standard Group kiosk beside a Structured Group class kiosk.",
+    "simultaneousKicker": "Made to move together",
+    "simultaneousTitle": "One workspace. Different Groups. Different devices. All running together.",
+    "simultaneousLead": "Open each Group’s own check-in experience where it belongs, while the rest of your workspace keeps moving.",
+    "deviceAdminBrowser": "Admin · browser",
+    "deviceGroupTablet": "Group A · tablet",
+    "deviceClassPhone": "Class · phone",
+    "deviceBrowserLabel": "Staff browser kiosk",
+    "deviceTabletLabel": "Group A iPad kiosk",
+    "devicePhoneLabel": "Structured Group class check-in",
+    "deviceBrowserAlt": "Northgate Warehouse browser kiosk showing employee check-in cards.",
+    "deviceTabletAlt": "Northgate Warehouse tablet kiosk showing employee check-in cards.",
+    "devicePhoneAlt": "Northgate Warehouse phone kiosk showing employee check-in cards.",
+    "simultaneousFoot": [
+      "Each Group owns its kiosk setup",
+      "Kiosks run independently",
+      "Admin workspace stays separate"
+    ],
+    "staffSlideshowAria": "Admin and staff workspace views",
+    "staffPrevAria": "Previous workspace view",
+    "staffNextAria": "Next workspace view",
+    "staffDotsAria": "Choose workspace view",
+    "staffShowViewAria": "Show {{role}} workspace view",
+    "staffSlides": [
+      {
+        "role": "Admin",
+        "alt": "Admin Staff Management view showing Group access assignments for workspace staff."
+      },
+      {
+        "role": "Teacher",
+        "alt": "Teacher staff workspace showing assigned School and Sels Groups."
+      },
+      {
+        "role": "Manager",
+        "alt": "Manager staff workspace showing an attendance report limited to assigned Groups."
+      },
+      {
+        "role": "Reception",
+        "alt": "Reception staff dashboard showing activity from assigned Groups."
+      }
+    ],
+    "staffKicker": "The right people, in the right Groups",
+    "staffTitle": "Give staff a focused place to help.",
+    "staffLead": "Create staff accounts for the people who run check-in with you, then choose the Groups each staff account can view and operate.",
+    "staffExamples": [
+      {
+        "title": "Teacher",
+        "body": "Assign the classes or Groups they should view and operate."
+      },
+      {
+        "title": "Manager",
+        "body": "Keep the Groups they oversee close to hand for everyday operations."
+      },
+      {
+        "title": "Reception",
+        "body": "Give a front-desk teammate access to the check-in Groups they run."
+      }
+    ],
+    "staffNote": "Whether they are a teacher, manager, or receptionist, the access stays tied to the Groups you choose.",
+    "historyKicker": "Everything connects",
+    "historyTitle": "Every action becomes a clearer picture.",
+    "historyLead": "When people check in, check out, or take a break, CheckStation keeps the activity connected to the Group. Your team can return to the workspace, filter the history, and understand what happened without chasing down scattered notes.",
+    "exploreFeatures": "Explore all features",
+    "historyImageLabel": "Connected activity history",
+    "historyImageAlt": "Attendance actions flowing together into one connected activity history."
+  },
+  "pricing": {
+    "kicker": "Simple, flexible pricing",
+    "title": "Choose the plan that fits today.",
+    "lead": "Start free, then upgrade when you need more room to grow.",
+    "billingLabel": "Billing",
+    "intervalAria": "Billing interval",
+    "monthly": "Monthly",
+    "monthlyHint": "Stay flexible",
+    "yearly": "Yearly",
+    "yearlyHintDefault": "Best value",
+    "saveMonths": "Save {{count}} months",
+    "yearlySavingStatus": "{{label}} with yearly billing",
+    "trialBanner": "{{days}} days Business trial, no card required",
+    "plansAria": "CheckStation plans",
+    "bestValue": "Best value",
+    "perMonth": "month",
+    "perYear": "year",
+    "billedMonthly": "Billed monthly",
+    "billedYearly": "Billed yearly",
+    "normally": "Normally {{price}}",
+    "basicNote": "A simple place to begin — no card required",
+    "reassuranceAria": "Billing reassurance",
+    "startBasicFree": "Start with Basic for free",
+    "noCardToBegin": "No card required to begin",
+    "businessFreeDays": "Business free for {{days}} days",
+    "upgradeWhenNeeded": "Upgrade when you need more",
+    "cancelDowngradePeriodEnd": "Cancel or downgrade at period end",
+    "planChangesFollowPeriod": "Plan changes follow your billing period",
+    "secureStripe": "Secure web payments via Stripe",
+    "paidPlansInWorkspace": "Paid plans managed in your workspace",
+    "cta": {
+      "getStartedFree": "Get Started Free",
+      "choosePlus": "Choose Plus",
+      "goBusiness": "Go Business",
+      "manageSubscription": "Manage subscription"
+    },
+    "features": {
+      "activeGroups": "{{count}} active Groups",
+      "members": "{{count}} Members",
+      "kioskCheckIn": "Kiosk check-in",
+      "actionHistory": "Action history",
+      "adsSupported": "Ads supported",
+      "everythingInBasic": "Everything in Basic",
+      "groupsAndMembers": "{{groups}} active Groups / {{members}} Members",
+      "staffManagement": "Workspace Staff management",
+      "reportExport": "Attendance Report export",
+      "groupForwardEmails": "Group Forward Emails",
+      "noAds": "No ads",
+      "everythingInPlus": "Everything in Plus",
+      "structuredGroups": "Structured Groups",
+      "groupCapacityTimes": "{{times}}× Group capacity",
+      "groupCapacityCount": "{{count}} Group capacity",
+      "memberCapacityTimes": "{{times}}× Member capacity",
+      "memberCapacityCount": "{{count}} Member capacity",
+      "adminSeatsTimes": "{{times}}× Admin seats",
+      "adminSeatsCount": "{{count}} Admin seats",
+      "staffSeatsTimes": "{{times}}× Staff seats",
+      "staffSeatsCount": "{{count}} Staff seats",
+      "structuredSnapshotImport": "Structured snapshot import"
+    }
+  },
+  "contact": {
+    "eyebrow": "Support",
+    "title": "Contact CheckStation",
+    "lead": "Choose a topic and we’ll suggest relevant answers first. If they don’t solve the issue, send us a message below.",
+    "successSent": "Message sent",
+    "successSaved": "Message saved",
+    "successDefault": "We've received your message.",
+    "reference": "Reference {{reference}}",
+    "sendAnother": "Send another message",
+    "topicEyebrow": "Get help",
+    "topicTitle": "What do you need help with?",
+    "topicLead": "Choose the closest topic so we can surface the most useful CheckStation guidance.",
+    "categoryLabel": "Category",
+    "categoryPlaceholder": "Select a category",
+    "subcategoryLabel": "Subcategory",
+    "subcategoryPlaceholder": "Select a subcategory",
+    "chooseCategoryFirst": "Choose a category first",
+    "helpEyebrow": "Suggested answers",
+    "helpTitle": "You may find your answer here",
+    "helpLead": "These answers match the topic you selected.",
+    "helpEmpty": "No matching help articles for this topic yet.",
+    "openInFaq": "Open in CheckStation FAQ",
+    "honeypotLabel": "Company website",
+    "messageEyebrow": "Still need help?",
+    "messageTitle": "Send us a message",
+    "messageLead": "Tell us what happened and we’ll route your message to the right place.",
+    "emailLabel": "Email",
+    "nameLabel": "Name (optional)",
+    "subjectLabel": "Subject",
+    "messageLabel": "Message",
+    "turnstileMissing": "Contact protection is not configured on this environment.",
+    "submit": "Send message",
+    "submitting": "Sending…",
+    "loadError": "Contact options could not be loaded.",
+    "rateLimited": "Too many messages. Please try again later.",
+    "catalogLabels": {
+      "account_login": "Account & Login",
+      "cannot_log_in": "Cannot log in",
+      "password_reset": "Password reset",
+      "email_verification": "Email verification",
+      "two_factor": "Two-factor authentication",
+      "staff_login": "Staff login",
+      "account_deletion": "Account deletion",
+      "other_account": "Other account issue",
+      "members_groups": "Members & Groups",
+      "create_edit_member": "Create or edit a Member",
+      "add_remove_participant": "Add/remove participant",
+      "group_setup": "Group setup",
+      "standard_group": "Standard Group",
+      "structured_group": "Structured Group / Classes",
+      "archive_delete": "Archive or delete",
+      "plan_locked": "Plan-locked Member/Group",
+      "other_members_groups": "Other Members/Groups issue",
+      "kiosk": "Kiosk",
+      "cannot_launch": "Cannot launch kiosk",
+      "readiness": "Kiosk readiness issue",
+      "pin_problem": "PIN problem",
+      "identification": "Identification problem",
+      "check_in_out": "Check-in/out problem",
+      "break_action": "Break action problem",
+      "kiosk_design": "Kiosk design",
+      "kiosk_lock": "Kiosk lock",
+      "exit_kiosk": "Exit kiosk",
+      "other_kiosk": "Other kiosk issue",
+      "attendance": "Attendance & History",
+      "missing_record": "Missing attendance record",
+      "incorrect_check": "Incorrect check-in/out",
+      "attendance_report": "Attendance report",
+      "history": "History",
+      "export": "Export",
+      "other_attendance": "Other attendance issue",
+      "email": "Email & Notifications",
+      "email_not_sent": "Email not sent",
+      "smtp_setup": "SMTP setup",
+      "gmail": "Gmail",
+      "microsoft": "Microsoft / Outlook",
+      "yahoo": "Yahoo",
+      "participation_email": "Participation email",
+      "forward_emails": "Forward Emails",
+      "other_email": "Other email issue",
+      "staff": "Staff & Permissions",
+      "add_admin_staff": "Add Admin/Staff",
+      "staff_login_issue": "Staff login",
+      "permission_issue": "Permission issue",
+      "staff_cannot_see_group": "Staff cannot see Group",
+      "staff_plan_limit": "Staff plan limit",
+      "other_staff": "Other staff issue",
+      "plans_billing": "Plans & Billing",
+      "upgrade": "Upgrade",
+      "downgrade": "Downgrade",
+      "billing_interval": "Monthly/yearly billing",
+      "change_interval": "Change billing interval",
+      "cancel_subscription": "Cancel subscription",
+      "resume_cancellation": "Resume cancellation",
+      "payment_failed": "Payment failed",
+      "grace_period": "Grace period",
+      "invoice": "Invoice / receipt",
+      "trial": "Trial",
+      "stripe_billing": "Stripe billing",
+      "other_billing": "Other billing issue",
+      "privacy_data": "Privacy & Data",
+      "privacy_question": "Privacy question",
+      "access_data": "Access my data",
+      "correct_data": "Correct my data",
+      "delete_data": "Delete data",
+      "privacy_account_deletion": "Account deletion",
+      "legal_privacy_request": "Legal/privacy request",
+      "other_privacy": "Other privacy issue",
+      "technical": "Technical Problem",
+      "page_not_loading": "Page not loading",
+      "slow_performance": "Slow performance",
+      "display_issue": "App/display issue",
+      "api_service": "API/service issue",
+      "status_outage": "Status/outage",
+      "other_technical": "Other technical problem",
+      "feedback_business": "Feedback & Business",
+      "feature_request": "Feature request",
+      "bug_report": "Bug report",
+      "product_feedback": "Product feedback",
+      "partnership": "Partnership",
+      "business_inquiry": "Business inquiry",
+      "other_feedback": "Other",
+      "other": "Other",
+      "general_question": "General question",
+      "something_else": "Something else"
+    }
+  },
+  "meta": {
+    "homeTitle": "CheckStation — Flexible check-in, made simple",
+    "homeDescription": "Create flexible kiosk check-in experiences for schools, workplaces, clubs, and more. Start free with a 7-day Business trial and no card required.",
+    "featuresTitle": "Features — CheckStation",
+    "featuresDescription": "Configure check-in your way, run participant-friendly kiosks, and keep a dependable record of every action.",
+    "howItWorksTitle": "How it works — CheckStation",
+    "howItWorksDescription": "Set up flexible check-in flows, run them across your devices, and keep every action connected in one CheckStation workspace.",
+    "howItWorksOgDescription": "A flexible check-in flow for every Group, all from one workspace.",
+    "pricingTitle": "Pricing — CheckStation",
+    "pricingDescription": "Simple plans for every workspace. Start free and upgrade anytime.",
+    "contactTitle": "Contact — CheckStation",
+    "contactDescription": "Contact CheckStation. Choose a topic to see related help, then send a message if you still need us."
+  }
+}

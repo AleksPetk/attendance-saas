@@ -1,0 +1,672 @@
+{
+  "shell": {
+    "brandAria": "CheckStation",
+    "toggleNavAria": "ナビゲーションを開閉",
+    "navAria": "公開ナビゲーション",
+    "navHome": "ホーム",
+    "navFeatures": "機能",
+    "navHowItWorks": "使い方",
+    "navPricing": "料金",
+    "navLogin": "ログイン",
+    "navGetStarted": "はじめる",
+    "footerTagline": "Configurable check-in platform",
+    "footerCopyright": "© {{year}} CheckStation",
+    "footerRights": "All rights reserved.",
+    "footerNavAria": "フッター",
+    "languageMenuAria": "言語"
+  },
+  "footer": {
+    "columns": {
+      "website": "ウェブサイト",
+      "docs": "ドキュメント",
+      "usage": "ご利用について"
+    },
+    "items": {
+      "features": "機能",
+      "howItWorks": "使い方",
+      "pricing": "料金",
+      "login": "ログイン",
+      "staffLogin": "スタッフログイン",
+      "getStarted": "はじめる",
+      "documentation": "ドキュメント",
+      "gettingStarted": "はじめに",
+      "kioskSetup": "キオスク設定",
+      "groupsMembers": "グループとメンバー",
+      "billingPlans": "請求とプラン",
+      "faq": "FAQ",
+      "privacyPolicy": "プライバシーポリシー",
+      "termsOfUse": "利用規約",
+      "support": "サポート",
+      "contact": "お問い合わせ",
+      "status": "稼働状況"
+    }
+  },
+  "imageSlot": {
+    "productScreenshot": "製品スクリーンショット",
+    "comingSoonAria": "{{label}}のスクリーンショットは準備中です"
+  },
+  "imagePlaceholder": "日本語スクリーンショット用プレースホルダー",
+  "home": {
+    "heroKicker": "現場のチームのための、柔軟なチェックイン",
+    "heroTitle": "出席管理を、もっとかんたんに。",
+    "heroLead": "人・グループ・カスタムキオスク・活動履歴をひとつのワークスペースに。いまの運用に合わせて使えます。",
+    "ctaRegister": "今すぐ登録",
+    "ctaHowItWorks": "使い方を見る",
+    "trialBadge": "Businessプランを",
+    "trialNote": "7日間無料でお試しいただけます — カード登録不要。",
+    "heroBuiltAround": "Built around",
+    "heroFeatureWords": ["ATTENDANCE", "GROUPS", "KIOSKS", "NOTIFICATIONS", "HISTORY"],
+    "heroNoteKiosksTitle": "独自キオスク",
+    "heroNoteKiosksBody": "グループごとに",
+    "heroNoteWorkspaceTitle": "ひとつのワークスペース",
+    "heroNoteWorkspaceBody": "すべてがつながる",
+    "carouselAria": "CheckStation ワークスペース概要",
+    "carouselPrevAria": "前のワークスペース画像",
+    "carouselNextAria": "次のワークスペース画像",
+    "whyKicker": "CheckStation が選ばれる理由",
+    "whyTitle": "使う人にはシンプル。チームにはパワフル。",
+    "whyLead": "一度設定すれば、誰でも迷わず使える出席管理が始まります。",
+    "values": [
+      {
+        "title": "すぐに始められる",
+        "body": "ワークスペースを作り、人を追加し、複雑な導入なしで最初のチェックインフローを起動できます。"
+      },
+      {
+        "title": "運用に合わせられる",
+        "body": "アクション・必須項目・本人確認・キオスク体験をグループごとに設定できます。"
+      },
+      {
+        "title": "何が起きたかが見える",
+        "body": "チェックイン・チェックアウト・休憩を、チームが確認しやすい履歴にまとめます。"
+      }
+    ],
+    "groupEmailKicker": "グループごとに、伝え方を変えられる",
+    "groupEmailTitle": "グループごとに、\nメールも通知も\n自由に設定。",
+    "groupEmailLead": "グループや階層グループごとに、専用のメール送信元を設定できます。Gmail、Microsoft/Outlook、Yahoo、独自SMTPに対応し、転送先や通知ルールも用途に合わせて調整できます。",
+    "groupEmailExamples": [
+      {
+        "label": "学校",
+        "body": "学校の業務用メールを使って、子どものチェックイン／チェックアウトを保護者へ通知。必要に応じて、校長や担当者にも転送できます。"
+      },
+      {
+        "label": "カフェ／スタッフ",
+        "body": "カフェ専用のメール送信元を使い、スタッフへのチェックイン・チェックアウト通知を個別に設定できます。"
+      }
+    ],
+    "groupEmailSummary": "ひとつのワークスペースで、グループごとに送信元・宛先・通知ルールを分けて管理。",
+    "groupEmailVisualsAria": "グループメールと通知設定の例",
+    "groupEmailSenderLabel": "グループのメール送信元設定",
+    "groupEmailNotificationsLabel": "通知と転送のルール",
+    "featuresKicker": "一連の流れがそろっている",
+    "featuresTitle": "チェックインに必要な機能を、ひとつに。",
+    "featuresLead": "人の整理から後から見返すアクションまで。CheckStation は体験全体をつなぎます。",
+    "featureItems": [
+      {
+        "title": "メンバーとグループ",
+        "body": "再利用できる人物プロフィールを保ち、現場の運用に合わせて整理できます。"
+      },
+      {
+        "title": "独立したキオスク",
+        "body": "管理画面を見せずに、グループごとに参加者向け体験を運用できます。"
+      },
+      {
+        "title": "柔軟なアクション",
+        "body": "チェックイン・チェックアウト・休憩・本人確認などをグループ単位で選べます。"
+      },
+      {
+        "title": "スタッフアクセス",
+        "body": "スタッフアカウントを作成し、閲覧・操作できるグループを割り当てられます。"
+      }
+    ],
+    "exploreFeatures": "すべての機能を見る",
+    "howKicker": "使い方",
+    "howTitle": "登録から最初の出席フローまで、かんたん4ステップ。",
+    "howLead": "長い導入は不要。必要なフローを作り、その場に合うデバイスで開くだけです。",
+    "steps": [
+      {
+        "number": "01",
+        "title": "ワークスペースを作成",
+        "body": "登録したらすぐ始められます。"
+      },
+      {
+        "number": "02",
+        "title": "人とグループを追加",
+        "body": "組織に合う構成を組み立てます。"
+      },
+      {
+        "number": "03",
+        "title": "キオスクを整える",
+        "body": "アクション・ルール・見た目を選びます。"
+      },
+      {
+        "number": "04",
+        "title": "起動して確認",
+        "body": "デバイスでチェックインを回し、すべてのアクションをつなげます。"
+      }
+    ],
+    "seeHowItWorks": "使い方を見る",
+    "kioskKicker": "ひとつのエディタで、自由なデザイン。",
+    "kioskTitle": "テンプレートではありません。すべてキオスクエディタで作った例です。",
+    "kioskLead": "どの例も、同じキオスクエディタで作られています。色やグラデーション、フォント、文言、ロゴ、画像、レイアウト、アクションやフローまで自由に設定できます。学校、倉庫、カフェ、オフィス、クラブなど、さまざまな用途に合わせて使えます。",
+    "kioskStylePickerAria": "キオスクスタイルの例",
+    "kioskStyles": [
+      { "name": "学校", "tone": "落ち着いた、親しみやすいデザイン" },
+      { "name": "倉庫", "tone": "はっきり・高コントラスト" },
+      { "name": "カフェ", "tone": "あたたかく親しみやすい" },
+      { "name": "オフィス", "tone": "すっきりプロフェッショナル" },
+      { "name": "クラブ", "tone": "活気があって身近" }
+    ],
+    "kioskResultTitle": "{{name}}のキオスク",
+    "kioskPreviewLabel": "{{name}}キオスクのプレビュー",
+    "kioskExampleCaption": "{{name}}キオスクの例",
+    "kioskPlaceholderCaption": "画像プレースホルダー — 後からキオスクエディタのオリジナル画面を追加してください。",
+    "learnCustomization": "カスタマイズについて",
+    "usecasesKicker": "現場の使い方に合わせて",
+    "usecasesTitle": "ひとつの仕組みで、さまざまな現場に対応。",
+    "usecases": [
+      "学校・クラス",
+      "倉庫・チーム",
+      "カフェ・ホスピタリティ",
+      "オフィス・受付",
+      "クラブ・コミュニティ"
+    ],
+    "pricingKicker": "摩擦なく始められる",
+    "pricingTitle": "プランを選ぶ前に、すべての機能を試せます。",
+    "pricingLead": "新しいワークスペースでは、最初の7日間Businessを無料でお試しいただけます。カード登録は不要です。トライアル終了後は、無料のBasicをそのまま使うか、運用に合ったプランを選べます。",
+    "viewPricing": "料金を見る",
+    "pricingCards": {
+      "startHere": "7日間無料でお試し",
+      "businessTrial": "Business トライアル",
+      "freeForDays": "無料",
+      "freeForDaysSmall": "7日間",
+      "businessTrialBody": "Businessのすべての機能を、最初の7日間無料でお試しいただけます。",
+      "noCardRequired": "カード不要",
+      "stayFree": "無料のまま続ける",
+      "basic": "Basic",
+      "zeroToStart": "$0",
+      "zeroToStartSmall": "から始められる",
+      "basicBody": "有料プランなしでも、シンプルなワークスペースを運用できます。",
+      "upgradeWhenReady": "準備できたらアップグレード"
+    },
+    "previewKicker": "ひとつのワークスペースですべてを管理",
+    "previewTitle": "人も、キオスクも、出席管理も。すべてをひとつのワークスペースで。",
+    "previewLead": "日々の状況確認から、メンバー管理、出席履歴の確認まで。必要な情報と操作を、ひとつのワークスペースにまとめて管理できます。",
+    "finalKicker": "まずは、ここから。",
+    "finalTitle": "CheckStationを、今日からはじめよう。",
+    "finalLead": "まずは無料でスタート。Businessプランを7日間試して、現場に合ったチェックイン環境を作れます。",
+    "createWorkspace": "ワークスペースを作成"
+  },
+  "features": {
+    "heroKicker": "出席管理を、もっとわかりやすく",
+    "heroTitle": "現場の運用に合うチェックイン。",
+    "heroLead": "CheckStationは、人・グループ・キオスク・活動履歴をひとつのワークスペースにまとめます。出席管理の手間を減らし、チームが本来の仕事に集中できる環境をつくれます。",
+    "ctaPricing": "料金を確認",
+    "ctaHowItWorks": "使い方を見る",
+    "proofAria": "主なメリット",
+    "proofNoHardware": "専用ハードウェア不要",
+    "proofConfigurable": "グループ単位で設定",
+    "proofEveryday": "毎日の利用を想定",
+    "orbitBrand": "CheckStation",
+    "orbitTitle": "ひとつのワークスペース。",
+    "orbitTitleEm": "すべてのアクションが同期。",
+    "orbitMembers": "メンバー",
+    "orbitHistory": "履歴を記録",
+    "showcaseKicker": "全体像を見る",
+    "showcaseTitle": "出席管理に必要なものを、ひとつに。\nムダな手間は増やさない。",
+    "showcaseLead": "一度設定すれば、参加者は迷わず操作でき、チームは何が起きたかを確実に把握できます。",
+    "carouselAria": "CheckStation ワークスペース概要",
+    "carouselPrevAria": "前のワークスペース画像",
+    "carouselNextAria": "次のワークスペース画像",
+    "storiesAria": "CheckStation の機能",
+    "stories": [
+      {
+        "eyebrow": "一度登録すれば、何度でも使える",
+        "title": "メンバーとグループを、ひとつの場所ですっきり管理。",
+        "body": "メンバー情報を一度登録すれば、必要なグループで繰り返し使えます。メンバー登録が不要な場合は、グループだけの参加者として追加することもできます。",
+        "points": [
+          "何度でも使えるメンバー情報",
+          "用途に合わせて作れるグループ",
+          "プロフィール詳細やメモも管理"
+        ],
+        "label": "メンバーとグループのワークスペース",
+        "caption": "ここにメンバーとグループのワークスペース画面が入ります。"
+      },
+      {
+        "eyebrow": "現場に合わせて",
+        "title": "現場に合ったチェックインフローを作る。",
+        "body": "グループごとにキオスクを設定し、本人確認の方法、利用できるアクション、デザイン、参加者へのメッセージまで自由に選べます。",
+        "points": [
+          "メンバー一覧または入力モード",
+          "テーマ・メッセージ・表示オプション",
+          "グループ専用のキオスク"
+        ],
+        "label": "設定可能なグループキオスク",
+        "caption": "ここにキオスク設定と表示オプションの画面が入ります。"
+      },
+      {
+        "eyebrow": "メールと通知",
+        "title": "グループごとに、最適な送信元から届ける。",
+        "body": "学校・カフェ・オフィス・クラブなど、グループごとにメールや通知を分けて運用できます。各グループや階層グループごとに、送信元・宛先・転送先・アクションに連動した通知ルールを設定できます。",
+        "points": [
+          "Gmail、Microsoft / Outlook、Yahoo、独自SMTPに対応",
+          "グループごとに専用の送信元・業務用メールを設定",
+          "参加者へのメール通知を個別にオン・オフ",
+          "チェックイン・チェックアウト・休憩など、アクションに応じた通知",
+          "転送先や参加者宛先を設定可能（対応時は最大3件）"
+        ]
+      },
+      {
+        "eyebrow": "その瞬間を残す",
+        "title": "大事なアクションを、自動で記録。",
+        "body": "チェックインやチェックアウトなどの日々の操作を、自動で履歴として記録。グループごとに必要なアクションを設定し、あとからいつでも確認できます。",
+        "points": [
+          "チェックイン・チェックアウト・休憩",
+          "PINや本人確認の設定",
+          "グループ・人・アクション・日付で絞り込み"
+        ],
+        "label": "活動履歴とアクション",
+        "caption": "ここに記録されたアクションと履歴フィルターの画面が入ります。"
+      }
+    ],
+    "membersCarouselPrevAria": "前のメンバーとグループ画像",
+    "membersCarouselNextAria": "次のメンバーとグループ画像",
+    "videoPosterAlt": "CheckStation キオスクエディタでグループキオスクを設定している様子。",
+    "emailGalleryAria": "グループメールと通知の例",
+    "emailExamples": [
+      {
+        "label": "学校グループ",
+        "body": "学校のメールアドレスから送信し、到着やチェックアウトを保護者へ通知。必要に応じて校長などへの転送も設定できます。"
+      },
+      {
+        "label": "カフェ / スタッフグループ",
+        "body": "カフェ専用の送信元を使い、スタッフへの通知や転送ルールをグループごとに設定できます。"
+      }
+    ],
+    "historyCompositionAria": "記録されたアクションと出席レポート",
+    "platformKicker": "使う場所を選ばない",
+    "platformTitle": "どのデバイスでも、ひとつのチェックイン体験。",
+    "platformLead": "CheckStationは、ブラウザ、iPhone・iPad、Androidスマホ・タブレット、Mac、Windowsに対応。受付・教室・共有キオスクなど、使う場所に合ったデバイスを選べます。",
+    "exploreWorkflow": "ワークフローを見る",
+    "platforms": [
+      "ブラウザ",
+      "iPhone & iPad",
+      "Android スマホ・タブレット",
+      "Mac",
+      "Windows"
+    ],
+    "includedKicker": "日々の運用を支える機能",
+    "includedTitle": "すべて含まれています。",
+    "includedLead": "毎日の出席管理に必要な機能と、現場に合わせて使える柔軟さを備えています。",
+    "included": [
+      {
+        "title": "メンバー",
+        "body": "一度登録すれば、複数のグループで使えるメンバー情報。"
+      },
+      {
+        "title": "グループ",
+        "body": "チーム・クラス・クラブなど、用途に合わせて整理できます。"
+      },
+      {
+        "title": "グループごとのキオスク",
+        "body": "グループごとに専用のチェックイン画面を設定できます。"
+      },
+      {
+        "title": "柔軟な本人確認",
+        "body": "運用に合わせて本人確認の方法を選べます。"
+      },
+      {
+        "title": "設定可能なアクション",
+        "body": "チェックイン・チェックアウト・休憩などをグループごとに設定。"
+      },
+      {
+        "title": "キオスクの見た目",
+        "body": "テーマ・メッセージ・表示方法を現場に合わせてカスタマイズ。"
+      },
+      {
+        "title": "履歴とレポート",
+        "body": "人・グループ・アクション・日付で履歴を確認できます。"
+      },
+      {
+        "title": "スタッフアクセス",
+        "body": "スタッフごとに閲覧・操作できるグループを設定できます。"
+      },
+      {
+        "title": "ワークスペース分離",
+        "body": "組織ごとのデータを、それぞれのワークスペースで管理。"
+      }
+    ]
+  },
+  "howItWorks": {
+    "journeyKicker": "セットアップから日々の運用まで",
+    "journeyTitle": "セットアップから毎日の出席管理まで、ひとつの流れで。",
+    "journeyLead": "ステップを選んで、設定から日々の運用までの流れを確認できます。",
+    "steps": [
+      {
+        "number": "01",
+        "eyebrow": "数分ではじめられる",
+        "title": "ワークスペースを作成",
+        "body": "登録が完了したら、組織の運用に合わせてCheckStationの設定を始められます。",
+        "detail": "ひとつのワークスペースで、出席の設定・運用・確認までまとめて管理できます。"
+      },
+      {
+        "number": "02",
+        "navSub": "必要な人を登録",
+        "eyebrow": "人をそろえる",
+        "title": "メンバーとスタッフを追加",
+        "body": "繰り返し使えるメンバー情報と、運用を担当するスタッフアカウントを登録します。",
+        "detail": "最初に人を整理しておけば、その後のグループ設定やチェックイン運用がスムーズになります。"
+      },
+      {
+        "number": "03",
+        "eyebrow": "現場に合わせる",
+        "title": "グループ構成を整える",
+        "body": "シンプルな運用には単独グループ、クラスやセクションなど階層が必要な場合は階層グループを使えます。",
+        "detail": "学校ならクラス、職場ならチーム。どちらもひとつのワークスペースですっきり整理できます。"
+      },
+      {
+        "number": "04",
+        "navSub": "グループごとに設定",
+        "eyebrow": "グループごとに流れを設定",
+        "title": "チェックインの流れを整える",
+        "body": "アクション・本人確認・ルール・対象者・メール通知などを、グループごとに設定できます。",
+        "detail": "受付と教室で違う運用も、同じワークスペースの中で使い分けられます。"
+      },
+      {
+        "number": "05",
+        "eyebrow": "組織らしい見た目に",
+        "title": "キオスクを自分たちのものに",
+        "body": "色・背景・ロゴ・カード・入力方法・レイアウトなどを、組織に合わせてカスタマイズできます。",
+        "detail": "学校・カフェ・オフィス・クラブなど、それぞれに合ったチェックイン画面を作れます。"
+      },
+      {
+        "number": "06",
+        "eyebrow": "合うデバイスで開く",
+        "title": "使う場所で起動",
+        "body": "タブレットを共有キオスクにしたり、スタッフがブラウザから使ったり、現場に合った方法で起動できます。",
+        "detail": "グループごとのキオスクは、管理画面やほかのグループとは分けて運用できます。"
+      },
+      {
+        "number": "07",
+        "eyebrow": "いつでも振り返れる",
+        "title": "何が起きたかを確認",
+        "body": "チェックイン・チェックアウト・休憩などの記録を、あとからいつでも確認できます。",
+        "detail": "グループ・人・アクション・日付で絞り込み、必要な履歴をすぐに確認できます。"
+      }
+    ],
+    "structureKicker": "妥協なしで整理",
+    "structureTitle": "シンプルに始めて、必要なら階層化。",
+    "structureLead": "まずは日常の運用に合う単独グループから。学校や大規模な組織でクラスやセクションなどの階層が必要になったら、同じワークスペース内で階層グループを使えます。",
+    "structurePoints": [
+      "日常の運用には単独グループ",
+      "クラスやセクションには階層グループ",
+      "ひとつのワークスペースでまとめて管理"
+    ],
+    "structureImageLabel": "単独グループと階層グループ",
+    "structureImageAlt": "CheckStation の単独グループキオスクと、階層グループのクラスキオスク。",
+    "simultaneousKicker": "どこでも、ひとつにつながる",
+    "simultaneousTitle": "ひとつのワークスペース。グループごとに、最適なデバイスで。",
+    "simultaneousLead": "ブラウザで管理しながら、受付ではタブレット、教室ではスマートフォン。グループごとに必要なキオスクを、それぞれの場所やデバイスで同時に運用できます。",
+    "deviceAdminBrowser": "Desktop",
+    "deviceGroupTablet": "iPad",
+    "deviceClassPhone": "iPhone",
+    "deviceBrowserLabel": "スタッフ用ブラウザキオスク",
+    "deviceTabletLabel": "グループ A の iPad キオスク",
+    "devicePhoneLabel": "階層グループのクラスチェックイン",
+    "deviceBrowserAlt": "Northgate Warehouse のブラウザキオスク。従業員チェックインカードを表示。",
+    "deviceTabletAlt": "Northgate Warehouse のタブレットキオスク。従業員チェックインカードを表示。",
+    "devicePhoneAlt": "Northgate Warehouse のスマホキオスク。従業員チェックインカードを表示。",
+    "simultaneousFoot": [
+      "グループごとに専用キオスクを設定",
+      "複数のキオスクを同時に運用",
+      "管理画面とキオスクを分けて使える"
+    ],
+    "staffSlideshowAria": "管理とスタッフのワークスペース画面",
+    "staffPrevAria": "前のワークスペース画面",
+    "staffNextAria": "次のワークスペース画面",
+    "staffDotsAria": "ワークスペース画面を選択",
+    "staffShowViewAria": "{{role}}のワークスペース画面を表示",
+    "staffSlides": [
+      {
+        "role": "Admin",
+        "alt": "管理のスタッフ管理画面。ワークスペーススタッフへのグループアクセス割り当てを表示。"
+      },
+      {
+        "role": "Teacher",
+        "alt": "教師スタッフのワークスペース。割り当てられた School と Sels グループを表示。"
+      },
+      {
+        "role": "Manager",
+        "alt": "マネージャースタッフのワークスペース。割り当てグループに限定した出席レポートを表示。"
+      },
+      {
+        "role": "Reception",
+        "alt": "受付スタッフのダッシュボード。割り当てグループの活動を表示。"
+      }
+    ],
+    "staffKicker": "適切な人を、適切なグループへ",
+    "staffTitle": "スタッフが集中して手伝える場所を。",
+    "staffLead": "一緒にチェックインを回す人向けにスタッフアカウントを作り、閲覧・操作できるグループを選べます。",
+    "staffExamples": [
+      {
+        "title": "教師",
+        "body": "担当するクラスやグループの閲覧・操作を割り当てます。"
+      },
+      {
+        "title": "マネージャー",
+        "body": "日常運用で見るべきグループを手元に保てます。"
+      },
+      {
+        "title": "受付",
+        "body": "フロント担当が運用するチェックイングループへのアクセスを渡せます。"
+      }
+    ],
+    "staffNote": "教師・マネージャー・受付でも、アクセスは選んだグループに紐づきます。",
+    "historyKicker": "すべてがつながる",
+    "historyTitle": "すべてのアクションが、よりはっきりした全体像に。",
+    "historyLead": "人がチェックイン・チェックアウト・休憩すると、CheckStation は活動をグループに紐づけて残します。チームはワークスペースに戻り、履歴を絞り込み、散らばったメモを追わずに状況を把握できます。",
+    "exploreFeatures": "すべての機能を見る",
+    "historyImageLabel": "つながった活動履歴",
+    "historyImageAlt": "出席アクションがひとつのつながった活動履歴に流れ込む様子。"
+  },
+  "pricing": {
+    "kicker": "シンプルで柔軟な料金",
+    "title": "今日の規模に合うプランを選べます。",
+    "lead": "無料ではじめ、成長に合わせていつでもアップグレード。",
+    "billingLabel": "請求",
+    "intervalAria": "請求間隔",
+    "monthly": "月払い",
+    "monthlyHint": "柔軟に",
+    "yearly": "年払い",
+    "yearlyHintDefault": "お得",
+    "saveMonths": "{{count}}か月分お得",
+    "yearlySavingStatus": "年払いで{{label}}",
+    "trialBanner": "{{days}}日間の Business トライアル、カード不要",
+    "plansAria": "CheckStation のプラン",
+    "bestValue": "おすすめ",
+    "perMonth": "月",
+    "perYear": "年",
+    "billedMonthly": "月払い",
+    "billedYearly": "年払い",
+    "normally": "通常 {{price}}",
+    "basicNote": "シンプルなスタートに — カード不要",
+    "reassuranceAria": "請求に関する安心ポイント",
+    "startBasicFree": "Basic は無料ではじめられます",
+    "noCardToBegin": "開始時にカード不要",
+    "businessFreeDays": "Business を{{days}}日間無料",
+    "upgradeWhenNeeded": "必要になったらアップグレード",
+    "cancelDowngradePeriodEnd": "期間終了時に解約またはダウングレード",
+    "planChangesFollowPeriod": "プラン変更は請求期間に従います",
+    "secureStripe": "Stripe による安全なウェブ決済",
+    "paidPlansInWorkspace": "有料プランはワークスペースで管理",
+    "cta": {
+      "getStartedFree": "無料ではじめる",
+      "choosePlus": "Plus を選ぶ",
+      "goBusiness": "Business へ",
+      "manageSubscription": "サブスクリプションを管理"
+    },
+    "features": {
+      "activeGroups": "有効グループ {{count}}",
+      "members": "メンバー {{count}}",
+      "kioskCheckIn": "キオスクチェックイン",
+      "actionHistory": "アクション履歴",
+      "adsSupported": "広告あり",
+      "everythingInBasic": "Basic のすべて",
+      "groupsAndMembers": "有効グループ {{groups}} / メンバー {{members}}",
+      "staffManagement": "ワークスペーススタッフ管理",
+      "reportExport": "出席レポートのエクスポート",
+      "groupForwardEmails": "グループ転送メール",
+      "noAds": "広告なし",
+      "everythingInPlus": "Plus のすべて",
+      "structuredGroups": "階層グループ",
+      "groupCapacityTimes": "グループ枠 {{times}}倍",
+      "groupCapacityCount": "グループ枠 {{count}}",
+      "memberCapacityTimes": "メンバー枠 {{times}}倍",
+      "memberCapacityCount": "メンバー枠 {{count}}",
+      "adminSeatsTimes": "管理者席 {{times}}倍",
+      "adminSeatsCount": "管理者席 {{count}}",
+      "staffSeatsTimes": "スタッフ席 {{times}}倍",
+      "staffSeatsCount": "スタッフ席 {{count}}",
+      "structuredSnapshotImport": "構造化スナップショットのインポート"
+    }
+  },
+  "contact": {
+    "eyebrow": "サポート",
+    "title": "CheckStation へお問い合わせ",
+    "lead": "トピックを選ぶと、まず関連する回答をご案内します。解決しない場合は、下のフォームからメッセージを送れます。",
+    "successSent": "メッセージを送信しました",
+    "successSaved": "メッセージを保存しました",
+    "successDefault": "メッセージを受け取りました。",
+    "reference": "参照番号 {{reference}}",
+    "sendAnother": "別のメッセージを送る",
+    "topicEyebrow": "ヘルプを探す",
+    "topicTitle": "何についてお困りですか？",
+    "topicLead": "近いトピックを選ぶと、役立つ CheckStation の案内を優先表示します。",
+    "categoryLabel": "カテゴリ",
+    "categoryPlaceholder": "カテゴリを選択",
+    "subcategoryLabel": "サブカテゴリ",
+    "subcategoryPlaceholder": "サブカテゴリを選択",
+    "chooseCategoryFirst": "先にカテゴリを選んでください",
+    "helpEyebrow": "おすすめの回答",
+    "helpTitle": "答えはこちらにあるかもしれません",
+    "helpLead": "選択したトピックに合う回答です。",
+    "helpEmpty": "このトピックに一致するヘルプ記事はまだありません。",
+    "openInFaq": "CheckStation FAQ で開く",
+    "honeypotLabel": "会社のウェブサイト",
+    "messageEyebrow": "まだ助けが必要ですか？",
+    "messageTitle": "メッセージを送る",
+    "messageLead": "状況を教えていただければ、適切な窓口へおつなぎします。",
+    "emailLabel": "メールアドレス",
+    "nameLabel": "お名前（任意）",
+    "subjectLabel": "件名",
+    "messageLabel": "メッセージ",
+    "turnstileMissing": "この環境ではお問い合わせ保護が設定されていません。",
+    "submit": "メッセージを送信",
+    "submitting": "送信中…",
+    "loadError": "お問い合わせの選択肢を読み込めませんでした。",
+    "rateLimited": "送信が多すぎます。しばらくしてから再度お試しください。",
+    "catalogLabels": {
+      "account_login": "アカウントとログイン",
+      "cannot_log_in": "ログインできない",
+      "password_reset": "パスワードのリセット",
+      "email_verification": "メール認証",
+      "two_factor": "二要素認証",
+      "staff_login": "スタッフログイン",
+      "account_deletion": "アカウントの削除",
+      "other_account": "その他のアカウントの問題",
+      "members_groups": "メンバーとグループ",
+      "create_edit_member": "メンバーの作成・編集",
+      "add_remove_participant": "参加者の追加・削除",
+      "group_setup": "グループの設定",
+      "standard_group": "単独グループ",
+      "structured_group": "階層グループ / クラス",
+      "archive_delete": "アーカイブまたは削除",
+      "plan_locked": "プラン制限中のメンバー / グループ",
+      "other_members_groups": "その他のメンバー / グループの問題",
+      "kiosk": "キオスク",
+      "cannot_launch": "キオスクを起動できない",
+      "readiness": "キオスク準備状況の問題",
+      "pin_problem": "PIN の問題",
+      "identification": "本人確認の問題",
+      "check_in_out": "チェックイン / アウトの問題",
+      "break_action": "休憩アクションの問題",
+      "kiosk_design": "キオスクデザイン",
+      "kiosk_lock": "キオスクロック",
+      "exit_kiosk": "キオスクの終了",
+      "other_kiosk": "その他のキオスクの問題",
+      "attendance": "出席と履歴",
+      "missing_record": "出席記録がない",
+      "incorrect_check": "チェックイン / アウトの誤り",
+      "attendance_report": "出席レポート",
+      "history": "履歴",
+      "export": "エクスポート",
+      "other_attendance": "その他の出席の問題",
+      "email": "メールと通知",
+      "email_not_sent": "メールが送信されない",
+      "smtp_setup": "SMTP の設定",
+      "gmail": "Gmail",
+      "microsoft": "Microsoft / Outlook",
+      "yahoo": "Yahoo",
+      "participation_email": "参加メール",
+      "forward_emails": "転送メール",
+      "other_email": "その他のメールの問題",
+      "staff": "スタッフと権限",
+      "add_admin_staff": "管理者 / スタッフの追加",
+      "staff_login_issue": "スタッフログイン",
+      "permission_issue": "権限の問題",
+      "staff_cannot_see_group": "スタッフがグループを見られない",
+      "staff_plan_limit": "スタッフのプラン制限",
+      "other_staff": "その他のスタッフの問題",
+      "plans_billing": "プランと請求",
+      "upgrade": "アップグレード",
+      "downgrade": "ダウングレード",
+      "billing_interval": "月額 / 年額の請求",
+      "change_interval": "請求周期の変更",
+      "cancel_subscription": "サブスクリプションの解約",
+      "resume_cancellation": "解約予定の取り消し",
+      "payment_failed": "支払いに失敗した",
+      "grace_period": "猶予期間",
+      "invoice": "請求書 / 領収書",
+      "trial": "トライアル",
+      "stripe_billing": "Stripe による請求",
+      "other_billing": "その他の請求の問題",
+      "privacy_data": "プライバシーとデータ",
+      "privacy_question": "プライバシーに関する質問",
+      "access_data": "自分のデータの開示",
+      "correct_data": "自分のデータの訂正",
+      "delete_data": "データの削除",
+      "privacy_account_deletion": "アカウントの削除",
+      "legal_privacy_request": "法的 / プライバシーに関する依頼",
+      "other_privacy": "その他のプライバシーの問題",
+      "technical": "技術的な問題",
+      "page_not_loading": "ページが読み込めない",
+      "slow_performance": "動作が遅い",
+      "display_issue": "アプリ / 表示の問題",
+      "api_service": "API / サービスの問題",
+      "status_outage": "ステータス / 障害",
+      "other_technical": "その他の技術的な問題",
+      "feedback_business": "フィードバックとビジネス",
+      "feature_request": "機能リクエスト",
+      "bug_report": "不具合の報告",
+      "product_feedback": "製品フィードバック",
+      "partnership": "パートナーシップ",
+      "business_inquiry": "ビジネスに関するお問い合わせ",
+      "other_feedback": "その他",
+      "other": "その他",
+      "general_question": "一般的な質問",
+      "something_else": "その他の内容"
+    }
+  },
+  "meta": {
+    "homeTitle": "CheckStation — 柔軟なチェックインを、シンプルに",
+    "homeDescription": "学校・職場・クラブなどに合う、柔軟なキオスクチェックイン体験を。カード不要の7日間 Business トライアルで無料スタート。",
+    "featuresTitle": "機能 — CheckStation",
+    "featuresDescription": "自分たちのやり方でチェックインを設定し、参加者にやさしいキオスクを運用。すべてのアクションを信頼できる記録に。",
+    "howItWorksTitle": "使い方 — CheckStation",
+    "howItWorksDescription": "柔軟なチェックインフローを設定し、各種デバイスで運用。すべてのアクションをひとつの CheckStation ワークスペースにつなげます。",
+    "howItWorksOgDescription": "グループごとの柔軟なチェックインフローを、ひとつのワークスペースから。",
+    "pricingTitle": "料金 — CheckStation",
+    "pricingDescription": "どのワークスペースにも合うシンプルなプラン。無料ではじめ、いつでもアップグレード。",
+    "contactTitle": "お問い合わせ — CheckStation",
+    "contactDescription": "CheckStation へのお問い合わせ。トピックを選んで関連ヘルプを確認し、必要ならメッセージを送れます。"
+  }
+}

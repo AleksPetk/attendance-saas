@@ -1,41 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import PublicPageShell from "./PublicPageShell.jsx";
 import { api, errorMessage } from "./api.js";
-import { publicDocsPageUrl } from "./publicFooterLinks.js";
+import { publicDocsDocumentUrl } from "./publicFooterLinks.js";
 import {
   HONEYPOT_FIELD,
   MESSAGE_MAX,
   MESSAGE_MIN,
   SUBJECT_MAX,
   SUBJECT_MIN,
-  publicFaqUrl,
-  publicSiteOrigin,
   suggestedSubject,
 } from "./contactForm.js";
-
-function PageTitle({ title, description, canonicalPath }) {
-  useEffect(() => {
-    document.title = title;
-    let el = document.querySelector('meta[name="description"]');
-    if (!el) {
-      el = document.createElement("meta");
-      el.setAttribute("name", "description");
-      document.head.appendChild(el);
-    }
-    el.setAttribute("content", description);
-    const origin = publicSiteOrigin();
-    const href = origin && canonicalPath ? `${origin}${canonicalPath}` : "";
-    if (!href) return;
-    let canonical = document.querySelector('link[rel="canonical"]');
-    if (!canonical) {
-      canonical = document.createElement("link");
-      canonical.setAttribute("rel", "canonical");
-      document.head.appendChild(canonical);
-    }
-    canonical.setAttribute("href", href);
-  }, [title, description, canonicalPath]);
-  return null;
-}
+import { usePromoLocale } from "./promo/PromoLocaleContext.jsx";
+import { applyPromoSeo } from "./promo/seo.js";
 
 function FieldError({ id, message }) {
   if (!message) return null;
@@ -56,7 +32,21 @@ function markdownPreview(text) {
     .replace(/\n/g, "<br>");
 }
 
+function contactFaqUrl(locale, question) {
+  const base = publicDocsDocumentUrl("faq", locale);
+  const query = String(question || "").trim();
+  if (!query) return base;
+  return `${base}?q=${encodeURIComponent(query)}`;
+}
+
+function catalogLabel(t, id, fallback) {
+  const key = `contact.catalogLabels.${id}`;
+  const value = t(key);
+  return !value || value === key ? fallback : value;
+}
+
 export default function PublicContactScreen() {
+  const { t, locale, pathFor } = usePromoLocale();
   const [catalog, setCatalog] = useState({ categories: [], turnstile_site_key: "" });
   const [categoryId, setCategoryId] = useState("");
   const [subcategoryId, setSubcategoryId] = useState("");
@@ -87,16 +77,28 @@ export default function PublicContactScreen() {
   const classified = Boolean(category && subcategory);
 
   useEffect(() => {
-    let cancelled = false;
-    api.getContactCategories().then((result) => {
-      if (!cancelled && result?.data) setCatalog(result.data);
-    }).catch(() => {
-      if (!cancelled) setFormError("Contact options could not be loaded.");
+    applyPromoSeo({
+      locale,
+      title: t("meta.contactTitle"),
+      description: t("meta.contactDescription"),
+      canonicalPath: pathFor("/contact"),
     });
+  }, [locale, pathFor, t]);
+
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .getContactCategories()
+      .then((result) => {
+        if (!cancelled && result?.data) setCatalog(result.data);
+      })
+      .catch(() => {
+        if (!cancelled) setFormError(t("contact.loadError"));
+      });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     if (!categoryId || !subcategoryId) {
@@ -105,11 +107,14 @@ export default function PublicContactScreen() {
       return undefined;
     }
     let cancelled = false;
-    api.getContactSuggestions(categoryId, subcategoryId).then((result) => {
-      if (!cancelled) setSuggestions(result.data?.items || []);
-    }).catch(() => {
-      if (!cancelled) setSuggestions([]);
-    });
+    api
+      .getContactSuggestions(categoryId, subcategoryId)
+      .then((result) => {
+        if (!cancelled) setSuggestions(result.data?.items || []);
+      })
+      .catch(() => {
+        if (!cancelled) setSuggestions([]);
+      });
     return () => {
       cancelled = true;
     };
@@ -203,7 +208,8 @@ export default function PublicContactScreen() {
         subject,
         message,
         client_type: "public_web",
-        page_path: "/contact",
+        page_path: pathFor("/contact"),
+        locale,
         turnstile_token: turnstileToken,
         [HONEYPOT_FIELD]: honeypot,
       });
@@ -215,7 +221,7 @@ export default function PublicContactScreen() {
       resetForm();
     } catch (err) {
       if (err?.status === 429) {
-        setFormError("Too many messages. Please try again later.");
+        setFormError(t("contact.rateLimited"));
       } else if (err?.data && typeof err.data === "object") {
         const next = {};
         for (const [key, value] of Object.entries(err.data)) {
@@ -235,35 +241,38 @@ export default function PublicContactScreen() {
     }
   }
 
-  const docsFaqBase = publicDocsPageUrl();
-
   return (
     <PublicPageShell>
-      <PageTitle
-        title="Contact — CheckStation"
-        description="Contact CheckStation. Choose a topic to see related help, then send a message if you still need us."
-        canonicalPath="/contact"
-      />
       <section className="public-section contact-page">
         <header className="contact-intro">
-          <p className="contact-eyebrow">Support</p>
-          <h1>Contact CheckStation</h1>
-          <p>
-            Choose a topic and we’ll suggest relevant answers first. If they don’t solve the issue, send us a message below.
-          </p>
+          <p className="contact-eyebrow">{t("contact.eyebrow")}</p>
+          <h1>{t("contact.title")}</h1>
+          <p>{t("contact.lead")}</p>
         </header>
 
         {success ? (
           <div className="contact-success" role="status">
-            <span className="contact-success-mark" aria-hidden="true">✓</span>
+            <span className="contact-success-mark" aria-hidden="true">
+              ✓
+            </span>
             <div>
-              <h2>{success.delivered === false ? "Message saved" : "Message sent"}</h2>
-              <p>{success.message || "We've received your message."}</p>
+              <h2>
+                {success.delivered === false
+                  ? t("contact.successSaved")
+                  : t("contact.successSent")}
+              </h2>
+              <p>{success.message || t("contact.successDefault")}</p>
               {success.reference ? (
-                <p className="contact-reference">Reference {success.reference}</p>
+                <p className="contact-reference">
+                  {t("contact.reference", { reference: success.reference })}
+                </p>
               ) : null}
-              <button type="button" className="contact-secondary-btn" onClick={() => setSuccess(null)}>
-                Send another message
+              <button
+                type="button"
+                className="contact-secondary-btn"
+                onClick={() => setSuccess(null)}
+              >
+                {t("contact.sendAnother")}
               </button>
             </div>
           </div>
@@ -272,13 +281,13 @@ export default function PublicContactScreen() {
         <form className="contact-form" onSubmit={handleSubmit} noValidate>
           <section className="contact-topic-card" aria-labelledby="contact-topic-title">
             <div className="contact-section-heading">
-              <p className="contact-eyebrow">Get help</p>
-              <h2 id="contact-topic-title">What do you need help with?</h2>
-              <p>Choose the closest topic so we can surface the most useful CheckStation guidance.</p>
+              <p className="contact-eyebrow">{t("contact.topicEyebrow")}</p>
+              <h2 id="contact-topic-title">{t("contact.topicTitle")}</h2>
+              <p>{t("contact.topicLead")}</p>
             </div>
             <div className="contact-grid contact-topic-grid">
               <div className="contact-field">
-                <label htmlFor="contact-category">Category</label>
+                <label htmlFor="contact-category">{t("contact.categoryLabel")}</label>
                 <select
                   id="contact-category"
                   value={categoryId}
@@ -291,17 +300,17 @@ export default function PublicContactScreen() {
                   aria-describedby={errors.category ? "contact-category-error" : undefined}
                   required
                 >
-                  <option value="">Select a category</option>
+                  <option value="">{t("contact.categoryPlaceholder")}</option>
                   {(catalog.categories || []).map((item) => (
                     <option key={item.id} value={item.id}>
-                      {item.label}
+                      {catalogLabel(t, item.id, item.label)}
                     </option>
                   ))}
                 </select>
                 <FieldError id="contact-category-error" message={errors.category} />
               </div>
               <div className={`contact-field contact-dependent-field${category ? " is-ready" : ""}`}>
-                <label htmlFor="contact-subcategory">Subcategory</label>
+                <label htmlFor="contact-subcategory">{t("contact.subcategoryLabel")}</label>
                 <select
                   id="contact-subcategory"
                   value={subcategoryId}
@@ -314,14 +323,16 @@ export default function PublicContactScreen() {
                   aria-describedby={errors.subcategory ? "contact-subcategory-error" : undefined}
                   required
                 >
-                  <option value="">Select a subcategory</option>
+                  <option value="">{t("contact.subcategoryPlaceholder")}</option>
                   {(category?.subcategories || []).map((item) => (
                     <option key={item.id} value={item.id}>
-                      {item.label}
+                      {catalogLabel(t, item.id, item.label)}
                     </option>
                   ))}
                 </select>
-                {!category ? <span className="contact-field-hint">Choose a category first</span> : null}
+                {!category ? (
+                  <span className="contact-field-hint">{t("contact.chooseCategoryFirst")}</span>
+                ) : null}
                 <FieldError id="contact-subcategory-error" message={errors.subcategory} />
               </div>
             </div>
@@ -330,12 +341,12 @@ export default function PublicContactScreen() {
           {classified ? (
             <section className="contact-help" aria-live="polite" aria-labelledby="contact-help-title">
               <div className="contact-section-heading contact-help-heading">
-                <p className="contact-eyebrow">Suggested answers</p>
-                <h2 id="contact-help-title">You may find your answer here</h2>
-                <p>These answers match the topic you selected.</p>
+                <p className="contact-eyebrow">{t("contact.helpEyebrow")}</p>
+                <h2 id="contact-help-title">{t("contact.helpTitle")}</h2>
+                <p>{t("contact.helpLead")}</p>
               </div>
               {suggestions.length === 0 ? (
-                <p className="contact-help-empty">No matching help articles for this topic yet.</p>
+                <p className="contact-help-empty">{t("contact.helpEmpty")}</p>
               ) : (
                 <ul className="contact-help-list">
                   {suggestions.map((item) => {
@@ -351,7 +362,9 @@ export default function PublicContactScreen() {
                           onClick={() => setOpenSlug(open ? "" : item.slug)}
                         >
                           <span>{item.question}</span>
-                          <span className="contact-help-chevron" aria-hidden="true">⌄</span>
+                          <span className="contact-help-chevron" aria-hidden="true">
+                            ⌄
+                          </span>
                         </button>
                         <div
                           className="contact-help-answer"
@@ -368,11 +381,11 @@ export default function PublicContactScreen() {
                           />
                           <a
                             className="contact-help-docs"
-                            href={publicFaqUrl(docsFaqBase, item.question)}
+                            href={contactFaqUrl(locale, item.question)}
                             target="_blank"
                             rel="noopener noreferrer"
                           >
-                            Open in CheckStation FAQ
+                            {t("contact.openInFaq")}
                           </a>
                         </div>
                       </li>
@@ -384,7 +397,7 @@ export default function PublicContactScreen() {
           ) : null}
 
           <div className="contact-hp" aria-hidden="true">
-            <label htmlFor="contact-company">Company website</label>
+            <label htmlFor="contact-company">{t("contact.honeypotLabel")}</label>
             <input
               id="contact-company"
               name={HONEYPOT_FIELD}
@@ -398,14 +411,14 @@ export default function PublicContactScreen() {
           {classified ? (
             <section className="contact-message-section" aria-labelledby="contact-message-title">
               <div className="contact-section-heading">
-                <p className="contact-eyebrow">Still need help?</p>
-                <h2 id="contact-message-title">Send us a message</h2>
-                <p>Tell us what happened and we’ll route your message to the right place.</p>
+                <p className="contact-eyebrow">{t("contact.messageEyebrow")}</p>
+                <h2 id="contact-message-title">{t("contact.messageTitle")}</h2>
+                <p>{t("contact.messageLead")}</p>
               </div>
               <div className="contact-message-card">
                 <div className="contact-grid">
                   <div className="contact-field">
-                    <label htmlFor="contact-email">Email</label>
+                    <label htmlFor="contact-email">{t("contact.emailLabel")}</label>
                     <input
                       id="contact-email"
                       type="email"
@@ -420,7 +433,7 @@ export default function PublicContactScreen() {
                     <FieldError id="contact-email-error" message={errors.email} />
                   </div>
                   <div className="contact-field">
-                    <label htmlFor="contact-name">Name (optional)</label>
+                    <label htmlFor="contact-name">{t("contact.nameLabel")}</label>
                     <input
                       id="contact-name"
                       type="text"
@@ -433,7 +446,7 @@ export default function PublicContactScreen() {
                 </div>
 
                 <div className="contact-field">
-                  <label htmlFor="contact-subject">Subject</label>
+                  <label htmlFor="contact-subject">{t("contact.subjectLabel")}</label>
                   <input
                     id="contact-subject"
                     type="text"
@@ -452,7 +465,7 @@ export default function PublicContactScreen() {
                 </div>
 
                 <div className="contact-field">
-                  <label htmlFor="contact-message">Message</label>
+                  <label htmlFor="contact-message">{t("contact.messageLabel")}</label>
                   <textarea
                     id="contact-message"
                     value={message}
@@ -470,13 +483,13 @@ export default function PublicContactScreen() {
                 <div className="contact-turnstile" ref={widgetRef} />
                 {!catalog.turnstile_site_key ? (
                   <p className="contact-field-error" role="alert">
-                    Contact protection is not configured on this environment.
+                    {t("contact.turnstileMissing")}
                   </p>
                 ) : null}
 
                 <div className="contact-submit-row">
                   <button type="submit" className="contact-submit" disabled={loading}>
-                    {loading ? "Sending…" : "Send message"}
+                    {loading ? t("contact.submitting") : t("contact.submit")}
                   </button>
                 </div>
               </div>

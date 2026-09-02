@@ -67,8 +67,8 @@ const plusMonthlyCatalog = {
         target_interval: "yearly",
         offer_type: "first_year_percentage",
         label: "30% off first Plus Yearly payment",
-        promotional_formatted: "$69.90",
-        renews_at_formatted: "$99.90",
+        promotional_formatted: "$69.99",
+        renews_at_formatted: "$99.99",
         checkout_applies_promotion: true,
       },
       {
@@ -77,8 +77,8 @@ const plusMonthlyCatalog = {
         target_interval: "yearly",
         offer_type: "first_year_percentage",
         label: "30% off first Business Yearly payment",
-        promotional_formatted: "$104.90",
-        renews_at_formatted: "$149.90",
+        promotional_formatted: "$104.99",
+        renews_at_formatted: "$149.99",
         checkout_applies_promotion: true,
       },
     ],
@@ -107,8 +107,8 @@ const bigYearlyCatalog = {
         target_plan: "plus",
         target_interval: "yearly",
         discount_percent: 50,
-        promotional_formatted: "$49.90",
-        renews_at_formatted: "$99.90",
+        promotional_formatted: "$49.99",
+        renews_at_formatted: "$99.99",
         label: "50% off first year",
       },
       {
@@ -116,8 +116,8 @@ const bigYearlyCatalog = {
         target_plan: "business",
         target_interval: "yearly",
         discount_percent: 50,
-        promotional_formatted: "$74.90",
-        renews_at_formatted: "$149.90",
+        promotional_formatted: "$74.99",
+        renews_at_formatted: "$149.99",
         label: "50% off first year",
       },
     ],
@@ -126,13 +126,13 @@ const bigYearlyCatalog = {
     plus: {
       intervals: {
         yearly: {
-          formatted: "$99.90",
+          formatted: "$99.99",
           promotion: {
             active: true,
             discount_percent: 50,
-            first_period_formatted: "$49.90",
+            first_period_formatted: "$49.99",
             applies_to: "first_year",
-            renews_at_formatted: "$99.90",
+            renews_at_formatted: "$99.99",
           },
         },
       },
@@ -140,13 +140,13 @@ const bigYearlyCatalog = {
     business: {
       intervals: {
         yearly: {
-          formatted: "$149.90",
+          formatted: "$149.99",
           promotion: {
             active: true,
             discount_percent: 50,
-            first_period_formatted: "$74.90",
+            first_period_formatted: "$74.99",
             applies_to: "first_year",
-            renews_at_formatted: "$149.90",
+            renews_at_formatted: "$149.99",
           },
         },
       },
@@ -166,24 +166,24 @@ describe("promotionCatalog helpers", () => {
   });
 
   it("renders BIG yearly fixed coupon amounts from API (not 50% of list)", () => {
-    assert.equal(promotionPriceLabel(bigYearlyCatalog, "plus", "yearly"), "$49.90");
-    assert.equal(promotionPriceLabel(bigYearlyCatalog, "business", "yearly"), "$74.90");
+    assert.equal(promotionPriceLabel(bigYearlyCatalog, "plus", "yearly"), "$49.99");
+    assert.equal(promotionPriceLabel(bigYearlyCatalog, "business", "yearly"), "$74.99");
     assert.match(
       promotionPriceNote(bigYearlyCatalog, "plus", "yearly"),
-      /50% off first year, then \$99\.90\/year/,
+      /50% off first year, then \$99\.99\/year/,
     );
     assert.match(
       promotionPriceNote(bigYearlyCatalog, "business", "yearly"),
-      /50% off first year, then \$149\.90\/year/,
+      /50% off first year, then \$149\.99\/year/,
     );
-    // Must not invent percentage math locally ($49.95 / $74.95).
+    // Must not invent percentage math locally ($50.00 / $75.00 after rounding).
     assert.notEqual(
       promotionPriceLabel(bigYearlyCatalog, "plus", "yearly"),
-      "$49.95",
+      "$50.00",
     );
     assert.notEqual(
       promotionPriceLabel(bigYearlyCatalog, "business", "yearly"),
-      "$74.95",
+      "$75.00",
     );
   });
 
@@ -191,11 +191,11 @@ describe("promotionCatalog helpers", () => {
     assert.equal(isAcquisitionPromotion(plusMonthlyCatalog), false);
     assert.equal(promotionOffers(plusMonthlyCatalog).length, 2);
     const [plusYearly, bizYearly] = plusMonthlyCatalog.promotion.offers;
-    assert.equal(plusYearly.promotional_formatted, "$69.90");
-    assert.equal(bizYearly.promotional_formatted, "$104.90");
+    assert.equal(plusYearly.promotional_formatted, "$69.99");
+    assert.equal(bizYearly.promotional_formatted, "$104.99");
     const lines = offerDisplayLines(plusYearly);
     assert.ok(lines.some((line) => /30% off first Plus Yearly/.test(line)));
-    assert.ok(lines.some((line) => /\$69\.90 now/.test(line)));
+    assert.ok(lines.some((line) => /\$69\.99 now/.test(line)));
   });
 
   it("warns when checkout does not yet apply the promotion", () => {
