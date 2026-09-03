@@ -14,6 +14,7 @@
 # Infra (db, redis) starts without a profile.
 # Application services remain behind profile "app" until deliberately enabled.
 # PostgreSQL and Redis are Docker-network-only — never publish host ports.
+# Backend publishes only 127.0.0.1:8001 → container :8000 for host nginx.
 # =============================================================================
 
 name: checkstation
@@ -73,19 +74,31 @@ services:
       DATABASE_URL: ${DATABASE_URL}
       REDIS_URL: ${REDIS_URL}
       STATUS_PROBE_TOKEN: ${STATUS_PROBE_TOKEN}
-    command: >
-      sh -c "python manage.py migrate --noinput &&
-             python manage.py collectstatic --noinput &&
-             gunicorn config.wsgi:application -c gunicorn.conf.py"
+    # Migrations / seed / collectstatic are run deliberately (one-off), not on every boot.
+    command: ["gunicorn", "config.wsgi:application", "-c", "gunicorn.conf.py"]
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_healthy
+    volumes:
+      - checkstation_media_data:/app/media
+      - checkstation_static_data:/app/staticfiles
     networks:
       - checkstation
-    expose:
-      - "8000"
+    # Host nginx will proxy to loopback only — never publish on 0.0.0.0.
+    ports:
+      - "127.0.0.1:8001:8000"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health/', timeout=5)\"",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
     restart: unless-stopped
     profiles: ["app"]
 
@@ -141,5 +154,9 @@ networks:
 volumes:
   checkstation_postgres_data:
     name: checkstation_postgres_data
+  checkstation_media_data:
+    name: checkstation_media_data
+  checkstation_static_data:
+    name: checkstation_static_data
   checkstation_status_data:
     name: checkstation_status_data
