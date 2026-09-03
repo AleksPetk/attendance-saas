@@ -13,6 +13,13 @@ from status_service.states import (
 
 USER_AGENT = "CheckStation-Status/1.0"
 
+# Production Django uses SECURE_SSL_REDIRECT behind the reverse proxy.
+# Internal HTTP probes must advertise HTTPS so urllib is not redirected to
+# an unreachable https://… URL on the Docker network.
+DJANGO_INTERNAL_PROBE_HEADERS = {
+    "X-Forwarded-Proto": "https",
+}
+
 
 class ProbeResult:
     def __init__(self, kind, description=""):
@@ -86,10 +93,10 @@ def probe_http_page(url, timeout):
     return ProbeResult(RESULT_FAILURE)
 
 
-def probe_csrf(url, timeout):
+def probe_csrf(url, timeout, headers=None):
     if not url:
         return ProbeResult(RESULT_UNCONFIGURED, "Not configured")
-    code, raw = _request(url, timeout)
+    code, raw = _request(url, timeout, headers=headers)
     if code is None:
         return ProbeResult(RESULT_FAILURE)
     if code != 200:
@@ -126,20 +133,25 @@ class ProbeRunner:
         workspace = self.config["workspace_url"]
         docs = self.config["docs_url"]
 
-        probe_headers = {}
+        django_headers = dict(DJANGO_INTERNAL_PROBE_HEADERS)
         token = (self.config.get("status_probe_token") or "").strip()
+        provider_headers = dict(django_headers)
         if token:
-            probe_headers["X-Status-Probe-Token"] = token
+            provider_headers["X-Status-Probe-Token"] = token
 
-        api_health = probe_django_health(f"{api}/api/health/", timeout)
-        kiosk = probe_django_health(f"{api}/api/health/kiosk/", timeout)
+        api_health = probe_django_health(
+            f"{api}/api/health/", timeout, headers=django_headers
+        )
+        kiosk = probe_django_health(
+            f"{api}/api/health/kiosk/", timeout, headers=django_headers
+        )
         email = probe_django_health(
-            f"{api}/api/health/email/", timeout, headers=probe_headers
+            f"{api}/api/health/email/", timeout, headers=provider_headers
         )
         stripe = probe_django_health(
-            f"{api}/api/health/stripe/", timeout, headers=probe_headers
+            f"{api}/api/health/stripe/", timeout, headers=provider_headers
         )
-        csrf = probe_csrf(f"{api}/api/auth/csrf/", timeout)
+        csrf = probe_csrf(f"{api}/api/auth/csrf/", timeout, headers=django_headers)
         auth = combine_auth_results(csrf, api_health)
 
         return {

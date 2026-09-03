@@ -111,15 +111,18 @@ services:
     environment:
       DOCS_HOST: 0.0.0.0
       DOCS_PORT: 8091
+      # Browser-facing Content API (public workspace origin). No cookies required.
       DOCS_API_BASE_URL: ${DOCS_API_BASE_URL}
-      DOCS_INTERNAL_API_URL: ${DOCS_INTERNAL_API_URL}
+      # Server-side SEO/meta fetch over Docker network.
+      DOCS_INTERNAL_API_URL: ${DOCS_INTERNAL_API_URL:-http://backend:8000}
       DOCS_PUBLIC_URL: ${DOCS_PUBLIC_URL}
       DOCS_MAIN_SITE_URL: ${DOCS_MAIN_SITE_URL}
       STATUS_PUBLIC_URL: ${STATUS_PUBLIC_URL}
     networks:
       - checkstation
-    expose:
-      - "8091"
+    # Host nginx will proxy to loopback only — never publish on 0.0.0.0.
+    ports:
+      - "127.0.0.1:8091:8091"
     restart: unless-stopped
     profiles: ["app"]
 
@@ -131,10 +134,12 @@ services:
     environment:
       STATUS_HOST: 0.0.0.0
       STATUS_PORT: 8090
-      STATUS_API_URL: ${STATUS_API_URL}
+      # In-network Django origin for probes (not the public workspace hostname).
+      STATUS_API_URL: ${STATUS_API_URL:-http://backend:8000}
       STATUS_WEBSITE_URL: ${STATUS_WEBSITE_URL}
       STATUS_WORKSPACE_URL: ${STATUS_WORKSPACE_URL}
-      STATUS_DOCS_URL: ${STATUS_DOCS_URL}
+      # Prefer in-network Docs for probes until public TLS/nginx is live.
+      STATUS_DOCS_URL: ${STATUS_DOCS_URL:-http://docs:8091}
       STATUS_PUBLIC_URL: ${STATUS_PUBLIC_URL}
       STATUS_PROBE_TOKEN: ${STATUS_PROBE_TOKEN}
       STATUS_DATA_DIR: /data
@@ -142,8 +147,9 @@ services:
       - checkstation_status_data:/data
     networks:
       - checkstation
-    expose:
-      - "8090"
+    # Host nginx will proxy to loopback only — never publish on 0.0.0.0.
+    ports:
+      - "127.0.0.1:8090:8090"
     restart: unless-stopped
     profiles: ["app"]
 

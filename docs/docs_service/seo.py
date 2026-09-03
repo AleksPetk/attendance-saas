@@ -101,11 +101,13 @@ def hreflang_html(alternate_urls):
 
 
 def _fetch_json(url, timeout=2):
+    # X-Forwarded-Proto avoids SECURE_SSL_REDIRECT on internal HTTP backends.
     request = urllib.request.Request(
         url,
         headers={
             "Accept": "application/json",
             "User-Agent": "CheckStation-Docs/1.0",
+            "X-Forwarded-Proto": "https",
         },
     )
     try:
