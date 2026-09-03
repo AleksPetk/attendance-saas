@@ -319,9 +319,11 @@ REST_FRAMEWORK = {
         "rest_framework.parsers.MultiPartParser",
     ],
     "DEFAULT_AUTHENTICATION_CLASSES": [
-        "organizations.authentication.WorkspaceStaffBasicAuthentication",
+        # Session first: workspace SPA uses cookies. Basic authenticators below
+        # must not advertise WWW-Authenticate (Safari native login popup).
         "rest_framework.authentication.SessionAuthentication",
-        "rest_framework.authentication.BasicAuthentication",
+        "organizations.authentication.WorkspaceStaffBasicAuthentication",
+        "organizations.authentication.BrowserSilentBasicAuthentication",
     ],
 }
 

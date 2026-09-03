@@ -353,6 +353,8 @@ class CurrentWorkspaceAPITests(TestCase):
             response.status_code,
             (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN),
         )
+        # Never advertise HTTP Basic — Safari/Chrome show a native auth dialog.
+        self.assertIsNone(response.get("WWW-Authenticate"))
 
     def test_paying_owner_receives_workspace_without_workspace_id(self):
         self.client.credentials(

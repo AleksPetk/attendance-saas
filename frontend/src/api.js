@@ -73,6 +73,48 @@ function shouldAttachCsrf(method) {
   return !["GET", "HEAD", "OPTIONS"].includes(m);
 }
 
+/** Paths where 401 is an expected credential check, not a dead workspace session. */
+const SESSION_EXPIRY_EXEMPT_PREFIXES = [
+  "/api/auth/login/",
+  "/api/auth/staff-login/",
+  "/api/auth/register/",
+  "/api/auth/csrf/",
+  "/api/auth/forgot-password/",
+  "/api/auth/reset-password/",
+  "/api/auth/verify-email/",
+  "/api/auth/verify-backup-email/",
+  "/api/auth/verify-primary-email/",
+  "/api/auth/resend-verification/",
+  "/api/auth/owner-2fa/challenge/",
+  "/api/auth/google/",
+  "/api/auth/apple/",
+  "/api/contact/",
+];
+
+export const SESSION_EXPIRED_EVENT = "checkstation:session-expired";
+
+export function isMissingCredentialsError(error) {
+  if (!error || (error.status !== 401 && error.status !== 403)) {
+    return false;
+  }
+  if (error.data?.code === "not_authenticated") {
+    return true;
+  }
+  const detail = error.data?.detail;
+  return detail === "Authentication credentials were not provided.";
+}
+
+function maybeNotifySessionExpired(path, error, credentialMode) {
+  if (credentialMode === "omit") return;
+  if (!isMissingCredentialsError(error)) return;
+  const normalized = String(path || "");
+  if (SESSION_EXPIRY_EXEMPT_PREFIXES.some((prefix) => normalized.startsWith(prefix))) {
+    return;
+  }
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent(SESSION_EXPIRED_EVENT));
+}
+
 async function request(path, { method = "GET", json, formData, cache, credentials = "include" } = {}) {
   const headers = {};
   const m = method.toUpperCase();
@@ -105,7 +147,9 @@ async function request(path, { method = "GET", json, formData, cache, credential
     return { ok: true, status: 204, data: null };
   }
   if (!response.ok) {
-    throw await parseError(response);
+    const error = await parseError(response);
+    maybeNotifySessionExpired(path, error, credentialMode);
+    throw error;
   }
   return { ok: true, status: response.status, data: await response.json() };
 }
@@ -139,7 +183,9 @@ async function requestBlob(path, { method = "GET" } = {}) {
     credentials: "include",
   });
   if (!response.ok) {
-    throw await parseError(response);
+    const error = await parseError(response);
+    maybeNotifySessionExpired(path, error, "include");
+    throw error;
   }
   const blob = await response.blob();
   const filename = filenameFromContentDisposition(response.headers.get("Content-Disposition"));

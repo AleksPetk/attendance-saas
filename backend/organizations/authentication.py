@@ -16,6 +16,22 @@ WORKSPACE_STAFF_SESSION_AUTH_BACKEND = (
     "organizations.authentication.WorkspaceStaffSessionAuthenticationBackend"
 )
 
+
+class BrowserSilentBasicAuthentication(BasicAuthentication):
+    """
+    HTTP Basic for API clients / tests without advertising a browser challenge.
+
+    DRF's default BasicAuthentication sets ``WWW-Authenticate: Basic realm="api"``
+    on 401 responses. Safari/Chrome treat that as a native username/password
+    dialog — unacceptable for the cookie-session workspace SPA. Returning
+    ``None`` here keeps Basic usable when clients send ``Authorization`` while
+    forcing unauthenticated SPA requests to JSON 403 without a challenge.
+    """
+
+    def authenticate_header(self, request):
+        return None
+
+
 class WorkspaceStaffBasicAuthentication(BasicAuthentication):
     """
     Authenticate a WorkspaceStaffAccount with Workspace ID + username + password.
@@ -28,6 +44,10 @@ class WorkspaceStaffBasicAuthentication(BasicAuthentication):
         if not request.META.get(WORKSPACE_ID_HEADER):
             return None
         return super().authenticate(request)
+
+    def authenticate_header(self, request):
+        # Staff browser login uses session cookies, not a native Basic prompt.
+        return None
 
     def authenticate_credentials(self, userid, password, request=None):
         raw_workspace_id = request.META.get(WORKSPACE_ID_HEADER) if request else ""

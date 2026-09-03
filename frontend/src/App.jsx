@@ -45,7 +45,7 @@ import {
   VerifyPrimaryEmailScreen,
   WorkspaceLayout,
 } from "./lazyScreens.jsx";
-import { api } from "./api.js";
+import { api, SESSION_EXPIRED_EVENT } from "./api.js";
 import { LoadingState } from "./components.jsx";
 import { PromoLocaleProvider } from "./promo/PromoLocaleContext.jsx";
 import {
@@ -272,6 +272,31 @@ function PromoAuthHostRedirect() {
       window.location.replace(target);
     }
   }, [location.hash, location.pathname, location.search]);
+  return null;
+}
+
+/**
+ * When a credentialed API call reports missing session credentials, clear local
+ * session state and send the user to the React login screen (never a native
+ * browser Basic Auth prompt — that is prevented server-side).
+ */
+function SessionExpiryListener({ setSession }) {
+  const nav = useNavigate();
+  const location = useLocation();
+
+  useEffect(() => {
+    function onSessionExpired() {
+      setSession(null);
+      const path = location.pathname;
+      if (isPublicAuthPath(path) || isPublicMarketingPath(path)) {
+        return;
+      }
+      nav("/login", { replace: true });
+    }
+    window.addEventListener(SESSION_EXPIRED_EVENT, onSessionExpired);
+    return () => window.removeEventListener(SESSION_EXPIRED_EVENT, onSessionExpired);
+  }, [location.pathname, nav, setSession]);
+
   return null;
 }
 
@@ -684,6 +709,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <PromoAuthHostRedirect />
+      <SessionExpiryListener setSession={setSession} />
       <LanguageProvider
         session={session}
         updatePreferredLanguage={async (preferred_language) => {
