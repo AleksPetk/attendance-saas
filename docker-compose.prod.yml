@@ -90,10 +90,11 @@ services:
     ports:
       - "127.0.0.1:8001:8000"
     healthcheck:
+      # Host + X-Forwarded-Proto required: ALLOWED_HOSTS + SECURE_SSL_REDIRECT.
       test:
         [
           "CMD-SHELL",
-          "python -c \"import urllib.request; urllib.request.urlopen(urllib.request.Request('http://127.0.0.1:8000/api/health/', headers={'Host': 'backend'}), timeout=5)\"",
+          "python -c \"import urllib.request; urllib.request.urlopen(urllib.request.Request('http://127.0.0.1:8000/api/health/', headers={'Host': 'backend', 'X-Forwarded-Proto': 'https'}), timeout=5)\"",
         ]
       interval: 10s
       timeout: 5s
