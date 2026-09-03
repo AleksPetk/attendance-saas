@@ -54,6 +54,7 @@ services:
   frontend:
     build:
       context: ./frontend
+      dockerfile: Dockerfile.dev
     # Do not load the backend .env here — Vite only needs browser-safe VITE_*
     # values. Contact Turnstile site key comes from the backend API
     # (GET /api/contact/categories/), not from a VITE_TURNSTILE_* variable.
