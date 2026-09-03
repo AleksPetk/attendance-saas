@@ -40,6 +40,9 @@ export default defineConfig(({ mode }) => {
     build: {
       rollupOptions: {
         output: {
+          // Keep React in the graph's default chunks. A separate "react" + catch-all
+          // "vendor" split created a circular chunk (vendor ↔ react) that crashes
+          // React 19 at runtime: "Cannot set properties of undefined (setting 'Activity')".
           manualChunks(id) {
             if (!id.includes("node_modules")) {
               return undefined;
@@ -50,10 +53,7 @@ export default defineConfig(({ mode }) => {
             if (id.includes("i18next") || id.includes("react-i18next")) {
               return "i18n";
             }
-            if (id.includes("react-dom") || id.includes("/react/")) {
-              return "react";
-            }
-            return "vendor";
+            return undefined;
           },
         },
       },
