@@ -413,6 +413,7 @@ export const api = {
   /* Owner billing (Stripe Checkout / portal). Secrets never leave the server. */
   getBilling: () => request("/api/billing/"),
   getBillingCatalog: () => request("/api/billing/catalog/", { credentials: "omit" }),
+  getPublicGeo: () => request("/api/geo/", { credentials: "omit" }),
   getContactCategories: () => request("/api/contact/categories/", { credentials: "omit" }),
   getContactSuggestions: (category, subcategory) =>
     request(

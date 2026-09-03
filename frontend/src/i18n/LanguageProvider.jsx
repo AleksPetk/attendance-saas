@@ -1,9 +1,11 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 
+import { api } from "../api.js";
+import { fetchPublicGeo } from "../geoBootstrap.js";
 import { isPromoMarketingPath } from "../promo/locale.js";
 import i18n from "./index.js";
 import { localeHtmlLang, LOCALE_LABELS, normalizeLocale, SUPPORTED_LOCALES } from "./language.js";
-import { saveLocalePreference } from "./storage.js";
+import { hasExplicitSavedLocale, saveLocalePreference } from "./storage.js";
 
 const LanguageContext = createContext(null);
 
@@ -26,6 +28,7 @@ export function LanguageProvider({ children, session = null, updatePreferredLang
   const [locale, setLocaleState] = useState(() => normalizeLocale(i18n.language));
   const ownerLanguage = ownerPreferredLanguage(session);
   const lastOwnerLanguage = useRef(null);
+  const geoApplied = useRef(false);
 
   const setLanguage = useCallback(
     async (nextLocale, { explicit = true, persistBackend = true } = {}) => {
@@ -77,6 +80,27 @@ export function LanguageProvider({ children, session = null, updatePreferredLang
     if (lastOwnerLanguage.current === ownerLanguage) return;
     lastOwnerLanguage.current = ownerLanguage;
     void setLanguage(ownerLanguage, { explicit: true, persistBackend: false });
+  }, [ownerLanguage, setLanguage]);
+
+  useEffect(() => {
+    if (geoApplied.current) return;
+    if (ownerLanguage) return;
+    if (hasExplicitSavedLocale()) return;
+    if (typeof window !== "undefined" && isPromoMarketingPath(window.location.pathname)) {
+      return;
+    }
+    geoApplied.current = true;
+    let cancelled = false;
+    fetchPublicGeo(() => api.getPublicGeo()).then((geo) => {
+      if (cancelled) return;
+      if (hasExplicitSavedLocale()) return;
+      if (geo.default_locale === "ja") {
+        void setLanguage("ja", { explicit: false, persistBackend: false });
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [ownerLanguage, setLanguage]);
 
   const value = useMemo(

@@ -81,15 +81,17 @@ return <span>{t("accountSections.security")}</span>;
 4. Register resources in `frontend/src/i18n/index.js`.
 5. Add a label in `LOCALE_LABELS`.
 
-## Language resolution order (Phase 1)
+## Language resolution order
 
 ### Unauthenticated visitors
 
 1. Explicit saved browser preference (`localStorage` key `checkstation.locale` when `checkstation.locale.explicit = 1`)
-2. Browser locale if supported (`en` or `ja`)
+2. Trusted server geo default (`GET /api/geo/` → JP → `ja`, otherwise `en`)
 3. English fallback
 
-Browser locale does **not** override an explicit saved preference.
+Browser `navigator.language` does **not** select the first-visit default (geo does). Billing market is never derived from UI language.
+
+Promo marketing routes use the same priority with URL `/en`|`/ja` first, then `checkstation.promo.locale`, then trusted geo.
 
 ### Authenticated owners
 

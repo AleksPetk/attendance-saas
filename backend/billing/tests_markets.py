@@ -100,7 +100,7 @@ class MarketCatalogTests(TestCase):
         organization.owner.preferred_language = "en"
         self.assertEqual(resolve_billing_market(organization), MARKET_JP)
 
-    def test_authenticated_catalog_uses_workspace_override_but_public_stays_global(self):
+    def test_authenticated_catalog_uses_workspace_override_but_anonymous_uses_geo(self):
         owner = User.objects.create_user(email="catalog-jp@example.com", password="password12345")
         owner.mark_email_verified()
         organization = Organization.objects.create_with_owner(owner=owner)
@@ -111,6 +111,11 @@ class MarketCatalogTests(TestCase):
 
         public = APIClient().get("/api/billing/catalog/")
         self.assertEqual((public.data["market"], public.data["currency"]), ("global", "usd"))
+        public_jp = APIClient().get(
+            "/api/billing/catalog/",
+            HTTP_X_CHECKSTATION_COUNTRY="JP",
+        )
+        self.assertEqual((public_jp.data["market"], public_jp.data["currency"]), ("jp", "jpy"))
         client = APIClient()
         client.force_authenticate(user=owner)
         workspace = client.get("/api/billing/catalog/")

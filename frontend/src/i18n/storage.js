@@ -2,7 +2,6 @@ import {
   DEFAULT_LOCALE,
   LOCALE_EXPLICIT_KEY,
   LOCALE_STORAGE_KEY,
-  browserLocale,
   normalizeLocale,
 } from "./language.js";
 
@@ -41,16 +40,15 @@ export function saveLocalePreference(locale, { explicit = false } = {}) {
 }
 
 /**
- * Phase 1 resolution order:
+ * First-visit resolution (sync):
  * 1. explicit saved frontend preference
- * 2. browser locale when supported
- * 3. English fallback
+ * 2. English fallback (trusted geo applied asynchronously; never browser language)
  */
 export function resolveInitialLocale() {
   if (hasExplicitSavedLocale()) {
     return readSavedLocale();
   }
-  return browserLocale();
+  return DEFAULT_LOCALE;
 }
 
 export function clearExplicitLocaleFlag() {

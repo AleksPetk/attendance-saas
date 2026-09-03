@@ -77,9 +77,12 @@ class OrganizationQuerySet(models.QuerySet):
 
 
 class OrganizationManager(models.Manager.from_queryset(OrganizationQuerySet)):
-    def create_with_owner(self, *, owner, internal_label=""):
+    def create_with_owner(self, *, owner, internal_label="", billing_market_override=None):
         """Create a workspace owned by one paying customer User."""
-        return self.create(owner=owner, internal_label=internal_label)
+        kwargs = {"owner": owner, "internal_label": internal_label}
+        if billing_market_override is not None:
+            kwargs["billing_market_override"] = billing_market_override
+        return self.create(**kwargs)
 
 
 class Organization(models.Model):
@@ -142,8 +145,10 @@ class Organization(models.Model):
         default=BillingMarketOverride.AUTO,
         db_index=True,
         help_text=(
-            "Platform-admin billing market override. Auto currently resolves to "
-            "Global; customers cannot change this field."
+            "Platform-admin billing market override. Auto resolves to Global "
+            "for legacy workspaces and never follows request geo. New "
+            "registrations lock to global or jp at signup. Customers cannot "
+            "change this field."
         ),
     )
     active_standard_groups_slots_resolved = models.BooleanField(default=True)

@@ -5,6 +5,7 @@ from rest_framework.views import APIView
 from billing.exceptions import StripeConfigurationError, StripeProviderError
 from billing.prices import stripe_secret_key
 from billing.provider import get_billing_provider
+from core.geo import public_geo_payload
 from core.health_auth import enforce_provider_health_access
 from core.mail import (
     EmailConfigurationError,
@@ -13,6 +14,21 @@ from core.mail import (
     get_email_provider,
 )
 from kiosk_builder.kiosk_health import check_kiosk_runtime_health
+
+
+class PublicGeoView(APIView):
+    """
+    Trusted Cloudflare geo bootstrap for first-visit locale defaults.
+
+    Does not expose IP addresses. Billing market here is advisory for anonymous
+    visitors; authenticated workspace market comes from Organization.
+    """
+
+    authentication_classes = []
+    permission_classes = []
+
+    def get(self, request):
+        return Response(public_geo_payload(request))
 
 
 def _public_health_payload(status_value):

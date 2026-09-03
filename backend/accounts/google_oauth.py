@@ -147,16 +147,17 @@ def _login_existing_google_link(request, link: OwnerAuthProviderLink, identity: 
 
 
 @transaction.atomic
-def _register_new_google_owner(identity: GoogleIdentity):
+def _register_new_google_owner(identity: GoogleIdentity, *, billing_market: str):
     user = User.objects.create_user(
         email=identity.email,
         password=None,
         email_verified=True,
+        signup_billing_market=billing_market,
     )
     user.set_unusable_password()
     user.save(update_fields=["password"])
     create_google_provider_link(user, identity)
-    provision_verified_owner(user)
+    provision_verified_owner(user, billing_market=billing_market)
     return user
 
 
@@ -195,8 +196,12 @@ def handle_google_oauth_register(
             GoogleOAuthResultCode.EXISTING_ACCOUNT_CONNECT_REQUIRED
         )
 
+    from billing.markets import lock_market_for_new_registration
+
+    billing_market = lock_market_for_new_registration(request)
+
     try:
-        user = _register_new_google_owner(identity)
+        user = _register_new_google_owner(identity, billing_market=billing_market)
     except IntegrityError:
         logger.warning("Google registration race for subject=%s", identity.subject)
         link = get_google_provider_link(subject=identity.subject)

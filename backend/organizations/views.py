@@ -240,6 +240,9 @@ class OwnerRegistrationView(APIView):
         first_name = ser.validated_data.get("first_name") or ""
         last_name = ser.validated_data.get("last_name") or ""
         preferred_language = ser.validated_data["locale"]
+        from billing.markets import lock_market_for_new_registration
+
+        signup_billing_market = lock_market_for_new_registration(request)
 
         user = self._prepare_pending_user(
             email=email,
@@ -247,6 +250,7 @@ class OwnerRegistrationView(APIView):
             first_name=first_name,
             last_name=last_name,
             preferred_language=preferred_language,
+            signup_billing_market=signup_billing_market,
         )
         # Multiple AUTHENTICATION_BACKENDS are configured, so login() requires
         # an explicit backend for a newly created or restarted pending User.
@@ -297,6 +301,7 @@ class OwnerRegistrationView(APIView):
         first_name,
         last_name,
         preferred_language,
+        signup_billing_market,
     ):
         if (
             user.email_verified
@@ -314,8 +319,15 @@ class OwnerRegistrationView(APIView):
         user.first_name = first_name
         user.last_name = last_name
         user.preferred_language = preferred_language
+        user.signup_billing_market = signup_billing_market
         user.save(
-            update_fields=["password", "first_name", "last_name", "preferred_language"]
+            update_fields=[
+                "password",
+                "first_name",
+                "last_name",
+                "preferred_language",
+                "signup_billing_market",
+            ]
         )
         invalidate_owner_sessions(user)
         return user
@@ -329,6 +341,7 @@ class OwnerRegistrationView(APIView):
         first_name,
         last_name,
         preferred_language,
+        signup_billing_market,
     ):
         User = get_user_model()
         try:
@@ -345,6 +358,7 @@ class OwnerRegistrationView(APIView):
                         first_name=first_name,
                         last_name=last_name,
                         preferred_language=preferred_language,
+                        signup_billing_market=signup_billing_market,
                     )
                 return User.objects.create_user(
                     email=email,
@@ -352,6 +366,7 @@ class OwnerRegistrationView(APIView):
                     first_name=first_name,
                     last_name=last_name,
                     preferred_language=preferred_language,
+                    signup_billing_market=signup_billing_market,
                     is_staff=False,
                     is_superuser=False,
                     email_verified=False,
@@ -367,6 +382,7 @@ class OwnerRegistrationView(APIView):
                     first_name=first_name,
                     last_name=last_name,
                     preferred_language=preferred_language,
+                    signup_billing_market=signup_billing_market,
                 )
 
 

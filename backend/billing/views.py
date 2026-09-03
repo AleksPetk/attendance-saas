@@ -52,19 +52,32 @@ def _error_response(exc, status=400):
 
 
 class BillingCatalogView(APIView):
-    """Public GLOBAL prices, or the effective market for an authenticated owner."""
+    """
+    Public catalog from trusted request geo, or the owner's workspace market.
+
+    Anonymous visitors cannot choose market via query, body, language, or cookies.
+    """
 
     permission_classes = [AllowAny]
 
     def get(self, request):
         organization = get_owned_organization(request.user)
-        market = resolve_billing_market(organization)
+        if organization is not None:
+            market = resolve_billing_market(organization)
+        else:
+            from core.geo import resolve_request_geo
+
+            market = resolve_request_geo(request).billing_market
         payload = catalog_public_payload(organization=organization, market=market)
         from billing.builtin_trial import BUILTIN_TRIAL_DAYS, BUILTIN_TRIAL_OFFERED
+        from core.geo import public_geo_payload
 
         payload["builtin_trial_days"] = BUILTIN_TRIAL_DAYS
         payload["builtin_trial_offered"] = BUILTIN_TRIAL_OFFERED
         payload["stripe_configured"] = stripe_api_configured(market=market)
+        # Always include request geo defaults (language bootstrap); market in
+        # payload remains workspace-effective when authenticated.
+        payload["geo"] = public_geo_payload(request)
         return Response(payload)
 
 

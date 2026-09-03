@@ -116,7 +116,7 @@ def resend_verification_public(email):
     return RESEND_PUBLIC_MESSAGE
 
 
-def _provision_verified_owner_locked(user):
+def _provision_verified_owner_locked(user, *, billing_market=None):
     """Mark a pending owner verified and idempotently create its workspace."""
     if not user.email_verified:
         user.email_verified = True
@@ -126,17 +126,37 @@ def _provision_verified_owner_locked(user):
     if user.is_staff or user.is_superuser:
         return user, None, False
 
-    from organizations.models import Organization
+    from billing.markets import MARKET_GLOBAL, MARKET_JP, normalize_billing_market
+    from organizations.models import BillingMarketOverride, Organization
 
-    organization, created = Organization.objects.get_or_create(owner=user)
+    if billing_market is not None:
+        market = normalize_billing_market(billing_market)
+    else:
+        stamped = str(getattr(user, "signup_billing_market", "") or "").strip().lower()
+        if stamped in {MARKET_GLOBAL, MARKET_JP}:
+            market = stamped
+        else:
+            market = MARKET_GLOBAL
+
+    organization, created = Organization.objects.get_or_create(
+        owner=user,
+        defaults={"billing_market_override": market},
+    )
+    if created and getattr(user, "signup_billing_market", ""):
+        user.signup_billing_market = ""
+        user.save(update_fields=["signup_billing_market"])
+    # Never leave a freshly created org on AUTO when we intended a lock.
+    if created and organization.billing_market_override == BillingMarketOverride.AUTO:
+        organization.billing_market_override = market
+        organization.save(update_fields=["billing_market_override", "updated_at"])
     return user, organization, created
 
 
 @transaction.atomic
-def provision_verified_owner(user):
+def provision_verified_owner(user, *, billing_market=None):
     """Provision one owner workspace exactly once for a verified account."""
     locked = User.objects.select_for_update().get(pk=user.pk)
-    return _provision_verified_owner_locked(locked)
+    return _provision_verified_owner_locked(locked, billing_market=billing_market)
 
 
 @transaction.atomic

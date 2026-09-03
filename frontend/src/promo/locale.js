@@ -69,21 +69,32 @@ export function readPromoLocalePreference() {
   }
 }
 
-function browserPromoLocale() {
-  const raw = String(
-    (typeof navigator !== "undefined" && navigator.language) || "",
-  ).toLowerCase();
-  if (raw.startsWith("ja")) return "ja";
-  return DEFAULT_PROMO_LOCALE;
-}
-
 export function resolveInitialPromoLocale(pathname) {
   return (
     resolvePromoLocaleFromPath(pathname) ||
     readPromoLocalePreference() ||
-    browserPromoLocale() ||
     DEFAULT_PROMO_LOCALE
   );
+}
+
+/**
+ * Async first-visit promo locale: URL → saved → trusted geo → en.
+ * Does not consult browser language and never selects billing market.
+ */
+export async function resolvePromoLocaleWithGeo(pathname, fetchGeo) {
+  const fromPath = resolvePromoLocaleFromPath(pathname);
+  if (fromPath) return fromPath;
+  const saved = readPromoLocalePreference();
+  if (saved) return saved;
+  if (typeof fetchGeo === "function") {
+    try {
+      const geo = await fetchGeo();
+      if (geo?.default_locale === "ja") return "ja";
+    } catch {
+      /* fall through */
+    }
+  }
+  return DEFAULT_PROMO_LOCALE;
 }
 
 export function fillPromoTemplate(template, values = {}) {

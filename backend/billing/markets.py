@@ -29,12 +29,18 @@ def market_for_currency(currency: str) -> str:
 
 
 def resolve_auto_billing_market(workspace=None) -> str:
-    """Resolve AUTO mode. Geo/country logic is deliberately deferred."""
+    """
+    Resolve AUTO override for an existing workspace.
+
+    Intentionally ignores request geo: existing AUTO organizations must stay
+    stable (travel/IP must not redefine their catalog). New registrations lock
+    to ``global`` or ``jp`` at signup instead of leaving AUTO.
+    """
     return MARKET_GLOBAL
 
 
 def resolve_billing_market(workspace=None) -> str:
-    """Resolve the platform override without consulting language or locale."""
+    """Resolve workspace override without consulting language or request geo."""
     override = str(
         getattr(workspace, "billing_market_override", MARKET_OVERRIDE_AUTO)
         or MARKET_OVERRIDE_AUTO
@@ -44,6 +50,13 @@ def resolve_billing_market(workspace=None) -> str:
     if override == MARKET_JP:
         return MARKET_JP
     return resolve_auto_billing_market(workspace)
+
+
+def lock_market_for_new_registration(request=None) -> str:
+    """Server-side market freeze for a new owner signup (never AUTO)."""
+    from core.geo import resolve_request_geo
+
+    return resolve_request_geo(request).billing_market
 
 
 def market_for_existing_subscription(billing, *, workspace=None) -> str:

@@ -50,6 +50,16 @@ class User(AbstractUser):
             "currency, and timezone."
         ),
     )
+    signup_billing_market = models.CharField(
+        max_length=10,
+        blank=True,
+        default="",
+        help_text=(
+            "Billing market captured from trusted geo at registration "
+            "(global or jp). Applied when the Organization is provisioned. "
+            "Not customer-mutable."
+        ),
+    )
 
     objects = UserManager()
 

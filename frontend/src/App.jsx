@@ -51,8 +51,9 @@ import { PromoLocaleProvider } from "./promo/PromoLocaleContext.jsx";
 import {
   isPromoMarketingPath,
   promoPathFor,
-  resolveInitialPromoLocale,
+  resolvePromoLocaleWithGeo,
 } from "./promo/locale.js";
+import { fetchPublicGeo } from "./geoBootstrap.js";
 import { canonicalHostRedirectUrl, resolvePromoHandoffUrl } from "./siteOrigins.js";
 import {
   canLaunchKiosk,
@@ -180,21 +181,34 @@ function isPublicMarketingPath(pathname) {
 }
 
 function RedirectToPromoLocale({ logicalPath }) {
-  const locale = resolveInitialPromoLocale("/");
-  const to = promoPathFor(logicalPath, locale);
-  const absolute = resolvePromoHandoffUrl(
-    to,
-    typeof window !== "undefined" ? window.location.origin : "",
-  );
+  const [target, setTarget] = useState(null);
+
   useEffect(() => {
-    if (/^https?:\/\//i.test(absolute)) {
-      window.location.replace(absolute);
+    let cancelled = false;
+    async function resolve() {
+      const locale = await resolvePromoLocaleWithGeo("/", () =>
+        fetchPublicGeo(() => api.getPublicGeo()),
+      );
+      const to = promoPathFor(logicalPath, locale);
+      const absolute = resolvePromoHandoffUrl(
+        to,
+        typeof window !== "undefined" ? window.location.origin : "",
+      );
+      if (cancelled) return;
+      if (/^https?:\/\//i.test(absolute)) {
+        window.location.replace(absolute);
+        return;
+      }
+      setTarget(to);
     }
-  }, [absolute]);
-  if (/^https?:\/\//i.test(absolute)) {
-    return null;
-  }
-  return <Navigate to={to} replace />;
+    void resolve();
+    return () => {
+      cancelled = true;
+    };
+  }, [logicalPath]);
+
+  if (!target) return null;
+  return <Navigate to={target} replace />;
 }
 
 function PromoLocaleLayout({ locale }) {
