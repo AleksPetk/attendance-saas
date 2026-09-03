@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { api, errorMessage } from "./api.js";
 import { builtinTrialOfferFromCatalog } from "./builtinTrialOffer.js";
 import { AuthLayout, ErrorBanner, Field, PasswordInput, usePasswordVisibility } from "./components.jsx";
+import PromoHostLink from "./PromoHostLink.jsx";
 import RegistrationLegalViewer from "./RegistrationLegalViewer.jsx";
 import AuthProviderButtons, { AuthMethodDivider } from "./AuthProviderButtons.jsx";
 import { REGISTRATION_LEGAL_REQUIRED_MESSAGE_KEY } from "./ownerOAuthPublicUi.js";
@@ -43,7 +44,7 @@ function RegistrationVisual({ trialOffer }) {
 
   return (
     <div className="registration-visual-content">
-      <Link to="/" className="registration-brand">CheckStation</Link>
+      <PromoHostLink to="/" className="registration-brand">CheckStation</PromoHostLink>
       <div className="registration-visual-copy">
         <span className="registration-eyebrow">{t("register.visual.eyebrow")}</span>
         <h2>{t("register.visual.headline")}</h2>

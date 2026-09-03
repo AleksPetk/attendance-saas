@@ -12,7 +12,7 @@ import {
   savePromoLocalePreference,
 } from "./locale.js";
 import { promoCatalog, promoTranslate } from "./t.js";
-import { resolveAuthHandoffUrl } from "../siteOrigins.js";
+import { resolveAuthHandoffUrl, resolvePromoHandoffUrl } from "../siteOrigins.js";
 
 const PromoLocaleContext = createContext(null);
 
@@ -46,7 +46,16 @@ export function PromoLocaleProvider({ children, locale: localeProp }) {
       const nextPath = promoPathFor(logical, normalized);
       const search = location.search || "";
       const hash = location.hash || "";
-      navigate(`${nextPath}${search}${hash}`);
+      const relative = `${nextPath}${search}${hash}`;
+      const target = resolvePromoHandoffUrl(
+        relative,
+        typeof window !== "undefined" ? window.location.origin : "",
+      );
+      if (/^https?:\/\//i.test(target)) {
+        window.location.assign(target);
+        return normalized;
+      }
+      navigate(relative);
       return normalized;
     },
     [location.hash, location.pathname, location.search, navigate],

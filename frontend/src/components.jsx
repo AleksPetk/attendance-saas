@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Link } from "react-router-dom";
+import PromoHostLink from "./PromoHostLink.jsx";
 import { brandLogoText } from "./assets/brand/brandLogo.js";
 
 /* ------------------------------------------------------------------ */
@@ -107,9 +107,9 @@ export function AuthLayout({
       <div className="auth-page-visual">
         {visualContent || (
           <>
-            <Link to="/" className="auth-page-brand">
+            <PromoHostLink to="/" className="auth-page-brand">
               <Wordmark subtitle={t("authVisual.brandTagline")} name={tCommon("productName")} />
-            </Link>
+            </PromoHostLink>
             <ConnectionVisual className="auth-connection" />
             <p className="auth-page-tagline">
               {t("authVisual.brandLead")}

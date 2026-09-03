@@ -1,6 +1,7 @@
-import { Link, useLocation, useNavigationType } from "react-router-dom";
+import { useLocation, useNavigationType } from "react-router-dom";
 import { useLayoutEffect, useMemo, useState } from "react";
 import { Wordmark } from "./components.jsx";
+import PromoHostLink from "./PromoHostLink.jsx";
 import { brandLogoMark, brandLogoText } from "./assets/brand/brandLogo.js";
 import { footerItemIsLinked, splitFooterItemsIntoColumns } from "./publicFooterLinks.js";
 import { buildPublicFooterColumns } from "./promo/footerColumns.js";
@@ -50,7 +51,7 @@ function FooterItemList({ items, handoffToAuth }) {
               {item.label}
             </a>
           ) : footerItemIsLinked(item) ? (
-            <Link to={item.to}>{item.label}</Link>
+            <PromoHostLink to={item.to}>{item.label}</PromoHostLink>
           ) : (
             <span className="public-footer-item-disabled">{item.label}</span>
           )}
@@ -108,46 +109,46 @@ export default function PublicPageShell({ children }) {
   return (
     <div className={`public-shell${locale === "ja" ? " public-shell--ja" : ""}`}>
       <header className="public-nav">
-        <Link
+        <PromoHostLink
           to={pathFor("/")}
           className="public-nav-brand"
           aria-label={t("shell.brandAria")}
         >
           <Wordmark logo />
-        </Link>
+        </PromoHostLink>
         <div className="public-nav-end">
           <nav
             className={menuOpen ? "public-nav-links open" : "public-nav-links"}
             aria-label={t("shell.navAria")}
           >
-            <Link
+            <PromoHostLink
               className={active === "home" ? "public-nav-link active" : "public-nav-link"}
               to={pathFor("/")}
               onClick={() => setMenuOpen(false)}
             >
               {t("shell.navHome")}
-            </Link>
-            <Link
+            </PromoHostLink>
+            <PromoHostLink
               className={active === "features" ? "public-nav-link active" : "public-nav-link"}
               to={pathFor("/features")}
               onClick={() => setMenuOpen(false)}
             >
               {t("shell.navFeatures")}
-            </Link>
-            <Link
+            </PromoHostLink>
+            <PromoHostLink
               className={active === "how-it-works" ? "public-nav-link active" : "public-nav-link"}
               to={pathFor("/how-it-works")}
               onClick={() => setMenuOpen(false)}
             >
               {t("shell.navHowItWorks")}
-            </Link>
-            <Link
+            </PromoHostLink>
+            <PromoHostLink
               className={active === "pricing" ? "public-nav-link active" : "public-nav-link"}
               to={pathFor("/pricing")}
               onClick={() => setMenuOpen(false)}
             >
               {t("shell.navPricing")}
-            </Link>
+            </PromoHostLink>
             <a
               className="public-nav-link"
               href="/login"
@@ -189,13 +190,13 @@ export default function PublicPageShell({ children }) {
       <footer className="public-footer">
         <div className="public-footer-inner">
           <div className="public-footer-brand">
-            <Link
+            <PromoHostLink
               to={pathFor("/")}
               className="public-footer-brand-link"
               aria-label={t("shell.brandAria")}
             >
               <BrandPicture asset={brandLogoText} className="public-footer-logo-text" />
-            </Link>
+            </PromoHostLink>
             <p className="public-footer-tagline">{t("shell.footerTagline")}</p>
             <div className="public-footer-copy">
               <p className="public-footer-copy-line">

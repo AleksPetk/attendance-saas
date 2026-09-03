@@ -53,7 +53,7 @@ import {
   promoPathFor,
   resolveInitialPromoLocale,
 } from "./promo/locale.js";
-import { promoAuthRedirectUrl } from "./siteOrigins.js";
+import { canonicalHostRedirectUrl, resolvePromoHandoffUrl } from "./siteOrigins.js";
 import {
   canLaunchKiosk,
   canManageGroupConfiguration,
@@ -181,7 +181,20 @@ function isPublicMarketingPath(pathname) {
 
 function RedirectToPromoLocale({ logicalPath }) {
   const locale = resolveInitialPromoLocale("/");
-  return <Navigate to={promoPathFor(logicalPath, locale)} replace />;
+  const to = promoPathFor(logicalPath, locale);
+  const absolute = resolvePromoHandoffUrl(
+    to,
+    typeof window !== "undefined" ? window.location.origin : "",
+  );
+  useEffect(() => {
+    if (/^https?:\/\//i.test(absolute)) {
+      window.location.replace(absolute);
+    }
+  }, [absolute]);
+  if (/^https?:\/\//i.test(absolute)) {
+    return null;
+  }
+  return <Navigate to={to} replace />;
 }
 
 function PromoLocaleLayout({ locale }) {
@@ -256,13 +269,14 @@ function isPublicAuthPath(pathname) {
 }
 
 /**
- * Credentialed auth must not run on the promo host (no Allow-Credentials CORS).
- * Deep links like https://checkstation.app/login hard-redirect to workspace.
+ * Bidirectional host canonicalization:
+ * - Promo marketing on workspace.* → checkstation.app
+ * - Auth / workspace app on apex → workspace.checkstation.app
  */
-function PromoAuthHostRedirect() {
+function CanonicalHostRedirect() {
   const location = useLocation();
   useEffect(() => {
-    const target = promoAuthRedirectUrl(
+    const target = canonicalHostRedirectUrl(
       location.pathname,
       location.search,
       location.hash,
@@ -708,7 +722,7 @@ export default function App() {
 
   return (
     <BrowserRouter>
-      <PromoAuthHostRedirect />
+      <CanonicalHostRedirect />
       <SessionExpiryListener setSession={setSession} />
       <LanguageProvider
         session={session}
