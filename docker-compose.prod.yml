@@ -93,7 +93,7 @@ services:
       test:
         [
           "CMD-SHELL",
-          "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health/', timeout=5)\"",
+          "python -c \"import urllib.request; urllib.request.urlopen(urllib.request.Request('http://127.0.0.1:8000/api/health/', headers={'Host': 'backend'}), timeout=5)\"",
         ]
       interval: 10s
       timeout: 5s
