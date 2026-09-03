@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
-import { api, errorMessage } from "./api.js";
+import { useTranslation } from "react-i18next";
+import { api } from "./api.js";
 import { LoadingState } from "./components.jsx";
+import { localizedErrorMessage } from "./i18n/errorMessages.js";
 import {
   StaffGroupAccessPanel,
   assignedGroupIds,
@@ -12,6 +14,7 @@ import {
 } from "./staffGroupAccess.js";
 
 export default function StaffGroupAccessEditor({ staff, onClose, onSaved, onError }) {
+  const { t } = useTranslation(["staff", "errors"]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [items, setItems] = useState([]);
@@ -32,7 +35,7 @@ export default function StaffGroupAccessEditor({ staff, onClose, onSaved, onErro
         setItems(nextItems);
         setBaselineIds(assignedGroupIds(nextItems));
       } catch (e) {
-        if (!cancelled) onError(errorMessage(e));
+        if (!cancelled) onError(localizedErrorMessage(e, t));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -41,10 +44,10 @@ export default function StaffGroupAccessEditor({ staff, onClose, onSaved, onErro
     return () => {
       cancelled = true;
     };
-  }, [staff.id, onError]);
+  }, [staff.id, onError, t]);
 
   if (loading) {
-    return <LoadingState label="Loading group access…" />;
+    return <LoadingState label={t("staff:groupAccess.loading")} />;
   }
 
   return (
@@ -86,7 +89,7 @@ export default function StaffGroupAccessEditor({ staff, onClose, onSaved, onErro
             onClose,
           });
         } catch (e) {
-          onError(errorMessage(e));
+          onError(localizedErrorMessage(e, t));
         } finally {
           setSaving(false);
         }

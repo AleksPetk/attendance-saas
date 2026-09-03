@@ -1,14 +1,23 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { api, errorMessage } from "./api.js";
+import { builtinTrialOfferFromCatalog } from "./builtinTrialOffer.js";
 import { AuthLayout, ErrorBanner, Field, PasswordInput, usePasswordVisibility } from "./components.jsx";
 import RegistrationLegalViewer from "./RegistrationLegalViewer.jsx";
 import AuthProviderButtons, { AuthMethodDivider } from "./AuthProviderButtons.jsx";
-import { REGISTRATION_LEGAL_REQUIRED_MESSAGE } from "./ownerOAuthPublicUi.js";
+import { REGISTRATION_LEGAL_REQUIRED_MESSAGE_KEY } from "./ownerOAuthPublicUi.js";
+import { WorkspaceLanguageMenu } from "./i18n/LanguageSwitcher.jsx";
+import { useLanguage } from "./i18n/LanguageProvider.jsx";
 
 const LEGAL_DOCUMENTS = {
   terms: "terms-of-use",
   privacy: "privacy-policy",
+};
+
+const FALLBACK_TRIAL_CATALOG = {
+  builtin_trial_days: 7,
+  builtin_trial_offered: true,
 };
 
 function firstFieldError(error, name) {
@@ -17,39 +26,54 @@ function firstFieldError(error, name) {
   return typeof value === "string" ? value : "";
 }
 
-function RegistrationVisual() {
-  const benefits = ["Set up in minutes", "Customize every Group", "Run attendance from any device"];
-  const flow = ["People", "Groups", "Kiosk", "History"];
+function RegistrationVisual({ trialOffer }) {
+  const { t } = useTranslation("auth");
+  const benefits = [
+    { key: "setup", label: t("register.visual.benefits.setup") },
+    { key: "groups", label: t("register.visual.benefits.groups") },
+    { key: "devices", label: t("register.visual.benefits.devices") },
+  ];
+  const flow = [
+    { key: "members", label: t("register.visual.flow.members") },
+    { key: "groups", label: t("register.visual.flow.groups") },
+    { key: "kiosk", label: t("register.visual.flow.kiosk") },
+    { key: "history", label: t("register.visual.flow.history") },
+  ];
+  const days = trialOffer?.days || FALLBACK_TRIAL_CATALOG.builtin_trial_days;
 
   return (
     <div className="registration-visual-content">
       <Link to="/" className="registration-brand">CheckStation</Link>
       <div className="registration-visual-copy">
-        <span className="registration-eyebrow">Attendance that fits your workspace</span>
-        <h2>One workspace. Your attendance, your way.</h2>
+        <span className="registration-eyebrow">{t("register.visual.eyebrow")}</span>
+        <h2>{t("register.visual.headline")}</h2>
         <ul className="registration-benefits">
           {benefits.map((benefit) => (
-            <li key={benefit}><span aria-hidden="true">✓</span>{benefit}</li>
+            <li key={benefit.key}><span aria-hidden="true">✓</span>{benefit.label}</li>
           ))}
         </ul>
       </div>
-      <div className="registration-flow" aria-label="People connect to Groups, Kiosk, and History">
+      <div className="registration-flow" aria-label={t("register.visual.flowAriaLabel")}>
         {flow.map((step, index) => (
-          <div className="registration-flow-step" key={step}>
-            <span className="registration-flow-node">{step}</span>
+          <div className="registration-flow-step" key={step.key}>
+            <span className="registration-flow-node">{step.label}</span>
             {index < flow.length - 1 ? <span className="registration-flow-line" aria-hidden="true" /> : null}
           </div>
         ))}
       </div>
-      <div className="registration-free-copy">
-        <strong>Start free. No card required.</strong>
-        <span>Business features free for 7 days.</span>
-      </div>
+      {trialOffer?.offered ? (
+        <div className="registration-free-copy">
+          <strong>{t("register.visual.trialHeadline")}</strong>
+          <span>{t("register.visual.trialBody", { days })}</span>
+        </div>
+      ) : null}
     </div>
   );
 }
 
 export default function RegisterScreen() {
+  const { t } = useTranslation("auth");
+  const { locale } = useLanguage();
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -66,6 +90,29 @@ export default function RegisterScreen() {
   const [legalLoading, setLegalLoading] = useState(false);
   const [legalError, setLegalError] = useState("");
   const [legalReload, setLegalReload] = useState(0);
+  const [trialCatalog, setTrialCatalog] = useState(FALLBACK_TRIAL_CATALOG);
+  const trialOffer = builtinTrialOfferFromCatalog(trialCatalog);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadTrialCatalog() {
+      try {
+        const result = await api.getBillingCatalog();
+        if (!cancelled && result?.data) {
+          setTrialCatalog({
+            ...FALLBACK_TRIAL_CATALOG,
+            ...result.data,
+          });
+        }
+      } catch {
+        /* keep fallback */
+      }
+    }
+    loadTrialCatalog();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (!legalSlug) return undefined;
@@ -78,7 +125,7 @@ export default function RegisterScreen() {
         if (!cancelled) setLegalDocument(result.data);
       })
       .catch((err) => {
-        if (!cancelled) setLegalError(errorMessage(err) || "This document could not be loaded.");
+        if (!cancelled) setLegalError(errorMessage(err) || t("register.documentLoadError"));
       })
       .finally(() => {
         if (!cancelled) setLegalLoading(false);
@@ -86,7 +133,7 @@ export default function RegisterScreen() {
     return () => {
       cancelled = true;
     };
-  }, [legalSlug, legalReload]);
+  }, [legalSlug, legalReload, t]);
 
   function openLegalDocument(slug) {
     setLegalSlug(slug);
@@ -107,6 +154,7 @@ export default function RegisterScreen() {
         first_name: firstName,
         last_name: lastName,
         legal_acknowledgement: legalAcknowledgement,
+        locale,
       });
       navigate("/check-email", {
         replace: true,
@@ -134,18 +182,19 @@ export default function RegisterScreen() {
     <>
       <AuthLayout
         variant="register"
-        title="Create account"
-        lead="Register as the workspace owner. We’ll email you a verification link before you can use CheckStation."
-        visualContent={<RegistrationVisual />}
+        title={t("register.title")}
+        headerAction={<WorkspaceLanguageMenu />}
+        visualContent={<RegistrationVisual trialOffer={trialOffer} />}
         footnote={
           <p>
-            Already have an account? <Link to="/login">Sign in</Link>
+            {t("register.alreadyHave")}{" "}
+            <Link to="/login">{t("signIn")}</Link>
           </p>
         }
       >
         <form onSubmit={handleSubmit} className="auth-form">
           <div className="auth-fields">
-            <Field label="Email" error={fieldErrors.email}>
+            <Field label={t("fields.email")} error={fieldErrors.email}>
               <input
                 type="email"
                 value={email}
@@ -154,7 +203,7 @@ export default function RegisterScreen() {
                 autoComplete="email"
               />
             </Field>
-            <Field label="Password" error={fieldErrors.password}>
+            <Field label={t("fields.password")} error={fieldErrors.password}>
               <PasswordInput
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
@@ -164,7 +213,7 @@ export default function RegisterScreen() {
                 onVisibleChange={pairVisibility.setVisible}
               />
             </Field>
-            <Field label="Confirm password" error={fieldErrors.passwordConfirm}>
+            <Field label={t("fields.confirmPassword")} error={fieldErrors.passwordConfirm}>
               <PasswordInput
                 value={passwordConfirm}
                 onChange={(event) => setPasswordConfirm(event.target.value)}
@@ -174,10 +223,10 @@ export default function RegisterScreen() {
                 showToggle={false}
               />
             </Field>
-            <Field label="First name (optional)">
+            <Field label={t("fields.firstNameOptional")}>
               <input value={firstName} onChange={(event) => setFirstName(event.target.value)} autoComplete="given-name" />
             </Field>
-            <Field label="Last name (optional)">
+            <Field label={t("fields.lastNameOptional")}>
               <input value={lastName} onChange={(event) => setLastName(event.target.value)} autoComplete="family-name" />
             </Field>
           </div>
@@ -195,10 +244,10 @@ export default function RegisterScreen() {
                 required
               />
               <span id="registration-legal-consent-copy">
-                I agree to the{" "}
-                <button type="button" onClick={() => openLegalDocument(LEGAL_DOCUMENTS.terms)}>Terms of Use</button>{" "}
-                and acknowledge the{" "}
-                <button type="button" onClick={() => openLegalDocument(LEGAL_DOCUMENTS.privacy)}>Privacy Policy</button>.
+                {t("register.legalAgree")}{" "}
+                <button type="button" onClick={() => openLegalDocument(LEGAL_DOCUMENTS.terms)}>{t("register.termsOfUse")}</button>{" "}
+                {t("register.legalAcknowledge")}{" "}
+                <button type="button" onClick={() => openLegalDocument(LEGAL_DOCUMENTS.privacy)}>{t("register.privacyPolicy")}</button>
               </span>
             </div>
             {fieldErrors.legalAcknowledgement ? (
@@ -208,7 +257,7 @@ export default function RegisterScreen() {
 
           <ErrorBanner message={error} />
           <button type="submit" className="btn-primary btn-block" disabled={loading || !legalAcknowledgement}>
-            {loading ? "Creating account…" : "Create account"}
+            {loading ? t("creatingAccount") : t("createAccount")}
           </button>
           <AuthMethodDivider />
           <AuthProviderButtons
@@ -218,12 +267,12 @@ export default function RegisterScreen() {
             onLegalRequired={() => {
               setFieldErrors((current) => ({
                 ...current,
-                legalAcknowledgement: REGISTRATION_LEGAL_REQUIRED_MESSAGE,
+                legalAcknowledgement: t(REGISTRATION_LEGAL_REQUIRED_MESSAGE_KEY),
               }));
             }}
           />
           <p className="hint" style={{ textAlign: "center" }}>
-            Verify your email to create your workspace and start your free Business trial.
+            {t("register.verifyHint")}
           </p>
         </form>
       </AuthLayout>

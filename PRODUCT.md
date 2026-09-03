@@ -57,11 +57,11 @@ The public browser website is part of the product. It is **not** the Organizatio
 | Origin | Role |
 |--------|------|
 | `checkstation.app` | Promotional / marketing site: homepage, features, how-it-works, pricing, public Contact, registration entry point, marketing sitemap / `robots.txt` |
-| `workspace.checkstation.app` | Owner login, staff login, workspace UI, account/security, subscription/billing, password reset, email verification, Stripe and other account callback returns |
+| `workspace.checkstation.app` | Owner login, staff login, workspace UI, account/security, subscription/billing, password reset, email verification, Stripe and other account callback returns, and public API at `/api/...` |
 | `docs.checkstation.app` | Documentation home, Getting Started, Groups & Members, Kiosk Setup, Billing & Plans, FAQ, Privacy Policy, Terms of Use, Support |
 | `status.checkstation.app` | Standalone public Status page and public Status API |
 
-The production API hostname is **not** frozen (OPEN-029). Platform administration uses a dedicated private management origin that is not listed in public product navigation.
+The public API is **`https://workspace.checkstation.app/api/...`** (DEC-095). There is no `api.checkstation.app`. Platform administration intended hostname is `manager.checkstation.app` (not listed in public product navigation; may share Django `/admin/` until reverse-proxy split).
 
 **Public promotional site (unauthenticated) may include:**
 
@@ -543,10 +543,10 @@ Do **not** treat kiosks as a separately assigned workspace resource for plan lim
 | Plan | Monthly | Yearly |
 |------|---------|--------|
 | **Basic** | Free forever (ads) | Free forever (ads) |
-| **Plus** | USD $9.99 | USD $99.90 |
-| **Business** | USD $14.99 | USD $149.90 |
+| **Plus** | USD $9.99 | USD $99.99 |
+| **Business** | USD $14.99 | USD $149.99 |
 
-Yearly price = **10 × monthly** (effectively two months free). Both **monthly** and **yearly** are V1 billing intervals for paid plans, from launch. V1 currency is **USD**. The application must **not** invent its own proration arithmetic; the payment provider calculates amounts.
+Yearly list pricing provides approximately two months of savings compared with paying monthly for 12 months. Monthly and yearly amounts are explicit catalog values, not a multiplication rule. Both **monthly** and **yearly** are V1 billing intervals for paid plans, from launch. V1 currency is **USD**. The application must **not** invent its own proration arithmetic; the payment provider calculates amounts.
 
 Promotions are eligibility-based (DEC-091): New/Basic OFF/NORMAL/BIG acquisition; Plus Monthly annual switches (Plus Yearly 30% / Business Yearly 30%); Business Monthly → Business Yearly 30%; Plus Yearly and Business Yearly have no promotion. Permanent catalog prices above are never mutated. Clients read audience-aware promotion state from the billing catalog API.
 

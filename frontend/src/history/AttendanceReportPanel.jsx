@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { api, errorMessage } from "../api.js";
+import { useTranslation } from "react-i18next";
+import { api } from "../api.js";
 import {
   EmptyState,
   ErrorBanner,
-  Field,
   LoadingState,
   StatusBadge,
 } from "../components.jsx";
+import { localizedErrorMessage } from "../i18n/errorMessages.js";
 import { HistorySelect } from "./historyFormControls.jsx";
 import { browserReportTimezone } from "./reportTimezone.js";
 import { attendanceReportDownloadFilename } from "./attendanceReportCsv.js";
@@ -15,32 +16,29 @@ import {
   resetAttendanceReportMode,
 } from "./attendanceReportFilters.js";
 import {
+  validateAttendanceReportDateRange,
+} from "./attendanceReportDateRange.js";
+import AttendanceDatePicker from "./AttendanceDatePicker.jsx";
+import {
   canExportAnyReport,
   canExportReportFormat,
 } from "../workspaceEntitlements.js";
 
-const DATE_PRESETS = [
-  { value: "today", label: "Today" },
-  { value: "this_week", label: "This week" },
-  { value: "this_month", label: "This month" },
-  { value: "custom", label: "Custom range" },
+const DATE_PRESET_VALUES = ["today", "this_week", "this_month", "custom"];
+
+const EXPORT_FORMATS = [
+  { value: "pdf", labelKey: "report.export.pdf" },
+  { value: "xlsx", labelKey: "report.export.excel" },
+  { value: "csv", labelKey: "report.export.csv" },
 ];
 
-const EXPORT_OPTIONS = [
-  { value: "pdf", label: "PDF" },
-  { value: "xlsx", label: "Excel (.xlsx)" },
-  { value: "csv", label: "CSV" },
-];
-
-const PRESET_LABELS = {
-  today: "Today",
-  this_week: "This week",
-  this_month: "This month",
-};
-
-function groupOptionLabel(group) {
-  if (group.status === "archived") return `${group.name} (Archived)`;
-  if (group.status === "deleted") return `${group.name} (Deleted)`;
+function groupOptionLabel(group, t) {
+  if (group.status === "archived") {
+    return `${group.name} (${t("common:status.archived")})`;
+  }
+  if (group.status === "deleted") {
+    return `${group.name} (${t("common:status.deleted")})`;
+  }
   return group.name;
 }
 
@@ -49,8 +47,13 @@ function cellDisplay(value) {
   return value;
 }
 
-function reportPresetLabel(preset) {
-  return PRESET_LABELS[preset] || "";
+function reportPresetLabel(preset, t) {
+  const map = {
+    today: t("report.presets.today"),
+    this_week: t("report.presets.thisWeek"),
+    this_month: t("report.presets.thisMonth"),
+  };
+  return map[preset] || "";
 }
 
 function downloadBlob(blob, filename) {
@@ -86,6 +89,7 @@ function ExportIcon() {
 }
 
 export default function AttendanceReportPanel({ session }) {
+  const { t, i18n } = useTranslation(["history", "common", "errors"]);
   const [reportBy, setReportBy] = useState("group");
   const [members, setMembers] = useState([]);
   const [groups, setGroups] = useState([]);
@@ -107,14 +111,39 @@ export default function AttendanceReportPanel({ session }) {
   const [preset, setPreset] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [dateFromIssue, setDateFromIssue] = useState(null);
+  const [dateToIssue, setDateToIssue] = useState(null);
   const reportRequestIdRef = useRef(0);
   const reportTimezone = useMemo(() => browserReportTimezone(), []);
 
+  const datePresets = useMemo(
+    () =>
+      DATE_PRESET_VALUES.map((value) => ({
+        value,
+        label:
+          value === "today"
+            ? t("report.presets.today")
+            : value === "this_week"
+              ? t("report.presets.thisWeek")
+              : value === "this_month"
+                ? t("report.presets.thisMonth")
+                : t("report.presets.custom"),
+      })),
+    [t],
+  );
+
   const hasPrimarySelected = reportBy === "member" ? Boolean(memberId) : Boolean(sourceGroupId);
   const hasPresetSelected = Boolean(preset);
-  const customRangeIncomplete = preset === "custom" && (!dateFrom || !dateTo);
+  const customDateValidation = useMemo(
+    () => validateAttendanceReportDateRange(dateFrom, dateTo),
+    [dateFrom, dateTo],
+  );
+  const customRangeIncomplete =
+    preset === "custom" && customDateValidation.reason === "incomplete";
   const customRangeInvalid =
-    preset === "custom" && Boolean(dateFrom && dateTo && dateTo < dateFrom);
+    preset === "custom" && ["invalid", "order"].includes(customDateValidation.reason);
+  const customRangeOrderInvalid =
+    preset === "custom" && customDateValidation.reason === "order";
   const filtersReady =
     hasPrimarySelected &&
     hasPresetSelected &&
@@ -154,7 +183,7 @@ export default function AttendanceReportPanel({ session }) {
       if ("member_groups" in result.data) setMemberGroups(result.data.member_groups || []);
       if ("participants" in result.data) setParticipants(result.data.participants || []);
     } catch (err) {
-      setGroupsError(errorMessage(err));
+      setGroupsError(localizedErrorMessage(err, t));
     } finally {
       setLoadingGroups(false);
     }
@@ -174,7 +203,7 @@ export default function AttendanceReportPanel({ session }) {
     } catch (err) {
       if (requestId !== reportRequestIdRef.current) return;
       setReport(null);
-      setError(errorMessage(err));
+      setError(localizedErrorMessage(err, t));
     } finally {
       if (requestId === reportRequestIdRef.current) {
         setLoadingReport(false);
@@ -239,7 +268,7 @@ export default function AttendanceReportPanel({ session }) {
     setExportOpen(false);
     setExportError("");
     if (!canExport) {
-      setExportError("Choose report filters with attendance data before exporting.");
+      setExportError(t("report.export.filtersRequired"));
       return;
     }
     setExporting(true);
@@ -249,7 +278,7 @@ export default function AttendanceReportPanel({ session }) {
       const fallbackName = attendanceReportDownloadFilename(report, exportFormat);
       downloadBlob(result.blob, result.filename || fallbackName);
     } catch (err) {
-      setExportError(errorMessage(err) || "Could not export this report.");
+      setExportError(localizedErrorMessage(err, t) || t("report.export.failed"));
     } finally {
       setExporting(false);
     }
@@ -260,6 +289,8 @@ export default function AttendanceReportPanel({ session }) {
     if (nextPreset !== "custom") {
       setDateFrom("");
       setDateTo("");
+      setDateFromIssue(null);
+      setDateToIssue(null);
     }
   }
 
@@ -293,7 +324,13 @@ export default function AttendanceReportPanel({ session }) {
   const showNoGroups = !loadingGroups && (reportBy === "group" ? groups.length === 0 : members.length === 0);
   const showNoAttendance =
     !loadingGroups && !loadingReport && filtersReady && report && !hasSections;
-  const presetCaption = report ? reportPresetLabel(report.date_preset) : "";
+  const presetCaption = report ? reportPresetLabel(report.date_preset, t) : "";
+
+  const exportButtonTitle = !exportsAllowed
+    ? t("report.export.planRequiredTitle")
+    : canExport
+      ? t("report.export.readyTitle")
+      : t("report.export.disabledTitle");
 
   return (
     <div className="history-panel attendance-report-panel">
@@ -308,41 +345,42 @@ export default function AttendanceReportPanel({ session }) {
         >
           <HistorySelect
             id="attendance-report-mode"
-            label="Report by"
+            label={t("report.reportBy")}
             value={reportBy}
             onChange={(e) => handleModeChange(e.target.value)}
           >
-            <option value="member">Member</option>
-            <option value="group">Group</option>
+            <option value="member">{t("report.member")}</option>
+            <option value="group">{t("report.group")}</option>
           </HistorySelect>
 
           {reportBy === "member" ? (
             <>
               <HistorySelect
                 id="attendance-report-member"
-                label="Member"
+                label={t("report.member")}
                 value={memberId}
-                placeholder="Select a Member"
+                placeholder={t("report.selectMember")}
                 disabled={loadingGroups || members.length === 0}
                 onChange={(e) => handleMemberChange(e.target.value)}
               >
                 {members.map((member) => (
                   <option key={member.id} value={member.id}>
-                    {member.name}{member.status === "archived" ? " (Archived)" : ""}
+                    {member.name}
+                    {member.status === "archived" ? ` (${t("common:status.archived")})` : ""}
                   </option>
                 ))}
               </HistorySelect>
               <HistorySelect
                 id="attendance-report-member-group"
-                label="Group (optional)"
+                label={t("report.groupOptional")}
                 value={sourceGroupId}
                 disabled={!memberId}
                 onChange={(e) => handleGroupChange(e.target.value)}
               >
-                <option value="">All member Groups</option>
+                <option value="">{t("report.allMemberGroups")}</option>
                 {memberGroups.map((group) => (
                   <option key={group.source_group_id} value={group.source_group_id}>
-                    {groupOptionLabel(group)}
+                    {groupOptionLabel(group, t)}
                   </option>
                 ))}
               </HistorySelect>
@@ -351,29 +389,33 @@ export default function AttendanceReportPanel({ session }) {
             <>
               <HistorySelect
                 id="attendance-report-group"
-                label="Group"
+                label={t("report.group")}
                 value={sourceGroupId}
-                placeholder="Select a Group"
+                placeholder={t("report.selectGroup")}
                 disabled={loadingGroups || groups.length === 0}
                 onChange={(e) => handleGroupChange(e.target.value)}
               >
                 {groups.map((group) => (
                   <option key={group.source_group_id} value={group.source_group_id}>
-                    {groupOptionLabel(group)}
+                    {groupOptionLabel(group, t)}
                   </option>
                 ))}
               </HistorySelect>
               <HistorySelect
                 id="attendance-report-participant"
-                label="Participant (optional)"
+                label={t("report.participantOptional")}
                 value={participantSelection}
                 disabled={!sourceGroupId}
                 onChange={(e) => setParticipantSelection(e.target.value)}
               >
-                <option value="">All participants</option>
+                <option value="">{t("report.allParticipants")}</option>
                 {participants.map((participant) => (
-                  <option key={`${participant.kind}:${participant.id}`} value={`${participant.kind}:${participant.id}`}>
-                    {participant.name}{participant.participant_code ? ` · ${participant.participant_code}` : ""}
+                  <option
+                    key={`${participant.kind}:${participant.id}`}
+                    value={`${participant.kind}:${participant.id}`}
+                  >
+                    {participant.name}
+                    {participant.participant_code ? ` · ${participant.participant_code}` : ""}
                   </option>
                 ))}
               </HistorySelect>
@@ -382,12 +424,12 @@ export default function AttendanceReportPanel({ session }) {
 
           <HistorySelect
             id="attendance-report-preset"
-            label="Date range"
+            label={t("report.dateRange")}
             value={preset}
-            placeholder="Select date range"
+            placeholder={t("report.selectDateRange")}
             onChange={(e) => handlePresetChange(e.target.value)}
           >
-            {DATE_PRESETS.map((opt) => (
+            {datePresets.map((opt) => (
               <option key={opt.value} value={opt.value}>
                 {opt.label}
               </option>
@@ -396,22 +438,33 @@ export default function AttendanceReportPanel({ session }) {
 
           {preset === "custom" ? (
             <>
-              <Field label="From" className="history-field">
-                <input
-                  className="history-input"
-                  type="date"
-                  value={dateFrom}
-                  onChange={(e) => setDateFrom(e.target.value)}
-                />
-              </Field>
-              <Field label="To" className="history-field">
-                <input
-                  className="history-input"
-                  type="date"
-                  value={dateTo}
-                  onChange={(e) => setDateTo(e.target.value)}
-                />
-              </Field>
+              <AttendanceDatePicker
+                id="attendance-report-date-from"
+                label={t("report.from")}
+                value={dateFrom}
+                fallbackValue={dateTo}
+                issue={dateFromIssue}
+                locale={i18n.language}
+                t={t}
+                onCommit={setDateFrom}
+                onIssue={setDateFromIssue}
+              />
+              <AttendanceDatePicker
+                id="attendance-report-date-to"
+                label={t("report.to")}
+                value={dateTo}
+                fallbackValue={dateFrom}
+                issue={dateToIssue}
+                rangeError={
+                  customRangeOrderInvalid
+                    ? t("report.filtersEmpty.dateRangeInvalid")
+                    : ""
+                }
+                locale={i18n.language}
+                t={t}
+                onCommit={setDateTo}
+                onIssue={setDateToIssue}
+              />
             </>
           ) : null}
         </div>
@@ -427,9 +480,7 @@ export default function AttendanceReportPanel({ session }) {
               className={`export-menu-trigger${exportsAllowed ? "" : " is-plan-locked"}`}
               onClick={() => {
                 if (!exportsAllowed) {
-                  setExportError(
-                    "CSV, Excel, and PDF export require Plus or Business.",
-                  );
+                  setExportError(t("report.export.planRequired"));
                   return;
                 }
                 setExportOpen((open) => !open);
@@ -438,17 +489,15 @@ export default function AttendanceReportPanel({ session }) {
               aria-haspopup="menu"
               aria-expanded={exportOpen}
               aria-disabled={exportsAllowed ? !canExport : false}
-              title={
-                !exportsAllowed
-                  ? "Report export requires Plus or Business"
-                  : canExport
-                    ? "Export the currently visible attendance report"
-                    : "Select report filters and a date range to enable export"
-              }
+              title={exportButtonTitle}
             >
               <ExportIcon />
               <span>
-                {exporting ? "Exporting…" : exportsAllowed ? "Export" : "Export locked"}
+                {exporting
+                  ? t("report.export.exporting")
+                  : exportsAllowed
+                    ? t("report.export.label")
+                    : t("report.export.locked")}
               </span>
               <span className="export-menu-caret" aria-hidden="true">
                 ▾
@@ -456,52 +505,58 @@ export default function AttendanceReportPanel({ session }) {
             </button>
             {exportOpen && canExport ? (
               <div className="export-menu-panel" role="menu">
-                {EXPORT_OPTIONS.filter((opt) => canExportReportFormat(session, opt.value)).map(
+                {EXPORT_FORMATS.filter((opt) => canExportReportFormat(session, opt.value)).map(
                   (opt) => (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    role="menuitem"
-                    className="export-menu-item"
-                    onClick={() => handleExport(opt.value)}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
+                    <button
+                      key={opt.value}
+                      type="button"
+                      role="menuitem"
+                      className="export-menu-item"
+                      onClick={() => handleExport(opt.value)}
+                    >
+                      {t(opt.labelKey)}
+                    </button>
+                  ),
+                )}
               </div>
             ) : null}
           </div>
         </div>
       </div>
 
-      {loadingGroups ? <LoadingState label="Loading groups…" /> : null}
+      {loadingGroups ? <LoadingState label={t("report.loadingGroups")} /> : null}
 
-      {loadingReport ? <LoadingState label="Generating attendance report…" /> : null}
+      {loadingReport ? <LoadingState label={t("report.generating")} /> : null}
 
       {showNoGroups ? (
         <EmptyState
-          title={reportBy === "member" ? "No Members available" : "No Groups available"}
-          body={reportBy === "member" ? "Create a reusable Member to report their attendance." : "Create a Group and record attendance actions to build reports."}
+          title={
+            reportBy === "member" ? t("report.noMembers.title") : t("report.noGroups.title")
+          }
+          body={
+            reportBy === "member" ? t("report.noMembers.body") : t("report.noGroups.body")
+          }
         />
       ) : null}
 
       {showFiltersEmpty ? (
         <div className="attendance-report-empty card-surface">
-          <p className="attendance-report-empty-title">No report yet</p>
+          <p className="attendance-report-empty-title">{t("report.filtersEmpty.title")}</p>
           <p className="attendance-report-empty-body">
-            Choose a {reportBy === "member" ? "Member" : "Group"} and date range to generate an attendance report.
+            {reportBy === "member"
+              ? t("report.filtersEmpty.bodyMember")
+              : t("report.filtersEmpty.bodyGroup")}
           </p>
-          {customRangeInvalid ? (
-            <p className="attendance-report-empty-hint">To date must be on or after From date.</p>
+          {customRangeOrderInvalid ? (
+            <p className="attendance-report-empty-hint">
+              {t("report.filtersEmpty.dateRangeInvalid")}
+            </p>
           ) : null}
         </div>
       ) : null}
 
       {showNoAttendance ? (
-        <EmptyState
-          title="No attendance in this range"
-          body="Try different report filters or dates. Reports only include days with Action Records."
-        />
+        <EmptyState title={t("report.noAttendance.title")} body={t("report.noAttendance.body")} />
       ) : null}
 
       {!loadingGroups && !loadingReport && hasSections ? (
@@ -514,15 +569,15 @@ export default function AttendanceReportPanel({ session }) {
                   <StatusBadge status={report.group_status} />
                 ) : null}
               </div>
-              <p className="attendance-report-kicker">Attendance Report</p>
+              <p className="attendance-report-kicker">{t("report.header.kicker")}</p>
               <p className="attendance-report-context">
                 {report.report_by === "member"
                   ? report.source_group_id
-                    ? `Group: ${report.group_name}`
-                    : "Groups: All member Groups"
+                    ? t("report.header.group", { name: report.group_name })
+                    : t("report.header.allMemberGroups")
                   : report.participant
-                    ? `Participant: ${report.participant.name}`
-                    : "Participants: All"}
+                    ? t("report.header.participant", { name: report.participant.name })
+                    : t("report.header.allParticipants")}
               </p>
               {presetCaption && report.date_preset !== "custom" ? (
                 <p className="attendance-report-preset">{presetCaption}</p>
@@ -538,9 +593,13 @@ export default function AttendanceReportPanel({ session }) {
                 <table className="attendance-report-table">
                   <thead>
                     <tr>
-                      {report.show_group_column ? <th scope="col">Group</th> : null}
-                      {(report.show_class_column ?? showClassColumn) ? <th scope="col">Class</th> : null}
-                      <th scope="col">Name</th>
+                      {report.show_group_column ? (
+                        <th scope="col">{t("report.table.group")}</th>
+                      ) : null}
+                      {(report.show_class_column ?? showClassColumn) ? (
+                        <th scope="col">{t("report.table.class")}</th>
+                      ) : null}
+                      <th scope="col">{t("report.table.name")}</th>
                       {columns.map((col) => (
                         <th key={col.key} scope="col">
                           {col.label}
@@ -553,7 +612,9 @@ export default function AttendanceReportPanel({ session }) {
                       <tr key={`${section.date}-${row.participant_key}`}>
                         {report.show_group_column ? <td>{row.group_name}</td> : null}
                         {(report.show_class_column ?? showClassColumn) ? (
-                          <td className="attendance-report-class">{row.class_name || "Unknown Class"}</td>
+                          <td className="attendance-report-class">
+                            {row.class_name || t("report.table.unknownClass")}
+                          </td>
                         ) : null}
                         <th scope="row">{row.name}</th>
                         {columns.map((col) => (

@@ -1,15 +1,17 @@
+import i18n from "./i18n/index.js";
+
 export function formatGroupId(id) {
   if (id == null || id === "") {
     return "";
   }
-  return `Group #${id}`;
+  return i18n.t("groups:form.groupId", { id });
 }
 
 export function formatClassId(id) {
   if (id == null || id === "") {
     return "";
   }
-  return `Class #${id}`;
+  return i18n.t("groups:form.classId", { id });
 }
 
 export function isStructuredGroup(group) {
@@ -17,7 +19,9 @@ export function isStructuredGroup(group) {
 }
 
 export function groupTypeLabel(group) {
-  return isStructuredGroup(group) ? "Structured Group" : "Standard Group";
+  return isStructuredGroup(group)
+    ? i18n.t("groups:type.structured")
+    : i18n.t("groups:type.standard");
 }
 
 export function groupStatusLabel(group) {
@@ -25,12 +29,12 @@ export function groupStatusLabel(group) {
     return "";
   }
   if (group.status === "archived") {
-    return "Archived";
+    return i18n.t("groups:status.archived");
   }
   if (group.readiness && !group.readiness.setup_complete) {
-    return "Setup incomplete";
+    return i18n.t("groups:status.setupIncomplete");
   }
-  return "Active";
+  return i18n.t("groups:status.active");
 }
 
 export function setupIncompleteSummary(readiness) {
@@ -40,24 +44,47 @@ export function setupIncompleteSummary(readiness) {
   const parts = [];
   if (readiness.missing_class_pin_count) {
     parts.push(
-      `${readiness.missing_class_pin_count} Class${readiness.missing_class_pin_count === 1 ? "" : "es"} need a PIN`
+      i18n.t("groups:readiness.missingClassPin", {
+        count: readiness.missing_class_pin_count,
+      }),
     );
   }
   if (
     typeof readiness.launchable_class_count === "number" &&
     readiness.launchable_class_count === 0
   ) {
-    parts.push("Add at least one Class with participants before launching the kiosk");
+    parts.push(i18n.t("groups:readiness.noLaunchableClass"));
   }
   if (readiness.missing_pin_count) {
     parts.push(
-      `${readiness.missing_pin_count} participant${readiness.missing_pin_count === 1 ? "" : "s"} need a PIN`
+      i18n.t("groups:readiness.missingPin", {
+        count: readiness.missing_pin_count,
+      }),
     );
   }
   if (readiness.missing_email_count) {
     parts.push(
-      `${readiness.missing_email_count} participant${readiness.missing_email_count === 1 ? "" : "s"} need an email`
+      i18n.t("groups:readiness.missingEmail", {
+        count: readiness.missing_email_count,
+      }),
     );
   }
   return parts.join(" · ");
+}
+
+export function actionSummary(actions) {
+  if (!actions) {
+    return i18n.t("groups:actions.noneConfigured");
+  }
+  const parts = [];
+  if (actions.check_in_enabled) {
+    parts.push(i18n.t("groups:actions.checkIn"));
+  }
+  if (actions.check_out_enabled) {
+    parts.push(i18n.t("groups:actions.checkOut"));
+  }
+  if (actions.breaks_enabled) {
+    parts.push(i18n.t("groups:actions.breaksMax", { max: actions.max_breaks || 1 }));
+  }
+  return parts.length ? parts.join(" · ") : i18n.t("groups:actions.noneCheckInOutBreak");
 }

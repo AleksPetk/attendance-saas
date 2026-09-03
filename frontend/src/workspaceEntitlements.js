@@ -1,5 +1,7 @@
 /** Plan entitlement helpers — UI hints only; backend remains authoritative. */
 
+import i18n from "./i18n/index.js";
+
 export function entitlementsFromSession(session) {
   return session?.workspace?.entitlements || null;
 }
@@ -46,7 +48,12 @@ export function groupsCapacityCaption(session, limitKey, recordLabel) {
   const unlocked = planUsageValue(session, limitKey);
   const limit = planLimitValue(session, limitKey);
   if (total == null || unlocked == null || limit == null) return "";
-  return `${total} ${recordLabel} · ${unlocked} of ${limit} available`;
+  return i18n.t("entitlements:capacity.recordsAvailable", {
+    total,
+    unlocked,
+    limit,
+    recordWord: total === 1 ? i18n.t("entitlements:capacity.record") : i18n.t("entitlements:capacity.records"),
+  });
 }
 
 export function selectionRequired(session, kind) {
@@ -64,7 +71,7 @@ export function planLocksFromSession(session) {
 
 export function formatUsageLimit(usage, limit) {
   if (usage == null || limit == null) return "";
-  return `${usage} of ${limit}`;
+  return i18n.t("entitlements:usageOf", { usage, limit });
 }
 
 export function usageLimitCaption(session, limitKey, label) {
@@ -127,17 +134,19 @@ export function workspaceRequiresAds(session) {
   return hasPlanFeature(session, "ads_required");
 }
 
-export const USAGE_LABELS = {
-  active_standard_groups: "Standard Groups",
-  active_structured_groups: "Structured Groups",
-  archived_groups: "Archived Groups",
-  members: "Members",
-  workspace_admins: "Workspace Admins",
-  workspace_staff: "Workspace Staff",
-  participants_per_standard_group: "Participants per Standard Group",
-  classes_per_structured_group: "Classes per Structured Group",
-  participants_per_class: "Participants per Class",
-};
+export function usageLabel(limitKey) {
+  return i18n.t(`entitlements:usageLabels.${limitKey}`, { defaultValue: limitKey });
+}
+
+export const USAGE_LABELS = new Proxy(
+  {},
+  {
+    get(_target, prop) {
+      if (typeof prop !== "string") return undefined;
+      return usageLabel(prop);
+    },
+  },
+);
 
 export function subscriptionUsageRows(entitlements) {
   if (!entitlements?.limits || !entitlements?.usage) return [];
@@ -162,7 +171,10 @@ export function subscriptionUsageRows(entitlements) {
   const rows = [
     {
       key: "active_standard_groups",
-      label: planKey === "business" ? "Standard Groups" : "Groups",
+      label:
+        planKey === "business"
+          ? usageLabel("active_standard_groups")
+          : usageLabel("groups"),
     },
   ];
   const showStructured =
@@ -171,11 +183,11 @@ export function subscriptionUsageRows(entitlements) {
     lockedFor("active_structured_groups") > 0 ||
     Number(totals.active_structured_groups || 0) > 0;
   if (showStructured) {
-    rows.push({ key: "active_structured_groups", label: "Structured Groups" });
+    rows.push({ key: "active_structured_groups", label: usageLabel("active_structured_groups") });
   }
   rows.push(
-    { key: "archived_groups", label: "Archived Groups" },
-    { key: "members", label: "Members" },
+    { key: "archived_groups", label: usageLabel("archived_groups") },
+    { key: "members", label: usageLabel("members") },
   );
   const showStaff =
     Boolean(entitlements.features?.staff_management) ||
@@ -185,8 +197,8 @@ export function subscriptionUsageRows(entitlements) {
     Number(totals.workspace_staff || 0) > 0;
   if (showStaff) {
     rows.push(
-      { key: "workspace_admins", label: "Workspace Admins" },
-      { key: "workspace_staff", label: "Workspace Staff" },
+      { key: "workspace_admins", label: usageLabel("workspace_admins") },
+      { key: "workspace_staff", label: usageLabel("workspace_staff") },
     );
   }
   return rows
@@ -198,15 +210,28 @@ export function subscriptionUsageRows(entitlements) {
       const limit = entitlements.limits[key];
       if (typeof total !== "number" || typeof limit !== "number") return null;
       const hasLockState = locked > 0 || total !== unlocked;
-      let display = `${total} / ${limit}`;
+      let display = i18n.t("entitlements:usageOf", { usage: total, limit });
       let limitNote = null;
       if (hasLockState) {
-        const recordWord = total === 1 ? "record" : "records";
+        const recordWord =
+          total === 1
+            ? i18n.t("entitlements:capacity.record")
+            : i18n.t("entitlements:capacity.records");
         display =
           locked > 0
-            ? `${total} ${recordWord} · ${unlocked} available · ${locked} plan locked`
-            : `${total} ${recordWord} · ${unlocked} of ${limit} available`;
-        limitNote = `Limit: ${limit}`;
+            ? i18n.t("entitlements:capacity.recordsLocked", {
+                total,
+                recordWord,
+                unlocked,
+                locked,
+              })
+            : i18n.t("entitlements:capacity.recordsAvailable", {
+                total,
+                recordWord,
+                unlocked,
+                limit,
+              });
+        limitNote = i18n.t("entitlements:capacity.limit", { limit });
       }
       return {
         key,

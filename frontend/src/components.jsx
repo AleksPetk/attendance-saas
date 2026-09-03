@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { brandLogoText } from "./assets/brand/brandLogo.js";
 
@@ -35,6 +36,13 @@ export function Wordmark({ subtitle, className = "", logo = false, name = "Check
 /* ------------------------------------------------------------------ */
 
 export function ConnectionVisual({ className = "" }) {
+  const { t } = useTranslation("workspace");
+  const labels = [
+    t("authVisual.members"),
+    t("authVisual.groups"),
+    t("authVisual.kiosk"),
+    t("authVisual.history"),
+  ];
   return (
     <div className={`connection-visual ${className}`.trim()} aria-hidden="true">
       <svg viewBox="0 0 400 320" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -71,10 +79,9 @@ export function ConnectionVisual({ className = "" }) {
         <rect x="275" y="55" width="70" height="36" rx="8" fill="rgba(34,197,94,0.1)" stroke="rgba(34,197,94,0.2)" />
       </svg>
       <div className="connection-labels">
-        <span>Members</span>
-        <span>Groups</span>
-        <span>Kiosk</span>
-        <span>History</span>
+        {labels.map((label) => (
+          <span key={label}>{label}</span>
+        ))}
       </div>
     </div>
   );
@@ -91,26 +98,36 @@ export function AuthLayout({
   children,
   variant = "owner",
   visualContent = null,
+  headerAction = null,
 }) {
+  const { t } = useTranslation("workspace");
+  const { t: tCommon } = useTranslation("common");
   return (
     <div className={`auth-page auth-page-${variant}`}>
       <div className="auth-page-visual">
         {visualContent || (
           <>
             <Link to="/" className="auth-page-brand">
-              <Wordmark subtitle="Configurable check-in platform" />
+              <Wordmark subtitle={t("authVisual.brandTagline")} name={tCommon("productName")} />
             </Link>
             <ConnectionVisual className="auth-connection" />
             <p className="auth-page-tagline">
-              Connect Members, Groups, kiosks, and history in one workspace.
+              {t("authVisual.brandLead")}
             </p>
           </>
         )}
       </div>
       <div className="auth-page-form-wrap">
         <div className="auth-card">
-          <header className="auth-header">
-            <h1>{title}</h1>
+          <header className={`auth-header${headerAction ? " has-action" : ""}`}>
+            {headerAction ? (
+              <div className="auth-header-title-row">
+                <h1>{title}</h1>
+                <div className="auth-header-action">{headerAction}</div>
+              </div>
+            ) : (
+              <h1>{title}</h1>
+            )}
             {lead ? <p className="auth-lead">{lead}</p> : null}
           </header>
           {children}
@@ -190,12 +207,14 @@ export function ConfirmDialog({
   title,
   body,
   confirmLabel,
-  cancelLabel = "Cancel",
+  cancelLabel,
   danger = false,
   busy = false,
   onCancel,
   onConfirm,
 }) {
+  const { t } = useTranslation("common");
+  const resolvedCancel = cancelLabel ?? t("cancel");
   return (
     <div className="confirm-modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
       <div className="confirm-modal">
@@ -203,7 +222,7 @@ export function ConfirmDialog({
         <p>{body}</p>
         <div className="confirm-modal-actions">
           <button type="button" className="btn-secondary" onClick={onCancel} disabled={busy}>
-            {cancelLabel}
+            {resolvedCancel}
           </button>
           <button
             type="button"
@@ -211,7 +230,7 @@ export function ConfirmDialog({
             onClick={onConfirm}
             disabled={busy}
           >
-            {busy ? "Working…" : confirmLabel}
+            {busy ? t("confirmDialog.working") : confirmLabel}
           </button>
         </div>
       </div>
@@ -259,14 +278,16 @@ export function EmptyState({ title, body, action, icon }) {
 /* ------------------------------------------------------------------ */
 
 export function ActionBadge({ action }) {
+  const { t } = useTranslation("common");
   const map = {
-    check_in: { label: "Check-in", className: "action-check-in" },
-    check_out: { label: "Check-out", className: "action-check-out" },
-    break_start: { label: "Break start", className: "action-break" },
-    break_end: { label: "Break end", className: "action-break" },
+    check_in: { labelKey: "actions.checkIn", className: "action-check-in" },
+    check_out: { labelKey: "actions.checkOut", className: "action-check-out" },
+    break_start: { labelKey: "actions.breakStart", className: "action-break" },
+    break_end: { labelKey: "actions.breakEnd", className: "action-break" },
   };
-  const info = map[action] || { label: action, className: "action-default" };
-  return <span className={`action-badge ${info.className}`}>{info.label}</span>;
+  const info = map[action] || { labelKey: null, className: "action-default" };
+  const label = info.labelKey ? t(info.labelKey) : action;
+  return <span className={`action-badge ${info.className}`}>{label}</span>;
 }
 
 export function Badge({ children, variant = "default" }) {
@@ -326,14 +347,18 @@ export function PlanHint({ plan, children }) {
 }
 
 export function StatusBadge({ status, children }) {
-  const label = children || {
-    active: "Active",
-    archived: "Archived",
-    deleted: "Deleted",
-    inactive: "Inactive",
-    "group-only": "Group-only",
-    setup_incomplete: "Setup incomplete",
-  }[status] || status;
+  const { t } = useTranslation("common");
+  const label =
+    children ||
+    {
+      active: t("status.active"),
+      archived: t("status.archived"),
+      deleted: t("status.deleted"),
+      inactive: t("status.inactive"),
+      "group-only": t("status.groupOnly"),
+      setup_incomplete: t("status.setupIncomplete"),
+    }[status] ||
+    status;
   return <span className={`status-badge ${status}`}>{label}</span>;
 }
 
@@ -379,11 +404,12 @@ export function EditableProfilePhoto({
   onRemove,
   disabled = false,
 }) {
+  const { t } = useTranslation("common");
   const rootRef = useRef(null);
   const inputRef = useRef(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const hasPhoto = Boolean(url);
-  const label = hasPhoto ? "Edit profile photo" : "Add profile photo";
+  const label = hasPhoto ? t("editProfilePhoto") : t("addProfilePhoto");
 
   useEffect(() => {
     if (!menuOpen) {
@@ -458,7 +484,7 @@ export function EditableProfilePhoto({
       {menuOpen ? (
         <div className="profile-photo-edit-menu" role="menu">
           <button type="button" role="menuitem" onClick={openPicker}>
-            Change photo
+            {t("changePhoto")}
           </button>
           <button
             type="button"
@@ -468,7 +494,7 @@ export function EditableProfilePhoto({
               onRemove();
             }}
           >
-            Remove photo
+            {t("removePhoto")}
           </button>
         </div>
       ) : null}
@@ -543,6 +569,7 @@ export function PasswordInput({
   className = "",
   ...props
 }) {
+  const { t } = useTranslation("common");
   const [uncontrolledVisible, setUncontrolledVisible] = useState(false);
   const isControlled = typeof visible === "boolean";
   const isVisible = isControlled ? visible : uncontrolledVisible;
@@ -568,7 +595,7 @@ export function PasswordInput({
         <button
           type="button"
           className="password-toggle"
-          aria-label={isVisible ? "Hide password" : "Show password"}
+          aria-label={isVisible ? t("hidePassword") : t("showPassword")}
           aria-pressed={isVisible}
           onMouseDown={(event) => event.preventDefault()}
           onClick={() => setNextVisible(!isVisible)}
@@ -608,11 +635,13 @@ export function FormSection({ title, description, children }) {
   );
 }
 
-export function LoadingState({ label = "Loading…" }) {
+export function LoadingState({ label }) {
+  const { t } = useTranslation("common");
+  const resolvedLabel = label ?? t("loading");
   return (
     <div className="loading-state" role="status">
       <span className="loading-spinner" aria-hidden="true" />
-      <span>{label}</span>
+      <span>{resolvedLabel}</span>
     </div>
   );
 }
@@ -621,7 +650,9 @@ export function CodeBadge({ children }) {
   return <code className="code-badge">{children}</code>;
 }
 
-export function CopyButton({ value, label = "Copy" }) {
+export function CopyButton({ value, label }) {
+  const { t } = useTranslation("common");
+  const resolvedLabel = label ?? t("copy");
   const [copied, setCopied] = useState(false);
 
   async function handleCopy() {
@@ -636,7 +667,7 @@ export function CopyButton({ value, label = "Copy" }) {
 
   return (
     <button type="button" className="btn-secondary btn-sm copy-btn" onClick={handleCopy}>
-      {copied ? "Copied!" : label}
+      {copied ? t("copied") : resolvedLabel}
     </button>
   );
 }

@@ -81,7 +81,7 @@ class WorkspaceSubscription(models.Model):
     currency = models.CharField(
         max_length=3,
         default="usd",
-        help_text="V1 catalog currency is USD. Stored lowercase ISO-like code.",
+        help_text="Provider billing currency (usd or jpy), stored lowercase.",
     )
     current_period_start = models.DateTimeField(null=True, blank=True)
     current_period_end = models.DateTimeField(null=True, blank=True)
@@ -170,6 +170,14 @@ class WorkspaceSubscription(models.Model):
             models.Index(fields=["status", "current_period_end"]),
             models.Index(fields=["status", "trial_ends_at"]),
             models.Index(fields=["status", "payment_grace_deadline"]),
+            models.Index(
+                fields=["external_customer_id"],
+                name="billing_ws_ext_cust_idx",
+            ),
+            models.Index(
+                fields=["external_subscription_id"],
+                name="billing_ws_ext_sub_idx",
+            ),
         ]
 
     def __str__(self):
@@ -179,6 +187,7 @@ class WorkspaceSubscription(models.Model):
 
 class ProviderEventStatus(models.TextChoices):
     RECEIVED = "received", "Received"
+    PROCESSING = "processing", "Processing"
     PROCESSED = "processed", "Processed"
     IGNORED = "ignored", "Ignored"
     FAILED = "failed", "Failed"
@@ -196,6 +205,7 @@ class ProviderEvent(models.Model):
         default=ProviderEventStatus.RECEIVED,
     )
     error_summary = models.CharField(max_length=255, blank=True, default="")
+    processing_started_at = models.DateTimeField(null=True, blank=True)
     processed_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 

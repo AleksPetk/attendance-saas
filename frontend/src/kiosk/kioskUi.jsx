@@ -1,4 +1,6 @@
 import { errorMessage } from "../api.js";
+import i18n from "../i18n/index.js";
+import { useTranslation } from "react-i18next";
 
 export {
   KioskPersonAvatar,
@@ -7,31 +9,33 @@ export {
   PHOTO_CAPABLE_CARD_TEMPLATE_IDS,
 } from "./kioskParticipantAvatar.jsx";
 
+const ACTION_LABEL_KEYS = {
+  check_in: "actions.checkIn",
+  check_out: "actions.checkOut",
+  break_start: "actions.breakStart",
+  break_end: "actions.breakEnd",
+};
+
 export function actionLabel(action) {
-  const map = {
-    check_in: "Check in",
-    check_out: "Check out",
-    break_start: "Start break",
-    break_end: "End break",
-  };
-  return map[action] || action;
+  const key = ACTION_LABEL_KEYS[action];
+  return key ? i18n.t(`kiosk:${key}`) : action;
 }
 
 export function kioskErrorCopy(error) {
   const code = error?.data?.code;
   const pinErrors = error?.data?.pin;
   if (code === "invalid_pin" || pinErrors) {
-    return { title: "PIN doesn't match. Try again." };
+    return { title: i18n.t("kiosk:errors.invalidPin") };
   }
   if (code === "not_found") {
     return {
-      title: "We couldn't find a matching participant.",
-      hint: "Check the details and try again.",
+      title: i18n.t("kiosk:errors.notFoundTitle"),
+      hint: i18n.t("kiosk:errors.notFoundHint"),
     };
   }
   if (code === "ambiguous") {
     return {
-      title: "More than one participant matches. Please check the details.",
+      title: i18n.t("kiosk:errors.ambiguous"),
     };
   }
   const detail = errorMessage(error);
@@ -63,6 +67,7 @@ export function kioskAutofillShield(props) {
 }
 
 export function KioskPinInput({ inputRef, id, value, onChange }) {
+  const { t } = useTranslation("kiosk");
   return (
     <input
       ref={inputRef}
@@ -75,7 +80,7 @@ export function KioskPinInput({ inputRef, id, value, onChange }) {
       value={value}
       onChange={(event) => onChange(event.target.value)}
       placeholder="••••"
-      aria-label="Identification PIN"
+      aria-label={t("fields.identificationPinAria")}
       autoCapitalize="off"
       autoCorrect="off"
       spellCheck={false}

@@ -1,10 +1,15 @@
 /** Staff-management email field rules (UI hints only; backend is authoritative). */
 
-export const STAFF_EMAIL_DUPLICATE_MESSAGE =
-  "An account with this email already exists in this workspace.";
+import i18n from "./i18n/index.js";
+
+export function staffEmailDuplicateMessage() {
+  return i18n.t("staff:email.duplicate");
+}
 
 export function staffEmailFieldLabel(role) {
-  return role === "admin" ? "Email" : "Email (optional)";
+  return role === "admin"
+    ? i18n.t("staff:email.label")
+    : i18n.t("staff:email.labelOptional");
 }
 
 export function isStaffEmailRequired(role) {

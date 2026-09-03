@@ -1,8 +1,9 @@
+import { useTranslation } from "react-i18next";
 import { useEffect, useRef, useState } from "react";
 import {
   COLOR_SWATCHES,
   evaluateHexDraft,
-  HEX_COLOR_ERROR,
+  hexColorError,
   normalizeHex,
   replaceHexDraftSelection,
 } from "./builderUtils.js";
@@ -13,12 +14,14 @@ import {
  * so Safari/macOS “Show Colors…” updates preview and hex immediately.
  */
 export default function ColorField({
-  label = "Color",
+  label = undefined,
   value,
   onChange,
   onGestureStart,
   onGestureEnd,
 }) {
+  const { t } = useTranslation("kiosk");
+  const fieldLabel = label || t("builder.color");
   const normalized = normalizeHex(value) || "#000000";
   const [draft, setDraft] = useState(normalized);
   const [error, setError] = useState("");
@@ -34,7 +37,7 @@ export default function ColorField({
   function applyHex(raw, { previewOnly = false } = {}) {
     const next = normalizeHex(raw);
     if (!next) {
-      setError(HEX_COLOR_ERROR);
+      setError(hexColorError());
       return false;
     }
     setError("");
@@ -67,12 +70,12 @@ export default function ColorField({
 
   return (
     <div className="kb-color">
-      <span className="kb-color-label">{label}</span>
+      <span className="kb-color-label">{fieldLabel}</span>
       <div className="kb-color-row">
         <input
           type="color"
           className="kb-color-swatch-input"
-          aria-label={`${label} picker`}
+          aria-label={`${fieldLabel} picker`}
           value={normalized}
           onPointerDown={() => {
             pickingRef.current = true;
@@ -94,13 +97,13 @@ export default function ColorField({
           }}
         />
         <label className="kb-hex-wrap">
-          <span className="kb-hex-caption">Custom hex</span>
+          <span className="kb-hex-caption">{t("builder.customHex")}</span>
           <input
             type="text"
             className="kb-hex"
             spellCheck={false}
             placeholder="#3B82F6"
-            aria-label={`${label} hex value`}
+            aria-label={`${fieldLabel} hex value`}
             value={draft}
             onFocus={() => {
               textEditingRef.current = true;
@@ -137,7 +140,7 @@ export default function ColorField({
         </label>
       </div>
       <div className="kb-swatch-block">
-        <span className="kb-swatch-caption">Preset colors</span>
+        <span className="kb-swatch-caption">{t("builder.presetColors")}</span>
         <div className="kb-swatches" role="list">
           {COLOR_SWATCHES.map((color) => (
             <button

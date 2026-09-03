@@ -1,26 +1,35 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router-dom";
-import { api, errorMessage } from "./api.js";
+import { api } from "./api.js";
 import { ConfirmDialog, ErrorBanner, LoadingState, PageHeader } from "./components.jsx";
 import { EmptyState, PersonRow } from "./WorkspaceLayout.jsx";
+import { localizedErrorMessage } from "./i18n/errorMessages.js";
+import { usePageTitle } from "./i18n/usePageTitle.js";
 import { memberSecondaryLine } from "./memberForm.js";
+import { memberUsageMetrics } from "./memberUsage.js";
 import {
+  filterAndSortMembers,
   isMemberPlanLocked,
   partitionMembersByPlanAvailability,
 } from "./membersListOrdering.js";
 import PlanLockSelectionPanel from "./PlanLockSelectionPanel.jsx";
 import { canManageOwnerAccount } from "./workspaceSession.js";
 import {
-  groupsCapacityCaption,
+  entitlementsFromSession,
   planLimitValue,
   selectionRequired,
+  usageTotalValue,
   workspacePlanDisplayName,
 } from "./workspaceEntitlements.js";
 
 export default function MembersScreen({ session, setSession, onNavigate }) {
+  const { t } = useTranslation(["members", "common", "errors"]);
   const [searchParams, setSearchParams] = useSearchParams();
   const statusFilter = searchParams.get("status") === "archived" ? "archived" : "active";
   const [search, setSearch] = useState("");
+  const [profileFilter, setProfileFilter] = useState("all");
+  const [sortOrder, setSortOrder] = useState("newest");
   const [members, setMembers] = useState([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -28,31 +37,37 @@ export default function MembersScreen({ session, setSession, onNavigate }) {
   const [deleting, setDeleting] = useState(false);
   const [selectionOpen, setSelectionOpen] = useState(false);
 
+  usePageTitle("pageTitles.members", { ns: "workspace" });
+
   const owner = canManageOwnerAccount(session);
   const mustSelect = owner && selectionRequired(session, "members");
   const planName = workspacePlanDisplayName(session);
   const limit = planLimitValue(session, "members");
-  const capacityCaption =
-    statusFilter === "active"
-      ? groupsCapacityCaption(session, "members", "Members")
-      : "";
+  const memberCount = usageTotalValue(session, "members");
+  const entitlementLimits = entitlementsFromSession(session)?.limits;
+  const hasMemberLimit = Boolean(
+    entitlementLimits && Object.prototype.hasOwnProperty.call(entitlementLimits, "members"),
+  );
+  const usage = memberUsageMetrics(memberCount, limit, {
+    unlimited: hasMemberLimit && entitlementLimits.members == null,
+  });
   const selectionNotice =
     typeof limit === "number"
-      ? `Your ${planName} plan includes ${limit} Member${limit === 1 ? "" : "s"}. Choose the ${limit} Members you want to keep available.`
-      : "Choose which Members remain available under the current plan.";
+      ? t("planSelection.noticeWithLimit", { planName, limit, count: limit })
+      : t("planSelection.noticeGeneric");
 
-  async function load() {
+  async function load(searchValue = search) {
     setLoading(true);
     setError("");
     const params = new URLSearchParams({ status: statusFilter });
-    if (search.trim()) {
-      params.set("search", search.trim());
+    if (searchValue.trim()) {
+      params.set("search", searchValue.trim());
     }
     try {
       const result = await api.listMembers(session, `?${params.toString()}`);
       setMembers(result.data);
     } catch (loadError) {
-      setError(errorMessage(loadError));
+      setError(localizedErrorMessage(loadError, t));
     } finally {
       setLoading(false);
     }
@@ -70,6 +85,13 @@ export default function MembersScreen({ session, setSession, onNavigate }) {
     }
   }
 
+  function clearFilters() {
+    setSearch("");
+    setProfileFilter("all");
+    setSortOrder("newest");
+    load("");
+  }
+
   async function saveAvailability(selectedIds) {
     await api.putPlanLockSelection(session, {
       kind: "members",
@@ -84,18 +106,14 @@ export default function MembersScreen({ session, setSession, onNavigate }) {
   }
 
   async function archiveMember(member) {
-    if (
-      !window.confirm(
-        `Archive ${member.name}? They will be hidden from Groups and kiosks until restored.`
-      )
-    ) {
+    if (!window.confirm(t("confirmArchive", { name: member.name }))) {
       return;
     }
     try {
       await api.archiveMember(session, member.id);
       await load();
     } catch (archiveError) {
-      setError(errorMessage(archiveError));
+      setError(localizedErrorMessage(archiveError, t));
     }
   }
 
@@ -104,7 +122,7 @@ export default function MembersScreen({ session, setSession, onNavigate }) {
       await api.restoreMember(session, member.id);
       await load();
     } catch (restoreError) {
-      setError(errorMessage(restoreError));
+      setError(localizedErrorMessage(restoreError, t));
     }
   }
 
@@ -119,21 +137,27 @@ export default function MembersScreen({ session, setSession, onNavigate }) {
       setPendingDelete(null);
       await load();
     } catch (deleteError) {
-      setError(errorMessage(deleteError));
+      setError(localizedErrorMessage(deleteError, t));
     } finally {
       setDeleting(false);
     }
   }
 
+  const visibleMembers = useMemo(
+    () => filterAndSortMembers(members, { profile: profileFilter, sort: sortOrder }),
+    [members, profileFilter, sortOrder],
+  );
   const { available: availableMembers, locked: lockedMembers } =
-    partitionMembersByPlanAvailability(members);
+    partitionMembersByPlanAvailability(visibleMembers);
   const showPlanSections =
     statusFilter === "active" &&
     availableMembers.length > 0 &&
     lockedMembers.length > 0;
+  const hasNarrowingFilters = Boolean(search.trim()) || profileFilter !== "all";
+  const hasChangedControls = hasNarrowingFilters || sortOrder !== "newest";
   const availableHeadingCount =
     typeof limit === "number"
-      ? `${availableMembers.length} of ${limit}`
+      ? t("count.availableOfLimit", { available: availableMembers.length, limit })
       : String(availableMembers.length);
 
   function renderMemberRow(member) {
@@ -153,12 +177,12 @@ export default function MembersScreen({ session, setSession, onNavigate }) {
               {secondary.length > 0
                 ? secondary.map((item) => <span key={item}>{item}</span>)
                 : null}
-              <span className="plan-locked-copy">Locked by current plan</span>
+              <span className="plan-locked-copy">{t("planLockedCopy")}</span>
             </>
           ) : secondary.length > 0 ? (
             secondary.map((item) => <span key={item}>{item}</span>)
           ) : (
-            <span>No contact details</span>
+            <span>{t("noContactDetails")}</span>
           )
         }
         onOpen={
@@ -174,14 +198,14 @@ export default function MembersScreen({ session, setSession, onNavigate }) {
                 className="btn-secondary btn-sm"
                 onClick={() => restoreMember(member)}
               >
-                Restore
+                {t("restore")}
               </button>
               <button
                 type="button"
                 className="btn-danger-soft btn-sm"
                 onClick={() => setPendingDelete(member)}
               >
-                Delete permanently
+                {t("deletePermanently")}
               </button>
             </>
           ) : (
@@ -193,7 +217,7 @@ export default function MembersScreen({ session, setSession, onNavigate }) {
                 archiveMember(member);
               }}
             >
-              Archive
+              {t("archive")}
             </button>
           )
         }
@@ -204,11 +228,11 @@ export default function MembersScreen({ session, setSession, onNavigate }) {
   if (selectionOpen && mustSelect) {
     return (
       <div className="page">
-        <PageHeader title="Members" description={selectionNotice} />
+        <PageHeader title={t("title")} description={selectionNotice} />
         <PlanLockSelectionPanel
           kind="members"
-          title="Choose available Members"
-          description="No Members are preselected. Select exactly the plan allowance. Search to find people in large workspaces."
+          title={t("planSelection.panelTitle")}
+          description={t("planSelection.panelDescription")}
           startEmpty
           enableSearch
           onSave={saveAvailability}
@@ -221,8 +245,7 @@ export default function MembersScreen({ session, setSession, onNavigate }) {
   return (
     <div className="page">
       <PageHeader
-        title="Members"
-        description="Reusable people in this workspace. They do not log in."
+        title={t("title")}
         actions={
           !mustSelect && statusFilter === "active" ? (
             <button
@@ -231,110 +254,193 @@ export default function MembersScreen({ session, setSession, onNavigate }) {
               data-tutorial-target="members-add"
               onClick={() => onNavigate({ name: "member-create" })}
             >
-              Add Member
+              {t("addMember")}
             </button>
           ) : null
         }
       />
-      {capacityCaption ? (
-        <p className="plan-usage-hint" aria-live="polite">
-          {capacityCaption}
-        </p>
+      {statusFilter === "active" && usage ? (
+        <section className="members-usage" aria-label={t("usage.label")} aria-live="polite">
+          <div className="members-usage-copy">
+            <strong>{t("usage.memberCount", { count: usage.count })}</strong>
+            <span>
+              {usage.unlimited
+                ? t("usage.unlimited")
+                : t("usage.remaining", { count: usage.remaining })}
+            </span>
+          </div>
+          {!usage.unlimited ? (
+            <div
+              className="members-usage-progress"
+              role="progressbar"
+              aria-label={t("usage.progressLabel")}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={usage.percentage}
+              aria-valuetext={t("usage.progressValue", {
+                count: usage.count,
+                limit: usage.limit,
+              })}
+            >
+              <span style={{ width: `${usage.percentage}%` }} />
+            </div>
+          ) : null}
+        </section>
       ) : null}
+
+      <div
+        className="history-view-switch groups-view-switch members-view-switch"
+        data-tutorial-target="members-status-filter"
+        role="tablist"
+        aria-label={t("views.ariaLabel")}
+      >
+        {[
+          { id: "active", label: t("views.active") },
+          { id: "archived", label: t("views.archived") },
+        ].map((view) => {
+          const selected = statusFilter === view.id;
+          return (
+            <button
+              key={view.id}
+              type="button"
+              role="tab"
+              aria-selected={selected}
+              tabIndex={selected ? 0 : -1}
+              className={`history-view-tab${selected ? " is-active" : ""}`}
+              onClick={() => setStatusFilter(view.id)}
+            >
+              {view.label}
+            </button>
+          );
+        })}
+      </div>
 
       {mustSelect ? (
         <div className="plan-selection-notice" role="status">
           <div>
-            <strong>Plan capacity needs a decision</strong>
+            <strong>{t("planSelection.needsDecision")}</strong>
             <p>{selectionNotice}</p>
-            <p className="hint">
-              Until you choose, Member profile management stays locked. Existing Group
-              participation is preserved.
-            </p>
+            <p className="hint">{t("planSelection.hint")}</p>
           </div>
           <button type="button" className="btn-primary" onClick={() => setSelectionOpen(true)}>
-            Choose available Members
+            {t("planSelection.chooseButton")}
           </button>
         </div>
       ) : null}
 
-      <div className="toolbar card-surface" data-tutorial-target="members-list">
-        <input
-          className="search-input"
-          placeholder="Search name, email, phone, address, or #ID"
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") {
-              load();
-            }
-          }}
-        />
-        <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
-          <option value="active">Active</option>
-          <option value="archived">Archived</option>
-        </select>
-        <button type="button" className="btn-secondary" onClick={load}>
-          Search
+      <div className="groups-toolbar members-toolbar card-surface" data-tutorial-target="members-list">
+        <label className="groups-toolbar-field groups-toolbar-search">
+          <span>{t("filters.search")}</span>
+          <input
+            className="search-input"
+            placeholder={t("searchPlaceholder")}
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                load();
+              }
+            }}
+          />
+        </label>
+        <label className="groups-toolbar-field">
+          <span>{t("filters.profile")}</span>
+          <select value={profileFilter} onChange={(event) => setProfileFilter(event.target.value)}>
+            <option value="all">{t("filters.allMembers")}</option>
+            <option value="with_email">{t("filters.withEmail")}</option>
+            <option value="without_email">{t("filters.withoutEmail")}</option>
+            <option value="with_phone">{t("filters.withPhone")}</option>
+            <option value="without_phone">{t("filters.withoutPhone")}</option>
+          </select>
+        </label>
+        <label className="groups-toolbar-field groups-toolbar-sort">
+          <span>{t("filters.sortBy")}</span>
+          <select value={sortOrder} onChange={(event) => setSortOrder(event.target.value)}>
+            <option value="newest">{t("sort.newest")}</option>
+            <option value="oldest">{t("sort.oldest")}</option>
+            <option value="name_asc">{t("sort.nameAsc")}</option>
+            <option value="name_desc">{t("sort.nameDesc")}</option>
+          </select>
+        </label>
+        <button type="button" className="btn-secondary groups-toolbar-submit" onClick={() => load()}>
+          {t("common:search")}
+        </button>
+        <button
+          type="button"
+          className="btn-ghost groups-toolbar-clear"
+          onClick={clearFilters}
+          disabled={!hasChangedControls}
+        >
+          {t("filters.clear")}
         </button>
       </div>
 
       <ErrorBanner message={error} />
 
-      {loading ? <LoadingState label="Loading Members…" /> : null}
+      {loading ? <LoadingState label={t("loading")} /> : null}
 
-      {!loading && members.length === 0 ? (
+      {!loading && visibleMembers.length === 0 ? (
         <EmptyState
-          title={statusFilter === "archived" ? "No archived Members" : "No Members yet"}
+          title={
+            hasNarrowingFilters
+              ? t("empty.filteredTitle")
+              : statusFilter === "archived"
+                ? t("empty.archivedTitle")
+                : t("empty.activeTitle")
+          }
           body={
-            statusFilter === "archived"
-              ? "Archived Members appear here. Restore them or delete them permanently."
-              : "Add a reusable person with just a name, then attach them to Groups when needed."
+            hasNarrowingFilters
+              ? t("empty.filteredBody")
+              : statusFilter === "archived"
+                ? t("empty.archivedBody")
+                : t("empty.activeBody")
           }
           action={
-            statusFilter === "archived" || mustSelect ? null : (
+            hasNarrowingFilters ? (
+              <button type="button" className="btn-secondary" onClick={clearFilters}>
+                {t("filters.clear")}
+              </button>
+            ) : statusFilter === "archived" || mustSelect ? null : (
               <button
                 type="button"
                 className="btn-primary"
                 onClick={() => onNavigate({ name: "member-create" })}
               >
-                Add Member
+                {t("addMember")}
               </button>
             )
           }
         />
       ) : null}
 
-      {!loading && members.length > 0 && showPlanSections ? (
+      {!loading && visibleMembers.length > 0 && showPlanSections ? (
         <div className="groups-list-sections">
-          <section className="groups-plan-section" aria-label="Available Members">
+          <section className="groups-plan-section" aria-label={t("sections.availableAria")}>
             <header className="groups-plan-section-heading">
-              <h3>Available Members</h3>
+              <h3>{t("sections.available")}</h3>
               <p>{availableHeadingCount}</p>
             </header>
             <div className="list">{availableMembers.map(renderMemberRow)}</div>
           </section>
-          <section className="groups-plan-section is-locked" aria-label="Locked by current plan">
+          <section className="groups-plan-section is-locked" aria-label={t("sections.lockedAria")}>
             <header className="groups-plan-section-heading">
-              <h3>Locked by current plan</h3>
-              <p>
-                {lockedMembers.length} Member{lockedMembers.length === 1 ? "" : "s"}
-              </p>
+              <h3>{t("sections.locked")}</h3>
+              <p>{t("count.lockedMembers", { count: lockedMembers.length })}</p>
             </header>
             <div className="list">{lockedMembers.map(renderMemberRow)}</div>
           </section>
         </div>
       ) : null}
 
-      {!loading && members.length > 0 && !showPlanSections ? (
-        <div className="list">{members.map(renderMemberRow)}</div>
+      {!loading && visibleMembers.length > 0 && !showPlanSections ? (
+        <div className="list">{visibleMembers.map(renderMemberRow)}</div>
       ) : null}
 
       {pendingDelete ? (
         <ConfirmDialog
-          title="Permanently delete Member?"
-          body={`Permanently delete ${pendingDelete.name} (#${pendingDelete.id})? This action cannot be undone.`}
-          confirmLabel="Delete permanently"
+          title={t("confirmDeleteTitle")}
+          body={t("confirmDeleteBody", { name: pendingDelete.name, id: pendingDelete.id })}
+          confirmLabel={t("deletePermanently")}
           danger
           busy={deleting}
           onCancel={() => setPendingDelete(null)}

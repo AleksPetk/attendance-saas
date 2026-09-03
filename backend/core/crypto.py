@@ -13,6 +13,7 @@ import logging
 from cryptography.fernet import Fernet, InvalidToken
 from django.conf import settings
 from django.core import checks
+from django.core.exceptions import ImproperlyConfigured
 
 logger = logging.getLogger("core.crypto")
 
@@ -21,6 +22,10 @@ def _fernet_key_bytes():
     raw = (getattr(settings, "APP_SECRETS_ENCRYPTION_KEY", "") or "").strip()
     if raw:
         return raw.encode("utf-8")
+    if not getattr(settings, "DEBUG", False):
+        raise ImproperlyConfigured(
+            "APP_SECRETS_ENCRYPTION_KEY must be set when DEBUG is False."
+        )
     digest = hashlib.sha256(
         f"checkstation-app-secrets:{settings.SECRET_KEY}".encode("utf-8")
     ).digest()
@@ -64,20 +69,22 @@ def check_app_secrets_encryption_key(app_configs, **kwargs):
                 )
             ]
         return []
-    if getattr(settings, "DEBUG", False):
+    import sys
+
+    message = (
+        "APP_SECRETS_ENCRYPTION_KEY is unset; app secrets would be "
+        "encrypted with a key derived from SECRET_KEY."
+    )
+    if getattr(settings, "DEBUG", False) or "test" in sys.argv:
         return [
             checks.Warning(
-                "APP_SECRETS_ENCRYPTION_KEY is unset; app secrets are "
-                "encrypted with a key derived from SECRET_KEY. Set a dedicated "
-                "Fernet key before production.",
+                message + " Set a dedicated Fernet key before production.",
                 id="core.W001",
             )
         ]
     return [
-        checks.Warning(
-            "APP_SECRETS_ENCRYPTION_KEY is unset; app secrets are "
-            "encrypted with a key derived from SECRET_KEY. Set a dedicated "
-            "Fernet key before production.",
-            id="core.W001",
+        checks.Error(
+            message + " Set APP_SECRETS_ENCRYPTION_KEY for production.",
+            id="core.E002",
         )
     ]

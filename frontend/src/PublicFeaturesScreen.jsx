@@ -232,7 +232,7 @@ function FeaturesStoryVideo({ demo, label }) {
     if (!demo.preloadNext || reducedMotion) return undefined;
     const nextClip = demo.clips[(activeIndex + 1) % demo.clips.length];
     const preloader = document.createElement("video");
-    preloader.preload = "auto";
+    preloader.preload = "metadata";
     preloader.muted = true;
     preloader.playsInline = true;
     preloader.src = nextClip.src;
@@ -309,7 +309,7 @@ function FeaturesStoryVideo({ demo, label }) {
             autoPlay={inPlaybackRange}
             muted
             playsInline
-            preload={demo.preloadNext ? "auto" : "metadata"}
+            preload="metadata"
             disablePictureInPicture
             controlsList="nodownload noplaybackrate noremoteplayback"
             onEnded={continueSequence}

@@ -3,6 +3,11 @@
 from billing.catalog import PLAN_BUSINESS, PLAN_PLUS, catalog_public_payload
 from billing.models import BillingStatus, PurchaseSource
 from billing.prices import stripe_api_configured
+from billing.markets import (
+    currency_for_market,
+    market_for_existing_subscription,
+    resolve_billing_market,
+)
 from billing.services import get_workspace_billing, scheduled_change_pending
 from billing.builtin_trial import (
     builtin_trial_public_payload,
@@ -31,6 +36,7 @@ def build_billing_state(organization):
         organization.refresh_from_db()
     if organization is not None and organization.is_checkstation_account:
         effective = organization.plan
+        market = resolve_billing_market(organization)
         empty_actions = {
             "can_checkout_plus": False,
             "can_checkout_business": False,
@@ -55,7 +61,8 @@ def build_billing_state(organization):
             "purchase_source": PurchaseSource.NONE,
             "status": BillingStatus.NONE,
             "interval": None,
-            "currency": "usd",
+            "currency": currency_for_market(market),
+            "billing_market": market,
             "current_period_start": None,
             "current_period_end": None,
             "trial_started_at": None,
@@ -73,12 +80,13 @@ def build_billing_state(organization):
         }
 
     billing = get_workspace_billing(organization)
+    market = market_for_existing_subscription(billing, workspace=organization)
     effective = organization.plan
     source = billing.purchase_source if billing else PurchaseSource.NONE
     status = billing.status if billing else BillingStatus.NONE
     interval = billing.billing_interval if billing else "none"
     subscribed = billing.subscribed_plan if billing else ""
-    stripe_ok = stripe_api_configured()
+    stripe_ok = stripe_api_configured(market=market)
     is_stripe = source == PurchaseSource.STRIPE
     is_apple = source == PurchaseSource.APPLE
     access_active = commercial_access_active(billing)
@@ -197,7 +205,8 @@ def build_billing_state(organization):
         "purchase_source": source,
         "status": status,
         "interval": interval if interval != "none" else None,
-        "currency": (billing.currency if billing else "usd"),
+        "currency": currency_for_market(market),
+        "billing_market": market,
         "current_period_start": _iso(billing.current_period_start) if billing else None,
         "current_period_end": _iso(billing.current_period_end) if billing else None,
         "trial_started_at": _iso(billing.trial_started_at) if billing else None,
@@ -221,7 +230,7 @@ def build_billing_state(organization):
             ),
         },
         "payment_issue": payment_issue,
-        "catalog": catalog_public_payload(organization=organization),
+        "catalog": catalog_public_payload(organization=organization, market=market),
         "builtin_trial": builtin_trial_public_payload(organization),
         "stripe_configured": stripe_ok,
         "actions": actions,

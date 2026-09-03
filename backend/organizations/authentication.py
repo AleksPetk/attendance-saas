@@ -12,6 +12,9 @@ from organizations.models import (
 
 WORKSPACE_ID_HEADER = "HTTP_X_WORKSPACE_ID"
 
+WORKSPACE_STAFF_SESSION_AUTH_BACKEND = (
+    "organizations.authentication.WorkspaceStaffSessionAuthenticationBackend"
+)
 
 class WorkspaceStaffBasicAuthentication(BasicAuthentication):
     """

@@ -238,7 +238,7 @@ Backend name **`GroupSection`**; product label **Class**. Child of a Structured 
 
 - Belongs to exactly one Structured Group and the same Organization
 - Visible immutable PK style (`Class #12`)
-- Optional **Class PIN** (`class_pin`) for Structured kiosk Class entry when the parent Group has `require_class_pin` ON — low-security attendance PIN (managers may view/edit; never returned in participant-facing kiosk list/config payloads)
+- Optional **Class PIN** (hashed at rest as `class_pin_hash`) for Structured kiosk Class entry when the parent Group has `require_class_pin` ON — managers may set/reset but cannot retrieve the raw PIN after save; APIs expose `has_class_pin` only; never returned in participant-facing kiosk list/config payloads
 - Active Class names unique within a Group (case-insensitive among active rows)
 - Lifecycle: Active → Archive → Restore or Permanent Delete (permanent delete removes Class participation rows; ActionRecords remain Group-scoped with Class snapshot fields `source_section_id` / `class_name_snapshot`; live `section` SET_NULL)
 - Live kiosk: empty active Classes are hidden from Class cards; archived Classes are hidden; Class people are loaded per Class after selection/verification
@@ -458,9 +458,13 @@ Canonical effective plan mutation: `organizations.entitlements.apply_effective_p
 
 Owner-only HTTP APIs under `/api/billing/` expose current billing state, Checkout (allowed during the built-in trial; paid start deferred to trial end), upgrade preview/apply, period-end downgrade, cancel-at-period-end, **resume scheduled cancellation**, **cancel scheduled downgrade**, and Customer Portal. There is no `/api/billing/trial-checkout/` and no card-required Business trial. Browser `?checkout=success` is UX only; paid activation requires verified webhook/provider reconciliation. Built-in trial expiry is lazy on workspace/billing reads plus `expire_builtin_trials`; it does not depend on Stripe webhooks. Reversing a pending cancellation or downgrade requires a successful provider operation first, then clears internal pending state; the existing Stripe subscription and billing cycle are preserved (no new Checkout). CheckStation-managed workspaces reject paid mutation endpoints; Owner Account hides Subscription/Billing when `can_view_billing` / `can_manage_subscription` are false.
 
-Webhook: `POST /api/billing/webhooks/stripe` (CSRF-exempt, no session auth, signature-verified, idempotent via `ProviderEvent`). Allowed through `KioskLockMiddleware`. Reconciliation must not change `Organization.status` from `blocked` to `active`. For CheckStation-managed workspaces, entitlement reconciliation is skipped.
+Webhook: `POST /api/billing/webhooks/stripe` (CSRF-exempt, no session auth, signature-verified). Idempotency uses `ProviderEvent` with atomic claim `RECEIVED|FAILED → PROCESSING → PROCESSED` (or `IGNORED` / `FAILED`). Only one worker may transition a given event into `PROCESSING`; concurrent duplicates return an idempotent success without re-dispatch. Stale `PROCESSING` may be reclaimed after 15 minutes. Allowed through `KioskLockMiddleware`. Reconciliation must not change `Organization.status` from `blocked` to `active`. For CheckStation-managed workspaces, entitlement reconciliation is skipped. `WorkspaceSubscription.external_customer_id` / `external_subscription_id` are indexed for webhook lookup (not unique).
 
-Payment-failure grace emails: management command `send_billing_payment_warnings` (once per UTC day during the 3-day grace). Schedule daily in deployment; no Celery in this phase. Skip CheckStation-managed workspaces and non-`active` Organizations (blocked/archived).
+Permanent owner deletion (DEC-096): sensitive-action re-auth (password or OAuth verify + 2FA when enabled); blocked while a live commercial subscription exists (`active_subscription`); built-in trial alone does not block; does not auto-cancel Stripe.
+
+Payment-failure grace emails: management command `send_billing_payment_warnings` (once per UTC day during the 3-day grace; claims the daily slot under row lock before send). Schedule daily in deployment; no Celery in this phase. Built-in trial expiry command `expire_builtin_trials`: every 5–15 minutes (or at least hourly); row-locked and idempotent. Skip CheckStation-managed workspaces and non-`active` Organizations (blocked/archived) for payment warnings.
+
+**Production cache (DEC-097):** Local dev uses LocMemCache. Production requires `REDIS_URL` and `django-redis` for shared Django cache across Gunicorn workers. Used for auth rate limits (owner/staff login, password reset, verification resend IP), Contact limits, kiosk Class PIN / exit limits, and provider-health probe rate limits. `IGNORE_EXCEPTIONS=True` fails open on transient Redis errors (auth continues; limits may be weakened). Behind reverse proxy: `USE_X_FORWARDED_FOR=True` and `TRUSTED_PROXY_IPS` must list only trusted proxy hops.
 
 **Live Stripe account / TEST credentials are not configured in-repo.** Apple IAP and monthly↔yearly interval-change execution remain open (OPEN-011 narrowed, OPEN-015).
 
@@ -519,13 +523,13 @@ Temporary `*.checkstation.alekspetk.com` hostnames used as production examples i
 | Production origin | Responsibility |
 |-------------------|----------------|
 | `checkstation.app` | Promotional / marketing website: homepage, features, how-it-works, pricing, public Contact (`/contact`), registration entry point, sitemap / `robots.txt` for marketing pages |
-| `workspace.checkstation.app` | Owner login, staff login, workspace UI, account/security, subscription/billing, password reset, email verification, Stripe/account callback returns |
+| `workspace.checkstation.app` | Owner login, staff login, workspace UI, account/security, subscription/billing, password reset, email verification, Stripe/account callback returns, **and public API under `/api/...`** |
 | `docs.checkstation.app` | Documentation home, Getting Started, Groups & Members, Kiosk Setup, Billing & Plans, FAQ, Privacy Policy, Terms of Use, Support |
 | `status.checkstation.app` | Standalone public Status page and public Status API |
 
-**Not frozen:** production API hostname/routing (OPEN-029). The API may later be same-origin under the workspace origin, a separate API hostname, or another reverse-proxy arrangement. Do not invent `api.checkstation.app` until deployment design lands.
+**Frozen (DEC-095):** public API hostname/routing. There is **no** `api.checkstation.app`. The API is `https://workspace.checkstation.app/api/...` (reverse proxy routes `/api/*` to Django). Native clients will use the same origin later.
 
-**Platform administration** uses a **dedicated private management origin**, separate from the public, workspace, Docs, and Status sites. The exact hostname is not published in public-facing product docs. It is not a sitemap/robots/public-nav target. Obscurity is not a security control; platform-admin authentication and mandatory 2FA remain required.
+**Platform administration** intended hostname: `manager.checkstation.app` (private management origin). It may still share the Django API process via `/admin/` until a later reverse-proxy split. It is not a sitemap/robots/public-nav target. Obscurity is not a security control; platform-admin authentication and mandatory 2FA remain required.
 
 **Intended production email (config concepts stay separate):**
 

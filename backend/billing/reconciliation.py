@@ -6,7 +6,7 @@ from django.utils import timezone
 
 from billing.exceptions import BillingStateError
 from billing.models import BillingStatus, PurchaseSource, WorkspaceSubscription
-from billing.prices import plan_interval_for_price_id
+from billing.prices import price_mapping_for_id
 from billing.services import (
     activate_paid_subscription,
     apply_successful_upgrade,
@@ -110,11 +110,11 @@ def reconcile_subscription_snapshot(organization, snapshot, *, now=None):
         )
         return None
     moment = now or timezone.now()
-    _store_provider_ids(organization, snapshot)
-    organization.refresh_from_db()
 
     # Ended provider states must finalize even if Price ID mapping is missing.
     if snapshot.status in ENDED_STATUSES:
+        _store_provider_ids(organization, snapshot)
+        organization.refresh_from_db()
         period_end = snapshot.current_period_end
         if (
             snapshot.cancel_at_period_end
@@ -125,13 +125,38 @@ def reconcile_subscription_snapshot(organization, snapshot, *, now=None):
             return get_workspace_billing(organization)
         return finalize_subscription_end(organization, ended_at=moment, now=moment)
 
-    mapped = plan_interval_for_price_id(snapshot.price_id)
-    if mapped is None:
+    mapping = price_mapping_for_id(snapshot.price_id)
+    if mapping is None:
         raise BillingStateError(
             "Stripe Price ID is not mapped to a Check Station plan.",
             code="stripe_price_unmapped",
         )
-    plan_key, interval = mapped
+    plan_key, interval = mapping.plan_key, mapping.interval
+    billing = get_workspace_billing(organization)
+    if (
+        billing
+        and billing.purchase_source == PurchaseSource.STRIPE
+        and billing.external_subscription_id
+        and billing.status in {
+            BillingStatus.TRIALING,
+            BillingStatus.ACTIVE,
+            BillingStatus.PAST_DUE,
+        }
+        and billing.currency in {"usd", "jpy"}
+        and billing.currency != mapping.currency
+    ):
+        raise BillingStateError(
+            "Stripe subscription cannot change billing market/currency.",
+            code="stripe_market_mismatch",
+        )
+
+    # Validate market/currency before accepting new provider identifiers.
+    _store_provider_ids(organization, snapshot)
+    organization.refresh_from_db()
+    billing = get_workspace_billing(organization)
+    if billing and billing.currency != mapping.currency:
+        billing.currency = mapping.currency
+        billing.save(update_fields=["currency", "updated_at"])
 
     if snapshot.status == "past_due":
         mark_payment_failure(organization, failed_at=moment, now=moment)
@@ -152,6 +177,7 @@ def reconcile_subscription_snapshot(organization, snapshot, *, now=None):
             trial_ends_at=snapshot.trial_end or snapshot.current_period_end,
             external_customer_id=snapshot.customer_id,
             external_subscription_id=snapshot.subscription_id,
+            currency=mapping.currency,
             now=moment,
         )
         if snapshot.cancel_at_period_end:
@@ -219,6 +245,7 @@ def reconcile_subscription_snapshot(organization, snapshot, *, now=None):
             current_period_end=snapshot.current_period_end,
             external_customer_id=snapshot.customer_id,
             external_subscription_id=snapshot.subscription_id,
+            currency=mapping.currency,
             now=moment,
         )
         return get_workspace_billing(organization)
@@ -230,6 +257,7 @@ def reconcile_subscription_snapshot(organization, snapshot, *, now=None):
             current_period_start=snapshot.current_period_start,
             current_period_end=snapshot.current_period_end,
             external_subscription_id=snapshot.subscription_id,
+            currency=mapping.currency,
             now=moment,
         )
         return get_workspace_billing(organization)
@@ -269,6 +297,7 @@ def reconcile_subscription_snapshot(organization, snapshot, *, now=None):
         current_period_end=snapshot.current_period_end,
         external_customer_id=snapshot.customer_id,
         external_subscription_id=snapshot.subscription_id,
+        currency=mapping.currency,
         now=moment,
     )
     if snapshot.cancel_at_period_end:

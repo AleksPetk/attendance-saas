@@ -16,13 +16,23 @@ REPO_ROOT = BASE_DIR.parent
 env = environ.Env(
     DEBUG=(bool, False),
     ALLOWED_HOSTS=(list, ["localhost", "127.0.0.1"]),
-    CORS_ALLOWED_ORIGINS=(
+    # Credentialed browser origins only (workspace SPA; promo for Contact CSRF).
+    # Docs/Status must NOT be listed here — see CORS_ANONYMOUS_ORIGINS.
+    CORS_CREDENTIALED_ORIGINS=(
         list,
         [
             "http://localhost:5173",
             "http://127.0.0.1:5173",
+        ],
+    ),
+    # Anonymous CORS (no credentials) for Docs/Status public Content GETs.
+    CORS_ANONYMOUS_ORIGINS=(
+        list,
+        [
             "http://localhost:8091",
             "http://127.0.0.1:8091",
+            "http://localhost:8090",
+            "http://127.0.0.1:8090",
         ],
     ),
     EMAIL_VERIFICATION_TIMEOUT=(int, 60 * 60 * 24),
@@ -32,12 +42,22 @@ env = environ.Env(
     RESEND_TIMEOUT_SECONDS=(int, 15),
     PLATFORM_2FA_ENCRYPTION_KEY=(str, ""),
     APP_SECRETS_ENCRYPTION_KEY=(str, ""),
+    STATUS_PROBE_TOKEN=(str, ""),
+    STATUS_PROVIDER_HEALTH_RATE_LIMIT=(int, 30),
+    SECURE_HSTS_SECONDS=(int, 0),
+    SECURE_HSTS_INCLUDE_SUBDOMAINS=(bool, False),
+    SECURE_HSTS_PRELOAD=(bool, False),
+    SECURE_SSL_REDIRECT=(bool, False),
     STRIPE_SECRET_KEY=(str, ""),
     STRIPE_WEBHOOK_SECRET=(str, ""),
     STRIPE_PRICE_PLUS_MONTHLY=(str, ""),
     STRIPE_PRICE_PLUS_YEARLY=(str, ""),
     STRIPE_PRICE_BUSINESS_MONTHLY=(str, ""),
     STRIPE_PRICE_BUSINESS_YEARLY=(str, ""),
+    STRIPE_PRICE_JP_PLUS_MONTHLY=(str, ""),
+    STRIPE_PRICE_JP_PLUS_YEARLY=(str, ""),
+    STRIPE_PRICE_JP_BUSINESS_MONTHLY=(str, ""),
+    STRIPE_PRICE_JP_BUSINESS_YEARLY=(str, ""),
     STRIPE_COUPON_ACQ_NORMAL_PLUS_MONTHLY=(str, ""),
     STRIPE_COUPON_ACQ_NORMAL_BUSINESS_MONTHLY=(str, ""),
     STRIPE_COUPON_ACQ_NORMAL_PLUS_YEARLY=(str, ""),
@@ -48,11 +68,46 @@ env = environ.Env(
     STRIPE_COUPON_ACQ_BIG_BUSINESS_YEARLY=(str, ""),
     STRIPE_COUPON_PLUS_MONTHLY_TO_PLUS_YEARLY=(str, ""),
     STRIPE_COUPON_BUSINESS_MONTHLY_TO_YEARLY=(str, ""),
+    STRIPE_COUPON_JP_ACQ_NORMAL_PLUS_MONTHLY=(str, ""),
+    STRIPE_COUPON_JP_ACQ_NORMAL_BUSINESS_MONTHLY=(str, ""),
+    STRIPE_COUPON_JP_ACQ_NORMAL_PLUS_YEARLY=(str, ""),
+    STRIPE_COUPON_JP_ACQ_NORMAL_BUSINESS_YEARLY=(str, ""),
+    STRIPE_COUPON_JP_ACQ_BIG_PLUS_MONTHLY=(str, ""),
+    STRIPE_COUPON_JP_ACQ_BIG_BUSINESS_MONTHLY=(str, ""),
+    STRIPE_COUPON_JP_ACQ_BIG_PLUS_YEARLY=(str, ""),
+    STRIPE_COUPON_JP_ACQ_BIG_BUSINESS_YEARLY=(str, ""),
+    STRIPE_COUPON_JP_PLUS_MONTHLY_TO_PLUS_YEARLY=(str, ""),
+    STRIPE_COUPON_JP_BUSINESS_MONTHLY_TO_YEARLY=(str, ""),
+    STRIPE_COUPON_JP_BUSINESS_UPGRADE_YEARLY=(str, ""),
     BILLING_PROVIDER=(str, "stripe"),
     CONTACT_TO_EMAIL=(str, "contact@checkstation.app"),
     TURNSTILE_SITE_KEY=(str, ""),
     TURNSTILE_SECRET_KEY=(str, ""),
     TURNSTILE_TIMEOUT_SECONDS=(int, 8),
+    # Optional shared cache (production requires REDIS_URL via settings_production).
+    REDIS_URL=(str, ""),
+    USE_X_FORWARDED_FOR=(bool, False),
+    TRUSTED_PROXY_IPS=(list, []),
+    # Auth rate limits (failures per window; see core/auth_rate_limits.py).
+    OWNER_LOGIN_IP_LIMIT=(int, 10),
+    OWNER_LOGIN_IP_WINDOW=(int, 900),
+    OWNER_LOGIN_ACCOUNT_LIMIT=(int, 5),
+    OWNER_LOGIN_ACCOUNT_WINDOW=(int, 900),
+    STAFF_LOGIN_IP_LIMIT=(int, 10),
+    STAFF_LOGIN_IP_WINDOW=(int, 900),
+    STAFF_LOGIN_ACCOUNT_LIMIT=(int, 8),
+    STAFF_LOGIN_ACCOUNT_WINDOW=(int, 900),
+    STAFF_LOGIN_WORKSPACE_IP_LIMIT=(int, 15),
+    PASSWORD_RESET_IP_LIMIT=(int, 5),
+    PASSWORD_RESET_IP_WINDOW=(int, 3600),
+    PASSWORD_RESET_EMAIL_LIMIT=(int, 3),
+    PASSWORD_RESET_EMAIL_WINDOW=(int, 3600),
+    VERIFICATION_RESEND_IP_LIMIT=(int, 10),
+    VERIFICATION_RESEND_IP_WINDOW=(int, 3600),
+    CLASS_PIN_VERIFY_LIMIT=(int, 20),
+    CLASS_PIN_VERIFY_WINDOW=(int, 60),
+    KIOSK_EXIT_VERIFY_LIMIT=(int, 15),
+    KIOSK_EXIT_VERIFY_WINDOW=(int, 60),
     GOOGLE_OAUTH_CLIENT_ID=(str, ""),
     GOOGLE_OAUTH_CLIENT_SECRET=(str, ""),
     GOOGLE_OAUTH_REDIRECT_URI=(str, ""),
@@ -108,6 +163,9 @@ AUTHENTICATION_BACKENDS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    # Before CorsMiddleware so anonymous OPTIONS preflights are not swallowed
+    # by corsheaders' empty 200 preflight (which omits ACAO for non-credentialed origins).
+    "config.cors_policy.AnonymousOriginCorsMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "config.session_isolation.PlatformAdminSessionIsolationMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
@@ -172,15 +230,66 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
+# Optional explicit project-owned roots for the Platform Admin application-size
+# metric. Empty uses the repository/service roots visible from BASE_DIR.
+PLATFORM_APPLICATION_SIZE_ROOTS = env.list(
+    "PLATFORM_APPLICATION_SIZE_ROOTS",
+    default=[],
+)
+
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-CORS_ALLOWED_ORIGINS = env.list("CORS_ALLOWED_ORIGINS")
-# Required for the SPA fetch(..., { credentials: "include" }) cookie session.
+# Local development uses in-process LocMemCache. Production switches to Redis
+# in config.settings_production (REDIS_URL required).
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        "LOCATION": "checkstation-dev",
+    }
+}
+
+REDIS_URL = env("REDIS_URL", default="")
+USE_X_FORWARDED_FOR = env.bool("USE_X_FORWARDED_FOR")
+TRUSTED_PROXY_IPS = env.list("TRUSTED_PROXY_IPS")
+
+OWNER_LOGIN_IP_LIMIT = env.int("OWNER_LOGIN_IP_LIMIT")
+OWNER_LOGIN_IP_WINDOW = env.int("OWNER_LOGIN_IP_WINDOW")
+OWNER_LOGIN_ACCOUNT_LIMIT = env.int("OWNER_LOGIN_ACCOUNT_LIMIT")
+OWNER_LOGIN_ACCOUNT_WINDOW = env.int("OWNER_LOGIN_ACCOUNT_WINDOW")
+STAFF_LOGIN_IP_LIMIT = env.int("STAFF_LOGIN_IP_LIMIT")
+STAFF_LOGIN_IP_WINDOW = env.int("STAFF_LOGIN_IP_WINDOW")
+STAFF_LOGIN_ACCOUNT_LIMIT = env.int("STAFF_LOGIN_ACCOUNT_LIMIT")
+STAFF_LOGIN_ACCOUNT_WINDOW = env.int("STAFF_LOGIN_ACCOUNT_WINDOW")
+STAFF_LOGIN_WORKSPACE_IP_LIMIT = env.int("STAFF_LOGIN_WORKSPACE_IP_LIMIT")
+PASSWORD_RESET_IP_LIMIT = env.int("PASSWORD_RESET_IP_LIMIT")
+PASSWORD_RESET_IP_WINDOW = env.int("PASSWORD_RESET_IP_WINDOW")
+PASSWORD_RESET_EMAIL_LIMIT = env.int("PASSWORD_RESET_EMAIL_LIMIT")
+PASSWORD_RESET_EMAIL_WINDOW = env.int("PASSWORD_RESET_EMAIL_WINDOW")
+VERIFICATION_RESEND_IP_LIMIT = env.int("VERIFICATION_RESEND_IP_LIMIT")
+VERIFICATION_RESEND_IP_WINDOW = env.int("VERIFICATION_RESEND_IP_WINDOW")
+CLASS_PIN_VERIFY_LIMIT = env.int("CLASS_PIN_VERIFY_LIMIT")
+CLASS_PIN_VERIFY_WINDOW = env.int("CLASS_PIN_VERIFY_WINDOW")
+KIOSK_EXIT_VERIFY_LIMIT = env.int("KIOSK_EXIT_VERIFY_LIMIT")
+KIOSK_EXIT_VERIFY_WINDOW = env.int("KIOSK_EXIT_VERIFY_WINDOW")
+
+# Credentialed CORS origins = workspace SPA only (cookies + Allow-Credentials).
+# Promo/Docs/Status belong in CORS_ANONYMOUS_ORIGINS (ACAO, never credentials).
+# Prefer CORS_CREDENTIALED_ORIGINS. Legacy CORS_ALLOWED_ORIGINS is accepted
+# as a fallback for local .env files during the transition.
+_legacy_cors = env.list("CORS_ALLOWED_ORIGINS", default=[])
+CORS_CREDENTIALED_ORIGINS = env.list("CORS_CREDENTIALED_ORIGINS") or _legacy_cors
+CORS_ANONYMOUS_ORIGINS = env.list("CORS_ANONYMOUS_ORIGINS")
+# django-cors-headers only sees credentialed origins (with credentials).
+CORS_ALLOWED_ORIGINS = list(CORS_CREDENTIALED_ORIGINS)
 CORS_ALLOW_CREDENTIALS = True
 
-# SPA runs on a separate origin (Vite dev server). Trusted origins lets
-# Django enforce CSRF protection for cookie-based auth from the frontend.
-CSRF_TRUSTED_ORIGINS = list(CORS_ALLOWED_ORIGINS)
+# CSRF trust is independent of CORS credentials.
+# Default = credentialed workspace origin only. Do not add promo/Docs/Status
+# for Contact — Contact is csrf_exempt and uses Turnstile.
+# CSRF_TRUSTED_ORIGINS may be set explicitly when a specific cross-origin
+# cookie POST truly needs it; that still must not imply credentialed CORS.
+_csrf_trusted = env.list("CSRF_TRUSTED_ORIGINS", default=[])
+CSRF_TRUSTED_ORIGINS = _csrf_trusted or list(CORS_CREDENTIALED_ORIGINS)
 
 # Cookie settings tuned for browser session auth.
 # Check Station app and Django admin use separate cookie names so the same
@@ -215,6 +324,45 @@ REST_FRAMEWORK = {
         "rest_framework.authentication.BasicAuthentication",
     ],
 }
+
+# Shared secret for Status → Django provider health probes (email/stripe).
+# Empty in local DEBUG allows those endpoints without a token; production
+# settings require a non-empty value.
+STATUS_PROBE_TOKEN = env("STATUS_PROBE_TOKEN", default="")
+STATUS_PROVIDER_HEALTH_RATE_LIMIT = env("STATUS_PROVIDER_HEALTH_RATE_LIMIT")
+
+# When DEBUG=False under the base settings module, apply the same cookie/TLS
+# hardening used by settings_production (host-only cookies; no cookie Domain).
+if not DEBUG:
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_SSL_REDIRECT = env.bool("SECURE_SSL_REDIRECT", default=True)
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    SECURE_HSTS_SECONDS = env.int("SECURE_HSTS_SECONDS", default=0)
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = env.bool(
+        "SECURE_HSTS_INCLUDE_SUBDOMAINS", default=False
+    )
+    SECURE_HSTS_PRELOAD = env.bool("SECURE_HSTS_PRELOAD", default=False)
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    SECURE_REFERRER_POLICY = env(
+        "SECURE_REFERRER_POLICY", default="same-origin"
+    )
+    X_FRAME_OPTIONS = "DENY"
+    if "whitenoise.middleware.WhiteNoiseMiddleware" not in MIDDLEWARE:
+        _security_idx = MIDDLEWARE.index(
+            "django.middleware.security.SecurityMiddleware"
+        )
+        MIDDLEWARE.insert(
+            _security_idx + 1, "whitenoise.middleware.WhiteNoiseMiddleware"
+        )
+    STORAGES = {
+        "default": {
+            "BACKEND": "django.core.files.storage.FileSystemStorage",
+        },
+        "staticfiles": {
+            "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+        },
+    }
 
 # Public product name used in transactional account emails.
 PRODUCT_NAME = "CheckStation"
@@ -292,6 +440,16 @@ STRIPE_PRICE_PLUS_MONTHLY = env("STRIPE_PRICE_PLUS_MONTHLY", default="")
 STRIPE_PRICE_PLUS_YEARLY = env("STRIPE_PRICE_PLUS_YEARLY", default="")
 STRIPE_PRICE_BUSINESS_MONTHLY = env("STRIPE_PRICE_BUSINESS_MONTHLY", default="")
 STRIPE_PRICE_BUSINESS_YEARLY = env("STRIPE_PRICE_BUSINESS_YEARLY", default="")
+# Sandbox JP Price IDs. The effective resolver remains GLOBAL until the next
+# phase adds an explicit platform-controlled market source.
+STRIPE_PRICE_JP_PLUS_MONTHLY = env("STRIPE_PRICE_JP_PLUS_MONTHLY", default="")
+STRIPE_PRICE_JP_PLUS_YEARLY = env("STRIPE_PRICE_JP_PLUS_YEARLY", default="")
+STRIPE_PRICE_JP_BUSINESS_MONTHLY = env(
+    "STRIPE_PRICE_JP_BUSINESS_MONTHLY", default=""
+)
+STRIPE_PRICE_JP_BUSINESS_YEARLY = env(
+    "STRIPE_PRICE_JP_BUSINESS_YEARLY", default=""
+)
 # Stripe sandbox coupons for eligibility-backed offers (server-only secrets).
 # Never expose these IDs on public catalog APIs or VITE_* vars.
 STRIPE_COUPON_ACQ_NORMAL_PLUS_MONTHLY = env(
@@ -324,6 +482,17 @@ STRIPE_COUPON_PLUS_MONTHLY_TO_PLUS_YEARLY = env(
 STRIPE_COUPON_BUSINESS_MONTHLY_TO_YEARLY = env(
     "STRIPE_COUPON_BUSINESS_MONTHLY_TO_YEARLY", default=""
 )
+STRIPE_COUPON_JP_ACQ_NORMAL_PLUS_MONTHLY = env("STRIPE_COUPON_JP_ACQ_NORMAL_PLUS_MONTHLY", default="")
+STRIPE_COUPON_JP_ACQ_NORMAL_BUSINESS_MONTHLY = env("STRIPE_COUPON_JP_ACQ_NORMAL_BUSINESS_MONTHLY", default="")
+STRIPE_COUPON_JP_ACQ_NORMAL_PLUS_YEARLY = env("STRIPE_COUPON_JP_ACQ_NORMAL_PLUS_YEARLY", default="")
+STRIPE_COUPON_JP_ACQ_NORMAL_BUSINESS_YEARLY = env("STRIPE_COUPON_JP_ACQ_NORMAL_BUSINESS_YEARLY", default="")
+STRIPE_COUPON_JP_ACQ_BIG_PLUS_MONTHLY = env("STRIPE_COUPON_JP_ACQ_BIG_PLUS_MONTHLY", default="")
+STRIPE_COUPON_JP_ACQ_BIG_BUSINESS_MONTHLY = env("STRIPE_COUPON_JP_ACQ_BIG_BUSINESS_MONTHLY", default="")
+STRIPE_COUPON_JP_ACQ_BIG_PLUS_YEARLY = env("STRIPE_COUPON_JP_ACQ_BIG_PLUS_YEARLY", default="")
+STRIPE_COUPON_JP_ACQ_BIG_BUSINESS_YEARLY = env("STRIPE_COUPON_JP_ACQ_BIG_BUSINESS_YEARLY", default="")
+STRIPE_COUPON_JP_PLUS_MONTHLY_TO_PLUS_YEARLY = env("STRIPE_COUPON_JP_PLUS_MONTHLY_TO_PLUS_YEARLY", default="")
+STRIPE_COUPON_JP_BUSINESS_MONTHLY_TO_YEARLY = env("STRIPE_COUPON_JP_BUSINESS_MONTHLY_TO_YEARLY", default="")
+STRIPE_COUPON_JP_BUSINESS_UPGRADE_YEARLY = env("STRIPE_COUPON_JP_BUSINESS_UPGRADE_YEARLY", default="")
 BILLING_PROVIDER = env("BILLING_PROVIDER", default="stripe")
 
 # Public Contact mailbox (Cloudflare Email Routing). Never the private

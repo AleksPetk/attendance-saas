@@ -30,23 +30,35 @@ LIVE_BILLING_STATUSES = frozenset(
     }
 )
 
+# Ended / non-charging statuses that must not block permanent deletion.
+ENDED_BILLING_STATUSES = frozenset(
+    {
+        BillingStatus.NONE,
+        BillingStatus.CANCELED,
+    }
+)
+
+OWNER_ACTIVE_SUBSCRIPTION_DELETION_MESSAGE = (
+    "Cancel your paid subscription and wait until paid access ends before "
+    "permanently deleting this workspace. Deleting the account does not cancel "
+    "Stripe billing."
+)
+
 CheckStationAccountError = BillingStateError
 
 
 def organization_has_live_subscription(organization) -> bool:
-    billing = get_workspace_billing(organization)
-    if billing is None:
-        return False
-    return billing.status in LIVE_BILLING_STATUSES
+    return owner_deletion_blocked_by_live_subscription(organization) is not None
 
 
 def live_subscription_block_reason(organization) -> str:
     """Human-readable reason if a live commercial subscription exists."""
+    blocked = owner_deletion_blocked_by_live_subscription(organization)
+    if not blocked:
+        return ""
     billing = get_workspace_billing(organization)
     if billing is None:
-        return ""
-    if billing.status not in LIVE_BILLING_STATUSES:
-        return ""
+        return blocked["detail"]
     source = billing.purchase_source or PurchaseSource.NONE
     plan = billing.subscribed_plan or organization.plan
     interval = billing.billing_interval or ""
@@ -55,6 +67,50 @@ def live_subscription_block_reason(organization) -> str:
         f"({billing.status}, {plan} {interval}). "
         "Handle or end the paid subscription first."
     )
+
+
+def owner_deletion_blocked_by_live_subscription(organization) -> dict | None:
+    """
+    Authoritative guard for permanent owner account deletion.
+
+    Blocks while a commercial WorkspaceSubscription is still live
+    (trialing / active / past_due), including cancel_at_period_end until
+    access actually ends. Built-in free trial alone (no subscription row)
+    does not block. Ended/canceled/none rows do not block.
+
+    Fail-safe: a Stripe subscription id with a non-ended status blocks even
+    if the status string is unexpected, rather than risk orphaning charges.
+    """
+    billing = get_workspace_billing(organization)
+    if billing is None:
+        return None
+
+    status = billing.status or BillingStatus.NONE
+    has_provider_subscription = bool((billing.external_subscription_id or "").strip())
+    is_stripe = billing.purchase_source == PurchaseSource.STRIPE
+
+    if status in LIVE_BILLING_STATUSES:
+        return {
+            "code": "active_subscription",
+            "detail": OWNER_ACTIVE_SUBSCRIPTION_DELETION_MESSAGE,
+            "cancel_at_period_end": bool(billing.cancel_at_period_end),
+            "status": status,
+            "purchase_source": billing.purchase_source or "",
+        }
+
+    if status in ENDED_BILLING_STATUSES:
+        return None
+
+    # Unknown / unexpected status with a provider subscription id: fail closed.
+    if has_provider_subscription and is_stripe:
+        return {
+            "code": "active_subscription",
+            "detail": OWNER_ACTIVE_SUBSCRIPTION_DELETION_MESSAGE,
+            "cancel_at_period_end": bool(billing.cancel_at_period_end),
+            "status": status,
+            "purchase_source": billing.purchase_source or "",
+        }
+    return None
 
 
 def _delete_workspace_subscription(organization):
@@ -243,6 +299,7 @@ def billing_summary_for_admin(organization) -> dict:
             "period_end": None,
             "cancel_at_period_end": False,
             "pending_plan": None,
+            "currency": None,
             "live": False,
         }
     if billing is None:
@@ -256,6 +313,7 @@ def billing_summary_for_admin(organization) -> dict:
             "period_end": None,
             "cancel_at_period_end": False,
             "pending_plan": None,
+            "currency": None,
             "live": False,
         }
     return {
@@ -270,5 +328,6 @@ def billing_summary_for_admin(organization) -> dict:
         "period_end": billing.current_period_end or billing.trial_ends_at,
         "cancel_at_period_end": bool(billing.cancel_at_period_end),
         "pending_plan": billing.pending_plan or None,
+        "currency": billing.currency,
         "live": billing.status in LIVE_BILLING_STATUSES,
     }

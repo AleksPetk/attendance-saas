@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { kioskEditorSectionLabel } from "./kioskEditorSections.js";
 
 const DEFAULT_POS = { x: 16, y: 16 };
@@ -37,6 +38,8 @@ export default function FloatingEditorWindow({
   onSave,
   children,
 }) {
+  const { t } = useTranslation("kiosk");
+  const { t: tCommon } = useTranslation("common");
   const panelRef = useRef(null);
   const dragRef = useRef(null);
   const [pos, setPos] = useState(DEFAULT_POS);
@@ -105,31 +108,33 @@ export default function FloatingEditorWindow({
     reclamp();
   }
 
+  const sectionLabel = kioskEditorSectionLabel(activeSection);
+
   if (minimized) {
     return (
       <button
         type="button"
         className="kb-corner-pill"
         onClick={onRestore}
-        aria-label={`Edit kiosk — ${kioskEditorSectionLabel(activeSection)}. Restore editor.`}
+        aria-label={t("builder.restoreEditorAria", { section: sectionLabel })}
       >
         <span className="kb-corner-pill-icon" aria-hidden="true">
           ✎
         </span>
-        <span>Edit kiosk</span>
-        <span className="kb-corner-pill-section">{kioskEditorSectionLabel(activeSection)}</span>
+        <span>{t("builder.editKiosk")}</span>
+        <span className="kb-corner-pill-section">{sectionLabel}</span>
       </button>
     );
   }
 
-  const statusLabel = saving ? "Saving…" : dirty ? "Unsaved" : "Saved";
+  const statusLabel = saving ? t("builder.saving") : dirty ? t("builder.unsaved") : t("builder.saved");
 
   return (
     <aside
       ref={panelRef}
       className={`kb-editor-window ${dragging ? "dragging" : ""}`}
       style={{ left: pos.x, top: pos.y }}
-      aria-label="Kiosk builder editor"
+      aria-label={t("builder.editorAria")}
       data-tutorial-target="kiosk-design-editor"
     >
       <div
@@ -143,7 +148,7 @@ export default function FloatingEditorWindow({
           ⋮⋮
         </span>
         <div className="kb-editor-drag-copy">
-          <strong>Kiosk editor</strong>
+          <strong>{t("builder.editorTitle")}</strong>
           {groupName ? <span className="kb-editor-group">{groupName}</span> : null}
         </div>
         <button
@@ -151,13 +156,13 @@ export default function FloatingEditorWindow({
           className="kb-tool-btn kb-editor-minimize"
           onPointerDown={(event) => event.stopPropagation()}
           onClick={onMinimize}
-          aria-label="Minimize editor"
+          aria-label={t("builder.minimizeAria")}
         >
-          Minimize
+          {t("builder.minimize")}
         </button>
       </div>
 
-      <div className="kb-editor-sections" role="tablist" aria-label="Kiosk sections">
+      <div className="kb-editor-sections" role="tablist" aria-label={t("builder.sectionsAria")}>
         {sections.map((name) => (
           <button
             key={name}
@@ -188,41 +193,41 @@ export default function FloatingEditorWindow({
             className="kb-tool-btn kb-tool-compact"
             disabled={!canUndo}
             onClick={onUndo}
-            aria-label="Undo"
+            aria-label={t("builder.undo")}
           >
             <span className="kb-tool-icon" aria-hidden="true">
               ↩
             </span>
-            <span className="kb-tool-label">Undo</span>
+            <span className="kb-tool-label">{t("builder.undo")}</span>
           </button>
           <button
             type="button"
             className="kb-tool-btn kb-tool-compact"
             disabled={!canRedo}
             onClick={onRedo}
-            aria-label="Redo"
+            aria-label={t("builder.redo")}
           >
             <span className="kb-tool-icon" aria-hidden="true">
               ↪
             </span>
-            <span className="kb-tool-label">Redo</span>
+            <span className="kb-tool-label">{t("builder.redo")}</span>
           </button>
           <span className={`kb-editor-status ${dirty || saving ? "unsaved" : "saved"}`}>
             {statusLabel}
           </span>
         </div>
         <div className="kb-editor-footer-row kb-editor-footer-actions">
-          <button type="button" className="kb-tool-btn" onClick={onCancel} aria-label="Cancel">
-            Cancel
+          <button type="button" className="kb-tool-btn" onClick={onCancel} aria-label={tCommon("cancel")}>
+            {tCommon("cancel")}
           </button>
           <button
             type="button"
             className="kb-tool-btn kb-tool-primary"
             disabled={!dirty || saving}
             onClick={onSave}
-            aria-label={saving ? "Saving" : "Save"}
+            aria-label={saving ? t("builder.savingAria") : t("builder.saveAria")}
           >
-            {saving ? "Saving…" : "Save"}
+            {saving ? t("builder.saving") : tCommon("save")}
           </button>
         </div>
       </div>

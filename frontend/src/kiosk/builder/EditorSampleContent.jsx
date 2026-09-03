@@ -4,15 +4,16 @@
  * Card density uses builder-only fake participants — never real tenant data.
  */
 
+import { useTranslation } from "react-i18next";
 import { KioskPersonAvatar, KioskPersonCardFields } from "../kioskUi.jsx";
 import { KioskIdentifyGenericVisual } from "../kioskIdentifyGenericVisual.jsx";
 import { createFakeParticipants } from "./fakeParticipants.js";
 
-const FIELD_LABELS = {
-  participant_code: "Group Participant Code",
-  name: "Name",
-  email: "Email",
-  pin: "PIN",
+const FIELD_LABEL_KEYS = {
+  participant_code: "fields.groupParticipantCode",
+  name: "fields.name",
+  email: "fields.email",
+  pin: "fields.pin",
 };
 
 const FIELD_SAMPLES = {
@@ -41,14 +42,19 @@ function inputFields(settings) {
 }
 
 export default function EditorSampleContent({ kioskBehavior, fakeParticipantCount = 12 }) {
+  const { t } = useTranslation("kiosk");
   const mode = kioskBehavior?.mode || "card";
+
+  function fieldLabel(field) {
+    const key = FIELD_LABEL_KEYS[field];
+    return key ? t(key) : field;
+  }
 
   if (mode === "card") {
     const display = cardDisplay(kioskBehavior);
     const people = createFakeParticipants(fakeParticipantCount);
     return (
       <div className="kb-sample" aria-hidden="true">
-        <p className="hint kiosk-hint">Tap your card to continue.</p>
         <div className="kiosk-people-grid">
           {people.map((person) => (
             <article key={person.id} className="kiosk-person-card">
@@ -73,11 +79,11 @@ export default function EditorSampleContent({ kioskBehavior, fakeParticipantCoun
         onSubmit={(event) => event.preventDefault()}
       >
         <KioskIdentifyGenericVisual />
-        <h2>Check in</h2>
-        <p className="hint">Enter your details.</p>
+        <h2>{t("live.identify.title")}</h2>
+        <p className="hint">{t("live.identify.hint")}</p>
         {fields.map((field) => (
           <label key={field}>
-            {FIELD_LABELS[field] || field}
+            {fieldLabel(field)}
             <input
               className={field === "pin" ? "kiosk-pin-input" : undefined}
               type="text"
@@ -88,7 +94,7 @@ export default function EditorSampleContent({ kioskBehavior, fakeParticipantCoun
           </label>
         ))}
         <button type="button" className="kiosk-submit" tabIndex={-1}>
-          Continue
+          {t("continue")}
         </button>
       </form>
     </div>

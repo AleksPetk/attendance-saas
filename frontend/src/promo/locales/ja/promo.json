@@ -52,8 +52,8 @@
     "heroLead": "人・グループ・カスタムキオスク・活動履歴をひとつのワークスペースに。いまの運用に合わせて使えます。",
     "ctaRegister": "今すぐ登録",
     "ctaHowItWorks": "使い方を見る",
-    "trialBadge": "Businessプランを",
-    "trialNote": "7日間無料でお試しいただけます — カード登録不要。",
+    "trialBadge": "{{days}}日間",
+    "trialNote": "Business を無料でお試しいただけます — カード登録不要。",
     "heroBuiltAround": "Built around",
     "heroFeatureWords": ["ATTENDANCE", "GROUPS", "KIOSKS", "NOTIFICATIONS", "HISTORY"],
     "heroNoteKiosksTitle": "独自キオスク",
@@ -172,14 +172,14 @@
     ],
     "pricingKicker": "摩擦なく始められる",
     "pricingTitle": "プランを選ぶ前に、すべての機能を試せます。",
-    "pricingLead": "新しいワークスペースでは、最初の7日間Businessを無料でお試しいただけます。カード登録は不要です。トライアル終了後は、無料のBasicをそのまま使うか、運用に合ったプランを選べます。",
+    "pricingLead": "新しいワークスペースでは、最初の{{days}}日間Businessを無料でお試しいただけます。カード登録は不要です。トライアル終了後は、無料のBasicをそのまま使うか、運用に合ったプランを選べます。",
     "viewPricing": "料金を見る",
     "pricingCards": {
-      "startHere": "7日間無料でお試し",
+      "startHere": "{{days}}日間無料でお試し",
       "businessTrial": "Business トライアル",
       "freeForDays": "無料",
-      "freeForDaysSmall": "7日間",
-      "businessTrialBody": "Businessのすべての機能を、最初の7日間無料でお試しいただけます。",
+      "freeForDaysSmall": "{{days}}日間",
+      "businessTrialBody": "Businessのすべての機能を、最初の{{days}}日間無料でお試しいただけます。",
       "noCardRequired": "カード不要",
       "stayFree": "無料のまま続ける",
       "basic": "Basic",
@@ -193,7 +193,7 @@
     "previewLead": "日々の状況確認から、メンバー管理、出席履歴の確認まで。必要な情報と操作を、ひとつのワークスペースにまとめて管理できます。",
     "finalKicker": "まずは、ここから。",
     "finalTitle": "CheckStationを、今日からはじめよう。",
-    "finalLead": "まずは無料でスタート。Businessプランを7日間試して、現場に合ったチェックイン環境を作れます。",
+    "finalLead": "まずは無料でスタート。Businessプランを{{days}}日間試して、現場に合ったチェックイン環境を作れます。",
     "createWorkspace": "ワークスペースを作成"
   },
   "features": {
@@ -443,44 +443,44 @@
         "alt": "受付スタッフのダッシュボード。割り当てグループの活動を表示。"
       }
     ],
-    "staffKicker": "適切な人を、適切なグループへ",
-    "staffTitle": "スタッフが集中して手伝える場所を。",
-    "staffLead": "一緒にチェックインを回す人向けにスタッフアカウントを作り、閲覧・操作できるグループを選べます。",
+    "staffKicker": "必要な人に、必要なグループだけ",
+    "staffTitle": "スタッフには、必要なグループだけを。",
+    "staffLead": "チェックインを担当するスタッフごとにアカウントを作成し、閲覧・操作できるグループを設定できます。",
     "staffExamples": [
       {
         "title": "教師",
-        "body": "担当するクラスやグループの閲覧・操作を割り当てます。"
+        "body": "担当するクラスやグループだけを閲覧・操作できます。"
       },
       {
         "title": "マネージャー",
-        "body": "日常運用で見るべきグループを手元に保てます。"
+        "body": "必要なグループだけをまとめて確認・操作できます。"
       },
       {
         "title": "受付",
-        "body": "フロント担当が運用するチェックイングループへのアクセスを渡せます。"
+        "body": "受付で使うチェックイングループだけにアクセスできます。"
       }
     ],
-    "staffNote": "教師・マネージャー・受付でも、アクセスは選んだグループに紐づきます。",
+    "staffNote": "教師・マネージャー・受付など、役割が違ってもアクセスできる範囲は選んだグループだけ。",
     "historyKicker": "すべてがつながる",
-    "historyTitle": "すべてのアクションが、よりはっきりした全体像に。",
-    "historyLead": "人がチェックイン・チェックアウト・休憩すると、CheckStation は活動をグループに紐づけて残します。チームはワークスペースに戻り、履歴を絞り込み、散らばったメモを追わずに状況を把握できます。",
+    "historyTitle": "すべてのアクションが、ひとつの流れとして見えてくる。",
+    "historyLead": "チェックイン・チェックアウト・休憩などの記録を、グループごとに自動でまとめます。あとから履歴を絞り込み、いつ・誰が・何をしたのかをすぐに確認できます。",
     "exploreFeatures": "すべての機能を見る",
     "historyImageLabel": "つながった活動履歴",
     "historyImageAlt": "出席アクションがひとつのつながった活動履歴に流れ込む様子。"
   },
   "pricing": {
     "kicker": "シンプルで柔軟な料金",
-    "title": "今日の規模に合うプランを選べます。",
+    "title": "今の規模に合ったプランを選べます。",
     "lead": "無料ではじめ、成長に合わせていつでもアップグレード。",
     "billingLabel": "請求",
     "intervalAria": "請求間隔",
     "monthly": "月払い",
-    "monthlyHint": "柔軟に",
+    "monthlyHint": "いつでも変更可能",
     "yearly": "年払い",
     "yearlyHintDefault": "お得",
     "saveMonths": "{{count}}か月分お得",
     "yearlySavingStatus": "年払いで{{label}}",
-    "trialBanner": "{{days}}日間の Business トライアル、カード不要",
+    "trialBanner": "Businessを{{days}}日間無料でお試し。カード登録不要。",
     "plansAria": "CheckStation のプラン",
     "bestValue": "おすすめ",
     "perMonth": "月",
@@ -488,7 +488,7 @@
     "billedMonthly": "月払い",
     "billedYearly": "年払い",
     "normally": "通常 {{price}}",
-    "basicNote": "シンプルなスタートに — カード不要",
+    "basicNote": "まずは無料でスタート。カード登録不要。",
     "reassuranceAria": "請求に関する安心ポイント",
     "startBasicFree": "Basic は無料ではじめられます",
     "noCardToBegin": "開始時にカード不要",
@@ -500,31 +500,31 @@
     "paidPlansInWorkspace": "有料プランはワークスペースで管理",
     "cta": {
       "getStartedFree": "無料ではじめる",
-      "choosePlus": "Plus を選ぶ",
-      "goBusiness": "Business へ",
+      "choosePlus": "Plusを選ぶ",
+      "goBusiness": "Businessを選ぶ",
       "manageSubscription": "サブスクリプションを管理"
     },
     "features": {
-      "activeGroups": "有効グループ {{count}}",
-      "members": "メンバー {{count}}",
+      "activeGroups": "有効グループ：{{count}}",
+      "members": "メンバー：{{count}}",
       "kioskCheckIn": "キオスクチェックイン",
       "actionHistory": "アクション履歴",
       "adsSupported": "広告あり",
-      "everythingInBasic": "Basic のすべて",
-      "groupsAndMembers": "有効グループ {{groups}} / メンバー {{members}}",
+      "everythingInBasic": "Basicのすべて",
+      "groupsAndMembers": "有効グループ：{{groups}} / メンバー：{{members}}",
       "staffManagement": "ワークスペーススタッフ管理",
       "reportExport": "出席レポートのエクスポート",
-      "groupForwardEmails": "グループ転送メール",
+      "groupForwardEmails": "グループごとの転送メール",
       "noAds": "広告なし",
-      "everythingInPlus": "Plus のすべて",
+      "everythingInPlus": "Plusのすべて",
       "structuredGroups": "階層グループ",
-      "groupCapacityTimes": "グループ枠 {{times}}倍",
+      "groupCapacityTimes": "グループ上限 {{times}}倍",
       "groupCapacityCount": "グループ枠 {{count}}",
-      "memberCapacityTimes": "メンバー枠 {{times}}倍",
+      "memberCapacityTimes": "メンバー上限 {{times}}倍",
       "memberCapacityCount": "メンバー枠 {{count}}",
       "adminSeatsTimes": "管理者席 {{times}}倍",
-      "adminSeatsCount": "管理者席 {{count}}",
-      "staffSeatsTimes": "スタッフ席 {{times}}倍",
+      "adminSeatsCount": "管理者：{{count}}名",
+      "staffSeatsTimes": "スタッフ上限 {{times}}倍",
       "staffSeatsCount": "スタッフ席 {{count}}",
       "structuredSnapshotImport": "構造化スナップショットのインポート"
     }
@@ -658,7 +658,7 @@
   },
   "meta": {
     "homeTitle": "CheckStation — 柔軟なチェックインを、シンプルに",
-    "homeDescription": "学校・職場・クラブなどに合う、柔軟なキオスクチェックイン体験を。カード不要の7日間 Business トライアルで無料スタート。",
+    "homeDescription": "学校・職場・クラブなどに合う、柔軟なキオスクチェックイン体験を。カード不要の{{days}}日間 Business トライアルで無料スタート。",
     "featuresTitle": "機能 — CheckStation",
     "featuresDescription": "自分たちのやり方でチェックインを設定し、参加者にやさしいキオスクを運用。すべてのアクションを信頼できる記録に。",
     "howItWorksTitle": "使い方 — CheckStation",

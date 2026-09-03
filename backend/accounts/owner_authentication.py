@@ -10,6 +10,7 @@ from __future__ import annotations
 from django.contrib.auth import login
 from rest_framework.response import Response
 
+from accounts.language import normalize_language
 from accounts.owner_two_factor import (
     OWNER_AUTHENTICATION_BACKEND,
     begin_pending_owner_2fa,
@@ -46,6 +47,9 @@ def build_owner_workspace_payload(request, user, organization):
         "workspace_status": organization.status,
         "capabilities": workspace_capabilities(user),
         "entitlements": build_entitlement_payload(organization),
+        "preferred_language": normalize_language(
+            getattr(user, "preferred_language", None)
+        ),
     }
     attach_workspace_advertising(payload, organization)
     attach_builtin_trial(payload, organization)

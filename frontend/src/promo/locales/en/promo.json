@@ -52,7 +52,7 @@
     "heroLead": "Bring people, Groups, custom kiosks, and activity history together in one workspace that adapts to the way you already work.",
     "ctaRegister": "Register now",
     "ctaHowItWorks": "See how it works",
-    "trialBadge": "7 days",
+    "trialBadge": "{{days}} days",
     "trialNote": "Try Business free — no card required.",
     "heroBuiltAround": "Built around",
     "heroFeatureWords": ["ATTENDANCE", "GROUPS", "KIOSKS", "NOTIFICATIONS", "HISTORY"],
@@ -172,13 +172,13 @@
     ],
     "pricingKicker": "Start without friction",
     "pricingTitle": "Explore the full experience before you choose a plan.",
-    "pricingLead": "Your new workspace starts with Business free for 7 days. No card required. After the trial, you can keep going with Basic for free or choose the plan that fits.",
+    "pricingLead": "Your new workspace starts with Business free for {{days}} days. No card required. After the trial, you can keep going with Basic for free or choose the plan that fits.",
     "viewPricing": "View pricing",
     "pricingCards": {
       "startHere": "Start here",
       "businessTrial": "Business trial",
       "freeForDays": "Free",
-      "freeForDaysSmall": "for 7 days",
+      "freeForDaysSmall": "for {{days}} days",
       "businessTrialBody": "Try the richer CheckStation experience from day one.",
       "noCardRequired": "No card required",
       "stayFree": "Stay free",
@@ -193,7 +193,7 @@
     "previewLead": "Move from a clear daily overview to member management and attendance history — all inside the same connected workspace.",
     "finalKicker": "Ready to make check-in easier?",
     "finalTitle": "Build your first CheckStation flow today.",
-    "finalLead": "Start free, try Business for one week, and create a check-in experience that fits your world.",
+    "finalLead": "Start free, try Business for {{days}} days, and create a check-in experience that fits your world.",
     "createWorkspace": "Create your workspace"
   },
   "features": {
@@ -658,7 +658,7 @@
   },
   "meta": {
     "homeTitle": "CheckStation — Flexible check-in, made simple",
-    "homeDescription": "Create flexible kiosk check-in experiences for schools, workplaces, clubs, and more. Start free with a 7-day Business trial and no card required.",
+    "homeDescription": "Create flexible kiosk check-in experiences for schools, workplaces, clubs, and more. Start free with a {{days}}-day Business trial and no card required.",
     "featuresTitle": "Features — CheckStation",
     "featuresDescription": "Configure check-in your way, run participant-friendly kiosks, and keep a dependable record of every action.",
     "howItWorksTitle": "How it works — CheckStation",

@@ -148,6 +148,36 @@
   flex-direction: column;
 }
 
+.kr-card-helper-dock {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  z-index: 3;
+  display: flex;
+  justify-content: flex-end;
+  width: 100%;
+  padding: 0 clamp(0.7rem, 2vw, 1.35rem) clamp(0.7rem, 2vw, 1.15rem);
+  box-sizing: border-box;
+  pointer-events: none;
+}
+
+.kr-card-helper {
+  max-width: min(100%, 22rem);
+  padding: 0.42rem 0.7rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.82);
+  box-shadow: 0 4px 14px rgba(2, 6, 23, 0.2);
+  color: #fff;
+  font-size: clamp(0.72rem, 1.5vw, 0.86rem);
+  font-weight: 650;
+  line-height: 1.3;
+  text-align: right;
+  overflow-wrap: anywhere;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
 .kr-main-copy {
   width: 100%;
   align-self: stretch;
@@ -331,6 +361,10 @@
   margin: 0 0 0.85rem;
 }
 
+.kiosk-back-to-classes {
+  margin-top: 1rem;
+}
+
 .kr-main-content .kiosk-body,
 .kr-main-content .kiosk-body-input {
   max-width: none;
@@ -358,5 +392,16 @@
   .kr-exit {
     top: 0.4rem;
     right: 0.4rem;
+  }
+
+  .kr-card-helper-dock {
+    padding-right: 0.65rem;
+    padding-bottom: 0.65rem;
+    padding-left: 0.65rem;
+  }
+
+  .kr-card-helper {
+    max-width: min(100%, 16rem);
+    padding: 0.36rem 0.6rem;
   }
 }

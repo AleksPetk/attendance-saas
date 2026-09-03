@@ -71,13 +71,11 @@ test("Features Section 3 reuses the English video player with ordered Japanese c
     /locale === "ja"[\s\S]*\? configurableFlowDemoJa[\s\S]*: configurableFlowDemo/,
   );
   assert.doesNotMatch(featuresSource, /if \(isJa\)[\s\S]*LocalizedPromoImage/);
-  assert.match(demoVideosSource, /ja-configurable-flow-1\.mp4/);
-  assert.match(demoVideosSource, /ja-configurable-flow-2\.mp4/);
-  assert.ok(
-    demoVideosSource.indexOf("jaClipOne") < demoVideosSource.indexOf("jaClipTwo"),
-  );
+  assert.match(demoVideosSource, /FEATURE_MEDIA_BASE.*ja-configurable-flow-1\.mp4/);
+  assert.match(demoVideosSource, /FEATURE_MEDIA_BASE.*ja-configurable-flow-2\.mp4/);
+  assert.doesNotMatch(demoVideosSource, /import .*\.mp4/);
   assert.match(featuresSource, /\(current \+ 1\) % demo\.clips\.length/);
-  assert.match(featuresSource, /preload=\{demo\.preloadNext \? "auto" : "metadata"\}/);
+  assert.match(featuresSource, /preload="metadata"/);
 });
 
 test("Features locale changes reset media state and refresh reveal observation", () => {

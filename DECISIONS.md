@@ -772,7 +772,7 @@ Only log decisions supported by approved product planning. Do not invent decisio
 | Field | Value |
 |-------|-------|
 | **Date** | 2026-08-25 |
-| **Decision** | Permanent V1 paid prices are **USD only**: Plus **$9.99/month** and **$99.90/year**; Business **$14.99/month** and **$149.90/year**. Yearly = **10 × monthly** (effectively two months free). Basic remains free. Both **monthly** and **yearly** are V1 launch intervals for paid plans. The application does not invent proration arithmetic; the payment provider calculates amounts. Interval-change execution (monthly ↔ yearly) is deferred to provider integration. |
+| **Decision** | Permanent V1 paid prices are **USD only**: Plus **$9.99/month** and **$99.99/year**; Business **$14.99/month** and **$149.99/year**. Yearly pricing provides approximately two months of savings versus paying monthly for 12 months; monthly and yearly prices are explicit values rather than a multiplication rule. Basic remains free. Both **monthly** and **yearly** are V1 launch intervals for paid plans. The application does not invent proration arithmetic; the payment provider calculates amounts. Interval-change execution (monthly ↔ yearly) is deferred to provider integration. |
 | **Reason** | Marketing, catalog, and future Stripe Price objects must share one frozen list price. |
 | **Status** | confirmed |
 | **Clarifies** | DEC-018, DEC-072, OPEN-007 (prices; Event axes remain open) |
@@ -875,7 +875,7 @@ Only log decisions supported by approved product planning. Do not invent decisio
 | Field | Value |
 |-------|-------|
 | **Date** | 2026-08-26 |
-| **Decision** | Final V1 promotions are **three** eligibility groups. **Group 1 New/Basic** (`off` / `normal` / `big`): public + Basic only — marketing NORMAL 50% first month / 30% first year; BIG 70% / 50%; amounts from fixed Stripe coupons (`normal − off-amount`). **Group 2 Plus Monthly** (`off` / `on`): when ON — Plus Yearly **30%** first year ($69.90) and Business Yearly **30%** first year ($104.90); no other Plus Monthly offer. **Group 3 Business Monthly** (`off` / `on`): when ON — Business Yearly **30%** first year ($104.90). **Plus Yearly and Business Yearly have no promotion.** Removed from V1 (not implemented): Plus Monthly→Business Monthly “2 months at Plus price”; Plus Yearly→Business Yearly 50% prorated upgrade promo; Plus Monthly→Business Yearly 20%. Plus Monthly→Business Yearly and Business Monthly→Business Yearly **reuse** `STRIPE_COUPON_BUSINESS_MONTHLY_TO_YEARLY` ($45 off); eligibility is server-side. Permanent catalog prices never mutate. Clients render backend promotional amounts only. |
+| **Decision** | Final V1 promotions are **three** eligibility groups. **Group 1 New/Basic** (`off` / `normal` / `big`): public + Basic only — marketing NORMAL 50% first month / 30% first year; BIG 70% / 50%; amounts from fixed Stripe coupons (`normal − off-amount`). **Group 2 Plus Monthly** (`off` / `on`): when ON — Plus Yearly **30%** first year ($69.99) and Business Yearly **30%** first year ($104.99); no other Plus Monthly offer. **Group 3 Business Monthly** (`off` / `on`): when ON — Business Yearly **30%** first year ($104.99). **Plus Yearly and Business Yearly have no promotion.** Removed from V1 (not implemented): Plus Monthly→Business Monthly “2 months at Plus price”; Plus Yearly→Business Yearly 50% prorated upgrade promo; Plus Monthly→Business Yearly 20%. Plus Monthly→Business Yearly and Business Monthly→Business Yearly **reuse** `STRIPE_COUPON_BUSINESS_MONTHLY_TO_YEARLY` ($45 off); eligibility is server-side. Permanent catalog prices never mutate. Clients render backend promotional amounts only. |
 | **Reason** | Drop unfinished special offers; keep a small, Stripe-aligned V1 set that admin can operate without placeholders. |
 | **Status** | confirmed |
 | **Clarifies / supersedes** | [DEC-090](#dec-090--eligibility-based-promotion-groups) commercial offer set (eligibility-group architecture retained) |
@@ -953,6 +953,53 @@ Only log decisions supported by approved product planning. Do not invent decisio
 
 ---
 
+
+### DEC-095 — Public API is under workspace.checkstation.app
+
+| Field | Content |
+|-------|---------|
+| **ID** | DEC-095 |
+| **Date** | 2026-09-03 |
+| **Status** | confirmed |
+| **Decision** | There is **no** separate `api.checkstation.app`. The public HTTP API is exposed at **`https://workspace.checkstation.app/api/...`**. The reverse proxy routes `/api/*` on `workspace.checkstation.app` to Django (gunicorn). Browser workspace SPA prefers same-origin relative `/api` (or absolute workspace origin). Native mobile/desktop apps will use the same workspace API origin later; mobile API auth/versioning is out of scope for this decision. Credentialed CORS is limited to `https://workspace.checkstation.app` only. Promo (`checkstation.app`), Docs, and Status use anonymous CORS without credentials. Public Contact is csrf_exempt (Turnstile-protected) and must not grant the marketing site credentialed CORS. Docs (`docs.checkstation.app`) and Status (`status.checkstation.app`) must not receive credentialed CORS to authenticated workspace APIs. Intended platform-admin hostname remains `manager.checkstation.app` (may still share the Django process via `/admin/` until a later reverse-proxy split). |
+| **Resolves** | OPEN-029 |
+| **Notes** | Does not deploy DNS, TLS, or live provider credentials. |
+
+
+### DEC-096 — Owner account deletion auth and live-subscription guard
+
+| Field | Content |
+|-------|---------|
+| **ID** | DEC-096 |
+| **Date** | 2026-09-03 |
+| **Status** | confirmed |
+| **Decision** | Permanent owner account/workspace deletion uses the shared sensitive-action authentication path: password owners confirm password (+ owner 2FA when enabled); OAuth-only owners confirm via fresh linked-provider re-auth (+ 2FA when enabled) and are **not** required to create a password solely to delete. Permanent deletion is **blocked** while a live commercial `WorkspaceSubscription` exists (`trialing` / `active` / `past_due`, including `cancel_at_period_end` until access actually ends) with stable API code `active_subscription`. Deletion must not silently cancel Stripe, orphan a charging subscription, or continue charging after workspace deletion. The built-in 7-day Business trial alone (no live commercial subscription row) does not block deletion. Existing Stripe cancel/resume flows remain the only way to end paid access. After paid access has ended (`canceled` / `none`), permanent deletion may proceed; Stripe Customer objects are not auto-deleted in this phase. |
+| **Clarifies** | [DEC-052](#dec-052--archive-subscription-cancellation-and-permanent-account-deletion), [DEC-094](#dec-094--optional-google-and-apple-owner-sign-in-methods) |
+
+
+### DEC-097 — Shared production cache and auth abuse rate limits
+
+| Field | Content |
+|-------|---------|
+| **ID** | DEC-097 |
+| **Date** | 2026-09-03 |
+| **Status** | confirmed |
+| **Decision** | Local development may use Django `LocMemCache`. Production requires `REDIS_URL` and `django-redis` as the shared Django cache backend so security limits work across Gunicorn workers. Cache-backed limits cover owner login, staff login, password-reset initiation, public verification-resend IP abuse, Contact form abuse, kiosk Class PIN verification, and kiosk exit-code verification. Identifiers in cache keys are HMAC-hashed; raw emails, usernames, workspace IDs, and PINs are not stored in Redis keys. Client IP defaults to `REMOTE_ADDR`; `USE_X_FORWARDED_FOR` and `TRUSTED_PROXY_IPS` may be enabled only for known reverse-proxy hops. Transient Redis errors fail open (`IGNORE_EXCEPTIONS=True`) so authentication is not taken down by cache outages; missing `REDIS_URL` in production settings fails closed at startup. Password-reset and verification-resend public responses stay generic (no account enumeration). Login throttling returns HTTP 429 with stable code `rate_limited`. |
+| **Notes** | Does not deploy Redis, reverse proxy, or live credentials. Operational PIN hashing at rest is covered by DEC-098. |
+
+
+### DEC-098 — Operational PIN hashing at rest
+
+| Field | Content |
+|-------|---------|
+| **ID** | DEC-098 |
+| **Date** | 2026-09-03 |
+| **Status** | confirmed |
+| **Decision** | Structured Class PINs and Group participation PINs (membership and group-only participants) are stored as Django password hashes, never plaintext and never reversibly encrypted. Managers may set/reset a PIN but cannot retrieve an existing raw PIN after save. APIs expose only boolean metadata such as `has_class_pin` / `has_pin`; raw PINs and hashes are never serialized. Verification is server-side via `check_password`. Standard Group → Class import copies hash digests (not recoverable plaintext). Member profile PINs and kiosk exit codes already followed this model and remain unchanged. |
+| **Clarifies** | Phase 6 deployment-prep PIN hardening |
+| **Notes** | Does not change kiosk Class PIN session-grant behavior (Phase 3) or shared-cache rate limits (Phase 5 / DEC-097). |
+
+
 ## Open Decisions
 
 Unresolved questions requiring explicit approval before implementation.
@@ -985,7 +1032,7 @@ Unresolved questions requiring explicit approval before implementation.
 | OPEN-025 | User/staff ↔ Member explicit linking | Same real-world person may later be both a WorkspaceStaffAccount and a Member (or a paying User and a Member). Any explicit link, deduplication, or conversion mechanism remains undecided. Do not invent a required link during foundation implementation. |
 | OPEN-027 | Kiosk data model | **Partially resolved (2026-08-20).** Group behavioral kiosk settings live in `KioskSettings` (OneToOne Group). Visual design stays in `KioskDesign`. See DEC-057. Event kiosk storage and device credentials remain future work. |
 | OPEN-028 | Multiple kiosk variants per Group or Event | Explicitly **not** an MVP requirement. Future decision. Initial product direction is one owned configuration per Group and per Event (DEC-044). |
-| OPEN-029 | Production API hostname / reverse-proxy arrangement | **Intentionally unfrozen (DEC-088).** Do not invent `api.checkstation.app`. Decide with Nginx/deployment design: same-origin under workspace, a separate API hostname, or another reverse-proxy arrangement. Cookie/CORS/CSRF implications of splitting `checkstation.app` vs `workspace.checkstation.app` are part of that later implementation, not this decision. |
+| OPEN-029 | Production API hostname / reverse-proxy arrangement | **Resolved by DEC-095.** Public API is `https://workspace.checkstation.app/api/...`. There is no `api.checkstation.app`. |
 
 ---
 

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
+import "./i18n/index.js";
 import { groupTypeLabel, isStructuredGroup } from "./groupForm.js";
 
 describe("group type labels", () => {

@@ -111,7 +111,12 @@
     "confirmPrompt": "Type DELETE to confirm",
     "deleting": "Deleting…",
     "permanentlyDelete": "Permanently delete account",
-    "confirmDialog": "This cannot be undone. Permanently delete your CheckStation account and workspace?"
+    "confirmDialog": "This cannot be undone. Permanently delete your CheckStation account and workspace?",
+    "oauthReauthRequired": "Confirm your identity with a linked sign-in provider before permanently deleting this account.",
+    "oauthReauthReady": "Identity confirmed. You can continue with permanent deletion.",
+    "activeSubscription": "A paid subscription is still active for this workspace. Cancel it and wait until paid access ends before permanently deleting the account.",
+    "activeSubscriptionHint": "Deleting the account does not cancel Stripe billing. Use Subscription to cancel or end paid access first.",
+    "manageSubscription": "Go to Subscription"
   },
   "signInMethods": {
     "password": "Password",

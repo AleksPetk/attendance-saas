@@ -1,19 +1,36 @@
 import { createElement, useMemo, useState } from "react";
+import i18n from "./i18n/index.js";
+
+function t(key, options) {
+  return i18n.t(key, { ns: "workspace", ...options });
+}
+
+function tEnt(key, options) {
+  return i18n.t(key, { ns: "entitlements", ...options });
+}
+
+function tCommon(key, options) {
+  return i18n.t(key, { ns: "common", ...options });
+}
 
 export function requiredPlanSelectionCount(limit, candidateCount) {
   return Math.min(Math.max(0, Number(limit) || 0), Math.max(0, Number(candidateCount) || 0));
 }
 
 export function candidateDisplayName(candidate) {
-  return candidate?.name || candidate?.username || `Record #${candidate?.id}`;
+  return (
+    candidate?.name ||
+    candidate?.username ||
+    tEnt("planLockCandidates.recordNumber", { id: candidate?.id })
+  );
 }
 
 export function candidateMeta(candidate) {
   return [
-    candidate?.group_type === "structured" ? "Structured Group" : null,
-    candidate?.group_type === "standard" ? "Standard Group" : null,
-    candidate?.role === "admin" ? "Workspace Admin" : null,
-    candidate?.role === "staff" ? "Workspace Staff" : null,
+    candidate?.group_type === "structured" ? tEnt("planLockCandidates.structuredGroup") : null,
+    candidate?.group_type === "standard" ? tEnt("planLockCandidates.standardGroup") : null,
+    candidate?.role === "admin" ? tEnt("planLockCandidates.workspaceAdmin") : null,
+    candidate?.role === "staff" ? tEnt("planLockCandidates.workspaceStaff") : null,
     candidate?.email || null,
     candidate?.status || null,
   ]
@@ -81,24 +98,24 @@ export function PlanLockSelectionForm({
       createElement(
         "div",
         null,
-        createElement("p", { className: "entity-kicker" }, "Plan capacity"),
+        createElement("p", { className: "entity-kicker" }, t("planLock.kicker")),
         createElement("h2", { id: "plan-lock-selection-title" }, title),
         createElement("p", null, description),
       ),
       createElement(
         "strong",
         { className: "plan-lock-selection-count" },
-        `${selectedIds.length} / ${limit} selected`,
+        t("planLock.selectedCount", { selected: selectedIds.length, limit }),
       ),
     ),
     enableSearch
       ? createElement("input", {
           className: "search-input plan-lock-selection-search",
           type: "search",
-          placeholder: "Search name, email, or #ID",
+          placeholder: t("planLock.searchPlaceholder"),
           value: search,
           onChange: (event) => setSearch(event.target.value),
-          "aria-label": "Search candidates",
+          "aria-label": t("planLock.searchAria"),
         })
       : null,
     candidates.length
@@ -135,18 +152,18 @@ export function PlanLockSelectionForm({
             : createElement(
                 "p",
                 { className: "plan-lock-selection-empty" },
-                "No matching records.",
+                t("planLock.noMatches"),
               ),
         )
       : createElement(
           "p",
           { className: "plan-lock-selection-empty" },
-          "There are no records to select.",
+          t("planLock.noRecords"),
         ),
     createElement(
       "p",
       { className: "plan-lock-selection-guidance" },
-      `Choose exactly ${requiredCount} record${requiredCount === 1 ? "" : "s"} to match this plan’s available capacity.`,
+      t(requiredCount === 1 ? "planLock.guidance" : "planLock.guidance_plural", { count: requiredCount }),
     ),
     createElement(
       "div",
@@ -159,7 +176,7 @@ export function PlanLockSelectionForm({
           disabled: !valid || saving,
           onClick: onConfirm,
         },
-        saving ? "Saving…" : "Confirm availability",
+        saving ? tCommon("saving") : t("planLock.confirmAvailability"),
       ),
       onCancel
         ? createElement(
@@ -170,7 +187,7 @@ export function PlanLockSelectionForm({
               disabled: saving,
               onClick: onCancel,
             },
-            "Cancel",
+            tCommon("cancel"),
           )
         : null,
     ),

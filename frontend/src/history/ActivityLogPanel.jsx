@@ -1,19 +1,22 @@
-import { useEffect, useMemo, useState } from "react";
-import { api, errorMessage } from "../api.js";
+import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { api } from "../api.js";
 import {
   ActionBadge,
   EmptyState,
   ErrorBanner,
   LoadingState,
 } from "../components.jsx";
+import { localizedErrorMessage } from "../i18n/errorMessages.js";
+import { formatDate } from "../i18n/format.js";
 import { formatTime24 } from "./formatDateTime.js";
 import { HistoryInput, HistorySelect } from "./historyFormControls.jsx";
 
 const ACTION_OPTIONS = [
-  { value: "check_in", label: "Check-in" },
-  { value: "check_out", label: "Check-out" },
-  { value: "break_start", label: "Break start" },
-  { value: "break_end", label: "Break end" },
+  { value: "check_in", labelKey: "actions.checkIn" },
+  { value: "check_out", labelKey: "actions.checkOut" },
+  { value: "break_start", labelKey: "actions.breakStart" },
+  { value: "break_end", labelKey: "actions.breakEnd" },
 ];
 
 function historyRowClass(action) {
@@ -24,6 +27,7 @@ function historyRowClass(action) {
 }
 
 export default function ActivityLogPanel({ session }) {
+  const { t, i18n } = useTranslation(["history", "common", "errors"]);
   const [groups, setGroups] = useState([]);
   const [history, setHistory] = useState([]);
   const [error, setError] = useState("");
@@ -51,7 +55,7 @@ export default function ActivityLogPanel({ session }) {
       const result = await api.listHistory(session, `?${params.toString()}`);
       setHistory(result.data.items || []);
     } catch (err) {
-      setError(errorMessage(err));
+      setError(localizedErrorMessage(err, t));
     } finally {
       setLoading(false);
     }
@@ -66,32 +70,21 @@ export default function ActivityLogPanel({ session }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [groupId, action, search, day]);
 
-  const groupLabel = useMemo(() => {
-    if (!groupId) return "All groups";
-    const g = groups.find((x) => String(x.id) === String(groupId));
-    return g ? g.name : "Group";
-  }, [groupId, groups]);
-
   const hasFilters = groupId || action || search || day;
 
   return (
     <div className="history-panel activity-log-panel">
-      <p className="history-view-lede">
-        Action records from kiosk check-in, check-out, and break operations. Showing:{" "}
-        <span className="history-view-lede-emphasis">{groupLabel}</span>
-      </p>
-
       <ErrorBanner message={error} />
 
       <div className="history-toolbar activity-log-toolbar">
         <div className="history-toolbar-filters" data-tutorial-target="activity-log-filters">
           <HistorySelect
             id="activity-log-group"
-            label="Group"
+            label={t("activity.group")}
             value={groupId}
             onChange={(e) => setGroupId(e.target.value)}
           >
-            <option value="">All groups</option>
+            <option value="">{t("activity.allGroups")}</option>
             {groups.map((g) => (
               <option key={g.id} value={g.id}>
                 {g.name}
@@ -101,29 +94,29 @@ export default function ActivityLogPanel({ session }) {
 
           <HistorySelect
             id="activity-log-action"
-            label="Action"
+            label={t("activity.action")}
             value={action}
             onChange={(e) => setAction(e.target.value)}
           >
-            <option value="">Any action</option>
+            <option value="">{t("activity.anyAction")}</option>
             {ACTION_OPTIONS.map((opt) => (
               <option key={opt.value} value={opt.value}>
-                {opt.label}
+                {t(`common:${opt.labelKey}`)}
               </option>
             ))}
           </HistorySelect>
 
           <HistoryInput
             id="activity-log-search"
-            label="Search"
+            label={t("activity.search")}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Name, email, or identifier"
+            placeholder={t("activity.searchPlaceholder")}
           />
 
           <HistoryInput
             id="activity-log-day"
-            label="Day"
+            label={t("activity.day")}
             type="date"
             value={day}
             onChange={(e) => setDay(e.target.value)}
@@ -134,7 +127,7 @@ export default function ActivityLogPanel({ session }) {
           <div className="history-toolbar-actions">
             <button
               type="button"
-              className="history-clear-filters"
+              className="btn-ghost groups-toolbar-clear"
               onClick={() => {
                 setGroupId("");
                 setAction("");
@@ -142,19 +135,16 @@ export default function ActivityLogPanel({ session }) {
                 setDay("");
               }}
             >
-              Clear filters
+              {t("activity.clear")}
             </button>
           </div>
         ) : null}
       </div>
 
-      {loading ? <LoadingState label="Loading history…" /> : null}
+      {loading ? <LoadingState label={t("activity.loading")} /> : null}
 
       {!loading && history.length === 0 ? (
-        <EmptyState
-          title="No history yet"
-          body="Run a kiosk action and records will appear here. Try adjusting filters if you expected results."
-        />
+        <EmptyState title={t("activity.empty.title")} body={t("activity.empty.body")} />
       ) : null}
 
       {!loading && history.length > 0 ? (
@@ -164,11 +154,9 @@ export default function ActivityLogPanel({ session }) {
             return (
               <article key={item.id} className={historyRowClass(item.action)}>
                 <div className="history-time">
-                  <strong>
-                    {formatTime24(when)}
-                  </strong>
+                  <strong>{formatTime24(when)}</strong>
                   <span className="history-date">
-                    {when.toLocaleDateString([], {
+                    {formatDate(when, i18n.language, {
                       weekday: "short",
                       month: "short",
                       day: "numeric",
@@ -176,7 +164,7 @@ export default function ActivityLogPanel({ session }) {
                   </span>
                 </div>
                 <div className="history-main">
-                  <strong>{item.person?.name || "Unknown"}</strong>
+                  <strong>{item.person?.name || t("common:unknown")}</strong>
                   <p className="history-sub">{item.group_name}</p>
                 </div>
                 <div className="history-meta">

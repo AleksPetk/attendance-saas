@@ -4,6 +4,8 @@
  * Legacy layout_preset + card_preset are mapped for compatibility only.
  */
 
+import i18n from "../i18n/index.js";
+
 export const CARD_TEMPLATE_IDS = [
   "clean",
   "compact",
@@ -267,5 +269,6 @@ export function patchMainWithCardTemplate(main, templateId) {
 }
 
 export function cardTemplateLabel(templateId) {
-  return CARD_TEMPLATES[templateId]?.label || "Clean";
+  const fallback = CARD_TEMPLATES[templateId]?.label || "Clean";
+  return i18n.t(`kiosk:templates.card.${templateId}`, { defaultValue: fallback });
 }

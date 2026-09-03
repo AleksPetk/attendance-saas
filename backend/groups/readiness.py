@@ -39,9 +39,7 @@ def membership_participation_emails(membership):
 
 
 def membership_has_participation_pin(membership):
-    return bool((membership.participation_pin or "").strip()) or bool(
-        membership.override_pin_hash
-    )
+    return bool(getattr(membership, "participation_pin_hash", None))
 
 
 def participant_participation_email(participant):
@@ -60,7 +58,7 @@ def participant_participation_emails(participant):
 
 
 def participant_has_participation_pin(participant):
-    return bool((participant.participation_pin or "").strip()) or bool(participant.pin_hash)
+    return bool(getattr(participant, "pin_hash", None))
 
 
 def _active_sections_with_participant_counts(group):

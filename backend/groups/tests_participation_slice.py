@@ -214,7 +214,9 @@ class GroupParticipationSliceTests(TestCase):
         self.group.require_pin = False
         self.group.save()
         membership.refresh_from_db()
-        self.assertEqual(membership.participation_pin, "1234")
+        self.assertTrue(membership.check_effective_pin("1234"))
+        self.assertTrue(membership.has_participation_pin)
+        self.assertNotEqual(membership.participation_pin_hash, "1234")
 
     def test_re_enabling_pin_reuses_existing_values(self):
         membership = self._create_membership()
@@ -328,7 +330,7 @@ class GroupParticipationSliceTests(TestCase):
         self.member.save()
         self.assertFalse(compute_group_setup_status(self.group)["setup_complete"])
 
-    def test_participation_pin_visible_to_workspace_api(self):
+    def test_participation_pin_set_flag_visible_to_workspace_api(self):
         membership = self._create_membership()
         membership.set_participation_pin("4321")
         membership.save()
@@ -338,7 +340,9 @@ class GroupParticipationSliceTests(TestCase):
         )
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["participation"]["pin"], "4321")
+        self.assertTrue(response.data["participation"]["has_pin"])
+        self.assertNotIn("pin", response.data["participation"])
+        self.assertNotIn("4321", str(response.data))
 
     def test_tenant_isolation_for_memberships(self):
         other_org = Organization.objects.create_with_owner(
@@ -543,8 +547,8 @@ class GroupParticipationRequirementDecouplingTests(TestCase):
             status=GroupMembershipStatus.ACTIVE,
         )
         membership.participation_email = ""
-        membership.participation_pin = ""
-        membership.save(update_fields=["participation_email", "participation_pin"])
+        membership.clear_participation_pin()
+        membership.save(update_fields=["participation_email", "participation_pin_hash"])
         self.group.require_email = True
         self.group.require_pin = True
         self.group.save()

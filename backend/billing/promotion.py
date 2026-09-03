@@ -22,9 +22,11 @@ from billing.catalog import (
     INTERVAL_YEARLY,
     PLAN_BUSINESS,
     PLAN_PLUS,
-    format_usd_cents,
-    price_cents,
+    amount_minor_to_string,
+    format_currency_minor,
+    price_amount_minor,
 )
+from billing.markets import MARKET_GLOBAL, MARKET_JP, currency_for_market
 from billing.models import BillingStatus
 from core.models import (
     NewBasicPromotionMode,
@@ -90,6 +92,22 @@ FIXED_COUPON_DISCOUNT_CENTS = {
     (GROUP_PLUS_MONTHLY, "business_yearly_30"): 4500,
     # Group 3 Business Monthly → Business Yearly (same $45 coupon economics)
     (GROUP_BUSINESS_MONTHLY, "business_yearly_30"): 4500,
+}
+FIXED_COUPON_DISCOUNTS_MINOR = {
+    MARKET_GLOBAL: FIXED_COUPON_DISCOUNT_CENTS,
+    MARKET_JP: {
+        (GROUP_NEW_BASIC, MODE_NORMAL, PLAN_PLUS, INTERVAL_MONTHLY): 490,
+        (GROUP_NEW_BASIC, MODE_NORMAL, PLAN_BUSINESS, INTERVAL_MONTHLY): 740,
+        (GROUP_NEW_BASIC, MODE_NORMAL, PLAN_PLUS, INTERVAL_YEARLY): 2900,
+        (GROUP_NEW_BASIC, MODE_NORMAL, PLAN_BUSINESS, INTERVAL_YEARLY): 4400,
+        (GROUP_NEW_BASIC, MODE_BIG, PLAN_PLUS, INTERVAL_MONTHLY): 690,
+        (GROUP_NEW_BASIC, MODE_BIG, PLAN_BUSINESS, INTERVAL_MONTHLY): 1040,
+        (GROUP_NEW_BASIC, MODE_BIG, PLAN_PLUS, INTERVAL_YEARLY): 4900,
+        (GROUP_NEW_BASIC, MODE_BIG, PLAN_BUSINESS, INTERVAL_YEARLY): 7400,
+        (GROUP_PLUS_MONTHLY, "plus_yearly_30"): 2900,
+        (GROUP_PLUS_MONTHLY, "business_yearly_30"): 3000,
+        (GROUP_BUSINESS_MONTHLY, "business_yearly_30"): 4400,
+    },
 }
 
 GROUP_LABELS = {
@@ -218,18 +236,20 @@ def eligible_group_for_audience(audience: str) -> Optional[str]:
     return AUDIENCE_TO_GROUP.get(audience)
 
 
-def _money_fields(cents: Optional[int]) -> dict:
-    if cents is None:
+def _money_fields(amount_minor: Optional[int], *, currency: str) -> dict:
+    if amount_minor is None:
         return {
+            "amount_minor": None,
             "cents": None,
             "amount": None,
             "formatted": None,
         }
-    value = int(cents)
+    value = int(amount_minor)
     return {
-        "cents": value,
-        "amount": cents_to_amount_string(value),
-        "formatted": format_usd_cents(value),
+        "amount_minor": value,
+        "cents": value if currency == "usd" else None,
+        "amount": amount_minor_to_string(value, currency),
+        "formatted": format_currency_minor(value, currency),
     }
 
 
@@ -253,20 +273,23 @@ def _base_offer(
     requires_provider_preview: bool = False,
     provider_slot: str = "",
     group: str = "",
+    market: str = MARKET_GLOBAL,
 ) -> dict:
-    normal = _money_fields(normal_cents)
-    promo = _money_fields(promotional_cents)
+    currency = currency_for_market(market)
+    normal = _money_fields(normal_cents, currency=currency)
+    promo = _money_fields(promotional_cents, currency=currency)
     renews = _money_fields(
-        renews_at_cents if renews_at_cents is not None else normal_cents
+        renews_at_cents if renews_at_cents is not None else normal_cents,
+        currency=currency,
     )
-    discount_money = _money_fields(discount_amount_cents)
+    discount_money = _money_fields(discount_amount_cents, currency=currency)
     # Lazy import avoids circular import with billing.coupons.
     from billing.coupons import offer_slot_has_coupon
 
     applies = bool(
         group
         and provider_slot
-        and offer_slot_has_coupon(group, provider_slot)
+        and offer_slot_has_coupon(group, provider_slot, market=market)
     )
     return {
         "id": offer_id,
@@ -279,17 +302,21 @@ def _base_offer(
         "marketing_discount_percent": discount_percent,
         "discount_type": discount_type,
         "discount_amount_cents": discount_money["cents"],
+        "discount_amount_minor": discount_money["amount_minor"],
         "discount_amount": discount_money["amount"],
         "discount_amount_formatted": discount_money["formatted"],
         "duration_periods": duration_periods,
         "duration_label": duration_label,
         "normal_cents": normal["cents"],
+        "normal_amount_minor": normal["amount_minor"],
         "normal_amount": normal["amount"],
         "normal_formatted": normal["formatted"],
         "promotional_cents": promo["cents"],
+        "promotional_amount_minor": promo["amount_minor"],
         "promotional_amount": promo["amount"],
         "promotional_formatted": promo["formatted"],
         "renews_at_cents": renews["cents"],
+        "renews_at_amount_minor": renews["amount_minor"],
         "renews_at_amount": renews["amount"],
         "renews_at_formatted": renews["formatted"],
         "match_plan": match_plan,
@@ -301,7 +328,7 @@ def _base_offer(
     }
 
 
-def _new_basic_offers(mode: str) -> list[dict]:
+def _new_basic_offers(mode: str, *, market=MARKET_GLOBAL) -> list[dict]:
     if mode == MODE_OFF:
         return []
     percents = NEW_BASIC_MARKETING_PERCENT.get(mode) or {}
@@ -309,8 +336,8 @@ def _new_basic_offers(mode: str) -> list[dict]:
     for plan in (PLAN_PLUS, PLAN_BUSINESS):
         for interval in (INTERVAL_MONTHLY, INTERVAL_YEARLY):
             percent = percents[interval]
-            normal = price_cents(plan, interval)
-            discount = FIXED_COUPON_DISCOUNT_CENTS[(GROUP_NEW_BASIC, mode, plan, interval)]
+            normal = price_amount_minor(plan, interval, market=market)
+            discount = FIXED_COUPON_DISCOUNTS_MINOR[market][(GROUP_NEW_BASIC, mode, plan, interval)]
             first = fixed_promotional_cents(normal, discount)
             duration_label = (
                 "first_month" if interval == INTERVAL_MONTHLY else "first_year"
@@ -337,18 +364,19 @@ def _new_basic_offers(mode: str) -> list[dict]:
                     renews_at_cents=normal,
                     provider_slot=f"{mode}.{plan}.{interval}",
                     group=GROUP_NEW_BASIC,
+                    market=market,
                 )
             )
     return offers
 
 
-def _plus_monthly_offers() -> list[dict]:
-    plus_yearly = price_cents(PLAN_PLUS, INTERVAL_YEARLY)
-    business_yearly = price_cents(PLAN_BUSINESS, INTERVAL_YEARLY)
-    plus_yearly_discount = FIXED_COUPON_DISCOUNT_CENTS[
+def _plus_monthly_offers(*, market=MARKET_GLOBAL) -> list[dict]:
+    plus_yearly = price_amount_minor(PLAN_PLUS, INTERVAL_YEARLY, market=market)
+    business_yearly = price_amount_minor(PLAN_BUSINESS, INTERVAL_YEARLY, market=market)
+    plus_yearly_discount = FIXED_COUPON_DISCOUNTS_MINOR[market][
         (GROUP_PLUS_MONTHLY, "plus_yearly_30")
     ]
-    business_yearly_discount = FIXED_COUPON_DISCOUNT_CENTS[
+    business_yearly_discount = FIXED_COUPON_DISCOUNTS_MINOR[market][
         (GROUP_PLUS_MONTHLY, "business_yearly_30")
     ]
     return [
@@ -370,6 +398,7 @@ def _plus_monthly_offers() -> list[dict]:
             renews_at_cents=plus_yearly,
             provider_slot="plus_yearly_30",
             group=GROUP_PLUS_MONTHLY,
+            market=market,
         ),
         _base_offer(
             offer_id="plus_monthly_to_business_yearly",
@@ -389,13 +418,14 @@ def _plus_monthly_offers() -> list[dict]:
             renews_at_cents=business_yearly,
             provider_slot="business_yearly_30",
             group=GROUP_PLUS_MONTHLY,
+            market=market,
         ),
     ]
 
 
-def _business_monthly_offers() -> list[dict]:
-    business_yearly = price_cents(PLAN_BUSINESS, INTERVAL_YEARLY)
-    discount = FIXED_COUPON_DISCOUNT_CENTS[
+def _business_monthly_offers(*, market=MARKET_GLOBAL) -> list[dict]:
+    business_yearly = price_amount_minor(PLAN_BUSINESS, INTERVAL_YEARLY, market=market)
+    discount = FIXED_COUPON_DISCOUNTS_MINOR[market][
         (GROUP_BUSINESS_MONTHLY, "business_yearly_30")
     ]
     return [
@@ -415,18 +445,19 @@ def _business_monthly_offers() -> list[dict]:
             renews_at_cents=business_yearly,
             provider_slot="business_yearly_30",
             group=GROUP_BUSINESS_MONTHLY,
+            market=market,
         ),
     ]
 
 
-def build_offers_for_group(group: Optional[str], *, settings_obj=None) -> list[dict]:
+def build_offers_for_group(group: Optional[str], *, settings_obj=None, market=MARKET_GLOBAL) -> list[dict]:
     settings_obj = settings_obj or get_settings()
     if group == GROUP_NEW_BASIC:
-        return _new_basic_offers(settings_obj.new_basic_mode)
+        return _new_basic_offers(settings_obj.new_basic_mode, market=market)
     if group == GROUP_PLUS_MONTHLY and settings_obj.plus_monthly_enabled:
-        return _plus_monthly_offers()
+        return _plus_monthly_offers(market=market)
     if group == GROUP_BUSINESS_MONTHLY and settings_obj.business_monthly_enabled:
-        return _business_monthly_offers()
+        return _business_monthly_offers(market=market)
     return []
 
 
@@ -456,18 +487,21 @@ def promotion_payload_for_audience(
     audience: str = AUDIENCE_PUBLIC,
     *,
     settings_obj=None,
+    market=MARKET_GLOBAL,
 ) -> dict:
     """Canonical promotion block for one audience."""
     settings_obj = settings_obj or get_settings()
     group = eligible_group_for_audience(audience)
     mode = group_mode_value(group, settings_obj=settings_obj)
     active = group_is_active(group, settings_obj=settings_obj)
-    offers = build_offers_for_group(group, settings_obj=settings_obj) if active else []
+    offers = build_offers_for_group(group, settings_obj=settings_obj, market=market) if active else []
     summaries = GROUP_SUMMARIES.get(group) or {}
     summary = summaries.get(mode or MODE_OFF, "") if group else "No promotional offer"
     any_checkout = any(bool(o.get("checkout_applies_promotion")) for o in offers)
     return {
         "audience": audience,
+        "market": market,
+        "currency": currency_for_market(market),
         "group": group,
         "eligible": group is not None,
         "active": bool(active and offers),
@@ -484,6 +518,7 @@ def interval_promotion_from_offers(
     *,
     plan_key: str,
     interval: str,
+    market=MARKET_GLOBAL,
 ) -> dict:
     """Map an acquisition offer onto a catalog interval row (Group 1)."""
     match = None
@@ -493,12 +528,13 @@ def interval_promotion_from_offers(
             and offer.get("target_interval") == interval
             and offer.get("offer_type")
             in {OFFER_FIRST_PERIOD_PERCENTAGE, OFFER_FIRST_YEAR_PERCENTAGE}
-            and offer.get("promotional_cents") is not None
+            and offer.get("promotional_amount_minor") is not None
         ):
             match = offer
             break
     if not match:
-        normal = price_cents(plan_key, interval)
+        currency = currency_for_market(market)
+        normal = price_amount_minor(plan_key, interval, market=market)
         return {
             "active": False,
             "offer_id": None,
@@ -512,9 +548,10 @@ def interval_promotion_from_offers(
             "discount_amount_cents": None,
             "discount_amount": None,
             "discount_amount_formatted": None,
-            "renews_at_cents": normal,
-            "renews_at_amount": cents_to_amount_string(normal),
-            "renews_at_formatted": format_usd_cents(normal),
+            "renews_at_cents": None,
+            "renews_at_amount_minor": normal,
+            "renews_at_amount": amount_minor_to_string(normal, currency),
+            "renews_at_formatted": format_currency_minor(normal, currency),
             "checkout_applies_promotion": False,
         }
     return {
@@ -523,15 +560,18 @@ def interval_promotion_from_offers(
         "discount_percent": match["discount_percent"],
         "marketing_discount_percent": match.get("marketing_discount_percent"),
         "first_period_cents": match["promotional_cents"],
+        "first_period_amount_minor": match["promotional_amount_minor"],
         "first_period_amount": match["promotional_amount"],
         "first_period_formatted": match["promotional_formatted"],
         "applies_to": match["duration_label"],
         "discount_duration": "first_period",
         "discount_type": match.get("discount_type"),
         "discount_amount_cents": match.get("discount_amount_cents"),
+        "discount_amount_minor": match.get("discount_amount_minor"),
         "discount_amount": match.get("discount_amount"),
         "discount_amount_formatted": match.get("discount_amount_formatted"),
         "renews_at_cents": match["renews_at_cents"],
+        "renews_at_amount_minor": match["renews_at_amount_minor"],
         "renews_at_amount": match["renews_at_amount"],
         "renews_at_formatted": match["renews_at_formatted"],
         "checkout_applies_promotion": bool(match.get("checkout_applies_promotion")),

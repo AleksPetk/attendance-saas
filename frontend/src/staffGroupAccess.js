@@ -1,15 +1,21 @@
 import { createElement as h } from "react";
 
-export const STAFF_GROUP_ACCESS_FILTERS = [
-  { id: "all", label: "All" },
-  { id: "selected", label: "Selected" },
-  { id: "unselected", label: "Unselected" },
-  { id: "standard", label: "Standard" },
-  { id: "structured", label: "Structured" },
-];
+import i18n from "./i18n/index.js";
+
+export function staffGroupAccessFilters() {
+  return [
+    { id: "all", label: i18n.t("staff:groupAccess.filters.all") },
+    { id: "selected", label: i18n.t("staff:groupAccess.filters.selected") },
+    { id: "unselected", label: i18n.t("staff:groupAccess.filters.unselected") },
+    { id: "standard", label: i18n.t("staff:groupAccess.filters.standard") },
+    { id: "structured", label: i18n.t("staff:groupAccess.filters.structured") },
+  ];
+}
 
 export function groupTypeBadgeLabel(groupType) {
-  return groupType === "structured" ? "Structured" : "Standard";
+  return groupType === "structured"
+    ? i18n.t("staff:groupAccess.groupTypeStructured")
+    : i18n.t("staff:groupAccess.groupTypeStandard");
 }
 
 export function selectedGroupCount(items) {
@@ -68,10 +74,10 @@ export function StaffGroupAccessSummary({ groups, visibleLimit = 3 }) {
   const { visible, remaining } = compactGroupAccess(groups, visibleLimit);
   return h(
     "div",
-    { className: "staff-card-access", "aria-label": "Current Group access" },
-    h("span", { className: "staff-card-access-label" }, "Group access"),
+    { className: "staff-card-access", "aria-label": i18n.t("staff:groupAccess.currentAriaLabel") },
+    h("span", { className: "staff-card-access-label" }, i18n.t("staff:groupAccess.label")),
     visible.length === 0
-      ? h("span", { className: "staff-card-access-empty" }, "No Group access")
+      ? h("span", { className: "staff-card-access-empty" }, i18n.t("staff:groupAccess.empty"))
       : h(
           "div",
           { className: "staff-card-access-chips" },
@@ -87,9 +93,9 @@ export function StaffGroupAccessSummary({ groups, visibleLimit = 3 }) {
                 "span",
                 {
                   className: "staff-card-access-more",
-                  title: `${remaining} additional Group${remaining === 1 ? "" : "s"}`,
+                  title: i18n.t("staff:groupAccess.moreTitle", { count: remaining }),
                 },
-                `+${remaining} more`,
+                i18n.t("staff:groupAccess.more", { count: remaining }),
               )
             : null,
         ),
@@ -151,16 +157,16 @@ export function staffGroupAccessEmptyMessage({
   filter = "all",
   search = "",
 } = {}) {
-  if (!workspaceHasGroups) return "No active Groups are available.";
+  if (!workspaceHasGroups) return i18n.t("staff:groupAccess.emptyNoGroups");
   if (visibleCount > 0) return "";
-  if (String(search || "").trim()) return "No Groups match your search.";
-  if (filter === "selected") return "No Groups selected.";
-  if (filter === "unselected") return "No unselected Groups.";
-  return "No Groups match your search.";
+  if (String(search || "").trim()) return i18n.t("staff:groupAccess.emptyNoSearchResults");
+  if (filter === "selected") return i18n.t("staff:groupAccess.emptyNoSelected");
+  if (filter === "unselected") return i18n.t("staff:groupAccess.emptyNoUnselected");
+  return i18n.t("staff:groupAccess.emptyNoSearchResults");
 }
 
 export function selectedCountLabel(count) {
-  return `${count} selected`;
+  return i18n.t("staff:groupAccess.selectedCount", { count });
 }
 
 export function StaffGroupAccessPanel({
@@ -199,11 +205,15 @@ export function StaffGroupAccessPanel({
     h(
       "header",
       { className: "staff-group-access-header" },
-      h("h4", { id: "staff-group-access-title" }, `Group access — ${username}`),
+      h(
+        "h4",
+        { id: "staff-group-access-title" },
+        i18n.t("staff:groupAccess.title", { username }),
+      ),
       h(
         "p",
         { className: "hint" },
-        "Choose which Groups this Staff account can view and operate.",
+        i18n.t("staff:groupAccess.description"),
       ),
     ),
     h(
@@ -212,12 +222,12 @@ export function StaffGroupAccessPanel({
       h(
         "label",
         { className: "staff-group-access-search" },
-        h("span", { className: "staff-group-access-search-label" }, "Search groups"),
+        h("span", { className: "staff-group-access-search-label" }, i18n.t("staff:groupAccess.searchLabel")),
         h("input", {
           type: "search",
           value: search,
           onChange: (event) => onSearchChange(event.target.value),
-          placeholder: "Search groups...",
+          placeholder: i18n.t("staff:groupAccess.searchPlaceholder"),
           autoComplete: "off",
         }),
       ),
@@ -229,8 +239,8 @@ export function StaffGroupAccessPanel({
     ),
     h(
       "div",
-      { className: "staff-group-access-filters", role: "group", "aria-label": "Filter groups" },
-      STAFF_GROUP_ACCESS_FILTERS.map((option) =>
+      { className: "staff-group-access-filters", role: "group", "aria-label": i18n.t("staff:groupAccess.filterAriaLabel") },
+      staffGroupAccessFilters().map((option) =>
         h(
           "button",
           {
@@ -255,7 +265,7 @@ export function StaffGroupAccessPanel({
           onClick: () => onSelectVisible(visibleItems.map((item) => item.group_id)),
           disabled: visibleItems.length === 0,
         },
-        "Select all visible",
+        i18n.t("staff:groupAccess.selectAllVisible"),
       ),
       h(
         "button",
@@ -265,7 +275,7 @@ export function StaffGroupAccessPanel({
           onClick: onClearSelection,
           disabled: selectedCount === 0,
         },
-        "Clear selection",
+        i18n.t("staff:groupAccess.clearSelection"),
       ),
     ),
     h(
@@ -316,7 +326,7 @@ export function StaffGroupAccessPanel({
         h(
           "button",
           { type: "button", className: "btn-secondary btn-sm", onClick: onCancel },
-          "Cancel",
+          i18n.t("common:cancel"),
         ),
         h(
           "button",
@@ -326,7 +336,7 @@ export function StaffGroupAccessPanel({
             disabled: !dirty || saving,
             onClick: onSave,
           },
-          saving ? "Saving…" : "Save access",
+          saving ? i18n.t("staff:groupAccess.saving") : i18n.t("staff:groupAccess.save"),
         ),
       ),
     ),

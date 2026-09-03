@@ -262,13 +262,14 @@ class StructuredGroupFoundationTests(TestCase):
         )
         active = GroupSection.objects.create_section(group=group, name="Active")
         archived = GroupSection.objects.create_section(group=group, name="Archived")
-        GroupMembership.objects.create(
+        membership = GroupMembership.objects.create(
             organization=self.organization,
             group=group,
             member=self.member,
             section=active,
-            participation_pin="1234",
         )
+        membership.set_participation_pin("1234")
+        membership.save(update_fields=["participation_pin_hash"])
         other = Member.objects.create(
             organization=self.organization,
             name="Other",

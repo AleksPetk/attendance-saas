@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import "./processingFlow.css";
 import {
   normalizeProcessingVisualFamily,
@@ -66,6 +67,7 @@ export default function KioskProcessingView({
   accentStyle,
   live = false,
 }) {
+  const { t } = useTranslation("kiosk");
   const family = normalizeProcessingVisualFamily(template);
   const familyAccent = confirmationVisualAccent(family);
   const headline = processingHeadline(action, participantName);
@@ -104,7 +106,7 @@ export default function KioskProcessingView({
         ) : null}
         <ProcessingIndicator family={family} />
         <p className="kp-unified-headline">{headline}</p>
-        <p className="kp-unified-sub">Please wait</p>
+        <p className="kp-unified-sub">{t("processing.pleaseWait")}</p>
       </div>
     </div>
   );

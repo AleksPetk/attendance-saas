@@ -5,6 +5,12 @@ from django.urls import path, reverse
 
 from accounts.deletion import PermanentDeletionError, permanently_delete_customer_account
 from billing.exceptions import BillingStateError
+from billing.markets import (
+    MARKET_GLOBAL,
+    MARKET_JP,
+    market_for_currency,
+    resolve_billing_market,
+)
 from core.admin_security import (
     ACTION,
     confirmation_form_errors,
@@ -24,6 +30,7 @@ from organizations.lifecycle import (
     unblock_organization,
 )
 from organizations.models import (
+    BillingMarketOverride,
     Organization,
     OrganizationPlan,
     OrganizationStatus,
@@ -31,6 +38,10 @@ from organizations.models import (
 )
 
 CONFIRM_TEMPLATE = "admin/confirm_high_risk.html"
+MARKET_LABELS = {
+    MARKET_GLOBAL: "Global (USD)",
+    MARKET_JP: "Japan (JPY)",
+}
 
 
 class OrganizationStaffAccountInline(admin.TabularInline):
@@ -85,11 +96,18 @@ class OrganizationAdmin(admin.ModelAdmin):
         "internal_label",
         "is_checkstation_account",
         "plan",
+        "billing_market_override_column",
+        "effective_billing_market_column",
         "status",
         "created_at",
         "archived_at",
     )
-    list_filter = ("status", "plan", "is_checkstation_account")
+    list_filter = (
+        "status",
+        "plan",
+        "billing_market_override",
+        "is_checkstation_account",
+    )
     search_fields = ("workspace_id", "owner__email", "internal_label")
     readonly_fields = (
         "owner",
@@ -125,6 +143,16 @@ class OrganizationAdmin(admin.ModelAdmin):
     def has_add_permission(self, request):
         return False
 
+    def get_deleted_objects(self, objs, request):
+        """
+        Admin delete archives the workspace; tenant data and billing rows remain.
+
+        Without this override Django admin assumes a hard delete and blocks the
+        action when related models (for example WorkspaceBuiltinTrial) disallow
+        admin deletion.
+        """
+        return [], {}, set(), []
+
     def save_model(self, request, obj, form, change):
         if change and obj.pk:
             current = Organization.objects.get(pk=obj.pk)
@@ -132,9 +160,18 @@ class OrganizationAdmin(admin.ModelAdmin):
             obj.status = current.status
             obj.owner_id = current.owner_id
             obj.is_checkstation_account = current.is_checkstation_account
+            obj.billing_market_override = current.billing_market_override
             obj.blocked_at = current.blocked_at
             obj.archived_at = current.archived_at
         super().save_model(request, obj, form, change)
+
+    @admin.display(description="Market override", ordering="billing_market_override")
+    def billing_market_override_column(self, obj):
+        return obj.get_billing_market_override_display()
+
+    @admin.display(description="Effective market")
+    def effective_billing_market_column(self, obj):
+        return MARKET_LABELS[resolve_billing_market(obj)]
 
     def delete_model(self, request, obj):
         obj.archive()
@@ -175,6 +212,11 @@ class OrganizationAdmin(admin.ModelAdmin):
                 name="organizations_organization_plan",
             ),
             path(
+                "<path:object_id>/billing-market/",
+                self.admin_site.admin_view(self.billing_market_view),
+                name="organizations_organization_billing_market",
+            ),
+            path(
                 "<path:object_id>/permanent-delete/",
                 self.admin_site.admin_view(self.permanent_delete_view),
                 name="organizations_organization_permanent_delete",
@@ -199,6 +241,21 @@ class OrganizationAdmin(admin.ModelAdmin):
                 else "Normal customer"
             )
             extra_context["billing_summary"] = billing_summary_for_admin(organization)
+            effective_market = resolve_billing_market(organization)
+            extra_context["billing_market_override_label"] = (
+                organization.get_billing_market_override_display()
+            )
+            extra_context["effective_billing_market_label"] = MARKET_LABELS[effective_market]
+            extra_context["billing_market_forced"] = (
+                organization.billing_market_override != BillingMarketOverride.AUTO
+            )
+            extra_context["billing_market_mismatch_warning"] = self._market_mismatch_warning(
+                organization,
+                effective_market,
+            )
+            extra_context["billing_market_url"] = reverse(
+                "admin:organizations_organization_billing_market", args=[object_id]
+            )
             extra_context["account_type_url"] = reverse(
                 "admin:organizations_organization_account_type", args=[object_id]
             )
@@ -222,6 +279,101 @@ class OrganizationAdmin(admin.ModelAdmin):
         return super().change_view(
             request, object_id, form_url, extra_context=extra_context
         )
+
+    def _market_mismatch_warning(self, organization, effective_market):
+        summary = billing_summary_for_admin(organization)
+        if not summary["live"] or summary.get("currency") not in {"usd", "jpy"}:
+            return ""
+        subscription_market = market_for_currency(summary["currency"])
+        if subscription_market == effective_market:
+            return ""
+        return (
+            f"Active subscription remains {MARKET_LABELS[subscription_market]}. "
+            f"The override resolves new checkout to {MARKET_LABELS[effective_market]}; "
+            "the current paid subscription will not be migrated."
+        )
+
+    def billing_market_view(self, request, object_id):
+        require_platform_operator(request)
+        organization = get_object_or_404(Organization, pk=object_id)
+        previous = organization.billing_market_override
+        target = (
+            request.POST.get("target_billing_market")
+            or request.GET.get("market")
+            or previous
+        ).strip().lower()
+        valid_targets = set(BillingMarketOverride.values)
+        preview = Organization(
+            billing_market_override=target if target in valid_targets else previous
+        )
+        effective = resolve_billing_market(preview)
+        warning = self._market_mismatch_warning(organization, effective)
+        if not warning and target != BillingMarketOverride.AUTO:
+            warning = (
+                "Forced billing market. Remember to return this workspace to Auto "
+                "when testing is complete."
+            )
+
+        errors = {}
+        if request.method == "POST":
+            _user, reason, errors = confirmation_form_errors(request)
+            if target not in valid_targets:
+                errors["form"] = "Select Auto, Global, or Japan."
+            if not errors:
+                if target != previous:
+                    organization.billing_market_override = target
+                    organization.save(update_fields=["billing_market_override", "updated_at"])
+                    effective = resolve_billing_market(organization)
+                    record_platform_admin_action(
+                        request=request,
+                        action_type=ACTION.BILLING_MARKET_OVERRIDE_CHANGE,
+                        reason=reason,
+                        target=organization,
+                        workspace_id_snapshot=organization.workspace_id,
+                        owner_email_snapshot=organization.owner.email,
+                        old_value=previous,
+                        new_value=f"{target} (effective: {effective})",
+                        log_message=(
+                            f"Billing market override {previous} → {target}; "
+                            f"effective market {effective}."
+                        ),
+                    )
+                    messages.success(
+                        request,
+                        f"Billing market override is now {organization.get_billing_market_override_display()}.",
+                    )
+                else:
+                    messages.info(request, "Billing market override was unchanged.")
+                return redirect(_cancel_url(organization))
+
+        context = {
+            "title": "Change billing market override",
+            "confirm_title": "Change billing market override?",
+            "confirm_lead": (
+                "This changes new-checkout pricing only. It never migrates an active subscription."
+            ),
+            "current_state": (
+                f"Override: {organization.get_billing_market_override_display()}\n"
+                f"Effective: {MARKET_LABELS[resolve_billing_market(organization)]}"
+            ),
+            "requested_state": (
+                f"Override: {dict(BillingMarketOverride.choices).get(target, target)}\n"
+                f"Effective: {MARKET_LABELS[effective]}"
+            ),
+            "access_impact": "No workspace access, language, or entitlement change.",
+            "billing_impact": (
+                "New checkout and eligible no-subscription pricing use the selected market. "
+                "Existing paid subscriptions keep their current currency and Stripe Prices."
+            ),
+            "warning": warning,
+            "confirm_label": "Save billing market override",
+            "show_billing_market_select": True,
+            "billing_market_choices": list(BillingMarketOverride.choices),
+            "extra_hidden": {"target_billing_market": target},
+            "errors": errors,
+            "form_error": errors.get("form", ""),
+        }
+        return _render_confirm(request, organization=organization, context=context)
 
     def account_type_view(self, request, object_id):
         require_platform_operator(request)

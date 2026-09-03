@@ -1,5 +1,6 @@
 """Send at most one payment-failure warning per UTC day during grace."""
 
+from django.db import transaction
 from django.utils import timezone
 
 from billing.emails import send_payment_failure_warning
@@ -41,19 +42,37 @@ def send_due_payment_warnings(*, now=None):
         if billing.status != BillingStatus.PAST_DUE:
             skipped += 1
             continue
-        if _already_warned_today(billing, moment):
-            skipped += 1
+
+        claimed = False
+        with transaction.atomic():
+            locked = (
+                WorkspaceSubscription.objects.select_for_update()
+                .filter(pk=billing.pk, status=BillingStatus.PAST_DUE)
+                .first()
+            )
+            if locked is None:
+                skipped += 1
+                continue
+            if _already_warned_today(locked, moment):
+                skipped += 1
+                continue
+            # Claim today's warning slot before send to prevent concurrent duplicates.
+            record_payment_warning(organization, warned_at=moment, now=moment)
+            claimed = True
+
+        if not claimed:
             continue
+
         owner = organization.owner
         try:
             send_payment_failure_warning(
                 owner=owner,
                 organization=organization,
                 billing=billing,
+                language=getattr(owner, "preferred_language", None),
             )
         except (EmailConfigurationError, EmailSendError):
             failed += 1
             continue
-        record_payment_warning(organization, warned_at=moment, now=moment)
         sent += 1
     return {"sent": sent, "skipped": skipped, "failed": failed}

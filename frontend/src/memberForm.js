@@ -1,3 +1,6 @@
+import i18n from "./i18n/index.js";
+import { formatDate } from "./i18n/format.js";
+
 export function emptyMemberValues() {
   return {
     name: "",
@@ -46,12 +49,12 @@ export function buildMemberFormData(values, { includeEmptyDate = false } = {}) {
 
 export function displayText(value) {
   const text = (value || "").trim();
-  return text || "—";
+  return text || i18n.t("members:form.emptyValue");
 }
 
 export function formatMemberDate(isoDate) {
   if (!isoDate) {
-    return "—";
+    return i18n.t("members:form.emptyValue");
   }
   const [year, month, day] = isoDate.split("-");
   if (!year || !month || !day) {
@@ -61,7 +64,7 @@ export function formatMemberDate(isoDate) {
   if (Number.isNaN(date.getTime())) {
     return isoDate;
   }
-  return date.toLocaleDateString(undefined, {
+  return formatDate(date, i18n.language, {
     year: "numeric",
     month: "short",
     day: "numeric",
@@ -72,7 +75,7 @@ export function formatMemberId(id) {
   if (id == null || id === "") {
     return "";
   }
-  return `Member #${id}`;
+  return i18n.t("members:form.memberId", { id });
 }
 
 export function memberSecondaryLine(member, { includeId = true } = {}) {

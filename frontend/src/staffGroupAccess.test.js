@@ -2,6 +2,7 @@
  * Run: node --test src/staffGroupAccess.test.js
  */
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { test } from "node:test";
@@ -66,6 +67,18 @@ function renderPanel(overrides = {}) {
     }),
   );
 }
+
+test("Staff management stacks its main panels before account cards become constrained", () => {
+  const css = readFileSync(new URL("./index.css", import.meta.url), "utf8");
+  assert.match(
+    css,
+    /@media \(max-width: 1280px\)\s*{\s*\.staff-grid\s*{\s*grid-template-columns:\s*1fr;/,
+  );
+  assert.match(
+    css,
+    /\.staff-grid\s*{[^}]*grid-template-columns:\s*1fr minmax\(280px, 380px\);/,
+  );
+});
 
 test("search filters Groups by name case-insensitively", () => {
   const visible = filterStaffGroupAccessItems(groups(), { search: "kind", filter: "all" });

@@ -1,24 +1,19 @@
-export const SUPPORT_POPULAR_CATEGORIES = [
-  { id: "getting_started", label: "Getting Started" },
-  { id: "members_groups", label: "Members & Groups" },
-  { id: "kiosk", label: "Kiosk" },
-  { id: "plans", label: "Plans & Billing" },
-  { id: "staff", label: "Staff & Permissions" },
-  { id: "email", label: "Email & Notifications" },
-  { id: "troubleshooting", label: "Troubleshooting" },
-];
+import { docsUi, supportPopularCategories } from "./locale.js";
+
+export { supportPopularCategories };
 
 export function contactHref(mainSiteUrl) {
   const base = String(mainSiteUrl || "").replace(/\/+$/, "");
   return `${base || ""}/contact`;
 }
 
-export function statusSummary(payload) {
+export function statusSummary(payload, locale = "en") {
+  const ui = docsUi(locale);
   const overall = payload && payload.overall;
   if (!overall || !overall.state) {
     return {
       state: "unavailable",
-      label: "System status unavailable",
+      label: ui.statusUnavailable,
     };
   }
   return {

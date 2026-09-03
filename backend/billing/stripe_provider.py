@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import time
 from datetime import datetime, timezone as dt_timezone
 
@@ -12,7 +13,7 @@ from billing.exceptions import (
     StripeProviderError,
     StripeSignatureError,
 )
-from billing.prices import price_id_for, require_stripe_api, stripe_webhook_secret
+from billing.prices import price_id_for, stripe_webhook_secret
 from billing.snapshots import (
     CheckoutSessionResult,
     InvoiceSnapshot,
@@ -22,6 +23,8 @@ from billing.snapshots import (
     UpgradePreview,
 )
 from billing.upgrade_amount import immediate_upgrade_amount_cents
+
+logger = logging.getLogger("billing.stripe_provider")
 
 
 def _unix_to_dt(value):
@@ -40,7 +43,8 @@ def _obj_get(obj, key, default=None):
 
 class StripeProvider:
     def _client(self):
-        require_stripe_api()
+        if not str(settings.STRIPE_SECRET_KEY or "").strip():
+            raise StripeConfigurationError("STRIPE_SECRET_KEY is not configured.")
         import stripe
 
         stripe.api_key = settings.STRIPE_SECRET_KEY
@@ -72,6 +76,7 @@ class StripeProvider:
         owner,
         plan_key,
         interval,
+        market="global",
         success_url,
         cancel_url,
         billing_start_at=None,
@@ -79,7 +84,7 @@ class StripeProvider:
         coupon_slot=None,
     ) -> CheckoutSessionResult:
         stripe = self._client()
-        price_id = price_id_for(plan_key, interval)
+        price_id = price_id_for(plan_key, interval, market=market)
         metadata = {
             "organization_id": str(organization.pk),
             "workspace_id": organization.workspace_id,
@@ -116,6 +121,20 @@ class StripeProvider:
         try:
             session = stripe.checkout.Session.create(**params)
         except Exception as exc:
+            logger.exception(
+                "Stripe Checkout creation failed plan=%s interval=%s market=%s "
+                "price_id=%s error_type=%s error_code=%s error_param=%s "
+                "request_id=%s error=%s",
+                plan_key,
+                interval,
+                market,
+                price_id,
+                type(exc).__name__,
+                getattr(exc, "code", None),
+                getattr(exc, "param", None),
+                getattr(exc, "request_id", None),
+                exc,
+            )
             raise StripeProviderError("Stripe Checkout could not be created.") from exc
         url = _obj_get(session, "url") or ""
         session_id = _obj_get(session, "id") or ""
@@ -183,9 +202,10 @@ class StripeProvider:
         subscription_id,
         target_plan,
         target_interval,
+        market="global",
     ) -> UpgradePreview:
         stripe = self._client()
-        target_price = price_id_for(target_plan, target_interval)
+        target_price = price_id_for(target_plan, target_interval, market=market)
         snapshot = self.retrieve_subscription(subscription_id)
         item_id = self._item_id(subscription_id)
         proration_date = int(time.time())
@@ -202,7 +222,7 @@ class StripeProvider:
             )
         except Exception as exc:
             raise StripeProviderError("Stripe could not preview this upgrade.") from exc
-        from billing.catalog import price_cents
+        from billing.catalog import price_amount_minor
 
         amount = immediate_upgrade_amount_cents(
             invoice,
@@ -216,15 +236,15 @@ class StripeProvider:
         return UpgradePreview(
             amount_due_cents=amount,
             currency=currency,
-            recurring_cents=price_cents(target_plan, target_interval),
+            recurring_cents=price_amount_minor(target_plan, target_interval, market=market),
             recurring_interval=target_interval,
             target_plan=target_plan,
             next_renewal_at=snapshot.current_period_end,
         )
 
-    def apply_upgrade(self, *, subscription_id, target_plan, target_interval):
+    def apply_upgrade(self, *, subscription_id, target_plan, target_interval, market="global"):
         stripe = self._client()
-        target_price = price_id_for(target_plan, target_interval)
+        target_price = price_id_for(target_plan, target_interval, market=market)
         item_id = self._item_id(subscription_id)
         proration_date = int(time.time())
         try:
@@ -245,11 +265,12 @@ class StripeProvider:
         subscription_id,
         target_plan,
         target_interval,
+        market="global",
         coupon_id=None,
         coupon_slot=None,
     ):
         stripe = self._client()
-        target_price = price_id_for(target_plan, target_interval)
+        target_price = price_id_for(target_plan, target_interval, market=market)
         snapshot = self.retrieve_subscription(subscription_id)
         current_price = snapshot.price_id
         period_start = snapshot.current_period_start

@@ -8,7 +8,7 @@ import {
 
 const TITLE_ALIGNS = new Set(["left", "center", "right"]);
 
-export default function KioskMain({ config, backgroundImageUrl, children }) {
+export default function KioskMain({ config, backgroundImageUrl, cardHelper = "", children }) {
   const main = config?.main || {};
   const background = main.background || {};
   const title = main.title || {};
@@ -25,6 +25,7 @@ export default function KioskMain({ config, backgroundImageUrl, children }) {
       className="kr-main"
       data-layout={layout}
       data-has-title={hasTitle ? "on" : "off"}
+      data-card-helper={cardHelper ? "on" : "off"}
       data-title-align={titleAlign}
       style={useImage ? undefined : sectionBackgroundStyle(background)}
     >
@@ -51,6 +52,13 @@ export default function KioskMain({ config, backgroundImageUrl, children }) {
         ) : null}
         <div className="kr-main-slot">{children}</div>
       </div>
+      {cardHelper ? (
+        <div className="kr-card-helper-dock">
+          <div className="kr-card-helper" role="note">
+            {cardHelper}
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }

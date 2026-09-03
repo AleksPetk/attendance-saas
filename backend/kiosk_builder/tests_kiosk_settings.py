@@ -338,7 +338,9 @@ class KioskSettingsGroupCapabilityNormalizationTests(TestCase):
             format="json",
         )
         self.membership.refresh_from_db()
-        self.assertEqual(self.membership.participation_pin, "1234")
+        self.assertTrue(self.membership.check_effective_pin("1234"))
+        self.assertTrue(self.membership.has_participation_pin)
+        self.assertNotEqual(self.membership.participation_pin_hash, "1234")
 
     def test_re_enabling_group_pin_does_not_auto_enable_kiosk_pin(self):
         self.group.require_pin = True

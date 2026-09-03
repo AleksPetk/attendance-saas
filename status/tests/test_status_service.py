@@ -56,6 +56,7 @@ def _config(tmpdir, **overrides):
         "data_dir": Path(tmpdir),
         "database_path": Path(tmpdir) / "status.sqlite3",
         "static_dir": Path(tmpdir),
+        "public_url": "http://localhost:8090",
     }
     config.update(overrides)
     return config
@@ -248,7 +249,7 @@ class StoreAndMonitorTests(unittest.TestCase):
         self.assertEqual(incidents["active"], [])
         self.assertTrue(incidents["recent"])
         self.assertTrue(
-            any("investigating an issue affecting" in item["summary"] for item in incidents["recent"])
+            any("has recovered" in item["summary"] for item in incidents["recent"])
         )
 
     def test_public_payload_has_no_sensitive_fields(self):
@@ -322,7 +323,7 @@ class ProbeMappingTests(unittest.TestCase):
     def test_probe_runner_does_not_hit_docs_when_unconfigured(self):
         calls = []
 
-        def fake_request(url, timeout, method="GET"):
+        def fake_request(url, timeout, method="GET", headers=None):
             calls.append(url)
             if "/health/" in url and "kiosk" not in url and "email" not in url and "stripe" not in url:
                 return 200, b'{"status":"ok"}'
@@ -342,6 +343,38 @@ class ProbeMappingTests(unittest.TestCase):
         self.assertEqual(results["api_backend"].kind, RESULT_SUCCESS)
         self.assertEqual(results["authentication"].kind, RESULT_SUCCESS)
 
+
+
+    def test_provider_health_probes_send_status_token(self):
+        calls = []
+
+        def fake_request(url, timeout, method="GET", headers=None):
+            calls.append({"url": url, "headers": headers or {}})
+            return 200, b'{"status":"ok"}'
+
+        config = {
+            "http_timeout_seconds": 2,
+            "api_url": "http://api.test",
+            "website_url": "http://web.test",
+            "workspace_url": "http://workspace.test",
+            "docs_url": "",
+            "status_probe_token": "secret-token",
+        }
+        with patch("status_service.probes._request", side_effect=fake_request):
+            ProbeRunner(config).run_all()
+        email_calls = [c for c in calls if c["url"].endswith("/api/health/email/")]
+        stripe_calls = [c for c in calls if c["url"].endswith("/api/health/stripe/")]
+        self.assertEqual(len(email_calls), 1)
+        self.assertEqual(len(stripe_calls), 1)
+        self.assertEqual(
+            email_calls[0]["headers"].get("X-Status-Probe-Token"), "secret-token"
+        )
+        self.assertEqual(
+            stripe_calls[0]["headers"].get("X-Status-Probe-Token"), "secret-token"
+        )
+        public = [c for c in calls if c["url"].endswith("/api/health/")]
+        self.assertTrue(public)
+        self.assertNotIn("X-Status-Probe-Token", public[0]["headers"])
 
 class HttpApiSecurityTests(unittest.TestCase):
     def test_incident_text_is_public_only(self):
@@ -399,10 +432,11 @@ class StatusHttpTests(unittest.TestCase):
         self.assertNotIn("Operational", json.dumps(payload["components"]))
 
     def test_status_page_needs_no_login(self):
-        code, _headers, body = self._get("/")
+        code, _headers, body = self._get("/en/")
         self.assertEqual(code, 200)
         html = body.decode("utf-8")
         self.assertIn("CheckStation Status", html)
+        self.assertIn("status-language-root", html)
         self.assertIn('/favicon.ico?v=20260831', html)
         self.assertNotIn("Login", html)
         self.assertNotIn("Get started", html)
@@ -415,12 +449,43 @@ class StatusHttpTests(unittest.TestCase):
             self.assertGreater(len(body), 100)
 
     def test_html_uses_canonical_favicon_not_logo_mark(self):
-        code, _headers, body = self._get("/")
+        code, _headers, body = self._get("/en/")
         self.assertEqual(code, 200)
         html = body.decode("utf-8")
         self.assertIn('/favicon.ico?v=20260831', html)
         self.assertNotIn('rel="icon" href="/brand/logo-mark.png"', html)
         self.assertNotIn("vite.svg", html)
+
+    def test_japanese_status_page_and_api(self):
+        code, headers, body = self._get("/ja/")
+        self.assertEqual(code, 200)
+        html = body.decode("utf-8")
+        self.assertIn('lang="ja"', html)
+        self.assertIn("CheckStation ステータス", html)
+        self.assertIn("status-language-root", html)
+        self.assertIn('hreflang="en"', html)
+        self.assertIn('hreflang="ja"', html)
+
+        code, _headers, body = self._get("/api/status/current/?lang=ja")
+        self.assertEqual(code, 200)
+        payload = json.loads(body.decode("utf-8"))
+        self.assertEqual(payload["language"], "ja")
+        self.assertEqual(payload["overall"]["label"], "ステータスを取得できません")
+        names = {item["name"] for item in payload["components"]}
+        self.assertIn("API / バックエンド", names)
+        self.assertIn("メール配信", names)
+
+    def test_auto_incident_localizes_for_japanese(self):
+        store = StatusStore(Path(self.tmpdir.name) / "incident-locale.sqlite3")
+        sync_auto_incident(store, "email_delivery", STATE_MAJOR_OUTAGE)
+        payload = build_incidents_payload(store, locale="ja")
+        active = payload["active"][0]
+        self.assertEqual(active["title"], "メール配信の障害")
+        self.assertIn("メール配信", active["summary"])
+        self.assertEqual(active["status_label"], "調査中です")
+        self.assertIn("調査中です", active["summary"])
+        en_payload = build_incidents_payload(store, locale="en")
+        self.assertEqual(en_payload["active"][0]["title"], "Email Delivery outage")
 
     def test_cors_preflight_and_head_are_uncredentialed(self):
         options = urllib.request.Request(
@@ -440,6 +505,17 @@ class StatusHttpTests(unittest.TestCase):
             self.assertIn("application/json", response.headers.get("Content-Type", ""))
             self.assertEqual(response.headers.get("Access-Control-Allow-Origin"), "*")
             self.assertEqual(response.read(), b"")
+
+
+class StatusStoreConcurrencyTests(unittest.TestCase):
+    def test_sqlite_uses_wal_and_busy_timeout(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            store = StatusStore(Path(tmpdir) / "status.sqlite3")
+            with store._connect() as connection:
+                journal_mode = connection.execute("PRAGMA journal_mode").fetchone()[0]
+                busy_timeout = connection.execute("PRAGMA busy_timeout").fetchone()[0]
+            self.assertEqual(str(journal_mode).lower(), "wal")
+            self.assertGreaterEqual(int(busy_timeout), 5000)
 
 
 if __name__ == "__main__":

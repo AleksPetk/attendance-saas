@@ -53,6 +53,13 @@
       <p class="cs-metric-value">{{ dashboard_metrics.registrations_today }}</p>
       <p class="cs-metric-hint">Today · {{ dashboard_metrics.registrations_week }} this week</p>
     </article>
+    {% for metric in dashboard_operational_metrics %}
+    <article class="cs-metric-card">
+      <p class="cs-metric-label">{{ metric.label }}</p>
+      <p class="cs-metric-value">{{ metric.value }}</p>
+      <p class="cs-metric-hint">{{ metric.hint }}</p>
+    </article>
+    {% endfor %}
   </section>
 
   <section class="cs-ads-card" aria-labelledby="cs-ads-card-heading">

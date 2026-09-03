@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import KioskRenderer from "../KioskRenderer.jsx";
 import EditorSampleContent from "./EditorSampleContent.jsx";
 import { clamp, cloneConfig } from "./builderUtils.js";
@@ -11,12 +12,14 @@ export default function KioskBuilderPreview({
   design,
   config,
   kioskBehavior,
+  groupType = "standard",
   fakeParticipantCount = 12,
   onLiveConfig,
   onBeginGesture,
   onEndGesture,
   activeSection = null,
 }) {
+  const { t } = useTranslation("kiosk");
   const frameRef = useRef(null);
   const gestureRef = useRef(null);
   const [handles, setHandles] = useState(null);
@@ -105,7 +108,15 @@ export default function KioskBuilderPreview({
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
     >
-      <KioskRenderer design={design} mode="editor" kioskBehavior={kioskBehavior}>
+      <KioskRenderer
+        design={design}
+        mode="editor"
+        kioskBehavior={kioskBehavior}
+        showCardHelper={(kioskBehavior?.mode || "card") === "card"}
+        helperText={
+          groupType === "structured" ? t("live.participants.chooseStructured") : ""
+        }
+      >
         <EditorSampleContent
           kioskBehavior={kioskBehavior}
           fakeParticipantCount={fakeParticipantCount}

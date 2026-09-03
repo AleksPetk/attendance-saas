@@ -119,7 +119,7 @@ def membership_effective_values(membership, *, pending=None):
         has_override_photo = pending_photo
     pending_pin = pending.get("has_override_pin")
     if pending_pin is None:
-        has_override_pin = bool(membership.override_pin_hash) if membership.pk else False
+        has_override_pin = bool(membership.participation_pin_hash) if membership.pk else False
     else:
         has_override_pin = pending_pin
     return {

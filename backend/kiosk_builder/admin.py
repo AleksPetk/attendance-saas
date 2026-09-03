@@ -8,7 +8,12 @@ class KioskSettingsAdmin(admin.ModelAdmin):
     list_display = ("id", "organization", "group", "mode", "updated_at")
     list_filter = ("organization", "mode")
     raw_id_fields = ("organization", "group")
-    readonly_fields = ("created_at", "updated_at", "exit_code_hash")
+    readonly_fields = ("created_at", "updated_at", "exit_code_is_set")
+    exclude = ("exit_code_hash",)
+
+    @admin.display(boolean=True, description="Exit code set")
+    def exit_code_is_set(self, obj):
+        return bool(obj.exit_code_hash)
 
 
 @admin.register(KioskDesign)

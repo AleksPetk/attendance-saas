@@ -1,15 +1,26 @@
+import { docsPathFor } from "./locale.js";
+
 const NAV_GROUP_ORDER = ["home", "getting_started", "using", "help", "legal"];
+
+export function localeFromPath(path) {
+  const normalized = String(path || "/").replace(/\/+$/, "") || "/";
+  const match = normalized.match(/^\/(en|ja)(?:\/|$)/);
+  return match ? match[1] : null;
+}
 
 export function slugFromPath(path) {
   const normalized = String(path || "/").replace(/\/+$/, "") || "/";
-  if (normalized === "/" || normalized === "/documentation") return "documentation";
-  return normalized.replace(/^\//, "");
+  const withoutLocale = normalized.replace(/^\/(en|ja)(?=\/|$)/, "") || "/";
+  if (withoutLocale === "/" || withoutLocale === "/documentation") return "documentation";
+  return withoutLocale.replace(/^\//, "");
 }
 
-export function hrefForDocument(doc) {
-  if (!doc) return "/";
-  if (doc.slug === "documentation" || doc.nav_group === "home") return "/";
-  return `/${doc.slug}`;
+export function hrefForDocument(doc, locale = "en") {
+  if (!doc) return docsPathFor("documentation", locale);
+  if (doc.slug === "documentation" || doc.nav_group === "home") {
+    return docsPathFor("documentation", locale);
+  }
+  return docsPathFor(doc.slug, locale);
 }
 
 export function groupDocuments(documents) {

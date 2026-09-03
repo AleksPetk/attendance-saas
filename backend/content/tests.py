@@ -162,7 +162,7 @@ class PublicContentApiTests(TestCase):
         self.assertEqual(response["Content-Type"].split(";")[0], "application/json")
 
     def test_admin_notes_never_serialized(self):
-        doc = Document.objects.get(slug="privacy-policy")
+        doc = Document.objects.get(slug="privacy-policy", language="en")
         doc.admin_notes = "internal counsel: pending APPI review"
         doc.save()
         response = self.client.get(
@@ -186,7 +186,7 @@ class PublicContentApiTests(TestCase):
         self.assertIn("operator of the Check Station service", rendered)
 
     def test_seed_does_not_overwrite_existing_edits(self):
-        doc = Document.objects.get(slug="privacy-policy")
+        doc = Document.objects.get(slug="privacy-policy", language="en")
         doc.body_markdown = "# Edited by admin"
         doc.save()
         created, updated = seed_documents(overwrite=False)
@@ -200,7 +200,7 @@ class PublicContentApiTests(TestCase):
             "content.migrations.0007_replace_legacy_checkstation_email_domains"
         )
         legacy_domain = "aleks" + "petk.com"
-        doc = Document.objects.get(slug="privacy-policy")
+        doc = Document.objects.get(slug="privacy-policy", language="en")
         doc.body_markdown = (
             "Admin-edited introduction.\n\n"
             f"Contact contact@checkstation.{legacy_domain}.\n"
@@ -231,12 +231,12 @@ class PublicContentApiTests(TestCase):
         )
         self.assertEqual(
             response.data["canonical_url"],
-            "http://localhost:8091/privacy-policy",
+            "http://localhost:8091/en/privacy-policy",
         )
         home = self.client.get(
             reverse("content-document-detail", kwargs={"slug": "documentation"})
         )
-        self.assertEqual(home.data["canonical_url"], "http://localhost:8091/")
+        self.assertEqual(home.data["canonical_url"], "http://localhost:8091/en/")
 
     def test_public_content_is_readable_while_kiosk_locked(self):
         session = self.client.session

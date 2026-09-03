@@ -19,6 +19,31 @@ from accounts.two_factor_models import PlatformTOTPDevice
 
 SETUP_KEY_RE = re.compile(r'id="totp-setup-key">([A-Z2-7]+)')
 RECOVERY_CODE_RE = re.compile(r"<li>([A-Z0-9]{4}-[A-Z0-9]{4})</li>")
+ADMIN_CSRF_RE = re.compile(r'name="csrfmiddlewaretoken" value="([^"]+)"')
+
+
+def admin_post_confirmation(client, url, extra=None, get_page=None):
+    """
+    POST a Django admin delete/confirm form using the admin CSRF token.
+
+    Platform admin uses a separate CSRF cookie path (/admin); include the token
+    from the confirmation page rather than posting bare {"post": "yes"}.
+    """
+    if get_page is None:
+        get_page = client.get(url)
+    if get_page.status_code != 200:
+        return get_page
+    match = ADMIN_CSRF_RE.search(get_page.content.decode())
+    data = {"post": "yes"}
+    if match:
+        data["csrfmiddlewaretoken"] = match.group(1)
+    if extra:
+        data.update(extra)
+    csrf_token = data.get("csrfmiddlewaretoken")
+    headers = {}
+    if csrf_token:
+        headers["HTTP_X_CSRFTOKEN"] = csrf_token
+    return client.post(url, data, **headers)
 
 
 def force_platform_admin_login(client, user):

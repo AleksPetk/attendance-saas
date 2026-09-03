@@ -32,6 +32,8 @@ export default function KioskRenderer({
   design,
   mode = "live",
   kioskBehavior,
+  showCardHelper = false,
+  helperText = "",
   showExit = false,
   onExit,
   children,
@@ -56,6 +58,10 @@ export default function KioskRenderer({
   const backgroundImageUrl = resolveKioskMediaUrl(design.main_background_image_url, {
     allowBlob,
   });
+  const resolvedHelperText =
+    kioskMode === "card"
+      ? helperText || (showCardHelper ? t("live.participants.tapCard") : "")
+      : "";
 
   return (
     <div
@@ -77,7 +83,11 @@ export default function KioskRenderer({
         </button>
       ) : null}
       <KioskHeader config={config} logoUrl={headerLogoUrl} />
-      <KioskMain config={config} backgroundImageUrl={backgroundImageUrl}>
+      <KioskMain
+        config={config}
+        backgroundImageUrl={backgroundImageUrl}
+        cardHelper={resolvedHelperText}
+      >
         {children}
       </KioskMain>
       <KioskFooter config={config} logoUrl={footerLogoUrl} />

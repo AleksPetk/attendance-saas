@@ -42,12 +42,23 @@ test("workspace-native status model includes shared services, incidents, and mai
 
 test("Account Status has loading/error UI and stays native", () => {
   const source = readFileSync(new URL("./AccountStatusPanel.jsx", import.meta.url), "utf8");
-  assert.match(source, /Loading system status/);
-  assert.match(source, /Status could not be loaded/);
-  assert.match(source, /Active incidents/);
-  assert.match(source, /Recent incidents/);
-  assert.match(source, /Scheduled maintenance/);
-  assert.doesNotMatch(source, /<iframe|window\.location|window\.open|target=["']_blank/);
+  assert.match(source, /account:statusPanel\.loading/);
+  assert.match(source, /account:statusPanel\.loadError/);
+  assert.match(source, /account:statusPanel\.activeIncidents/);
+  assert.match(source, /account:statusPanel\.recentIncidents/);
+  assert.match(source, /account:statusPanel\.scheduledMaintenance/);
+  assert.match(source, /workspaceStatusHomeUrl\(resolvedLang\)/);
+  assert.match(source, /fetchStatusSnapshot\(\{[\s\S]*lang: resolvedLang/);
+  assert.doesNotMatch(source, /<iframe|window\.location|window\.open/);
+});
+
+test("Account Status follows workspace contentLang, not standalone Status preference", () => {
+  const panelSource = readFileSync(new URL("./AccountStatusPanel.jsx", import.meta.url), "utf8");
+  const screenSource = readFileSync(new URL("./AccountScreen.jsx", import.meta.url), "utf8");
+  assert.match(panelSource, /contentLang = "en"/);
+  assert.match(panelSource, /resolvedLang = contentLang === "ja" \? "ja" : "en"/);
+  assert.doesNotMatch(panelSource, /checkstation\.status\.locale/);
+  assert.match(screenSource, /<AccountStatusPanel contentLang=\{workspaceContentLang\} \/>/);
 });
 
 test("manual refresh button states cover loading, success, failure, and idle", () => {
@@ -55,6 +66,10 @@ test("manual refresh button states cover loading, success, failure, and idle", (
   assert.equal(accountStatusRefreshButtonLabel("loading"), "Refreshing...");
   assert.equal(accountStatusRefreshButtonLabel("success"), "Updated");
   assert.equal(accountStatusRefreshButtonLabel("error"), "Refresh failed");
+  assert.equal(
+    accountStatusRefreshButtonLabel("idle", { refresh: "更新" }),
+    "更新",
+  );
   assert.equal(accountStatusRefreshButtonDisabled("loading"), true);
   assert.equal(accountStatusRefreshButtonDisabled("success"), false);
   assert.equal(accountStatusRefreshButtonDisabled("error"), false);

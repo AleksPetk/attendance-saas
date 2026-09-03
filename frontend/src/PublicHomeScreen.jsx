@@ -1,5 +1,7 @@
 import { Fragment, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
+import { api } from "./api.js";
+import { builtinTrialOfferFromCatalog } from "./builtinTrialOffer.js";
 import PublicPageShell from "./PublicPageShell.jsx";
 import ProductImageSlot from "./ProductImageSlot.jsx";
 import LocalizedPromoImage from "./promo/LocalizedPromoImage.jsx";
@@ -19,6 +21,11 @@ import {
   homeWorkflowImage,
   homeWorkflowJaImage,
 } from "./assets/home/homeImages.js";
+
+const FALLBACK_TRIAL_CATALOG = {
+  builtin_trial_days: 7,
+  builtin_trial_offered: true,
+};
 
 const VALUE_ICONS = [
   homeValueIcons.startQuickly,
@@ -226,7 +233,11 @@ export default function PublicHomeScreen() {
   const [kioskStyle, setKioskStyle] = useState(0);
   const [heroInView, setHeroInView] = useState(true);
   const [reducedMotion, setReducedMotion] = useState(false);
+  const [trialCatalog, setTrialCatalog] = useState(FALLBACK_TRIAL_CATALOG);
   const heroRef = useRef(null);
+
+  const trialOffer = builtinTrialOfferFromCatalog(trialCatalog);
+  const trialValues = { days: trialOffer.days || FALLBACK_TRIAL_CATALOG.builtin_trial_days };
 
   const values = t("home.values");
   const featureItems = t("home.featureItems");
@@ -235,7 +246,20 @@ export default function PublicHomeScreen() {
   const useCases = t("home.usecases");
   const groupEmailExamples = t("home.groupEmailExamples");
   const heroWords = t("home.heroFeatureWords");
-  const cards = t("home.pricingCards") || {};
+  const cards = {
+    startHere: t("home.pricingCards.startHere", trialValues),
+    businessTrial: t("home.pricingCards.businessTrial"),
+    freeForDays: t("home.pricingCards.freeForDays"),
+    freeForDaysSmall: t("home.pricingCards.freeForDaysSmall", trialValues),
+    businessTrialBody: t("home.pricingCards.businessTrialBody", trialValues),
+    noCardRequired: t("home.pricingCards.noCardRequired"),
+    stayFree: t("home.pricingCards.stayFree"),
+    basic: t("home.pricingCards.basic"),
+    zeroToStart: t("home.pricingCards.zeroToStart"),
+    zeroToStartSmall: t("home.pricingCards.zeroToStartSmall"),
+    basicBody: t("home.pricingCards.basicBody"),
+    upgradeWhenReady: t("home.pricingCards.upgradeWhenReady"),
+  };
 
   const selectedMeta = KIOSK_META[kioskStyle] || KIOSK_META[0];
   const selectedStyle = {
@@ -248,10 +272,31 @@ export default function PublicHomeScreen() {
     applyPromoSeo({
       locale,
       title: t("meta.homeTitle"),
-      description: t("meta.homeDescription"),
+      description: t("meta.homeDescription", trialValues),
       canonicalPath: pathFor("/"),
     });
-  }, [locale, pathFor, t]);
+  }, [locale, pathFor, t, trialValues.days]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadTrialCatalog() {
+      try {
+        const result = await api.getBillingCatalog();
+        if (!cancelled && result?.data) {
+          setTrialCatalog({
+            ...FALLBACK_TRIAL_CATALOG,
+            ...result.data,
+          });
+        }
+      } catch {
+        /* keep fallback trial catalog */
+      }
+    }
+    loadTrialCatalog();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     const page = document.querySelector(".home-sales");
@@ -338,10 +383,14 @@ export default function PublicHomeScreen() {
                 {t("home.ctaHowItWorks")}
               </Link>
             </div>
-            <div className="home-sales-trial">
-              <span className="home-sales-trial-badge">{t("home.trialBadge")}</span>
-              <span>{t("home.trialNote")}</span>
-            </div>
+            {trialOffer.offered ? (
+              <div className="home-sales-trial">
+                <span className="home-sales-trial-badge">
+                  {t("home.trialBadge", trialValues)}
+                </span>
+                <span>{t("home.trialNote", trialValues)}</span>
+              </div>
+            ) : null}
           </div>
           <div className="home-sales-hero-visual" aria-hidden="true">
             <div className="home-sales-hero-glow" />
@@ -567,23 +616,25 @@ export default function PublicHomeScreen() {
           <div className="home-sales-pricing-copy">
             <p className="home-sales-kicker">{t("home.pricingKicker")}</p>
             <h2>{t("home.pricingTitle")}</h2>
-            <p>{t("home.pricingLead")}</p>
+            <p>{t("home.pricingLead", trialValues)}</p>
             <Link className="btn-secondary home-sales-pricing-button" to={pathFor("/pricing")}>
               {t("home.viewPricing")} <span aria-hidden="true">→</span>
             </Link>
           </div>
           <div className="home-sales-price-cards">
-            <article>
-              <span className="home-sales-price-label">{cards.startHere}</span>
-              <h3>{cards.businessTrial}</h3>
-              <strong>
-                {cards.freeForDays} <small>{cards.freeForDaysSmall}</small>
-              </strong>
-              <p>{cards.businessTrialBody}</p>
-              <span className="home-sales-no-card">
-                <Check /> {cards.noCardRequired}
-              </span>
-            </article>
+            {trialOffer.offered ? (
+              <article>
+                <span className="home-sales-price-label">{cards.startHere}</span>
+                <h3>{cards.businessTrial}</h3>
+                <strong>
+                  {cards.freeForDays} <small>{cards.freeForDaysSmall}</small>
+                </strong>
+                <p>{cards.businessTrialBody}</p>
+                <span className="home-sales-no-card">
+                  <Check /> {cards.noCardRequired}
+                </span>
+              </article>
+            ) : null}
             <article>
               <span className="home-sales-price-label">{cards.stayFree}</span>
               <h3>{cards.basic}</h3>
@@ -611,7 +662,7 @@ export default function PublicHomeScreen() {
           <div>
             <p className="home-sales-kicker home-sales-kicker-light">{t("home.finalKicker")}</p>
             <h2>{t("home.finalTitle")}</h2>
-            <p>{t("home.finalLead")}</p>
+            <p>{t("home.finalLead", trialValues)}</p>
           </div>
           <AuthCta
             className="btn-primary home-sales-final-button"

@@ -62,8 +62,27 @@ test("native document viewer renders canonical detail and Back control", () => {
     effective_on: "2026-08-26",
     version: "1.2",
   };
+  const labels = {
+    t: (key, options) => {
+      if (key === "account:info.metaEffective") return `Effective ${options.date}`;
+      if (key === "account:info.metaVersion") return `Version ${options.version}`;
+      return key;
+    },
+    backToInfo: "Back to Info",
+    faqTitle: "FAQ",
+    faqEmpty: "Empty",
+    faqAnswers: "Answers",
+    fallbackGroup: "Information",
+  };
   const html = renderToStaticMarkup(
-    InfoDocumentViewer({ document, faqPayload: null, onBack: () => {}, onDocumentNavigate: () => {} }),
+    InfoDocumentViewer({
+      document,
+      faqPayload: null,
+      locale: "en",
+      labels,
+      onBack: () => {},
+      onDocumentNavigate: () => {},
+    }),
   );
   assert.match(html, /Back to Info/);
   assert.match(html, /Privacy Policy from API/);
@@ -73,6 +92,14 @@ test("native document viewer renders canonical detail and Back control", () => {
 });
 
 test("FAQ viewer combines the FAQ document with canonical FAQ API questions", () => {
+  const labels = {
+    t: () => "",
+    backToInfo: "Back to Info",
+    faqTitle: "Frequently asked questions",
+    faqEmpty: "No FAQ",
+    faqAnswers: "Answers",
+    fallbackGroup: "Help",
+  };
   const html = renderToStaticMarkup(
     InfoDocumentViewer({
       document: {
@@ -93,6 +120,8 @@ test("FAQ viewer combines the FAQ document with canonical FAQ API questions", ()
           },
         ],
       },
+      locale: "en",
+      labels,
       onBack: () => {},
       onDocumentNavigate: () => {},
     }),
@@ -104,7 +133,11 @@ test("FAQ viewer combines the FAQ document with canonical FAQ API questions", ()
 
 test("unavailable document state remains inside Account and offers Back", () => {
   const html = renderToStaticMarkup(
-    InfoLoadError({ message: "This document is not available or is no longer published.", onBack: () => {} }),
+    InfoLoadError({
+      message: "This document is not available or is no longer published.",
+      onBack: () => {},
+      backLabel: "Back to Info",
+    }),
   );
   assert.match(html, /not available or is no longer published/);
   assert.match(html, /Back to Info/);

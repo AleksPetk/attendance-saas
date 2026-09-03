@@ -1,16 +1,18 @@
+import i18n from "../i18n/index.js";
 import { normalizeConfirmationVisualFamily } from "./kioskConfirmation.js";
 
 /** Progressive, action-aware processing copy for live kiosk. */
 export function processingHeadline(action, participantName = "") {
   const name = String(participantName || "").trim();
-  const suffix = name ? ` ${name}` : "";
+  const nameSuffix = name ? i18n.t("kiosk:processing.nameSuffix", { name }) : "";
   const map = {
-    check_in: `Checking in${suffix}…`,
-    check_out: `Checking out${suffix}…`,
-    break_start: `Starting break${suffix}…`,
-    break_end: `Ending break${suffix}…`,
+    check_in: "processing.checkingIn",
+    check_out: "processing.checkingOut",
+    break_start: "processing.startingBreak",
+    break_end: "processing.endingBreak",
   };
-  return map[action] || `Working on it${suffix}…`;
+  const key = map[action] || "processing.working";
+  return i18n.t(`kiosk:${key}`, { name: nameSuffix });
 }
 
 export function normalizeProcessingVisualFamily(templateId) {

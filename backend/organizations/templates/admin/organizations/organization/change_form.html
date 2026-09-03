@@ -84,6 +84,29 @@
     {% endif %}
   </section>
 
+  <section class="cs-lifecycle-card">
+    <h2>Billing market</h2>
+    <dl>
+      <dt>Override</dt>
+      <dd>
+        {{ billing_market_override_label }}
+        {% if billing_market_forced %}<span class="cs-market-forced">Forced billing market</span>{% endif %}
+      </dd>
+      <dt>Effective Billing Market</dt>
+      <dd>{{ effective_billing_market_label }}</dd>
+    </dl>
+    {% if billing_market_mismatch_warning %}
+      <p class="cs-market-warning">{{ billing_market_mismatch_warning }}</p>
+    {% elif billing_market_forced %}
+      <p class="cs-market-warning">This workspace is forced away from Auto.</p>
+    {% else %}
+      <p>Auto currently resolves to Global (USD).</p>
+    {% endif %}
+    <div class="cs-lifecycle-actions">
+      <a class="button" href="{{ billing_market_url }}">Change billing market</a>
+    </div>
+  </section>
+
   {% if show_permanent_delete %}
     <section class="cs-lifecycle-card cs-lifecycle-danger">
       <h2>Danger zone</h2>

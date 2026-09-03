@@ -68,22 +68,25 @@ class StructuredKioskFlowTests(TestCase):
             group=self.group,
             member=self.member_a,
             section=self.class_a,
-            participation_pin="1111",
         )
+        self.membership_a.set_participation_pin("1111")
+        self.membership_a.save(update_fields=["participation_pin_hash"])
         self.membership_b = GroupMembership.objects.create(
             organization=self.organization,
             group=self.group,
             member=self.member_b,
             section=self.class_b,
-            participation_pin="2222",
         )
+        self.membership_b.set_participation_pin("2222")
+        self.membership_b.save(update_fields=["participation_pin_hash"])
         self.visitor = GroupOnlyParticipant.objects.create(
             organization=self.organization,
             group=self.group,
             section=self.class_a,
             name="Nami",
-            participation_pin="3333",
         )
+        self.visitor.set_participation_pin("3333")
+        self.visitor.save(update_fields=["pin_hash"])
 
     def _start(self):
         return self.client.get(
@@ -136,7 +139,6 @@ class StructuredKioskFlowTests(TestCase):
                 "group-kiosk-class-people",
                 kwargs={"group_pk": self.group.pk, "section_pk": self.class_a.pk},
             )
-            + "?pin=9999"
         )
         self.assertEqual(people.status_code, status.HTTP_200_OK)
         self.assertEqual(len(people.data["people"]), 2)
@@ -166,9 +168,9 @@ class StructuredKioskFlowTests(TestCase):
                 "group-kiosk-class-people",
                 kwargs={"group_pk": self.group.pk, "section_pk": self.class_a.pk},
             )
-            + "?pin=0000"
         )
-        self.assertEqual(people.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(people.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(people.data["code"], "class_pin_required")
 
     def test_d_class_pin_never_in_kiosk_payload(self):
         self.group.require_class_pin = True
@@ -284,14 +286,24 @@ class StructuredKioskFlowTests(TestCase):
                 kwargs={"group_pk": self.group.pk, "section_pk": self.class_a.pk},
             )
         )
-        self.assertEqual(blocked.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(blocked.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(blocked.data["code"], "class_pin_required")
+
+        verify = self.client.post(
+            reverse(
+                "group-kiosk-class-verify-pin",
+                kwargs={"group_pk": self.group.pk, "section_pk": self.class_a.pk},
+            ),
+            {"pin": "9999"},
+            format="json",
+        )
+        self.assertEqual(verify.status_code, status.HTTP_200_OK)
 
         people = self.client.get(
             reverse(
                 "group-kiosk-class-people",
                 kwargs={"group_pk": self.group.pk, "section_pk": self.class_a.pk},
             )
-            + "?pin=9999"
         )
         self.assertEqual(people.status_code, status.HTTP_200_OK)
 
@@ -411,7 +423,7 @@ class StructuredKioskFlowTests(TestCase):
         self.assertEqual(start.data["code"], "group_setup_incomplete")
         self.assertIn("Class", start.data["detail"])
 
-    def test_manager_api_exposes_class_pin_kiosk_does_not(self):
+    def test_manager_api_exposes_has_class_pin_not_raw(self):
         self.class_a.set_class_pin("5555")
         self.class_a.save()
         detail = self.client.get(
@@ -421,6 +433,8 @@ class StructuredKioskFlowTests(TestCase):
             )
         )
         self.assertEqual(detail.status_code, status.HTTP_200_OK)
-        self.assertEqual(detail.data["class_pin"], "5555")
+        self.assertTrue(detail.data["has_class_pin"])
+        self.assertNotIn("class_pin", detail.data)
+        self.assertNotIn("5555", str(detail.data))
         start = self._start()
         self.assertNotIn("5555", str(start.data))

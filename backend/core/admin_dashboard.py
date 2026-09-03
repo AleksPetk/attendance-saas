@@ -10,6 +10,7 @@ from django.urls import NoReverseMatch, reverse
 from django.utils import timezone
 
 from core.admin_categories import CATEGORY_PRIMARY_APP, category_url_for_app_label
+from core.operational_metrics import build_operational_metrics
 from groups.models import Group, GroupStatus
 from members.models import Member, MemberStatus
 from organizations.models import (
@@ -629,6 +630,7 @@ def build_recent_activity(limit=ACTIVITY_LIMIT):
 def build_dashboard_context(request):
     return {
         "dashboard_metrics": build_summary_metrics(),
+        "dashboard_operational_metrics": build_operational_metrics(),
         "dashboard_plans": build_plan_metrics(),
         "dashboard_advertising": build_advertising_status(),
         "dashboard_promotion": build_promotion_status(),

@@ -2,13 +2,16 @@ import { publicStatusPageUrl } from "./publicFooterLinks.js";
 
 export const DEFAULT_STATUS_POLL_SECONDS = 30;
 
-export function statusApiUrl(path) {
+export function statusApiUrl(path, { lang } = {}) {
   const suffix = String(path || "").replace(/^\/+/, "");
-  return `${publicStatusPageUrl()}/api/status/${suffix}`;
+  const base = `${publicStatusPageUrl()}/api/status/${suffix}`;
+  if (!lang) return base;
+  const separator = base.includes("?") ? "&" : "?";
+  return `${base}${separator}lang=${encodeURIComponent(lang)}`;
 }
 
-async function statusJson(fetchImpl, path, signal) {
-  const response = await fetchImpl(statusApiUrl(path), {
+async function statusJson(fetchImpl, path, signal, lang) {
+  const response = await fetchImpl(statusApiUrl(path, { lang }), {
     cache: "no-store",
     signal,
   });
@@ -20,11 +23,20 @@ async function statusJson(fetchImpl, path, signal) {
   return response.json();
 }
 
-export async function fetchStatusSnapshot({ fetchImpl = globalThis.fetch, signal } = {}) {
+export async function fetchStatusSnapshot({
+  fetchImpl = globalThis.fetch,
+  signal,
+  lang,
+} = {}) {
   const [current, incidentsResult, maintenanceResult] = await Promise.all([
-    statusJson(fetchImpl, "current/", signal),
-    statusJson(fetchImpl, "incidents/", signal).catch(() => ({ active: [], recent: [] })),
-    statusJson(fetchImpl, "maintenance/", signal).catch(() => ({ windows: [] })),
+    statusJson(fetchImpl, "current/", signal, lang),
+    statusJson(fetchImpl, "incidents/", signal, lang).catch(() => ({
+      active: [],
+      recent: [],
+    })),
+    statusJson(fetchImpl, "maintenance/", signal, lang).catch(() => ({
+      windows: [],
+    })),
   ]);
   return {
     current,
@@ -35,8 +47,9 @@ export async function fetchStatusSnapshot({ fetchImpl = globalThis.fetch, signal
 
 export function statusPollDelayMs(snapshot) {
   const seconds = Number(snapshot?.current?.poll_interval_seconds);
-  const safeSeconds = Number.isFinite(seconds) && seconds > 0
-    ? seconds
-    : DEFAULT_STATUS_POLL_SECONDS;
+  const safeSeconds =
+    Number.isFinite(seconds) && seconds > 0
+      ? seconds
+      : DEFAULT_STATUS_POLL_SECONDS;
   return safeSeconds * 1000;
 }

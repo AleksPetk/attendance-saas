@@ -2,8 +2,10 @@ from datetime import timedelta
 from zoneinfo import ZoneInfo
 
 from django.contrib.auth import get_user_model
+from django.contrib.admin.models import LogEntry
 from django.db import IntegrityError
-from django.test import TestCase
+from django.core.exceptions import ValidationError
+from django.test import Client, TestCase
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework.test import APIClient
@@ -12,11 +14,17 @@ from content.models import (
     Announcement,
     AnnouncementAcknowledgement,
     AnnouncementAudience,
+    AnnouncementMarket,
     AnnouncementSeverity,
+    ContentLanguage,
     PublicationStatus,
 )
+from accounts.testing import force_platform_admin_login
+from billing.testing import simulate_migrated_existing_workspace
+from content.announcements import eligible_announcements_for_organization
 from organizations.entitlements.transitions import apply_effective_plan
 from organizations.models import (
+    BillingMarketOverride,
     Organization,
     OrganizationPlan,
     WorkspaceStaffAccount,
@@ -347,6 +355,96 @@ class AnnouncementApiTests(TestCase):
         self.assertEqual(ids, [newer.id, older.id])
 
 
+class AnnouncementMarketTargetingTests(TestCase):
+    def setUp(self):
+        self.global_owner, self.global_org = create_owner("announce-global@example.com")
+        self.jp_owner, self.jp_org = create_owner("announce-jp@example.com")
+        self.jp_org.billing_market_override = BillingMarketOverride.JP
+        self.jp_org.save(update_fields=["billing_market_override", "updated_at"])
+
+    def titles_for(self, organization):
+        return list(
+            eligible_announcements_for_organization(organization).values_list(
+                "title", flat=True
+            )
+        )
+
+    def test_all_market_reaches_global_and_jp(self):
+        publish_announcement(title="Every market", market=AnnouncementMarket.ALL)
+        self.assertEqual(self.titles_for(self.global_org), ["Every market"])
+        self.assertEqual(self.titles_for(self.jp_org), ["Every market"])
+
+    def test_global_and_jp_targets_are_isolated(self):
+        publish_announcement(title="Global notice", market=AnnouncementMarket.GLOBAL)
+        publish_announcement(title="Japan notice", market=AnnouncementMarket.JP)
+        self.assertEqual(self.titles_for(self.global_org), ["Global notice"])
+        self.assertEqual(self.titles_for(self.jp_org), ["Japan notice"])
+
+    def test_business_and_jp_are_combined_as_and_filters(self):
+        apply_effective_plan(self.global_org, OrganizationPlan.BUSINESS, source="test")
+        apply_effective_plan(self.jp_org, OrganizationPlan.BUSINESS, source="test")
+        publish_announcement(
+            title="JP Business",
+            audience=AnnouncementAudience.PLAN,
+            target_plans=[OrganizationPlan.BUSINESS],
+            market=AnnouncementMarket.JP,
+        )
+        self.assertEqual(self.titles_for(self.global_org), [])
+        self.assertEqual(self.titles_for(self.jp_org), ["JP Business"])
+
+        simulate_migrated_existing_workspace(self.jp_org)
+        self.assertEqual(self.titles_for(self.jp_org), [])
+
+    def test_specific_workspace_and_global_excludes_selected_jp_workspace(self):
+        announcement = publish_announcement(
+            title="Selected but Global",
+            audience=AnnouncementAudience.WORKSPACES,
+            market=AnnouncementMarket.GLOBAL,
+            target_workspaces=[self.global_org, self.jp_org],
+        )
+        self.assertIn(announcement.title, self.titles_for(self.global_org))
+        self.assertNotIn(announcement.title, self.titles_for(self.jp_org))
+
+    def test_override_change_updates_eligibility_on_next_fetch(self):
+        publish_announcement(title="Global only", market=AnnouncementMarket.GLOBAL)
+        publish_announcement(title="Japan only", market=AnnouncementMarket.JP)
+        self.assertEqual(self.titles_for(self.global_org), ["Global only"])
+
+        self.global_org.billing_market_override = BillingMarketOverride.JP
+        self.global_org.save(update_fields=["billing_market_override", "updated_at"])
+        self.assertEqual(self.titles_for(self.global_org), ["Japan only"])
+
+        self.global_org.billing_market_override = BillingMarketOverride.GLOBAL
+        self.global_org.save(update_fields=["billing_market_override", "updated_at"])
+        self.assertEqual(self.titles_for(self.global_org), ["Global only"])
+
+    def test_language_metadata_never_changes_delivery(self):
+        publish_announcement(
+            title="English for Japan",
+            language=ContentLanguage.ENGLISH,
+            market=AnnouncementMarket.JP,
+        )
+        publish_announcement(
+            title="Japanese for Global",
+            language=ContentLanguage.JAPANESE,
+            market=AnnouncementMarket.GLOBAL,
+        )
+        self.assertEqual(self.titles_for(self.jp_org), ["English for Japan"])
+        self.assertEqual(self.titles_for(self.global_org), ["Japanese for Global"])
+
+    def test_market_filter_preserves_status_link_payload(self):
+        publish_announcement(
+            title="JP incident",
+            market=AnnouncementMarket.JP,
+            include_status_link=True,
+        )
+        client = APIClient()
+        client.force_authenticate(self.jp_owner)
+        response = client.get(reverse("announcement-list"))
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data["results"][0]["include_status_link"])
+
+
 class AnnouncementModelConstraintTests(TestCase):
     def setUp(self):
         self.owner, self.organization = create_owner("constraint-owner@example.com")
@@ -359,6 +457,20 @@ class AnnouncementModelConstraintTests(TestCase):
                 user=None,
                 workspace_staff_account=None,
             )
+
+    def test_market_and_language_defaults_and_choices(self):
+        announcement = Announcement(title="Metadata defaults", message="Body")
+        self.assertEqual(announcement.market, AnnouncementMarket.ALL)
+        self.assertEqual(announcement.language, ContentLanguage.ENGLISH)
+
+        announcement.market = "language-derived"
+        with self.assertRaises(ValidationError):
+            announcement.full_clean(exclude={"target_workspaces"})
+
+        announcement.market = AnnouncementMarket.GLOBAL
+        announcement.language = "fr"
+        with self.assertRaises(ValidationError):
+            announcement.full_clean(exclude={"target_workspaces"})
 
     def test_admin_creation_and_workspace_targeting(self):
         announcement = Announcement(
@@ -394,3 +506,86 @@ class AnnouncementAdminTimezoneTests(TestCase):
         self.assertEqual(aware.utcoffset().total_seconds(), 9 * 3600)
         self.assertEqual(aware.astimezone(ZoneInfo("UTC")).hour, 1)
         self.assertEqual(aware.astimezone(ZoneInfo("UTC")).minute, 30)
+
+
+class AnnouncementAdminMarketFieldsTests(TestCase):
+    def setUp(self):
+        self.admin = User.objects.create_superuser(
+            email="announcement-admin@example.com",
+            password="secure-password",
+        )
+        self.client = Client()
+        force_platform_admin_login(self.client, self.admin)
+
+    def test_add_form_exposes_market_language_and_all_market_warning(self):
+        response = self.client.get(reverse("admin:content_announcement_add"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'name="market"')
+        self.assertContains(response, "All Markets")
+        self.assertContains(response, "Global")
+        self.assertContains(response, "Japan")
+        self.assertContains(response, 'name="language"')
+        self.assertContains(response, "English")
+        self.assertContains(response, "Japanese")
+        self.assertContains(
+            response,
+            "This announcement may appear across all billing markets.",
+        )
+        self.assertContains(response, "announcement_market_warning.js")
+
+    def test_changelist_shows_and_filters_market_and_language(self):
+        publish_announcement(
+            title="JP Japanese",
+            market=AnnouncementMarket.JP,
+            language=ContentLanguage.JAPANESE,
+        )
+        publish_announcement(
+            title="Global English",
+            market=AnnouncementMarket.GLOBAL,
+            language=ContentLanguage.ENGLISH,
+        )
+        url = reverse("admin:content_announcement_changelist")
+        response = self.client.get(url)
+        self.assertContains(response, "Market")
+        self.assertContains(response, "Language")
+
+        filtered = self.client.get(url, {"market__exact": AnnouncementMarket.JP})
+        self.assertContains(filtered, "JP Japanese")
+        self.assertNotContains(filtered, "Global English")
+
+        language_filtered = self.client.get(
+            url,
+            {"language__exact": ContentLanguage.ENGLISH},
+        )
+        self.assertContains(language_filtered, "Global English")
+        self.assertNotContains(language_filtered, "JP Japanese")
+
+    def test_admin_history_records_market_and_language_changes(self):
+        announcement = publish_announcement(
+            title="Audit metadata",
+            market=AnnouncementMarket.GLOBAL,
+            language=ContentLanguage.ENGLISH,
+        )
+        response = self.client.post(
+            reverse("admin:content_announcement_change", args=[announcement.pk]),
+            {
+                "title": announcement.title,
+                "message": announcement.message,
+                "language": ContentLanguage.JAPANESE,
+                "severity": announcement.severity,
+                "audience": AnnouncementAudience.ALL,
+                "market": AnnouncementMarket.JP,
+                "status": announcement.status,
+                "admin_notes": "",
+                "_save": "Save",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        announcement.refresh_from_db()
+        self.assertEqual(announcement.market, AnnouncementMarket.JP)
+        self.assertEqual(announcement.language, ContentLanguage.JAPANESE)
+        history = LogEntry.objects.filter(object_id=str(announcement.pk)).latest(
+            "action_time"
+        )
+        self.assertIn("Market", history.change_message)
+        self.assertIn("Language", history.change_message)

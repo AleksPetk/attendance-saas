@@ -1,21 +1,23 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { api, errorMessage } from "./api.js";
+import { localizedErrorMessage } from "./i18n/errorMessages.js";
 import AuthProviderButtons, { AuthMethodDivider } from "./AuthProviderButtons.jsx";
 import { AuthLayout, ErrorBanner, Field, PasswordInput, SuccessBanner } from "./components.jsx";
+import { WorkspaceLanguageMenu } from "./i18n/LanguageSwitcher.jsx";
 
 export default function OwnerLoginScreen({ onSignedIn }) {
+  const { t } = useTranslation(["auth", "errors"]);
   const [searchParams] = useSearchParams();
   const location = useLocation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState(() => location.state?.oauthError || "");
   const [info, setInfo] = useState(() => {
-    if (searchParams.get("verified") === "1") return "Email verified. Sign in to continue.";
-    if (searchParams.get("reset") === "1") return "Password updated. Sign in with your new password.";
-    if (searchParams.get("deleted") === "1") {
-      return "Your CheckStation account and workspace have been permanently deleted.";
-    }
+    if (searchParams.get("verified") === "1") return t("ownerLogin.verifiedInfo");
+    if (searchParams.get("reset") === "1") return t("ownerLogin.resetInfo");
+    if (searchParams.get("deleted") === "1") return t("ownerLogin.deletedInfo");
     return "";
   });
   const [loading, setLoading] = useState(false);
@@ -57,6 +59,8 @@ export default function OwnerLoginScreen({ onSignedIn }) {
         setError(errorMessage(err));
       } else if (err?.data?.code === "two_factor_required") {
         setNeedsTwoFactor(true);
+      } else if (err?.status === 429 || err?.data?.code === "rate_limited") {
+        setError(localizedErrorMessage(err, t));
       } else {
         setError(errorMessage(err));
       }
@@ -76,7 +80,7 @@ export default function OwnerLoginScreen({ onSignedIn }) {
       const result = await api.owner2faChallenge(payload);
       onSignedIn({ workspace: result.data });
     } catch (err) {
-      setTwoFactorError(errorMessage(err) || "Authentication failed.");
+      setTwoFactorError(errorMessage(err) || t("ownerLogin.authFailed"));
     }
   }
 
@@ -86,7 +90,7 @@ export default function OwnerLoginScreen({ onSignedIn }) {
     try {
       await api.csrf();
       const result = await api.resendVerification({ email });
-      setResendMessage(result.data.detail || "If that email needs verification, we sent a new link.");
+      setResendMessage(result.data.detail || t("ownerLogin.resendDefault"));
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -96,24 +100,23 @@ export default function OwnerLoginScreen({ onSignedIn }) {
 
   return (
     <AuthLayout
-      title={needsTwoFactor ? "Two-factor authentication" : "Customer login"}
-      lead={
-        needsTwoFactor
-          ? "Enter the 6-digit code from your authenticator app."
-          : "Sign in as the paying workspace owner with your email and password."
-      }
+      title={needsTwoFactor ? t("ownerLogin.title2fa") : t("ownerLogin.title")}
+      lead={needsTwoFactor ? t("ownerLogin.lead2fa") : undefined}
+      headerAction={<WorkspaceLanguageMenu />}
       footnote={
         <p>
-          Staff member? <Link to="/staff-login">Staff login</Link>
+          {t("ownerLogin.staffPrompt")}{" "}
+          <Link to="/staff-login">{t("ownerLogin.staffLink")}</Link>
           {" · "}
-          New here? <Link to="/register">Create account</Link>
+          {t("ownerLogin.newHere")}{" "}
+          <Link to="/register">{t("ownerLogin.createAccountLink")}</Link>
         </p>
       }
     >
       {!needsTwoFactor ? (
         <form onSubmit={handleSubmit} className="auth-form">
           <div className="auth-fields">
-            <Field label="Email">
+            <Field label={t("fields.email")}>
               <input
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -122,7 +125,7 @@ export default function OwnerLoginScreen({ onSignedIn }) {
                 autoComplete="email"
               />
             </Field>
-            <Field label="Password">
+            <Field label={t("fields.password")}>
               <PasswordInput
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -142,15 +145,15 @@ export default function OwnerLoginScreen({ onSignedIn }) {
                 onClick={handleResend}
                 disabled={resendLoading || !email}
               >
-                {resendLoading ? "Sending…" : "Resend verification email"}
+                {resendLoading ? t("sending") : t("resendVerification")}
               </button>
             </div>
           ) : null}
           <button type="submit" className="btn-primary btn-block" disabled={loading}>
-            {loading ? "Signing in…" : "Sign in"}
+            {loading ? t("signingIn") : t("signIn")}
           </button>
           <p className="hint" style={{ textAlign: "center" }}>
-            <Link to="/forgot-password">Forgot password?</Link>
+            <Link to="/forgot-password">{t("ownerLogin.forgotPassword")}</Link>
           </p>
           <AuthMethodDivider />
           <AuthProviderButtons intent="login" />
@@ -159,7 +162,7 @@ export default function OwnerLoginScreen({ onSignedIn }) {
         <form onSubmit={handleTwoFactorVerify} className="auth-form">
           <ErrorBanner message={twoFactorError} />
           <div className="auth-fields">
-            <Field label="Two-factor authentication">
+            <Field label={t("fields.twoFactor")}>
               <input
                 value={useRecoveryCode ? twoFactorRecoveryCode : twoFactorCode}
                 onChange={(e) => (useRecoveryCode ? setTwoFactorRecoveryCode(e.target.value) : setTwoFactorCode(e.target.value))}
@@ -167,7 +170,7 @@ export default function OwnerLoginScreen({ onSignedIn }) {
                 inputMode="numeric"
                 autoComplete="one-time-code"
                 required
-                placeholder={useRecoveryCode ? "e.g. ABCD-EFGH" : "6-digit code"}
+                placeholder={useRecoveryCode ? t("placeholders.recoveryCode") : t("placeholders.authenticatorCode")}
               />
             </Field>
           </div>
@@ -181,10 +184,10 @@ export default function OwnerLoginScreen({ onSignedIn }) {
                 setTwoFactorRecoveryCode("");
               }}
             >
-              {useRecoveryCode ? "Use an authenticator code" : "Use a recovery code"}
+              {useRecoveryCode ? t("ownerLogin.useAuthenticator") : t("ownerLogin.useRecovery")}
             </button>
             <button type="submit" className="btn-primary btn-block">
-              Verify
+              {t("verify")}
             </button>
           </div>
         </form>

@@ -60,16 +60,16 @@ class PromotionRoundingTests(TestCase):
         # normal − fixed off = promotional
         self.assertEqual(fixed_promotional_cents(999, 500), 499)
         self.assertEqual(fixed_promotional_cents(1499, 750), 749)
-        self.assertEqual(fixed_promotional_cents(9990, 3000), 6990)
-        self.assertEqual(fixed_promotional_cents(14990, 4500), 10490)
+        self.assertEqual(fixed_promotional_cents(9999, 3000), 6999)
+        self.assertEqual(fixed_promotional_cents(14999, 4500), 10499)
         self.assertEqual(fixed_promotional_cents(999, 700), 299)
         self.assertEqual(fixed_promotional_cents(1499, 1050), 449)
-        self.assertEqual(fixed_promotional_cents(9990, 5000), 4990)
-        self.assertEqual(fixed_promotional_cents(14990, 7500), 7490)
-        self.assertEqual(fixed_promotional_cents(14990, 3000), 11990)
+        self.assertEqual(fixed_promotional_cents(9999, 5000), 4999)
+        self.assertEqual(fixed_promotional_cents(14999, 7500), 7499)
+        self.assertEqual(fixed_promotional_cents(14999, 3000), 11999)
         self.assertEqual(cents_to_amount_string(499), "4.99")
-        self.assertEqual(cents_to_amount_string(4990), "49.90")
-        self.assertEqual(cents_to_amount_string(7490), "74.90")
+        self.assertEqual(cents_to_amount_string(4999), "49.99")
+        self.assertEqual(cents_to_amount_string(7499), "74.99")
 
 
 class EligibilityResolverTests(TestCase):
@@ -126,9 +126,9 @@ class GroupOfferRulesTests(TestCase):
         self.assertEqual(by_key[("plus", "monthly")]["promotional_cents"], 499)
         self.assertEqual(by_key[("plus", "monthly")]["promotional_amount"], "4.99")
         self.assertEqual(by_key[("plus", "yearly")]["discount_percent"], 30)
-        self.assertEqual(by_key[("plus", "yearly")]["promotional_cents"], 6990)
+        self.assertEqual(by_key[("plus", "yearly")]["promotional_cents"], 6999)
         self.assertEqual(by_key[("business", "monthly")]["promotional_cents"], 749)
-        self.assertEqual(by_key[("business", "yearly")]["promotional_cents"], 10490)
+        self.assertEqual(by_key[("business", "yearly")]["promotional_cents"], 10499)
 
         set_group_value(GROUP_NEW_BASIC, MODE_BIG)
         big = promotion_payload_for_audience(AUDIENCE_PUBLIC)
@@ -136,10 +136,10 @@ class GroupOfferRulesTests(TestCase):
         self.assertEqual(by_key[("plus", "monthly")]["discount_percent"], 70)
         self.assertEqual(by_key[("plus", "monthly")]["promotional_cents"], 299)
         self.assertEqual(by_key[("plus", "yearly")]["discount_percent"], 50)
-        self.assertEqual(by_key[("plus", "yearly")]["promotional_cents"], 4990)
-        self.assertEqual(by_key[("plus", "yearly")]["promotional_formatted"], "$49.90")
-        self.assertEqual(by_key[("business", "yearly")]["promotional_cents"], 7490)
-        self.assertEqual(by_key[("business", "yearly")]["promotional_formatted"], "$74.90")
+        self.assertEqual(by_key[("plus", "yearly")]["promotional_cents"], 4999)
+        self.assertEqual(by_key[("plus", "yearly")]["promotional_formatted"], "$49.99")
+        self.assertEqual(by_key[("business", "yearly")]["promotional_cents"], 7499)
+        self.assertEqual(by_key[("business", "yearly")]["promotional_formatted"], "$74.99")
         self.assertEqual(by_key[("business", "monthly")]["promotional_cents"], 449)
 
     def test_group2_plus_monthly_offers_exactly_two(self):
@@ -162,15 +162,15 @@ class GroupOfferRulesTests(TestCase):
         yearly_plus = by_id["plus_monthly_to_plus_yearly"]
         self.assertEqual(yearly_plus["discount_percent"], 30)
         self.assertEqual(yearly_plus["discount_amount_cents"], 3000)
-        self.assertEqual(yearly_plus["promotional_cents"], 6990)
-        self.assertEqual(yearly_plus["promotional_formatted"], "$69.90")
-        self.assertEqual(yearly_plus["renews_at_formatted"], "$99.90")
+        self.assertEqual(yearly_plus["promotional_cents"], 6999)
+        self.assertEqual(yearly_plus["promotional_formatted"], "$69.99")
+        self.assertEqual(yearly_plus["renews_at_formatted"], "$99.99")
         biz_year = by_id["plus_monthly_to_business_yearly"]
         self.assertEqual(biz_year["discount_percent"], 30)
         self.assertEqual(biz_year["discount_amount_cents"], 4500)
-        self.assertEqual(biz_year["promotional_cents"], 10490)
-        self.assertEqual(biz_year["promotional_formatted"], "$104.90")
-        self.assertEqual(biz_year["renews_at_formatted"], "$149.90")
+        self.assertEqual(biz_year["promotional_cents"], 10499)
+        self.assertEqual(biz_year["promotional_formatted"], "$104.99")
+        self.assertEqual(biz_year["renews_at_formatted"], "$149.99")
         self.assertEqual(biz_year["discount_type"], DISCOUNT_TYPE_FIXED_AMOUNT)
 
     def test_plus_yearly_has_no_promotion(self):
@@ -190,7 +190,7 @@ class GroupOfferRulesTests(TestCase):
         offer = payload["offers"][0]
         self.assertEqual(offer["discount_percent"], 30)
         self.assertEqual(offer["discount_amount_cents"], 4500)
-        self.assertEqual(offer["promotional_cents"], 10490)
+        self.assertEqual(offer["promotional_cents"], 10499)
 
     def test_business_yearly_never_promoted(self):
         set_group_value(GROUP_NEW_BASIC, MODE_BIG)
@@ -262,18 +262,18 @@ class GroupOfferRulesTests(TestCase):
             # Group 1 NORMAL
             ("new_basic", MODE_NORMAL, "plus", "monthly"): 499,
             ("new_basic", MODE_NORMAL, "business", "monthly"): 749,
-            ("new_basic", MODE_NORMAL, "plus", "yearly"): 6990,
-            ("new_basic", MODE_NORMAL, "business", "yearly"): 10490,
+            ("new_basic", MODE_NORMAL, "plus", "yearly"): 6999,
+            ("new_basic", MODE_NORMAL, "business", "yearly"): 10499,
             # Group 1 BIG
             ("new_basic", MODE_BIG, "plus", "monthly"): 299,
             ("new_basic", MODE_BIG, "business", "monthly"): 449,
-            ("new_basic", MODE_BIG, "plus", "yearly"): 4990,
-            ("new_basic", MODE_BIG, "business", "yearly"): 7490,
+            ("new_basic", MODE_BIG, "plus", "yearly"): 4999,
+            ("new_basic", MODE_BIG, "business", "yearly"): 7499,
             # Group 2 annual
-            ("plus_monthly", "plus_monthly_to_plus_yearly"): 6990,
-            ("plus_monthly", "plus_monthly_to_business_yearly"): 10490,
+            ("plus_monthly", "plus_monthly_to_plus_yearly"): 6999,
+            ("plus_monthly", "plus_monthly_to_business_yearly"): 10499,
             # Group 3
-            ("business_monthly", "business_monthly_to_business_yearly"): 10490,
+            ("business_monthly", "business_monthly_to_business_yearly"): 10499,
         }
 
         set_group_value(GROUP_NEW_BASIC, MODE_NORMAL)
@@ -320,8 +320,8 @@ class GroupOfferRulesTests(TestCase):
         payload = catalog_public_payload()
         plus_y = payload["plans"]["plus"]["intervals"]["yearly"]["promotion"]
         biz_y = payload["plans"]["business"]["intervals"]["yearly"]["promotion"]
-        self.assertEqual(plus_y["first_period_formatted"], "$49.90")
-        self.assertEqual(biz_y["first_period_formatted"], "$74.90")
+        self.assertEqual(plus_y["first_period_formatted"], "$49.99")
+        self.assertEqual(biz_y["first_period_formatted"], "$74.99")
 
         set_group_value(GROUP_PLUS_MONTHLY, "on")
         g2 = {
@@ -346,30 +346,30 @@ class GroupOfferRulesTests(TestCase):
             expected[("business_monthly", "business_monthly_to_business_yearly")],
         )
 
-        # Dollar strings for the 10 mapped coupons (Business Yearly $104.90 shared)
+        # Dollar strings for the 10 mapped coupons (Business Yearly $104.99 shared)
         amounts = [
             "4.99",
             "7.49",
-            "69.90",
-            "104.90",
+            "69.99",
+            "104.99",
             "2.99",
             "4.49",
-            "49.90",
-            "74.90",
-            "69.90",
-            "104.90",
+            "49.99",
+            "74.99",
+            "69.99",
+            "104.99",
         ]
         got = [
             cents_to_amount_string(499),
             cents_to_amount_string(749),
-            cents_to_amount_string(6990),
-            cents_to_amount_string(10490),
+            cents_to_amount_string(6999),
+            cents_to_amount_string(10499),
             cents_to_amount_string(299),
             cents_to_amount_string(449),
-            cents_to_amount_string(4990),
-            cents_to_amount_string(7490),
-            cents_to_amount_string(6990),
-            cents_to_amount_string(10490),
+            cents_to_amount_string(4999),
+            cents_to_amount_string(7499),
+            cents_to_amount_string(6999),
+            cents_to_amount_string(10499),
         ]
         self.assertEqual(got, amounts)
 
@@ -434,9 +434,9 @@ class PromotionCatalogApiTests(TestCase):
             ]
         )
         by_id = {o["id"]: o for o in promo["offers"]}
-        self.assertEqual(by_id["plus_monthly_to_plus_yearly"]["promotional_amount"], "69.90")
+        self.assertEqual(by_id["plus_monthly_to_plus_yearly"]["promotional_amount"], "69.99")
         self.assertEqual(
-            by_id["plus_monthly_to_business_yearly"]["promotional_amount"], "104.90"
+            by_id["plus_monthly_to_business_yearly"]["promotional_amount"], "104.99"
         )
 
 

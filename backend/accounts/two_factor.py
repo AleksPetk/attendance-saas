@@ -20,6 +20,7 @@ import qrcode
 from cryptography.fernet import Fernet, InvalidToken
 from django.conf import settings
 from django.core import checks
+from django.core.exceptions import ImproperlyConfigured
 from django.utils import timezone
 
 logger = logging.getLogger("accounts.two_factor")
@@ -65,6 +66,10 @@ def _fernet_key_bytes():
     raw = (getattr(settings, "PLATFORM_2FA_ENCRYPTION_KEY", "") or "").strip()
     if raw:
         return raw.encode("utf-8")
+    if not getattr(settings, "DEBUG", False):
+        raise ImproperlyConfigured(
+            "PLATFORM_2FA_ENCRYPTION_KEY must be set when DEBUG is False."
+        )
     digest = hashlib.sha256(
         f"checkstation-platform-2fa:{settings.SECRET_KEY}".encode("utf-8")
     ).digest()
@@ -608,10 +613,10 @@ def check_platform_2fa_encryption_key(app_configs, **kwargs):
     if getattr(settings, "DEBUG", False) or "test" in sys.argv:
         return []
     return [
-        checks.Warning(
-            "PLATFORM_2FA_ENCRYPTION_KEY is unset; TOTP secrets are "
-            "encrypted with a key derived from SECRET_KEY. Set a dedicated "
-            "Fernet key before production.",
-            id="accounts.W002",
+        checks.Error(
+            "PLATFORM_2FA_ENCRYPTION_KEY is unset; TOTP secrets would be "
+            "encrypted with a key derived from SECRET_KEY. Set "
+            "PLATFORM_2FA_ENCRYPTION_KEY for production.",
+            id="accounts.E003",
         )
     ]

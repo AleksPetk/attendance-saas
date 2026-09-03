@@ -6,6 +6,7 @@
     <title>__PAGE_TITLE__</title>
     <meta name="description" content="__PAGE_DESCRIPTION__" />
     <link rel="canonical" href="__PAGE_CANONICAL__" />
+    __PAGE_HREFLANG__
     <link rel="icon" href="/favicon.ico?v=20260831" sizes="any" />
     <link rel="shortcut icon" href="/favicon.ico?v=20260831" />
     <link rel="icon" type="image/png" href="/favicon-16x16.png?v=20260831" sizes="16x16" />
@@ -18,7 +19,7 @@
   <body>
     <div class="docs-app">
       <header class="docs-top">
-        <a class="docs-brand" href="/" aria-label="CheckStation Docs">
+        <a class="docs-brand" href="/en/" aria-label="CheckStation Docs" id="docs-brand-link">
           <img
             class="docs-logo"
             src="/brand/logo-text.png"
@@ -28,16 +29,19 @@
           />
           <span class="docs-kicker">Docs</span>
         </a>
-        <button
-          type="button"
-          class="docs-menu-toggle"
-          id="nav-toggle"
-          aria-expanded="false"
-          aria-controls="docs-nav"
-          aria-label="Open document navigation"
-        >
-          Menu
-        </button>
+        <div class="docs-top-actions">
+          <div class="docs-language-root" id="docs-language-root"></div>
+          <button
+            type="button"
+            class="docs-menu-toggle"
+            id="nav-toggle"
+            aria-expanded="false"
+            aria-controls="docs-nav"
+            aria-label="Open document navigation"
+          >
+            Menu
+          </button>
+        </div>
       </header>
       <div class="docs-layout">
         <aside class="docs-sidebar" id="docs-nav">

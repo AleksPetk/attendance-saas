@@ -31,13 +31,20 @@ from groups.email_sender_models import (
     GroupEmailDeliveryStatus,
     GroupEmailSender,
 )
-from groups.email_sender_testing import make_session_request, save_verified_email_sender
+from groups.email_sender_testing import (
+    batch_recipients,
+    make_session_request,
+    mock_batch_send_fail_for,
+    mock_batch_send_success,
+    save_verified_email_sender,
+)
 from groups.models import Group, GroupMembership
 from members.models import Member
 from organizations.models import Organization
 
 
 @override_settings(
+    DEBUG=True,
     APP_SECRETS_ENCRYPTION_KEY="",
     SECRET_KEY="test-secret-key-for-group-gmail-sender-suite",
 )
@@ -342,7 +349,10 @@ class GroupGmailEmailSenderTests(TestCase):
             member=member,
             participation_email="participation@example.com",
         )
-        with patch("groups.email_providers.gmail.GmailProvider.send_message") as mock_send:
+        with patch(
+            "groups.email_providers.gmail.GmailProvider.send_messages_batch",
+            side_effect=mock_batch_send_success,
+        ) as mock_send:
             ar = perform_action_record_from_kiosk(
                 group=self.group,
                 action_type=ActionType.CHECK_IN,
@@ -351,8 +361,8 @@ class GroupGmailEmailSenderTests(TestCase):
             )
             mock_send.assert_called_once()
             self.assertEqual(
-                mock_send.call_args.kwargs["to_email"],
-                "participation@example.com",
+                batch_recipients(mock_send),
+                ["participation@example.com"],
             )
         self.assertTrue(ActionRecord.objects.filter(pk=ar.pk).exists())
 
@@ -371,8 +381,11 @@ class GroupGmailEmailSenderTests(TestCase):
             participation_email="fail@example.com",
         )
         with patch(
-            "groups.email_providers.gmail.GmailProvider.send_message",
-            side_effect=EmailSenderProviderError("Could not send the email"),
+            "groups.email_providers.gmail.GmailProvider.send_messages_batch",
+            side_effect=mock_batch_send_fail_for(
+                "fail@example.com",
+                error_message="Could not send the email",
+            ),
         ):
             ar = perform_action_record_from_kiosk(
                 group=self.group,

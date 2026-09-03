@@ -1,3 +1,11 @@
+# =============================================================================
+# LOCAL DEVELOPMENT ONLY — not a production deployment stack.
+#
+# Exposed ports bind to 127.0.0.1 so they are not reachable from other hosts
+# on the LAN. Production topology (reverse proxy, TLS, gunicorn, static SPA)
+# is separate; see docker-compose.prod.yml for a non-secret skeleton.
+# =============================================================================
+
 services:
   db:
     image: postgres:16-alpine
@@ -6,7 +14,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-attendance}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-attendance}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -27,10 +35,17 @@ services:
       - .env
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgres://attendance:attendance@db:5432/attendance}
+      PLATFORM_APPLICATION_SIZE_ROOTS: /app,/checkstation/frontend,/checkstation/docs,/checkstation/status
+      STATUS_PROBE_TOKEN: ${STATUS_PROBE_TOKEN:-}
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     volumes:
       - ./backend:/app
+      # Read-only project-owned service roots let Platform Admin report the
+      # complete local application footprint without mounting repository secrets.
+      - ./frontend:/checkstation/frontend:ro
+      - ./docs:/checkstation/docs:ro
+      - ./status:/checkstation/status:ro
       - media_data:/app/media
     depends_on:
       db:
@@ -49,7 +64,7 @@ services:
       VITE_DOCS_PUBLIC_URL: ${VITE_DOCS_PUBLIC_URL:-http://localhost:8091}
       VITE_PUBLIC_SITE_URL: ${VITE_PUBLIC_SITE_URL:-http://localhost:5173}
     ports:
-      - "5173:5173"
+      - "127.0.0.1:5173:5173"
     volumes:
       - ./frontend:/app
       - /app/node_modules
@@ -71,8 +86,10 @@ services:
       STATUS_STALE_THRESHOLD_SECONDS: ${STATUS_STALE_THRESHOLD_SECONDS:-180}
       STATUS_HTTP_TIMEOUT_SECONDS: ${STATUS_HTTP_TIMEOUT_SECONDS:-8}
       STATUS_BROWSER_POLL_SECONDS: ${STATUS_BROWSER_POLL_SECONDS:-30}
+      STATUS_PUBLIC_URL: ${VITE_STATUS_PUBLIC_URL:-http://localhost:8090}
+      STATUS_PROBE_TOKEN: ${STATUS_PROBE_TOKEN:-}
     ports:
-      - "8090:8090"
+      - "127.0.0.1:8090:8090"
     volumes:
       # Match frontend: serve host static/HTML so favicons stay in sync with source.
       - ./status:/app
@@ -90,7 +107,7 @@ services:
       DOCS_MAIN_SITE_URL: ${DOCS_MAIN_SITE_URL:-http://localhost:5173}
       STATUS_PUBLIC_URL: ${VITE_STATUS_PUBLIC_URL:-http://localhost:8090}
     ports:
-      - "8091:8091"
+      - "127.0.0.1:8091:8091"
     volumes:
       # Match frontend: serve host static/HTML so favicons stay in sync with source.
       - ./docs:/app

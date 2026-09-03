@@ -67,10 +67,14 @@ def account_email_payload(user):
 
 
 def account_payload(user):
+    from accounts.language import normalize_language
     from accounts.sign_in_methods import sign_in_methods_payload
 
     payload = account_email_payload(user)
     payload["sign_in_methods"] = sign_in_methods_payload(user)
+    payload["preferred_language"] = normalize_language(
+        getattr(user, "preferred_language", None)
+    )
     return payload
 
 
@@ -278,7 +282,10 @@ def verify_primary_email_uid_token(uid, token):
         )
 
     try:
-        send_primary_email_changed_notice(old_email=old_email)
+        send_primary_email_changed_notice(
+            old_email=old_email,
+            language=getattr(user, "preferred_language", None),
+        )
     except (EmailConfigurationError, EmailSendError) as exc:
         logger.error(
             "Primary email change notice failed for user_id=%s old_email=%s: %s",

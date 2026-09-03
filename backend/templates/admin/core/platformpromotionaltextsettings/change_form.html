@@ -10,3 +10,30 @@
     </div>
   </div>
 {% endblock %}
+
+{% block extrahead %}
+  {{ block.super }}
+  <style>
+    fieldset.promotional-markets-together[hidden],
+    fieldset.promotional-markets-separate[hidden] {
+      display: none;
+    }
+  </style>
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      const mode = document.getElementById("id_mode");
+      if (!mode) return;
+
+      const togetherSections = document.querySelectorAll("fieldset.promotional-markets-together");
+      const separateSections = document.querySelectorAll("fieldset.promotional-markets-separate");
+      const updateSections = function () {
+        const separate = mode.value === "separate";
+        togetherSections.forEach(function (section) { section.hidden = separate; });
+        separateSections.forEach(function (section) { section.hidden = !separate; });
+      };
+
+      mode.addEventListener("change", updateSections);
+      updateSections();
+    });
+  </script>
+{% endblock %}

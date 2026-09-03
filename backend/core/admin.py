@@ -494,8 +494,46 @@ class PlatformPromotionalTextSettingsAdmin(admin.ModelAdmin):
     """Editable singleton for display-only promotional copy."""
 
     change_form_template = "admin/core/platformpromotionaltextsettings/change_form.html"
-    list_display = ("enabled", "text", "updated_at", "changed_by")
-    fields = ("enabled", "text", "text_style", "updated_at", "changed_by")
+    list_display = ("mode", "enabled", "text", "updated_at", "changed_by")
+    fieldsets = (
+        (
+            None,
+            {
+                "fields": ("mode",),
+            },
+        ),
+        (
+            "Markets Together",
+            {
+                "classes": ("promotional-markets-together",),
+                "description": (
+                    "The same display text is used in Global and Japan billing contexts. "
+                    "Make sure the message is appropriate for both markets."
+                ),
+                "fields": ("enabled", "text", "text_style"),
+            },
+        ),
+        (
+            "Global",
+            {
+                "classes": ("promotional-markets-separate",),
+                "fields": ("global_enabled", "global_text", "global_text_style"),
+            },
+        ),
+        (
+            "Japan",
+            {
+                "classes": ("promotional-markets-separate",),
+                "fields": ("jp_enabled", "jp_text", "jp_text_style"),
+            },
+        ),
+        (
+            "History",
+            {
+                "fields": ("updated_at", "changed_by"),
+            },
+        ),
+    )
     readonly_fields = ("updated_at", "changed_by")
 
     def has_add_permission(self, request):

@@ -1,0 +1,75 @@
+# =============================================================================
+# PRODUCTION SKELETON — no secrets, no live credentials, not wired to deploy.
+#
+# Reverse proxy (not defined here) terminates TLS and routes:
+#   checkstation.app              → frontend static (promo)
+#   workspace.checkstation.app    → frontend static + /api/* → gunicorn
+#   docs.checkstation.app         → docs service (internal bind)
+#   status.checkstation.app       → status service (internal bind)
+#   manager.checkstation.app      → Django /admin/ (same gunicorn process for now)
+#
+# Public API origin: https://workspace.checkstation.app/api/...
+# There is NO api.checkstation.app.
+#
+# This file is illustrative only (profile: prod-skeleton). Do not treat it as
+# a complete production topology.
+# =============================================================================
+
+services:
+  redis:
+    image: redis:7-alpine
+    expose:
+      - "6379"
+    profiles: ["prod-skeleton"]
+
+  backend:
+    build:
+      context: ./backend
+    command: >
+      sh -c "python manage.py migrate --noinput &&
+             python manage.py collectstatic --noinput &&
+             gunicorn config.wsgi:application -c gunicorn.conf.py"
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings_production
+      DEBUG: "False"
+      GUNICORN_BIND: 0.0.0.0:8000
+      # Supply real values via a production secrets mechanism — never commit them.
+      # SECRET_KEY, DATABASE_URL, REDIS_URL, APP_SECRETS_ENCRYPTION_KEY,
+      # PLATFORM_2FA_ENCRYPTION_KEY, STATUS_PROBE_TOKEN, ALLOWED_HOSTS, …
+      # REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - redis
+    # No host port publish — reverse proxy reaches this service on the private network.
+    expose:
+      - "8000"
+    profiles: ["prod-skeleton"]
+
+  docs:
+    build:
+      context: ./docs
+    environment:
+      DOCS_HOST: 0.0.0.0
+      DOCS_PORT: 8091
+      DOCS_API_BASE_URL: https://workspace.checkstation.app
+      DOCS_PUBLIC_URL: https://docs.checkstation.app
+      DOCS_MAIN_SITE_URL: https://checkstation.app
+      STATUS_PUBLIC_URL: https://status.checkstation.app
+    expose:
+      - "8091"
+    profiles: ["prod-skeleton"]
+
+  status:
+    build:
+      context: ./status
+    environment:
+      STATUS_HOST: 0.0.0.0
+      STATUS_PORT: 8090
+      STATUS_API_URL: http://backend:8000
+      STATUS_WEBSITE_URL: https://checkstation.app
+      STATUS_WORKSPACE_URL: https://workspace.checkstation.app
+      STATUS_DOCS_URL: https://docs.checkstation.app
+      STATUS_PUBLIC_URL: https://status.checkstation.app
+      # STATUS_PROBE_TOKEN must match Django.
+    expose:
+      - "8090"
+    profiles: ["prod-skeleton"]

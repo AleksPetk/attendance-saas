@@ -17,7 +17,8 @@ from accounts.apple_oauth import AppleOAuthResultCode
 from accounts.apple_oauth_state import OWNER_APPLE_OAUTH_SESSION_KEY, load_apple_oauth_state
 from accounts.customer_two_factor_models import OwnerTOTPDevice
 from accounts.owner_auth_provider_models import OwnerAuthProvider, OwnerAuthProviderLink
-from accounts.two_factor import TOTP_INTERVAL, decrypt_totp_secret
+from accounts.owner_two_factor import decrypt_owner_totp_secret
+from accounts.two_factor import TOTP_INTERVAL
 from billing.models import WorkspaceBuiltinTrial
 from organizations.models import Organization
 
@@ -201,7 +202,7 @@ class AppleOAuthLoginFlowTests(TestCase):
         self.assertNotEqual(self.client.get("/api/workspace/").status_code, 200)
 
         device = OwnerTOTPDevice.objects.get(user=owner)
-        totp_secret = decrypt_totp_secret(device.secret_encrypted)
+        totp_secret = decrypt_owner_totp_secret(device.secret_encrypted)
         from accounts.two_factor import current_timestep
 
         step = current_timestep()

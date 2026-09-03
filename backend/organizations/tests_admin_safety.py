@@ -3,6 +3,7 @@ from datetime import timedelta
 from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
+from rest_framework.test import APIClient
 
 from accounts.models import User
 from accounts.testing import force_platform_admin_login
@@ -12,7 +13,12 @@ from billing.services import activate_paid_subscription, get_workspace_billing
 from billing.testing import simulate_migrated_existing_workspace
 from core.models import PlatformAdminAction, PlatformAdminActionType
 from organizations.lifecycle import turn_checkstation_account_on
-from organizations.models import Organization, OrganizationPlan, OrganizationStatus
+from organizations.models import (
+    BillingMarketOverride,
+    Organization,
+    OrganizationPlan,
+    OrganizationStatus,
+)
 
 STRIPE_TEST_SETTINGS = {
     "BILLING_PROVIDER": "fake",
@@ -66,6 +72,9 @@ class OrganizationAdminSafetyTests(TestCase):
         self.assertContains(response, "Danger zone")
         self.assertContains(response, "Change account type")
         self.assertContains(response, "Block workspace")
+        self.assertContains(response, "Billing market")
+        self.assertContains(response, "Auto")
+        self.assertContains(response, "Global (USD)")
 
     def test_raw_plan_status_owner_not_casually_editable(self):
         other = create_user("other-owner@example.com")
@@ -78,6 +87,7 @@ class OrganizationAdminSafetyTests(TestCase):
                 "status": OrganizationStatus.BLOCKED,
                 "owner": other.pk,
                 "is_checkstation_account": "on",
+                "billing_market_override": BillingMarketOverride.JP,
                 "staff_accounts-TOTAL_FORMS": "0",
                 "staff_accounts-INITIAL_FORMS": "0",
                 "staff_accounts-MIN_NUM_FORMS": "0",
@@ -92,6 +102,100 @@ class OrganizationAdminSafetyTests(TestCase):
         self.assertEqual(self.org.status, OrganizationStatus.ACTIVE)
         self.assertEqual(self.org.owner_id, self.owner.pk)
         self.assertFalse(self.org.is_checkstation_account)
+        self.assertEqual(
+            self.org.billing_market_override,
+            BillingMarketOverride.AUTO,
+        )
+
+    def test_platform_admin_changes_override_with_audit(self):
+        url = reverse(
+            "admin:organizations_organization_billing_market",
+            args=[self.org.pk],
+        )
+        page = self.client.get(url)
+        self.assertEqual(page.status_code, 200)
+        self.assertContains(page, "Billing Market Override")
+        self.assertContains(page, "Japan")
+
+        missing_confirmation = self.client.post(
+            url,
+            {"target_billing_market": BillingMarketOverride.JP},
+        )
+        self.assertEqual(missing_confirmation.status_code, 200)
+        self.org.refresh_from_db()
+        self.assertEqual(self.org.billing_market_override, BillingMarketOverride.AUTO)
+
+        changed = self._confirm(
+            url,
+            {"target_billing_market": BillingMarketOverride.JP},
+        )
+        self.assertEqual(changed.status_code, 302)
+        self.org.refresh_from_db()
+        self.assertEqual(self.org.billing_market_override, BillingMarketOverride.JP)
+        action = PlatformAdminAction.objects.get(
+            action_type=PlatformAdminActionType.BILLING_MARKET_OVERRIDE_CHANGE,
+            workspace_id_snapshot=self.org.workspace_id,
+        )
+        self.assertEqual(action.actor, self.admin)
+        self.assertEqual(action.old_value, BillingMarketOverride.AUTO)
+        self.assertEqual(action.new_value, "jp (effective: jp)")
+        self.assertEqual(action.reason, REASON)
+
+    def test_customer_cannot_change_override_through_workspace_api_or_admin(self):
+        api = APIClient()
+        api.force_authenticate(user=self.owner)
+        response = api.patch(
+            reverse("current-workspace"),
+            {"billing_market_override": BillingMarketOverride.JP},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 405)
+        self.org.refresh_from_db()
+        self.assertEqual(self.org.billing_market_override, BillingMarketOverride.AUTO)
+
+        customer_admin = Client()
+        customer_admin.force_login(self.owner)
+        admin_response = customer_admin.get(
+            reverse(
+                "admin:organizations_organization_billing_market",
+                args=[self.org.pk],
+            )
+        )
+        self.assertEqual(admin_response.status_code, 302)
+        self.assertIn("/admin/login/", admin_response.url)
+
+    def test_active_subscription_override_warns_without_mutating_subscription(self):
+        start = timezone.now()
+        billing = activate_paid_subscription(
+            self.org,
+            subscribed_plan="plus",
+            billing_interval="monthly",
+            purchase_source=PurchaseSource.STRIPE,
+            current_period_start=start,
+            current_period_end=start + timedelta(days=30),
+            external_customer_id="cus_market_safe",
+            external_subscription_id="sub_market_safe",
+            currency="usd",
+        )
+        url = reverse(
+            "admin:organizations_organization_billing_market",
+            args=[self.org.pk],
+        )
+        changed = self._confirm(
+            url,
+            {"target_billing_market": BillingMarketOverride.JP},
+        )
+        self.assertEqual(changed.status_code, 302)
+        billing.refresh_from_db()
+        self.assertEqual(billing.currency, "usd")
+        self.assertEqual(billing.external_subscription_id, "sub_market_safe")
+
+        detail = self.client.get(
+            reverse("admin:organizations_organization_change", args=[self.org.pk])
+        )
+        self.assertContains(detail, "Forced billing market")
+        self.assertContains(detail, "Active subscription remains Global (USD)")
+        self.assertContains(detail, "Japan (JPY)")
 
     def test_turn_on_requires_password_and_reason(self):
         url = reverse(

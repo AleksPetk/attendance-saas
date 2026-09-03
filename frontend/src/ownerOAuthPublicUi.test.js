@@ -9,8 +9,11 @@ import {
   OAUTH_PUBLIC_RESULT_ACTION,
   oauthPublicResultAction,
   oauthPublicResultMessage,
+  oauthPublicResultMessageKey,
   oauthPublicStartUrl,
 } from "./ownerOAuthPublicUi.js";
+
+const mockT = (key) => key;
 
 test("oauth public start url uses login intent", () => {
   assert.equal(
@@ -48,20 +51,25 @@ test("existing-account collision maps to login guidance", () => {
     oauthPublicResultAction("existing_account_connect_required"),
     OAUTH_PUBLIC_RESULT_ACTION.SHOW_ERROR_WITH_LOGIN,
   );
-  assert.match(
-    oauthPublicResultMessage("google", "existing_account_connect_required"),
-    /Account → Security/,
+  assert.equal(
+    oauthPublicResultMessageKey("google", "existing_account_connect_required"),
+    "oauth.results.google.existingAccountConnectRequired",
   );
 });
 
 test("no-account login maps to register path", () => {
   assert.equal(oauthPublicResultAction("no_account"), OAUTH_PUBLIC_RESULT_ACTION.SHOW_ERROR_WITH_REGISTER);
-  assert.match(oauthPublicResultMessage("apple", "no_account"), /Create an account/);
+  assert.equal(
+    oauthPublicResultMessageKey("apple", "no_account"),
+    "oauth.results.apple.noAccount",
+  );
 });
 
 test("oauth public messages avoid raw provider errors", () => {
-  assert.match(oauthPublicResultMessage("google", "authentication_failed"), /Try again/);
-  assert.doesNotMatch(oauthPublicResultMessage("google", "authentication_failed"), /Exception|traceback/i);
+  assert.equal(
+    oauthPublicResultMessage(mockT, "google", "authentication_failed"),
+    "oauth.results.authenticationFailed",
+  );
 });
 
 const loginSource = readFileSync(new URL("./OwnerLoginScreen.jsx", import.meta.url), "utf8");
@@ -79,7 +87,7 @@ test("owner login keeps password form and adds provider buttons", () => {
 test("register oauth buttons require legal acknowledgement before start", () => {
   assert.match(registerSource, /legalAcknowledged=\{legalAcknowledgement\}/);
   assert.match(registerSource, /onLegalRequired/);
-  assert.match(registerSource, /REGISTRATION_LEGAL_REQUIRED_MESSAGE/);
+  assert.match(registerSource, /REGISTRATION_LEGAL_REQUIRED_MESSAGE_KEY/);
   assert.match(registerSource, /api\.registerOwner/);
 });
 

@@ -40,11 +40,16 @@ Paid plans can be billed **monthly**. The billing interval is chosen at checkout
 
 ## 6. Yearly billing
 
-Paid plans can be billed **yearly**. Yearly list price is **10 × monthly** (two months effectively included in the annual price).
+Paid plans can be billed **yearly**. Yearly list pricing provides approximately two months of savings compared with paying monthly for 12 months.
 
 ## 7. Current pricing
 
-Prices are USD list prices from the billing catalog:
+Prices depend on your workspace **billing market**. The billing catalog has two markets today:
+
+- **Global** — USD list prices (table below)
+- **Japan** — JPY list prices shown in the product when that market applies
+
+Global (USD) list prices from the billing catalog:
 
 | Plan | Monthly | Yearly |
 | --- | --- | --- |
@@ -67,7 +72,7 @@ Taxes, payment-method fees, and Stripe proration amounts are calculated by Strip
 | Snapshot import into a Class | No | No | Yes |
 | Ads | Yes | No | No |
 
-Group after-action email (platform or custom SMTP) is available on every plan. Forward Emails are Plus and Business.
+Group after-action email uses the **Group email sender** you configure (custom SMTP, Gmail app password, Outlook / Microsoft 365 SMTP, or Yahoo Mail app password). It is available on every plan when the sender is ready. Forward Emails are Plus and Business.
 
 ## 9. Group limits
 
@@ -334,7 +339,7 @@ More short answers: [FAQ](/faq).
 
 ## 41. Related docs
 
-- [Getting Started](/getting-started) — new workspaces start on Basic
+- [Getting Started](/getting-started) — new workspaces include a 7-day Business trial
 - [Groups & Members](/groups-members) — plan-locked Members and Groups
 - [Kiosk Setup](/kiosk-setup) — ads around launch/exit on Basic
 - [FAQ](/faq) — searchable billing questions

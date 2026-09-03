@@ -93,14 +93,14 @@ Check Station encrypts stored SMTP passwords but does not operate your mail prov
 
 ### 9.1 Plans
 
-Current plan names are **Basic**, **Plus**, and **Business**. Basic is the free tier. New workspaces start on Basic.
+Current plan names are **Basic**, **Plus**, and **Business**. Basic is the free tier. Eligible new workspaces start with a **7-day Business trial** (no card). After that trial, an unpaid workspace becomes Basic unless a paid plan is active.
 
-Current USD list prices (exclusive of taxes) are:
+List prices are shown in the product and in [Billing & Plans](/billing-plans) for your billing market (**Global/USD** or **Japan/JPY**). Global (USD) list prices (exclusive of taxes) are:
 
-- Plus: $9.99 per month or $99.90 per year
-- Business: $14.99 per month or $149.90 per year
+- Plus: $9.99 per month or $99.99 per year
+- Business: $14.99 per month or $149.99 per year
 
-Yearly prices equal ten times the monthly list price. These list prices live in the Check Station catalog. Promotional discounts, if offered later, must not silently rewrite those list prices.
+Yearly prices provide approximately two months of savings compared with paying monthly for 12 months. These list prices live in the Check Station catalog. Promotional discounts, if offered later, must not silently rewrite those list prices.
 
 ### 9.2 Entitlements and ads
 

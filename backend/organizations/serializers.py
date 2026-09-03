@@ -4,6 +4,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
 
+from accounts.language import normalize_language
 from organizations.models import Organization, OrganizationStatus
 from organizations.models import WorkspaceStaffAccount
 from organizations.models import WorkspaceStaffRole, WorkspaceStaffStatus
@@ -31,6 +32,10 @@ class CurrentWorkspaceSerializer(serializers.Serializer):
     kiosk_locked = serializers.BooleanField(required=False, default=False)
     kiosk_group_id = serializers.IntegerField(required=False, allow_null=True, default=None)
     kiosk_available = serializers.BooleanField(required=False, default=False)
+    preferred_language = serializers.ChoiceField(
+        choices=["en", "ja"],
+        required=False,
+    )
 
 
 class WorkspaceTutorialStateUpdateSerializer(serializers.Serializer):
@@ -60,6 +65,7 @@ class RegisterOwnerSerializer(serializers.Serializer):
     legal_acknowledgement = serializers.BooleanField(write_only=True, required=True)
     first_name = serializers.CharField(required=False, allow_blank=True)
     last_name = serializers.CharField(required=False, allow_blank=True)
+    locale = serializers.CharField(required=False, allow_blank=True, write_only=True)
 
     def validate(self, attrs):
         email = (attrs.get("email") or "").strip().lower()
@@ -87,6 +93,7 @@ class RegisterOwnerSerializer(serializers.Serializer):
             raise serializers.ValidationError({"password": e.messages})
 
         attrs["email"] = email
+        attrs["locale"] = normalize_language(attrs.get("locale"))
         return attrs
 
 

@@ -31,6 +31,7 @@ from organizations.models import Organization, OrganizationPlan
 
 
 @override_settings(
+    DEBUG=True,
     APP_SECRETS_ENCRYPTION_KEY="",
     SECRET_KEY="test-secret-key-for-forward-emails-suite",
 )
@@ -179,6 +180,7 @@ class ForwardEmailConfigTests(TestCase):
 
 
 @override_settings(
+    DEBUG=True,
     APP_SECRETS_ENCRYPTION_KEY="",
     SECRET_KEY="test-secret-key-for-forward-emails-suite",
 )

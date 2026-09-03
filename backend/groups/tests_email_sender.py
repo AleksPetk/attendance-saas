@@ -23,6 +23,7 @@ from groups.email_sender_models import (
     GroupEmailSender,
 )
 from groups.email_sender_testing import (
+    GROUP_EMAIL_CRYPTO_TEST_SETTINGS,
     batch_recipients,
     make_session_request,
     mock_batch_send_fail_for,
@@ -35,10 +36,7 @@ from members.models import Member
 from organizations.models import Organization
 
 
-@override_settings(
-    APP_SECRETS_ENCRYPTION_KEY="",
-    SECRET_KEY="test-secret-key-for-group-email-sender-suite",
-)
+@override_settings(**GROUP_EMAIL_CRYPTO_TEST_SETTINGS)
 class GroupEmailSenderTests(TestCase):
     def setUp(self):
         self.owner = User.objects.create_user(

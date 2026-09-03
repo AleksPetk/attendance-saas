@@ -1,5 +1,7 @@
 /** Customer workspace role/capability helpers for the SPA (UI hints only). */
 
+import i18n from "./i18n/index.js";
+
 export function workspaceFromSession(session) {
   return session?.workspace || null;
 }
@@ -95,19 +97,19 @@ export function isGroupScopedStaff(session) {
 
 export function workspaceRoleLabel(session) {
   const role = workspaceRole(session);
-  if (role === "owner") return "Owner";
-  if (role === "admin") return "Admin";
-  if (role === "staff") return "Staff";
-  return workspaceFromSession(session)?.account_kind?.replace(/_/g, " ") || "Workspace";
+  if (role === "owner") return i18n.t("workspace:roles.owner");
+  if (role === "admin") return i18n.t("workspace:roles.admin");
+  if (role === "staff") return i18n.t("workspace:roles.staff");
+  return workspaceFromSession(session)?.account_kind?.replace(/_/g, " ") || i18n.t("workspace:roles.workspace");
 }
 
 export function workspaceTopbarNotice(session) {
   if (isWorkspaceOwner(session)) return "";
   if (isWorkspaceAdmin(session)) {
-    return "Admin view — full workspace management except owner account and billing.";
+    return i18n.t("workspace:topbar.adminNotice");
   }
   if (isGroupScopedStaff(session)) {
-    return "Staff view — assigned Groups only. Participant and kiosk operations within those Groups.";
+    return i18n.t("workspace:topbar.staffScopedNotice");
   }
-  return "Staff view — editing is limited to permitted areas.";
+  return i18n.t("workspace:topbar.staffLimitedNotice");
 }

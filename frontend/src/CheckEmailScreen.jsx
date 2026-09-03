@@ -1,9 +1,11 @@
 import { useMemo, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { api, errorMessage } from "./api.js";
 import { AuthLayout, ErrorBanner, SuccessBanner } from "./components.jsx";
 
 export default function CheckEmailScreen() {
+  const { t } = useTranslation("auth");
   const location = useLocation();
   const email = location.state?.email || "";
   const initiallySent = location.state?.verificationEmailSent !== false;
@@ -14,10 +16,10 @@ export default function CheckEmailScreen() {
 
   const lead = useMemo(() => {
     if (email) {
-      return `We sent a verification link to ${email}. Open that email to continue.`;
+      return t("checkEmail.leadWithEmail", { email });
     }
-    return "We sent a verification link to your email. Open that email to continue.";
-  }, [email]);
+    return t("checkEmail.leadGeneric");
+  }, [email, t]);
 
   async function handleResend() {
     setLoading(true);
@@ -28,7 +30,7 @@ export default function CheckEmailScreen() {
       const payload = email ? { email } : {};
       const result = await api.resendVerification(payload);
       setSent(true);
-      setMessage(result.data.detail || "Verification email sent.");
+      setMessage(result.data.detail || t("checkEmail.sentDefault"));
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -38,33 +40,28 @@ export default function CheckEmailScreen() {
 
   return (
     <AuthLayout
-      title="Check your email"
+      title={t("checkEmail.title")}
       lead={lead}
       footnote={
         <p>
-          Already verified? <Link to="/login">Sign in</Link>
+          {t("checkEmail.alreadyVerified")}{" "}
+          <Link to="/login">{t("signIn")}</Link>
         </p>
       }
     >
       <div className="auth-status-panel">
         {sent ? (
-          <p>
-            The link expires in 24 hours. If you do not see the email, check spam or resend
-            it below.
-          </p>
+          <p>{t("checkEmail.expiryHint")}</p>
         ) : (
-          <p>
-            Your account was created, but the verification email could not be sent. Use Resend
-            to try again.
-          </p>
+          <p>{t("checkEmail.sendFailedHint")}</p>
         )}
         <SuccessBanner message={message} />
         <ErrorBanner message={error} />
         <button type="button" className="btn-primary btn-block" onClick={handleResend} disabled={loading}>
-          {loading ? "Sending…" : "Resend verification email"}
+          {loading ? t("sending") : t("resendVerification")}
         </button>
         <Link className="btn-secondary btn-block" to="/login">
-          Return to login
+          {t("returnToLogin")}
         </Link>
       </div>
     </AuthLayout>

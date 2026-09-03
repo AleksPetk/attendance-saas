@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   MANUAL_REFRESH_FAILURE_MS,
   MANUAL_REFRESH_SUCCESS_MS,
@@ -6,8 +7,13 @@ import {
   accountStatusRefreshButtonLabel,
   canStartManualStatusRefresh,
 } from "./accountStatusRefresh.js";
+import { workspaceStatusHomeUrl } from "./publicFooterLinks.js";
 import { fetchStatusSnapshot, statusPollDelayMs } from "./statusApi.js";
-import { formatStatusTime, statusSnapshotContent } from "./statusPresentation.js";
+import {
+  formatStatusTime,
+  serviceLayerTitles,
+  statusSnapshotContent,
+} from "./statusPresentation.js";
 
 function statusClass(value) {
   return String(value || "unknown").toLowerCase().replace(/[^a-z0-9_-]/g, "-");
@@ -17,15 +23,25 @@ function StatusEmpty({ children }) {
   return <p className="account-status-empty"><span aria-hidden="true">✓</span>{children}</p>;
 }
 
-function IncidentCard({ incident, recent = false }) {
+function IncidentCard({ incident, recent = false, locale, t }) {
+  const time = formatStatusTime(
+    recent ? incident.resolved_at || incident.started_at : incident.started_at,
+    locale,
+    t("account:statusPanel.notCheckedYet"),
+  );
   const when = recent
-    ? `Resolved ${formatStatusTime(incident.resolved_at || incident.started_at)}`
-    : `Started ${formatStatusTime(incident.started_at)}`;
+    ? t("account:statusPanel.resolvedAt", { time })
+    : t("account:statusPanel.started", { time });
   return (
     <article className={`account-status-incident${recent ? " is-resolved" : ""}`}>
       <div className="account-status-incident-heading">
-        <h4>{incident.title || "Service incident"}</h4>
-        <span>{incident.status_label || (recent ? "Resolved" : "Investigating")}</span>
+        <h4>{incident.title || t("account:statusPanel.serviceIncident")}</h4>
+        <span>
+          {incident.status_label ||
+            (recent
+              ? t("account:statusPanel.resolved")
+              : t("account:statusPanel.investigating"))}
+        </span>
       </div>
       <p className="account-status-meta">{when}</p>
       {incident.summary ? <p>{incident.summary}</p> : null}
@@ -33,7 +49,9 @@ function IncidentCard({ incident, recent = false }) {
         <ul className="account-status-updates">
           {incident.updates.map((update, index) => (
             <li key={`${update.at || "update"}-${index}`}>
-              <time>{formatStatusTime(update.at)}</time>
+              <time>
+                {formatStatusTime(update.at, locale, t("account:statusPanel.notCheckedYet"))}
+              </time>
               <span>{update.message}</span>
             </li>
           ))}
@@ -43,15 +61,19 @@ function IncidentCard({ incident, recent = false }) {
   );
 }
 
-export function StatusSnapshotView({ snapshot }) {
-  const { current, overall, groups, active, recent, maintenance } = statusSnapshotContent(snapshot);
+export function StatusSnapshotView({ snapshot, locale = "en", t }) {
+  const titles = serviceLayerTitles(t);
+  const { current, overall, groups, active, recent, maintenance } = statusSnapshotContent(
+    snapshot,
+    titles,
+  );
 
   return (
     <div className="account-status-content">
       <section className={`account-status-overall is-${statusClass(overall.state)}`}>
         <div>
-          <p className="account-info-eyebrow">Current system status</p>
-          <h3>{overall.label || "Status unavailable"}</h3>
+          <p className="account-info-eyebrow">{t("account:statusPanel.currentSystemStatus")}</p>
+          <h3>{overall.label || t("account:statusPanel.statusUnavailable")}</h3>
         </div>
         <span className="account-status-overall-dot" aria-hidden="true" />
       </section>
@@ -69,7 +91,7 @@ export function StatusSnapshotView({ snapshot }) {
                   </div>
                   <span className="account-status-service-state">
                     <i aria-hidden="true" />
-                    {component.label || "Unknown"}
+                    {component.label || t("account:statusPanel.unknown")}
                   </span>
                 </li>
               ))}
@@ -80,62 +102,86 @@ export function StatusSnapshotView({ snapshot }) {
 
       <div className="account-status-detail-grid">
         <section className="account-status-detail-card">
-          <h3>Active incidents</h3>
+          <h3>{t("account:statusPanel.activeIncidents")}</h3>
           {active.length
-            ? active.map((incident) => <IncidentCard incident={incident} key={incident.id} />)
-            : <StatusEmpty>No active incidents</StatusEmpty>}
+            ? active.map((incident) => (
+                <IncidentCard incident={incident} key={incident.id} locale={locale} t={t} />
+              ))
+            : <StatusEmpty>{t("account:statusPanel.noActiveIncidents")}</StatusEmpty>}
         </section>
         <section className="account-status-detail-card">
-          <h3>Recent incidents</h3>
+          <h3>{t("account:statusPanel.recentIncidents")}</h3>
           {recent.length
-            ? recent.map((incident) => <IncidentCard incident={incident} recent key={incident.id} />)
-            : <StatusEmpty>No recent incidents</StatusEmpty>}
+            ? recent.map((incident) => (
+                <IncidentCard
+                  incident={incident}
+                  recent
+                  key={incident.id}
+                  locale={locale}
+                  t={t}
+                />
+              ))
+            : <StatusEmpty>{t("account:statusPanel.noRecentIncidents")}</StatusEmpty>}
         </section>
         <section className="account-status-detail-card">
-          <h3>Scheduled maintenance</h3>
+          <h3>{t("account:statusPanel.scheduledMaintenance")}</h3>
           {maintenance.length ? maintenance.map((window) => (
             <article className="account-status-maintenance" key={window.id}>
               <div className="account-status-incident-heading">
                 <h4>{window.title}</h4>
-                {window.active ? <span>In progress</span> : window.upcoming ? <span>Upcoming</span> : null}
+                {window.active ? <span>{t("account:statusPanel.inProgress")}</span> : null}
+                {!window.active && window.upcoming ? (
+                  <span>{t("account:statusPanel.upcoming")}</span>
+                ) : null}
               </div>
               <p className="account-status-meta">
-                {formatStatusTime(window.starts_at)} – {formatStatusTime(window.ends_at)}
+                {formatStatusTime(window.starts_at, locale, t("account:statusPanel.notCheckedYet"))}
+                {" – "}
+                {formatStatusTime(window.ends_at, locale, t("account:statusPanel.notCheckedYet"))}
               </p>
               {window.note ? <p>{window.note}</p> : null}
             </article>
-          )) : <StatusEmpty>No scheduled maintenance</StatusEmpty>}
+          )) : <StatusEmpty>{t("account:statusPanel.noScheduledMaintenance")}</StatusEmpty>}
         </section>
       </div>
 
       <p className="account-status-refresh-meta">
-        Last checked: {formatStatusTime(current.last_checked_at)} · Auto-updates every {Number(current.poll_interval_seconds) || 30} seconds
+        {t("account:statusPanel.lastChecked", {
+          time: formatStatusTime(
+            current.last_checked_at,
+            locale,
+            t("account:statusPanel.notCheckedYet"),
+          ),
+          seconds: Number(current.poll_interval_seconds) || 30,
+        })}
       </p>
     </div>
   );
 }
 
-export function StatusPanelBody({ snapshot, error, refreshing }) {
+export function StatusPanelBody({ snapshot, error, refreshing, locale = "en", t }) {
   return (
     <>
       {error ? <div className="alert alert-error" role="alert">{error}</div> : null}
       {!snapshot && refreshing ? (
         <div className="loading-state" role="status">
           <span className="loading-spinner" aria-hidden="true" />
-          <span>Loading system status…</span>
+          <span>{t("account:statusPanel.loading")}</span>
         </div>
       ) : null}
       {!snapshot && error ? (
         <div className="account-panel-empty">
-          <p>Status could not be loaded. Use Refresh to try again.</p>
+          <p>{t("account:statusPanel.loadError")}</p>
         </div>
       ) : null}
-      {snapshot ? <StatusSnapshotView snapshot={snapshot} /> : null}
+      {snapshot ? <StatusSnapshotView snapshot={snapshot} locale={locale} t={t} /> : null}
     </>
   );
 }
 
-export default function AccountStatusPanel() {
+export default function AccountStatusPanel({ contentLang = "en" }) {
+  const { t } = useTranslation();
+  const resolvedLang = contentLang === "ja" ? "ja" : "en";
   const [snapshot, setSnapshot] = useState(null);
   const [error, setError] = useState("");
   const [initialLoading, setInitialLoading] = useState(true);
@@ -167,14 +213,17 @@ export default function AccountStatusPanel() {
     async function poll(isInitial = false) {
       if (isInitial) setInitialLoading(true);
       try {
-        const next = await fetchStatusSnapshot({ signal: controller.signal });
+        const next = await fetchStatusSnapshot({
+          signal: controller.signal,
+          lang: resolvedLang,
+        });
         if (!active) return;
         setSnapshot(next);
         setError("");
         timer = window.setTimeout(() => poll(false), statusPollDelayMs(next));
       } catch (loadError) {
         if (!active || loadError?.name === "AbortError") return;
-        setError("Live status data is temporarily unavailable.");
+        setError(t("account:statusPanel.unavailable"));
         timer = window.setTimeout(() => poll(false), 30000);
       } finally {
         if (active && isInitial) setInitialLoading(false);
@@ -187,7 +236,7 @@ export default function AccountStatusPanel() {
       controller.abort();
       if (timer) window.clearTimeout(timer);
     };
-  }, []);
+  }, [resolvedLang, t]);
 
   useEffect(() => () => {
     clearManualRefreshResetTimer();
@@ -206,7 +255,10 @@ export default function AccountStatusPanel() {
     setManualRefresh("loading");
 
     try {
-      const next = await fetchStatusSnapshot({ signal: controller.signal });
+      const next = await fetchStatusSnapshot({
+        signal: controller.signal,
+        lang: resolvedLang,
+      });
       if (controller.signal.aborted) return;
       setSnapshot(next);
       setError("");
@@ -222,9 +274,14 @@ export default function AccountStatusPanel() {
       }
       manualRefreshInFlight.current = false;
     }
-  }, [clearManualRefreshResetTimer, scheduleManualRefreshReset]);
+  }, [clearManualRefreshResetTimer, resolvedLang, scheduleManualRefreshReset]);
 
-  const refreshLabel = accountStatusRefreshButtonLabel(manualRefresh);
+  const refreshLabel = accountStatusRefreshButtonLabel(manualRefresh, {
+    refresh: t("account:statusPanel.refresh"),
+    refreshing: t("account:statusPanel.refreshing"),
+    updated: t("account:statusPanel.updated"),
+    refreshFailed: t("account:statusPanel.refreshFailed"),
+  });
   const refreshLoading = manualRefresh === "loading";
   const refreshSuccess = manualRefresh === "success";
 
@@ -232,30 +289,46 @@ export default function AccountStatusPanel() {
     <section className="account-info-panel account-status-panel" aria-labelledby="account-status-title" data-tutorial-target="account-status">
       <header className="account-info-hero account-status-hero">
         <div>
-          <p className="account-info-eyebrow">CheckStation systems</p>
-          <h2 id="account-status-title">Status</h2>
-          <p>Live service health, incidents, and planned maintenance.</p>
+          <p className="account-info-eyebrow">{t("account:statusPanel.eyebrow")}</p>
+          <h2 id="account-status-title">{t("account:statusPanel.title")}</h2>
+          <p>{t("account:statusPanel.description")}</p>
         </div>
-        <button
-          type="button"
-          className={[
-            "btn-secondary",
-            "btn-sm",
-            "account-status-refresh-btn",
-            refreshLoading ? "btn-loading" : "",
-            refreshSuccess ? "is-updated" : "",
-            manualRefresh === "error" ? "is-error" : "",
-          ].filter(Boolean).join(" ")}
-          disabled={accountStatusRefreshButtonDisabled(manualRefresh)}
-          onClick={handleManualRefresh}
-          aria-live="polite"
-        >
-          {refreshLoading ? <span className="btn-spinner" aria-hidden="true" /> : null}
-          {refreshSuccess ? <span className="account-status-refresh-check" aria-hidden="true">✓</span> : null}
-          <span className="btn-label">{refreshLabel}</span>
-        </button>
+        <div className="account-status-hero-actions">
+          <a
+            className="btn-secondary btn-sm"
+            href={workspaceStatusHomeUrl(resolvedLang)}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            {t("account:statusPanel.openStatus")}
+          </a>
+          <button
+            type="button"
+            className={[
+              "btn-secondary",
+              "btn-sm",
+              "account-status-refresh-btn",
+              refreshLoading ? "btn-loading" : "",
+              refreshSuccess ? "is-updated" : "",
+              manualRefresh === "error" ? "is-error" : "",
+            ].filter(Boolean).join(" ")}
+            disabled={accountStatusRefreshButtonDisabled(manualRefresh)}
+            onClick={handleManualRefresh}
+            aria-live="polite"
+          >
+            {refreshLoading ? <span className="btn-spinner" aria-hidden="true" /> : null}
+            {refreshSuccess ? <span className="account-status-refresh-check" aria-hidden="true">✓</span> : null}
+            <span className="btn-label">{refreshLabel}</span>
+          </button>
+        </div>
       </header>
-      <StatusPanelBody snapshot={snapshot} error={error} refreshing={initialLoading} />
+      <StatusPanelBody
+        snapshot={snapshot}
+        error={error}
+        refreshing={initialLoading}
+        locale={resolvedLang}
+        t={t}
+      />
     </section>
   );
 }

@@ -47,6 +47,13 @@
           <option value="{{ value }}" {% if value == extra_hidden.target_plan %}selected{% endif %}>{{ label }}</option>
         {% endfor %}
       </select>
+    {% elif show_billing_market_select %}
+      <label for="id_target_billing_market">Billing Market Override</label>
+      <select id="id_target_billing_market" name="target_billing_market">
+        {% for value, label in billing_market_choices %}
+          <option value="{{ value }}" {% if value == extra_hidden.target_billing_market %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
     {% elif extra_hidden %}
       {% for name, value in extra_hidden.items %}
         <input type="hidden" name="{{ name }}" value="{{ value }}">

@@ -8,38 +8,30 @@ export const OAUTH_PUBLIC_RESULT_ACTION = {
   SHOW_ERROR_WITH_REGISTER: "show_error_with_register",
 };
 
-const SHARED_PUBLIC_MESSAGES = {
-  success: null,
-  two_factor_required: null,
-  legal_acknowledgement_required:
-    "Accept the Terms of Use and Privacy Policy before creating an account.",
-  invalid_state: "This sign-in request expired. Try again.",
-  authentication_failed: "Sign-in could not be completed. Try again.",
-  oauth_not_configured: "This sign-in method is not available right now.",
-  email_not_verified: "A verified email address is required to continue.",
-  email_missing: "An email address is required to continue.",
-  authentication_required: "Sign in to your CheckStation account to continue.",
-  invalid_intent: "This sign-in request was not valid. Try again.",
+const SHARED_RESULT_KEYS = {
+  legal_acknowledgement_required: "oauth.results.legalAcknowledgementRequired",
+  invalid_state: "oauth.results.invalidState",
+  authentication_failed: "oauth.results.authenticationFailed",
+  oauth_not_configured: "oauth.results.oauthNotConfigured",
+  email_not_verified: "oauth.results.emailNotVerified",
+  email_missing: "oauth.results.emailMissing",
+  authentication_required: "oauth.results.authenticationRequired",
+  invalid_intent: "oauth.results.invalidIntent",
 };
 
-const GOOGLE_PUBLIC_MESSAGES = {
-  ...SHARED_PUBLIC_MESSAGES,
-  no_account:
-    "No CheckStation account is linked to this Google sign-in. Create an account to continue.",
-  existing_account_connect_required:
-    "A CheckStation account already exists for this email. Sign in using your existing method, then connect Google from Account → Security.",
-  google_already_linked: "This Google account is already connected to CheckStation.",
-  different_google_linked: "A different Google account is already connected to this CheckStation account.",
-};
-
-const APPLE_PUBLIC_MESSAGES = {
-  ...SHARED_PUBLIC_MESSAGES,
-  no_account:
-    "No CheckStation account is linked to this Apple sign-in. Create an account to continue.",
-  existing_account_connect_required:
-    "A CheckStation account already exists for this email. Sign in using your existing method, then connect Apple from Account → Security.",
-  apple_already_linked: "This Apple account is already connected to CheckStation.",
-  different_apple_linked: "A different Apple account is already connected to this CheckStation account.",
+const PROVIDER_RESULT_KEYS = {
+  google: {
+    no_account: "oauth.results.google.noAccount",
+    existing_account_connect_required: "oauth.results.google.existingAccountConnectRequired",
+    google_already_linked: "oauth.results.google.alreadyLinked",
+    different_google_linked: "oauth.results.google.differentLinked",
+  },
+  apple: {
+    no_account: "oauth.results.apple.noAccount",
+    existing_account_connect_required: "oauth.results.apple.existingAccountConnectRequired",
+    apple_already_linked: "oauth.results.apple.alreadyLinked",
+    different_apple_linked: "oauth.results.apple.differentLinked",
+  },
 };
 
 export function oauthPublicStartUrl(apiBaseUrl, provider, intent, options = {}) {
@@ -51,13 +43,18 @@ export function oauthPublicStartUrl(apiBaseUrl, provider, intent, options = {}) 
   return `${base}/api/auth/${provider}/start/?${params.toString()}`;
 }
 
-export function oauthPublicResultMessage(provider, resultCode) {
+export function oauthPublicResultMessageKey(provider, resultCode) {
   const providerKey = provider === "apple" ? "apple" : "google";
-  const messages = providerKey === "apple" ? APPLE_PUBLIC_MESSAGES : GOOGLE_PUBLIC_MESSAGES;
+  const providerMessages = PROVIDER_RESULT_KEYS[providerKey] || {};
   return (
-    messages[resultCode] ||
-  "Sign-in could not be completed. Try again."
+    providerMessages[resultCode] ||
+    SHARED_RESULT_KEYS[resultCode] ||
+    SHARED_RESULT_KEYS.authentication_failed
   );
+}
+
+export function oauthPublicResultMessage(t, provider, resultCode) {
+  return t(oauthPublicResultMessageKey(provider, resultCode));
 }
 
 export function oauthPublicResultAction(resultCode) {
@@ -73,10 +70,12 @@ export function oauthPublicResultAction(resultCode) {
   return OAUTH_PUBLIC_RESULT_ACTION.SHOW_ERROR;
 }
 
-export function providerButtonLabel(provider) {
-  if (provider === "apple") return "Continue with Apple";
-  return "Continue with Google";
+export function providerButtonLabelKey(provider) {
+  return provider === "apple" ? "oauth.continueWithApple" : "oauth.continueWithGoogle";
 }
 
-export const REGISTRATION_LEGAL_REQUIRED_MESSAGE =
-  "You must agree to the Terms of Use and Privacy Policy before continuing.";
+export function providerButtonLabel(t, provider) {
+  return t(providerButtonLabelKey(provider));
+}
+
+export const REGISTRATION_LEGAL_REQUIRED_MESSAGE_KEY = "oauth.registrationLegalRequired";

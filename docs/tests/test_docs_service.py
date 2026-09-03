@@ -6,7 +6,7 @@ from unittest.mock import patch
 from urllib.request import urlopen
 
 from docs_service.config import load_config
-from docs_service.seo import canonical_for_path, page_meta, slug_for_path
+from docs_service.seo import canonical_for_path, is_valid_docs_html_path, page_meta, slug_for_path, split_locale_path
 from docs_service.server import serve
 
 
@@ -32,7 +32,10 @@ class SeoHelpersTests(unittest.TestCase):
     def test_known_routes(self):
         self.assertEqual(slug_for_path("/"), "documentation")
         self.assertEqual(slug_for_path("/documentation"), "documentation")
+        self.assertEqual(slug_for_path("/en/"), "documentation")
+        self.assertEqual(slug_for_path("/ja/getting-started"), "getting-started")
         self.assertEqual(slug_for_path("/privacy-policy"), "privacy-policy")
+        self.assertEqual(slug_for_path("/en/privacy-policy"), "privacy-policy")
         self.assertEqual(slug_for_path("/terms-of-use"), "terms-of-use")
         self.assertEqual(slug_for_path("/getting-started"), "getting-started")
         self.assertEqual(slug_for_path("/groups-members"), "groups-members")
@@ -40,19 +43,28 @@ class SeoHelpersTests(unittest.TestCase):
         self.assertEqual(slug_for_path("/billing-plans"), "billing-plans")
         self.assertEqual(slug_for_path("/faq"), "faq")
         self.assertEqual(slug_for_path("/support"), "support")
+        self.assertIsNone(slug_for_path("/en/not-a-real-page"))
+        self.assertFalse(is_valid_docs_html_path("/en/not-a-real-page"))
+        self.assertEqual(split_locale_path("/ja/faq"), ("ja", "/faq"))
         self.assertEqual(
-            canonical_for_path("http://localhost:8091", "/privacy-policy"),
-            "http://localhost:8091/privacy-policy",
+            canonical_for_path("http://localhost:8091", "/en/privacy-policy"),
+            "http://localhost:8091/en/privacy-policy",
+        )
+        self.assertEqual(
+            canonical_for_path("http://localhost:8091", "/ja/"),
+            "http://localhost:8091/ja/",
         )
         self.assertEqual(
             canonical_for_path("http://localhost:8091", "/"),
-            "http://localhost:8091/",
+            "http://localhost:8091/en/",
         )
 
     def test_page_meta_fails_open_without_api(self):
-        meta = page_meta(_config(), "/privacy-policy")
+        meta = page_meta(_config(), "/en/privacy-policy")
         self.assertEqual(meta["title"], "CheckStation Docs")
-        self.assertIn("http://localhost:8091/privacy-policy", meta["canonical"])
+        self.assertIn("http://localhost:8091/en/privacy-policy", meta["canonical"])
+        self.assertIn('hreflang="en"', meta["hreflang"])
+        self.assertIn('hreflang="ja"', meta["hreflang"])
 
 
 class DocsHttpTests(unittest.TestCase):
@@ -81,16 +93,17 @@ class DocsHttpTests(unittest.TestCase):
 
     def test_home_and_direct_legal_routes_serve_docs_shell(self):
         for path in (
-            "/",
-            "/documentation",
-            "/getting-started",
-            "/groups-members",
-            "/kiosk-setup",
-            "/billing-plans",
-            "/faq",
-            "/support",
-            "/privacy-policy",
-            "/terms-of-use",
+            "/en/",
+            "/ja/",
+            "/en/documentation",
+            "/en/getting-started",
+            "/ja/groups-members",
+            "/en/kiosk-setup",
+            "/ja/billing-plans",
+            "/en/faq",
+            "/ja/support",
+            "/en/privacy-policy",
+            "/ja/terms-of-use",
         ):
             code, body, headers = self._get(path)
             html = body.decode("utf-8")
@@ -106,6 +119,21 @@ class DocsHttpTests(unittest.TestCase):
             self.assertIn("viewport", html)
             self.assertIn('/favicon.ico?v=20260831', html)
 
+    def test_unknown_docs_paths_return_real_404(self):
+        for path in (
+            "/en/not-a-real-page",
+            "/ja/unknown-slug",
+            "/does-not-exist",
+            "/en/privacy-policy/extra",
+        ):
+            code, body, headers = self._get(path, allow_error=True)
+            html = body.decode("utf-8")
+            self.assertEqual(code, 404, path)
+            self.assertIn("text/html", headers.get("Content-Type", ""))
+            self.assertIn("Page not found", html)
+            self.assertNotIn('id="docs-main"', html)
+            self.assertEqual(headers.get("X-Robots-Tag"), "noindex")
+
     def test_favicon_assets_are_served(self):
         for path in ("/favicon.ico", "/favicon-32x32.png", "/apple-touch-icon.png"):
             code, body, headers = self._get(path)
@@ -120,8 +148,20 @@ class DocsHttpTests(unittest.TestCase):
         self.assertNotIn(b"<!DOCTYPE html>", body)
         self.assertNotIn(b"<html", body)
 
+    def test_root_redirects_to_default_locale(self):
+        import http.client
+        from urllib.parse import urlparse
+
+        parsed = urlparse(self.base)
+        conn = http.client.HTTPConnection(parsed.hostname, parsed.port, timeout=3)
+        conn.request("GET", "/")
+        response = conn.getresponse()
+        conn.close()
+        self.assertEqual(response.status, 301)
+        self.assertEqual(response.getheader("Location"), "/en/")
+
     def test_html_does_not_use_logo_mark_as_favicon(self):
-        code, body, _headers = self._get("/")
+        code, body, _headers = self._get("/en/")
         self.assertEqual(code, 200)
         html = body.decode("utf-8")
         self.assertIn('/favicon.ico?v=20260831', html)
@@ -148,7 +188,11 @@ class DocsHttpTests(unittest.TestCase):
         payload = {
             "title": "Privacy Policy",
             "description": "How Check Station handles data.",
-            "canonical_url": "http://localhost:8091/privacy-policy",
+            "canonical_url": "http://localhost:8091/en/privacy-policy",
+            "alternate_urls": [
+                {"language": "en", "href": "http://localhost:8091/en/privacy-policy"},
+                {"language": "ja", "href": "http://localhost:8091/ja/privacy-policy"},
+            ],
             "slug": "privacy-policy",
         }
         with patch("docs_service.seo.fetch_document", return_value=payload):
@@ -157,14 +201,16 @@ class DocsHttpTests(unittest.TestCase):
             thread.start()
             port = local.server_address[1]
             try:
-                with urlopen(f"http://127.0.0.1:{port}/privacy-policy", timeout=3) as response:
+                with urlopen(f"http://127.0.0.1:{port}/en/privacy-policy", timeout=3) as response:
                     html = response.read().decode("utf-8")
             finally:
                 local.shutdown()
                 local.server_close()
         self.assertIn("<title>Privacy Policy · CheckStation Docs</title>", html)
         self.assertIn('content="How Check Station handles data."', html)
-        self.assertIn('href="http://localhost:8091/privacy-policy"', html)
+        self.assertIn('href="http://localhost:8091/en/privacy-policy"', html)
+        self.assertIn('hreflang="ja"', html)
+        self.assertIn('<html lang="en">', html)
 
     def test_css_has_mobile_layout_rules(self):
         css = (STATIC_DIR / "docs.css").read_text(encoding="utf-8")
@@ -179,11 +225,16 @@ class DocsHttpTests(unittest.TestCase):
         self.assertIn(".support-status", css)
         self.assertIn(".support-contact-btn", css)
         self.assertIn("flex-wrap", css)
+        self.assertIn(".docs-language-menu", css)
+        self.assertIn(".docs-language-trigger", css)
         js = (STATIC_DIR / "docs.js").read_text(encoding="utf-8")
         self.assertIn("aria-expanded", js)
         self.assertIn("toggleFaqExclusive", js)
-        self.assertIn("No matching answers found", js)
+        self.assertIn("noMatchingAnswers", js)
         self.assertIn("/api/content/faq/", js)
+        self.assertIn("lang=${encodeURIComponent", js)
+        self.assertIn("setHreflangAlternates", js)
+        self.assertIn("mountDocsLanguageMenu", js)
         self.assertIn("statusApiUrl", js)
         self.assertIn("contactHref", js)
         self.assertIn('slug === "support"', js)

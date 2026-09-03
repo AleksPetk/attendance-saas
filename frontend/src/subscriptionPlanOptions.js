@@ -8,6 +8,8 @@ import {
   intervalPromotion,
   promotionOffers,
 } from "./promotionCatalog.js";
+import i18n from "./i18n/index.js";
+import { translatePlanName } from "./i18n/plans.js";
 
 export function effectivePlanKey(billing, sessionPlanKey = null) {
   return (
@@ -119,43 +121,50 @@ export function targetOfferPricing(billing, planKey, interval) {
 }
 
 export function planDisplayName(billing, planKey) {
-  if (planKey === "basic") {
-    return billing?.catalog?.basic?.display_name || "Basic";
-  }
-  return (
-    billing?.catalog?.plans?.[planKey]?.display_name ||
-    (planKey ? planKey.charAt(0).toUpperCase() + planKey.slice(1) : "Plan")
-  );
+  const fallback =
+    planKey === "basic"
+      ? billing?.catalog?.basic?.display_name || "Basic"
+      : billing?.catalog?.plans?.[planKey]?.display_name ||
+        (planKey ? planKey.charAt(0).toUpperCase() + planKey.slice(1) : "Plan");
+  return translatePlanName((key, opts) => i18n.t(key, opts), planKey, fallback);
 }
 
 export function intervalNoun(interval) {
-  return interval === "yearly" ? "Yearly" : "Monthly";
+  return interval === "yearly"
+    ? i18n.t("billing:interval.yearly")
+    : i18n.t("billing:interval.monthly");
 }
 
 export function upgradeActionLabel({ currentPlan, targetPlan, targetInterval }) {
   if (currentPlan === targetPlan) {
     return targetInterval === "yearly"
-      ? "Switch to Yearly Billing"
-      : "Switch to Monthly Billing";
+      ? i18n.t("billing:upgrade.switchYearly")
+      : i18n.t("billing:upgrade.switchMonthly");
   }
   if (targetPlan === "business" && targetInterval === "yearly" && currentPlan === "plus") {
-    return "Upgrade to Business Yearly";
+    return i18n.t("billing:upgrade.upgradeBusinessYearly");
   }
   if (targetPlan === "plus" && targetInterval === "yearly") {
-    return "Upgrade to Plus Yearly";
+    return i18n.t("billing:upgrade.upgradePlusYearly");
   }
   if (targetPlan === "business" && targetInterval === "monthly") {
-    return "Upgrade to Business";
+    return i18n.t("billing:upgrade.upgradeBusiness");
   }
   if (targetPlan === "business") {
-    return "Upgrade to Business";
+    return i18n.t("billing:upgrade.upgradeBusiness");
   }
   if (targetPlan === "plus") {
     return currentPlan === "business"
-      ? `Switch to Plus ${intervalNoun(targetInterval)}`
-      : `Choose Plus ${intervalNoun(targetInterval)}`;
+      ? i18n.t("billing:upgrade.switchToPlan", {
+          plan: planDisplayName(null, targetPlan),
+          interval: intervalNoun(targetInterval),
+        })
+      : i18n.t("billing:upgrade.choosePlus", { interval: intervalNoun(targetInterval) });
   }
-  return `Switch to ${planDisplayName(null, targetPlan)} ${intervalNoun(targetInterval)}`;
+  return i18n.t("billing:upgrade.switchToPlan", {
+    plan: planDisplayName(null, targetPlan),
+    interval: intervalNoun(targetInterval),
+  });
 }
 
 function sortUpgradeOptions(options) {
@@ -207,7 +216,7 @@ export function buildUpgradePlanOptions(billing, sessionPlanKey = null) {
         kind: "checkout",
         recommended: Boolean(targetOfferPricing(billing, "plus", iv).promotional),
         enabled: Boolean(actions.can_checkout_plus),
-        actionLabel: `Choose Plus ${intervalNoun(iv)}`,
+        actionLabel: i18n.t("billing:upgrade.choosePlus", { interval: intervalNoun(iv) }),
       });
     }
     for (const iv of ["monthly", "yearly"]) {
@@ -218,7 +227,7 @@ export function buildUpgradePlanOptions(billing, sessionPlanKey = null) {
         kind: "checkout",
         recommended: Boolean(targetOfferPricing(billing, "business", iv).promotional),
         enabled: Boolean(actions.can_checkout_business),
-        actionLabel: `Choose Business ${intervalNoun(iv)}`,
+        actionLabel: i18n.t("billing:upgrade.chooseBusiness", { interval: intervalNoun(iv) }),
       });
     }
     return sortUpgradeOptions(options);
@@ -272,7 +281,7 @@ export function buildUpgradePlanOptions(billing, sessionPlanKey = null) {
         kind: "immediate_upgrade",
         recommended: false,
         enabled: true,
-        actionLabel: "Upgrade to Business",
+        actionLabel: i18n.t("billing:upgrade.upgradeBusiness"),
       });
     }
     return sortUpgradeOptions(options);
@@ -287,7 +296,7 @@ export function buildUpgradePlanOptions(billing, sessionPlanKey = null) {
         kind: "immediate_upgrade",
         recommended: false,
         enabled: true,
-        actionLabel: "Upgrade to Business",
+        actionLabel: i18n.t("billing:upgrade.upgradeBusiness"),
       });
     }
     if (actions.can_schedule_billing_change) {
@@ -298,7 +307,7 @@ export function buildUpgradePlanOptions(billing, sessionPlanKey = null) {
         kind: "schedule",
         recommended: false,
         enabled: true,
-        actionLabel: "Upgrade to Business Monthly",
+        actionLabel: i18n.t("billing:upgrade.upgradeBusinessMonthly"),
       });
     }
     return sortUpgradeOptions(options);
@@ -315,7 +324,7 @@ export function buildUpgradePlanOptions(billing, sessionPlanKey = null) {
           targetOfferPricing(billing, "business", "yearly").promotional,
         ),
         enabled: true,
-        actionLabel: "Switch to Business Yearly",
+        actionLabel: i18n.t("billing:upgrade.switchBusinessYearly"),
       });
     }
     return sortUpgradeOptions(options);
@@ -330,7 +339,7 @@ export function buildUpgradePlanOptions(billing, sessionPlanKey = null) {
         kind: "schedule",
         recommended: false,
         enabled: true,
-        actionLabel: "Switch to Monthly Billing",
+        actionLabel: i18n.t("billing:upgrade.switchMonthly"),
       });
     }
     return sortUpgradeOptions(options);
@@ -352,8 +361,8 @@ export function buildDowngradePlanOptions(billing, sessionPlanKey = null) {
         plan: "plus",
         interval,
         kind: "downgrade_plus",
-        title: `Plus ${intervalNoun(interval)}`,
-        actionLabel: "Downgrade to Plus",
+        title: `${planDisplayName(billing, "plus")} ${intervalNoun(interval)}`,
+        actionLabel: i18n.t("billing:downgrade.toPlus"),
         enabled: true,
         pricing: targetOfferPricing(billing, "plus", interval),
       });
@@ -365,12 +374,12 @@ export function buildDowngradePlanOptions(billing, sessionPlanKey = null) {
         interval: null,
         kind: "cancel_to_basic",
         title: planDisplayName(billing, "basic"),
-        actionLabel: "Move to Basic",
+        actionLabel: i18n.t("billing:downgrade.toBasic"),
         enabled: true,
         pricing: {
           promotional: false,
-          firstPeriodWithInterval: "Free",
-          listWithInterval: "Free",
+          firstPeriodWithInterval: i18n.t("billing:downgrade.free"),
+          listWithInterval: i18n.t("billing:downgrade.free"),
         },
       });
     }

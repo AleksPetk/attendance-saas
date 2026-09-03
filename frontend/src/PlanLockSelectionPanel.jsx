@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { api, errorMessage } from "./api.js";
 import { ErrorBanner, LoadingState } from "./components.jsx";
 import { PlanLockSelectionForm } from "./planLockSelection.js";
@@ -12,6 +13,7 @@ export default function PlanLockSelectionPanel({
   startEmpty = false,
   enableSearch = false,
 }) {
+  const { t } = useTranslation("workspace");
   const [selection, setSelection] = useState(null);
   const [selectedIds, setSelectedIds] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -53,7 +55,7 @@ export default function PlanLockSelectionPanel({
     }
   }
 
-  if (loading) return <LoadingState label="Loading plan availability…" />;
+  if (loading) return <LoadingState label={t("planLock.loading")} />;
 
   return (
     <>
@@ -61,7 +63,7 @@ export default function PlanLockSelectionPanel({
       {selection ? (
         <PlanLockSelectionForm
           title={title}
-          description={`${description} This plan allows ${selection.limit}.`}
+          description={`${description} ${t("planLock.planAllows", { limit: selection.limit })}`}
           selection={selection}
           selectedIds={selectedIds}
           onSelectedIdsChange={setSelectedIds}

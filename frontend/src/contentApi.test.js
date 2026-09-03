@@ -28,7 +28,7 @@ test("canonical content API helpers use existing list, detail, and FAQ endpoints
     calls[2].url,
     "http://localhost:8000/api/content/faq/?category=privacy&q=personal+data",
   );
-  assert.ok(calls.every((call) => call.options.credentials === "include"));
+  assert.ok(calls.every((call) => call.options.credentials === "omit"));
 });
 
 test("document detail helper safely encodes a supplied slug", async () => {

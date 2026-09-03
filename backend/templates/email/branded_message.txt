@@ -14,9 +14,15 @@
 {% elif action_url %}
 
 {{ action_url }}
-{% endif %}{% if show_expiry %}
+{% endif %}{% if expiry_text %}
+
+{{ expiry_text }}
+{% elif show_expiry %}
 
 This link expires in {{ expiry_hours }} hours.
+{% endif %}{% if action_help_text %}
+
+{{ action_help_text }}
 {% endif %}{% if security_note %}
 
 {{ security_note }}

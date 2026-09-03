@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import {
+  buildKioskSettingsSavePayload,
   EMPTY_KIOSK_SETTINGS_FORM,
   isKioskSettingsDirty,
   kioskSettingsFormFromApi,
@@ -86,6 +87,25 @@ test("confirmation return delay change marks dirty", () => {
   const saved = { ...EMPTY_KIOSK_SETTINGS_FORM };
   const draft = { ...saved, confirmation_return_seconds: 5 };
   assert.equal(isKioskSettingsDirty(draft, saved, configuredUi), true);
+});
+
+test("legacy settings hydrate with sound on and vibration off", () => {
+  const form = kioskSettingsFormFromApi({});
+  assert.equal(form.confirmation_sound_enabled, true);
+  assert.equal(form.confirmation_vibration_enabled, false);
+});
+
+test("confirmation effects participate in dirty state and save payload", () => {
+  const saved = { ...EMPTY_KIOSK_SETTINGS_FORM };
+  const draft = {
+    ...saved,
+    confirmation_sound_enabled: false,
+    confirmation_vibration_enabled: true,
+  };
+  assert.equal(isKioskSettingsDirty(draft, saved, configuredUi), true);
+  const payload = buildKioskSettingsSavePayload(draft, configuredUi);
+  assert.equal(payload.confirmation_sound_enabled, false);
+  assert.equal(payload.confirmation_vibration_enabled, true);
 });
 
 test("attendance reset mode change marks dirty", () => {

@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { useTutorial } from "./TutorialContext.jsx";
 import { tutorialModuleActionLabel, tutorialModuleStatus } from "./tutorialHub.js";
 
@@ -22,13 +23,14 @@ export function TutorialModuleCard({ module, tutorialState, completedModuleIds, 
 }
 
 export default function AccountTutorialPanel() {
+  const { t } = useTranslation("workspace");
   const { modules, tutorialState, startTutorial, activeTour, completedModuleIds } = useTutorial();
   return (
     <section className="account-info-panel account-tutorial-panel" aria-labelledby="account-tutorial-title" data-tutorial-target="account-tutorial">
       <header className="account-info-hero">
-        <p className="account-info-eyebrow">Guided help</p>
-        <h2 id="account-tutorial-title">Learn CheckStation in the Workspace</h2>
-        <p>Choose a short guide. Tutorials use the pages and features currently available to this owner account.</p>
+        <p className="account-info-eyebrow">{t("tutorialHub.panel.eyebrow")}</p>
+        <h2 id="account-tutorial-title">{t("tutorialHub.panel.title")}</h2>
+        <p>{t("tutorialHub.panel.description")}</p>
       </header>
       <div className="tutorial-module-grid">
         {modules.map((module) => (
@@ -43,7 +45,7 @@ export default function AccountTutorialPanel() {
           />
         ))}
       </div>
-      {activeTour ? <p className="hint" role="status">A tutorial is currently open.</p> : null}
+      {activeTour ? <p className="hint" role="status">{t("tutorialHub.panel.activeHint")}</p> : null}
     </section>
   );
 }

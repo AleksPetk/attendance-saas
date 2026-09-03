@@ -10,5 +10,6 @@
   "appleBilling": "Apple 管理のサブスクリプションでは Stripe Checkout を利用できません。",
   "billingGeneric": "請求処理を完了できませんでした。",
   "stripeNotConfigured": "この環境では有料チェックアウトが設定されていません。",
-  "invalidLanguage": "言語設定は英語または日本語のみ選択できます。"
+  "invalidLanguage": "言語設定は英語または日本語のみ選択できます。",
+  "rateLimited": "試行回数が多すぎます。しばらくしてからもう一度お試しください。"
 }

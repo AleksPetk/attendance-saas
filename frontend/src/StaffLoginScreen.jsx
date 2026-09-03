@@ -1,9 +1,13 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { api, errorMessage } from "./api.js";
+import { localizedErrorMessage } from "./i18n/errorMessages.js";
 import { AuthLayout, ErrorBanner, Field, PasswordInput } from "./components.jsx";
 
 export default function StaffLoginScreen({ onSignedIn }) {
+  const { t } = useTranslation(["auth", "errors"]);
+  const { t: tCommon } = useTranslation("common");
   const [workspaceId, setWorkspaceId] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -28,6 +32,8 @@ export default function StaffLoginScreen({ onSignedIn }) {
     } catch (err) {
       if (err?.status === 403 && err?.data?.code === "plan_account_locked") {
         setLockedAccount(err.data);
+      } else if (err?.status === 429 || err?.data?.code === "rate_limited") {
+        setError(localizedErrorMessage(err, t));
       } else {
         setError(errorMessage(err));
       }
@@ -40,31 +46,29 @@ export default function StaffLoginScreen({ onSignedIn }) {
     return (
       <AuthLayout
         variant="staff"
-        title="Account unavailable"
-        lead="Your sign-in details were accepted, but this account is not available on the workspace’s current plan."
+        title={t("staffLogin.lockedTitle")}
+        lead={t("staffLogin.lockedLead")}
         footnote={
           <p>
-            Workspace owner? <Link to="/login">Customer login</Link>
+            {t("staffLogin.ownerPrompt")}{" "}
+            <Link to="/login">{t("staffLogin.ownerLink")}</Link>
           </p>
         }
       >
         <div className="plan-account-blocked" role="alert">
-          <span className="plan-locked-badge">Plan locked</span>
-          <p>
-            This workspace’s current plan does not include access for this account. Ask the
-            workspace owner to upgrade or enable your account.
-          </p>
+          <span className="plan-locked-badge">{tCommon("planLocked")}</span>
+          <p>{t("staffLogin.lockedBody")}</p>
           {lockedAccount.workspace_id || lockedAccount.username ? (
             <dl>
               {lockedAccount.workspace_id ? (
                 <>
-                  <dt>Workspace ID</dt>
+                  <dt>{t("fields.workspaceId")}</dt>
                   <dd>{lockedAccount.workspace_id}</dd>
                 </>
               ) : null}
               {lockedAccount.username ? (
                 <>
-                  <dt>Username</dt>
+                  <dt>{t("fields.username")}</dt>
                   <dd>{lockedAccount.username}</dd>
                 </>
               ) : null}
@@ -72,10 +76,10 @@ export default function StaffLoginScreen({ onSignedIn }) {
           ) : null}
           <div className="plan-account-blocked-actions">
             <button type="button" className="btn-secondary" onClick={() => setLockedAccount(null)}>
-              Try again
+              {tCommon("tryAgain")}
             </button>
             <Link className="btn-ghost" to="/login">
-              Owner login
+              {t("staffLogin.ownerLoginButton")}
             </Link>
           </div>
         </div>
@@ -86,20 +90,18 @@ export default function StaffLoginScreen({ onSignedIn }) {
   return (
     <AuthLayout
       variant="staff"
-      title="Staff login"
-      lead="Sign in with the Workspace ID, username, and password provided by your workspace owner."
+      title={t("staffLogin.title")}
+      lead={t("staffLogin.lead")}
       footnote={
         <p>
-          Workspace owner? <Link to="/login">Customer login</Link>
+          {t("staffLogin.ownerPrompt")}{" "}
+          <Link to="/login">{t("staffLogin.ownerLink")}</Link>
         </p>
       }
     >
       <form onSubmit={handleSubmit} className="auth-form">
         <div className="auth-fields">
-          <Field
-            label="Workspace ID"
-            hint="Provided by your workspace owner. Not your email or company name."
-          >
+          <Field label={t("fields.workspaceId")} hint={t("staffLogin.workspaceIdHint")}>
             <input
               value={workspaceId}
               onChange={(e) => setWorkspaceId(e.target.value)}
@@ -108,7 +110,7 @@ export default function StaffLoginScreen({ onSignedIn }) {
               required
             />
           </Field>
-          <Field label="Username">
+          <Field label={t("fields.username")}>
             <input
               value={username}
               onChange={(e) => setUsername(e.target.value)}
@@ -116,7 +118,7 @@ export default function StaffLoginScreen({ onSignedIn }) {
               autoComplete="username"
             />
           </Field>
-          <Field label="Password">
+          <Field label={t("fields.password")}>
             <PasswordInput
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -127,7 +129,7 @@ export default function StaffLoginScreen({ onSignedIn }) {
         </div>
         <ErrorBanner message={error} />
         <button type="submit" className="btn-primary btn-block" disabled={loading}>
-          {loading ? "Signing in…" : "Enter workspace"}
+          {loading ? t("signingIn") : t("enterWorkspace")}
         </button>
       </form>
     </AuthLayout>

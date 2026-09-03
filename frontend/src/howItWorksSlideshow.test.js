@@ -36,15 +36,16 @@ test("autoplay pauses outside the viewport, during interaction, and for reduced 
   assert.equal(shouldRunSlideshow({ ...base, pageVisible: false }), false);
 });
 
-test("Section 4 source preserves Admin, Teacher, Manager, Reception slide order", () => {
+test("Section 4 source preserves Admin, Teacher, Manager, Reception slide order for both locales", () => {
   const source = readFileSync(new URL("./PublicHowItWorksScreen.jsx", import.meta.url), "utf8");
-  const admin = source.indexOf('role: "Admin"');
-  const teacher = source.indexOf('role: "Teacher"');
-  const manager = source.indexOf('role: "Manager"');
-  const reception = source.indexOf('role: "Reception"');
-  assert.ok(admin >= 0 && admin < teacher);
-  assert.ok(teacher < manager);
-  assert.ok(manager < reception);
+  assert.match(
+    source,
+    /const SECTION_FOUR_SRCS = \[\s*section4Admin,\s*section4Teacher,\s*section4Manager,\s*section4Reception,\s*\]/,
+  );
+  assert.match(
+    source,
+    /const SECTION_FOUR_JA_SRCS = \[\s*section4AdminJa,\s*section4TeacherJa,\s*section4ManagerJa,\s*section4ReceptionJa,\s*\]/,
+  );
   assert.match(source, /IntersectionObserver/);
   assert.match(source, /setTimerVersion/);
 });

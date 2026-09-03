@@ -6,7 +6,11 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from accounts.deletion import PermanentDeletionError, permanently_delete_customer_account
+from accounts.deletion import (
+    ActiveSubscriptionBlocksDeletion,
+    PermanentDeletionError,
+    permanently_delete_customer_account,
+)
 from accounts.email_management import (
     account_payload,
     cancel_pending_backup,
@@ -20,6 +24,7 @@ from accounts.email_management import (
     verify_primary_email_uid_token,
 )
 from accounts.exceptions import EmailCooldown, EmailNotVerified
+from accounts.language import normalize_language
 from accounts.serializers import (
     AccountSerializer,
     ChangePasswordSerializer,
@@ -27,11 +32,14 @@ from accounts.serializers import (
     EmailWithPasswordSerializer,
     ForgotPasswordSerializer,
     PasswordOnlySerializer,
+    PreferredLanguageUpdateSerializer,
     ResendVerificationSerializer,
     ResetPasswordSerializer,
     VerifyEmailSerializer,
 )
 from accounts.services import (
+    FORGOT_PASSWORD_MESSAGE,
+    RESEND_PUBLIC_MESSAGE,
     change_password,
     request_password_reset,
     resend_verification_authenticated,
@@ -39,7 +47,17 @@ from accounts.services import (
     reset_password,
     verify_email_uid_token,
 )
-from accounts.owner_sensitive_auth import password_not_available_response
+from core.auth_rate_limits import (
+    check_password_reset_allowed,
+    check_verification_resend_ip_allowed,
+    record_password_reset_attempt,
+    record_verification_resend_ip,
+)
+from accounts.owner_sensitive_auth import (
+    clear_owner_oauth_reauth,
+    password_not_available_response,
+    validate_sensitive_owner_reauth,
+)
 from accounts.sign_in_methods import owner_password_enabled
 from accounts.verification import customer_must_verify_email
 from core.mail import EmailConfigurationError, EmailSendError
@@ -146,6 +164,11 @@ class ResendVerificationView(APIView):
         serializer = ResendVerificationSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         email = serializer.validated_data.get("email") or ""
+        if not check_verification_resend_ip_allowed(request):
+            return Response(
+                {"detail": RESEND_PUBLIC_MESSAGE, "code": "accepted"}
+            )
+        record_verification_resend_ip(request)
         message = resend_verification_public(email)
         return Response({"detail": message, "code": "accepted"})
 
@@ -156,7 +179,14 @@ class ForgotPasswordView(APIView):
     def post(self, request):
         serializer = ForgotPasswordSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        message = request_password_reset(serializer.validated_data["email"])
+        email = serializer.validated_data["email"]
+        if not check_password_reset_allowed(request, email):
+            return Response({"detail": FORGOT_PASSWORD_MESSAGE, "code": "accepted"})
+        message = request_password_reset(
+            email,
+            language=serializer.validated_data["locale"],
+        )
+        record_password_reset_attempt(request, email)
         return Response({"detail": message, "code": "accepted"})
 
 
@@ -237,6 +267,38 @@ class AccountView(APIView):
         if customer_must_verify_email(actor):
             raise EmailNotVerified()
         return Response(AccountSerializer(account_payload(actor)).data)
+
+    def patch(self, request):
+        actor = request.user
+        denied = _require_owner(actor)
+        if denied is not None:
+            return denied
+        if customer_must_verify_email(actor):
+            raise EmailNotVerified()
+
+        serializer = PreferredLanguageUpdateSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(
+                {
+                    "code": "invalid_preferred_language",
+                    "detail": "Preferred language must be en or ja.",
+                    **serializer.errors,
+                },
+                status=400,
+            )
+
+        language = normalize_language(serializer.validated_data["preferred_language"])
+        if actor.preferred_language != language:
+            actor.preferred_language = language
+            actor.save(update_fields=["preferred_language"])
+
+        return Response(
+            {
+                **AccountSerializer(account_payload(actor)).data,
+                "code": "preferred_language_updated",
+                "detail": "Preferred language updated.",
+            }
+        )
 
 
 class BackupEmailView(APIView):
@@ -499,6 +561,11 @@ class DeleteAccountView(APIView):
 
     Allowed for unverified owners so a failed onboarding account can be
     removed and the email reused. Workspace staff cannot call this.
+
+    Authentication uses the shared sensitive-action path: password owners
+    confirm password (+ 2FA when enabled); OAuth-only owners confirm via
+    fresh provider re-auth (+ 2FA when enabled). Live paid subscriptions
+    block deletion with code ``active_subscription``.
     """
 
     permission_classes = [IsAuthenticated]
@@ -519,21 +586,39 @@ class DeleteAccountView(APIView):
         serializer = DeleteAccountSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        password_denied = _require_owner_password(actor)
-        if password_denied is not None:
-            return password_denied
-
-        if not actor.check_password(serializer.validated_data["current_password"]):
-            return Response(
-                {"current_password": "Current password is incorrect."},
-                status=400,
-            )
+        reauth_error = validate_sensitive_owner_reauth(
+            request,
+            actor,
+            current_password=serializer.validated_data.get("current_password") or "",
+            code=serializer.validated_data.get("code") or "",
+            recovery_code=serializer.validated_data.get("recovery_code") or "",
+        )
+        if reauth_error is not None:
+            return reauth_error
 
         try:
-            permanently_delete_customer_account(actor)
+            permanently_delete_customer_account(
+                actor,
+                require_no_live_subscription=True,
+            )
+        except ActiveSubscriptionBlocksDeletion as exc:
+            payload = {
+                "detail": exc.messages[0] if exc.messages else str(exc),
+                "code": "active_subscription",
+            }
+            if isinstance(exc.extra, dict):
+                if "cancel_at_period_end" in exc.extra:
+                    payload["cancel_at_period_end"] = exc.extra["cancel_at_period_end"]
+                if "status" in exc.extra:
+                    payload["subscription_status"] = exc.extra["status"]
+            return Response(payload, status=400)
         except PermanentDeletionError as exc:
-            return Response({"detail": exc.messages[0] if exc.messages else str(exc)}, status=400)
+            body = {"detail": exc.messages[0] if exc.messages else str(exc)}
+            if getattr(exc, "error_code", None):
+                body["code"] = exc.error_code
+            return Response(body, status=400)
 
+        clear_owner_oauth_reauth(request)
         logout(request)
         return Response(
             {

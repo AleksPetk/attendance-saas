@@ -145,7 +145,7 @@ def import_standard_group_as_class(
             )
             if pin_value:
                 section.set_class_pin(pin_value)
-                section.save(update_fields=["class_pin", "updated_at"])
+                section.save(update_fields=["class_pin_hash", "updated_at"])
 
             already_in_destination = set(
                 GroupMembership.objects.filter(
@@ -178,7 +178,7 @@ def import_standard_group_as_class(
                         membership.participation_emails or []
                     ),
                     participation_email=membership.participation_email or "",
-                    participation_pin=(membership.participation_pin or "").strip(),
+                    participation_pin_hash=membership.participation_pin_hash or "",
                     status=membership.status,
                 )
                 new_membership.save()
@@ -201,7 +201,7 @@ def import_standard_group_as_class(
                     name=visitor.name,
                     participation_emails=list(visitor.participation_emails or []),
                     email=visitor.email or "",
-                    participation_pin=(visitor.participation_pin or "").strip(),
+                    pin_hash=visitor.pin_hash or "",
                     phone=visitor.phone or "",
                     notes="",
                     check_in_identifier="",

@@ -1,4 +1,5 @@
 import { Component, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { api } from "../../api.js";
 import { LoadingState } from "../../components.jsx";
 import CardTemplatePicker from "./CardTemplatePicker.jsx";
@@ -38,11 +39,18 @@ import {
 } from "./fakeParticipants.js";
 import "./kioskBuilder.css";
 
-function modeLabel(mode) {
-  if (mode === "solid") return "Solid";
-  if (mode === "gradient") return "Gradient";
-  if (mode === "image") return "Image";
+function modeLabel(mode, t) {
+  if (mode === "solid") return t("builder.solid");
+  if (mode === "gradient") return t("builder.gradient");
+  if (mode === "image") return t("builder.image");
   return mode;
+}
+
+function alignmentLabel(alignment, t) {
+  if (alignment === "left") return t("builder.left");
+  if (alignment === "center") return t("builder.center");
+  if (alignment === "right") return t("builder.right");
+  return alignment[0].toUpperCase() + alignment.slice(1);
 }
 
 function EditorGroup({ title, children }) {
@@ -54,11 +62,11 @@ function EditorGroup({ title, children }) {
   );
 }
 
-function BackgroundEditor({ background, modes, onChange, onGestureStart, onGestureEnd }) {
+function BackgroundEditor({ background, modes, onChange, onGestureStart, onGestureEnd, t }) {
   const mode = background?.mode || "solid";
   return (
-    <EditorGroup title="Background">
-      <div className="kb-chip-row" role="group" aria-label="Background mode">
+    <EditorGroup title={t("builder.background")}>
+      <div className="kb-chip-row" role="group" aria-label={t("builder.backgroundModeAria")}>
         {modes.map((item) => (
           <button
             key={item}
@@ -70,13 +78,13 @@ function BackgroundEditor({ background, modes, onChange, onGestureStart, onGestu
               onChange(next);
             }}
           >
-            {modeLabel(item)}
+            {modeLabel(item, t)}
           </button>
         ))}
       </div>
       {mode === "solid" ? (
         <ColorField
-          label="Background color"
+          label={t("builder.backgroundColor")}
           value={background?.color || "#2563EB"}
           onChange={(color, meta) => onChange({ ...background, mode: "solid", color }, meta)}
           onGestureStart={onGestureStart}
@@ -96,6 +104,7 @@ function BackgroundEditor({ background, modes, onChange, onGestureStart, onGestu
 }
 
 function KioskBuilderEditor({ session, groupId, initial, onNavigate }) {
+  const { t } = useTranslation("kiosk");
   const kioskBehavior = initial.kioskBehavior || { mode: "card" };
   const groupType = initial.groupType === "structured" ? "structured" : "standard";
   const kioskMode =
@@ -118,7 +127,7 @@ function KioskBuilderEditor({ session, groupId, initial, onNavigate }) {
   const [savedBgUrl, setSavedBgUrl] = useState(
     () => resolveKioskMediaUrl(initial.main_background_image_url),
   );
-  const [groupName] = useState(initial.groupName || "Group");
+  const [groupName] = useState(initial.groupName || t("builder.groupFallback"));
   const [saveError, setSaveError] = useState("");
   const [saving, setSaving] = useState(false);
   const [activeSection, setActiveSection] = useState("header");
@@ -167,7 +176,7 @@ function KioskBuilderEditor({ session, groupId, initial, onNavigate }) {
     setWorkspaceLeaveChecker(() => {
       if (skipLeaveConfirmRef.current) return true;
       if (!dirty) return true;
-      return window.confirm("You have unsaved kiosk design changes. Leave without saving?");
+      return window.confirm(t("builder.leaveConfirm"));
     });
     return () => setWorkspaceLeaveChecker(null);
   }, [dirty]);
@@ -322,7 +331,7 @@ function KioskBuilderEditor({ session, groupId, initial, onNavigate }) {
   }
 
   function onCancel() {
-    if (dirty && !window.confirm("Discard unsaved kiosk design changes?")) return;
+    if (dirty && !window.confirm(t("builder.discardConfirm"))) return;
     skipLeaveConfirmRef.current = true;
     skipNextWorkspaceLeaveCheck();
     onNavigate({ name: "group-detail", groupId });
@@ -368,6 +377,7 @@ function KioskBuilderEditor({ session, groupId, initial, onNavigate }) {
           design={design}
           config={design.config}
           kioskBehavior={kioskBehavior}
+          groupType={groupType}
           fakeParticipantCount={fakeParticipantCount}
           onLiveConfig={onLiveConfig}
           onBeginGesture={beginGesture}
@@ -407,9 +417,10 @@ function KioskBuilderEditor({ session, groupId, initial, onNavigate }) {
                     }
                     onGestureStart={beginGesture}
                     onGestureEnd={endGesture}
+                    t={t}
                   />
-                  <EditorGroup title="Content alignment">
-                    <div className="kb-chip-row" role="group" aria-label="Header content alignment">
+                  <EditorGroup title={t("builder.contentAlignment")}>
+                    <div className="kb-chip-row" role="group" aria-label={t("builder.headerAlignmentAria")}>
                       {["left", "center", "right"].map((alignment) => (
                         <button
                           key={alignment}
@@ -422,21 +433,21 @@ function KioskBuilderEditor({ session, groupId, initial, onNavigate }) {
                             })
                           }
                         >
-                          {alignment[0].toUpperCase() + alignment.slice(1)}
+                          {alignmentLabel(alignment, t)}
                         </button>
                       ))}
                     </div>
                     <p className="kb-hint">
-                      Logo and title share one alignment. They stay together without overlap.
+                      {t("builder.alignmentHint")}
                     </p>
                   </EditorGroup>
-                  <EditorGroup title="Content">
+                  <EditorGroup title={t("builder.content")}>
                     <label className="kb-label">
-                      Title
+                      {t("builder.title")}
                       <input
                         type="text"
                         maxLength={150}
-                        placeholder="Optional header title"
+                        placeholder={t("builder.optionalHeaderTitle")}
                         value={header.title?.text || ""}
                         onFocus={beginGesture}
                         onChange={(event) =>
@@ -449,7 +460,7 @@ function KioskBuilderEditor({ session, groupId, initial, onNavigate }) {
                     </label>
                   </EditorGroup>
                   <TextStyleEditor
-                    label="Title style"
+                    label={t("builder.titleStyle")}
                     text={header.title}
                     onChange={(text, meta) =>
                       apply((next) => {
@@ -458,16 +469,17 @@ function KioskBuilderEditor({ session, groupId, initial, onNavigate }) {
                     }
                     onGestureStart={beginGesture}
                     onGestureEnd={endGesture}
+                    t={t}
                   />
-                  <EditorGroup title="Logo">
+                  <EditorGroup title={t("builder.logo")}>
                     {previewLogoUrl() ? (
                       <img className="kb-media-thumb" src={previewLogoUrl()} alt="" />
                     ) : (
-                      <p className="kb-hint">No logo yet — optional.</p>
+                      <p className="kb-hint">{t("builder.noLogo")}</p>
                     )}
                     <div className="kb-chip-row">
                       <label className="kb-file-btn">
-                        {previewLogoUrl() ? "Replace logo" : "Upload logo"}
+                        {previewLogoUrl() ? t("builder.replaceLogo") : t("builder.uploadLogo")}
                         <input
                           type="file"
                           accept="image/jpeg,image/png,image/gif,image/webp"
@@ -490,14 +502,14 @@ function KioskBuilderEditor({ session, groupId, initial, onNavigate }) {
                             })
                           }
                         >
-                          Remove logo
+                          {t("builder.removeLogo")}
                         </button>
                       ) : null}
                     </div>
                     {previewLogoUrl() ? (
                       <div className="kb-slider-field">
                         <div className="kb-slider-head">
-                          <span className="kb-slider-label">Logo size</span>
+                          <span className="kb-slider-label">{t("builder.logoSize")}</span>
                           <span className="kb-slider-value">
                             {Math.round(headerLogoSizeSafe * 100)}%
                           </span>
@@ -508,7 +520,7 @@ function KioskBuilderEditor({ session, groupId, initial, onNavigate }) {
                           max="1"
                           step="0.05"
                           value={headerLogoSizeSafe}
-                          aria-label="Header logo size"
+                          aria-label={t("builder.headerLogoSizeAria")}
                           onPointerDown={beginGesture}
                           onChange={(event) =>
                             apply((next) => {
@@ -538,17 +550,18 @@ function KioskBuilderEditor({ session, groupId, initial, onNavigate }) {
                     }
                     onGestureStart={beginGesture}
                     onGestureEnd={endGesture}
+                    t={t}
                   />
                   {main.background?.mode === "image" ? (
-                    <EditorGroup title="Background image">
+                    <EditorGroup title={t("builder.backgroundImage")}>
                       {previewBgUrl() ? (
                         <img className="kb-media-thumb wide" src={previewBgUrl()} alt="" />
                       ) : (
-                        <p className="kb-hint">No background image yet.</p>
+                        <p className="kb-hint">{t("builder.noBackgroundImage")}</p>
                       )}
                       <div className="kb-chip-row">
                         <label className="kb-file-btn">
-                          {previewBgUrl() ? "Replace image" : "Upload image"}
+                          {previewBgUrl() ? t("builder.replaceImage") : t("builder.uploadImage")}
                           <input
                             type="file"
                             accept="image/jpeg,image/png,image/gif,image/webp"
@@ -571,18 +584,18 @@ function KioskBuilderEditor({ session, groupId, initial, onNavigate }) {
                               })
                             }
                           >
-                            Remove image
+                            {t("builder.removeImage")}
                           </button>
                         ) : null}
                       </div>
                       {previewBgUrl() ? (
                         <>
                           <p className="kb-hint">
-                            Drag the Main area on the canvas to pan. The image always covers Main.
+                            {t("builder.panHint")}
                           </p>
                           <div className="kb-slider-field">
                             <div className="kb-slider-head">
-                              <span className="kb-slider-label">Background zoom</span>
+                              <span className="kb-slider-label">{t("builder.backgroundZoom")}</span>
                               <span className="kb-slider-value">
                                 {(Number(main.image_transform?.zoom) || 1).toFixed(2)}×
                               </span>
@@ -593,7 +606,7 @@ function KioskBuilderEditor({ session, groupId, initial, onNavigate }) {
                               max="5"
                               step="0.05"
                               value={main.image_transform?.zoom || 1}
-                              aria-label="Background zoom"
+                              aria-label={t("builder.backgroundZoomAria")}
                               onPointerDown={beginGesture}
                               onPointerUp={endGesture}
                               onChange={(event) =>
@@ -608,7 +621,7 @@ function KioskBuilderEditor({ session, groupId, initial, onNavigate }) {
                           </div>
                           <div className="kb-slider-field">
                             <div className="kb-slider-head">
-                              <span className="kb-slider-label">Horizontal position</span>
+                              <span className="kb-slider-label">{t("builder.horizontalPosition")}</span>
                               <span className="kb-slider-value">
                                 {Math.round((main.image_transform?.focal_x ?? 0.5) * 100)}%
                               </span>
@@ -619,7 +632,7 @@ function KioskBuilderEditor({ session, groupId, initial, onNavigate }) {
                               max="1"
                               step="0.01"
                               value={main.image_transform?.focal_x ?? 0.5}
-                              aria-label="Background horizontal position"
+                              aria-label={t("builder.horizontalPositionAria")}
                               onPointerDown={beginGesture}
                               onPointerUp={endGesture}
                               onChange={(event) =>
@@ -634,7 +647,7 @@ function KioskBuilderEditor({ session, groupId, initial, onNavigate }) {
                           </div>
                           <div className="kb-slider-field">
                             <div className="kb-slider-head">
-                              <span className="kb-slider-label">Vertical position</span>
+                              <span className="kb-slider-label">{t("builder.verticalPosition")}</span>
                               <span className="kb-slider-value">
                                 {Math.round((main.image_transform?.focal_y ?? 0.5) * 100)}%
                               </span>
@@ -645,7 +658,7 @@ function KioskBuilderEditor({ session, groupId, initial, onNavigate }) {
                               max="1"
                               step="0.01"
                               value={main.image_transform?.focal_y ?? 0.5}
-                              aria-label="Background vertical position"
+                              aria-label={t("builder.verticalPositionAria")}
                               onPointerDown={beginGesture}
                               onPointerUp={endGesture}
                               onChange={(event) =>
@@ -662,16 +675,16 @@ function KioskBuilderEditor({ session, groupId, initial, onNavigate }) {
                       ) : null}
                     </EditorGroup>
                   ) : null}
-                  <EditorGroup title="Overlay">
+                  <EditorGroup title={t("builder.overlay")}>
                     <div className="kb-slider-field">
                       <div className="kb-slider-head">
-                        <span className="kb-slider-label">Overlay strength</span>
+                        <span className="kb-slider-label">{t("builder.overlayStrength")}</span>
                         <span className="kb-slider-value">
                           {Number(main.overlay ?? 0) === 0
-                            ? "None"
+                            ? t("builder.overlayNone")
                             : Number(main.overlay) < 0
-                              ? `Darker ${Math.round(Math.abs(main.overlay) * 100)}%`
-                              : `Lighter ${Math.round(Number(main.overlay) * 100)}%`}
+                              ? t("builder.overlayDarker", { percent: Math.round(Math.abs(main.overlay) * 100) })
+                              : t("builder.overlayLighter", { percent: Math.round(Number(main.overlay) * 100) })}
                         </span>
                       </div>
                       <input
@@ -680,7 +693,7 @@ function KioskBuilderEditor({ session, groupId, initial, onNavigate }) {
                         max="1"
                         step="0.05"
                         value={main.overlay ?? 0}
-                        aria-label="Overlay strength"
+                        aria-label={t("builder.overlayStrengthAria")}
                         onPointerDown={beginGesture}
                         onPointerUp={endGesture}
                         onChange={(event) =>
@@ -689,16 +702,16 @@ function KioskBuilderEditor({ session, groupId, initial, onNavigate }) {
                           }, { previewOnly: true })
                         }
                       />
-                      <p className="kb-hint">Darker ← center none → Lighter</p>
+                      <p className="kb-hint">{t("builder.overlayHint")}</p>
                     </div>
                   </EditorGroup>
-                  <EditorGroup title="Main title">
+                  <EditorGroup title={t("builder.mainTitle")}>
                     <label className="kb-label">
-                      Title text
+                      {t("builder.titleText")}
                       <input
                         type="text"
                         maxLength={150}
-                        placeholder="Optional main title"
+                        placeholder={t("builder.optionalMainTitle")}
                         value={main.title?.text || ""}
                         onFocus={beginGesture}
                         onChange={(event) =>
@@ -710,12 +723,12 @@ function KioskBuilderEditor({ session, groupId, initial, onNavigate }) {
                       />
                     </label>
                     <div className="kb-subfield">
-                      <span className="kb-subfield-label">Alignment</span>
-                      <div className="kb-chip-row" role="group" aria-label="Main title alignment">
+                      <span className="kb-subfield-label">{t("builder.alignment")}</span>
+                      <div className="kb-chip-row" role="group" aria-label={t("builder.mainTitleAlignmentAria")}>
                         {[
-                          { id: "left", label: "Left" },
-                          { id: "center", label: "Center" },
-                          { id: "right", label: "Right" },
+                          { id: "left", label: t("builder.left") },
+                          { id: "center", label: t("builder.center") },
+                          { id: "right", label: t("builder.right") },
                         ].map((item) => {
                           const current = main.title?.alignment || "center";
                           return (
@@ -738,7 +751,7 @@ function KioskBuilderEditor({ session, groupId, initial, onNavigate }) {
                     </div>
                   </EditorGroup>
                   <TextStyleEditor
-                    label="Title style"
+                    label={t("builder.titleStyle")}
                     text={main.title}
                     onChange={(text, meta) =>
                       apply((next) => {
@@ -747,20 +760,21 @@ function KioskBuilderEditor({ session, groupId, initial, onNavigate }) {
                     }
                     onGestureStart={beginGesture}
                     onGestureEnd={endGesture}
+                    t={t}
                   />
                 </section>
               ) : null}
 
               {activeSection === "cards" ? (
                 <section className="kb-panel">
-                  <EditorGroup title="Test participants">
+                  <EditorGroup title={t("builder.testParticipants")}>
                     <p className="kb-hint">
-                      Fake participants used only in the editor. Not saved.
+                      {t("builder.fakeParticipantsHint")}
                     </p>
                     <div
                       className="kb-chip-row"
                       role="group"
-                      aria-label="Fake participant count"
+                      aria-label={t("builder.fakeCountAria")}
                     >
                       {FAKE_PARTICIPANT_COUNTS.map((count) => (
                         <button
@@ -811,14 +825,15 @@ function KioskBuilderEditor({ session, groupId, initial, onNavigate }) {
                     }
                     onGestureStart={beginGesture}
                     onGestureEnd={endGesture}
+                    t={t}
                   />
-                  <EditorGroup title="Footer text">
+                  <EditorGroup title={t("builder.footerText")}>
                     <label className="kb-label">
-                      Text
+                      {t("builder.text")}
                       <input
                         type="text"
                         maxLength={200}
-                        placeholder="Optional one-line footer text"
+                        placeholder={t("builder.optionalFooterText")}
                         value={footerLine}
                         onFocus={beginGesture}
                         onChange={(event) =>
@@ -831,8 +846,8 @@ function KioskBuilderEditor({ session, groupId, initial, onNavigate }) {
                       />
                     </label>
                     <div className="kb-subfield">
-                      <span className="kb-subfield-label">Alignment</span>
-                      <div className="kb-chip-row" role="group" aria-label="Footer text alignment">
+                      <span className="kb-subfield-label">{t("builder.alignment")}</span>
+                      <div className="kb-chip-row" role="group" aria-label={t("builder.footerAlignmentAria")}>
                         {["left", "center", "right"].map((alignment) => (
                           <button
                             key={alignment}
@@ -844,14 +859,14 @@ function KioskBuilderEditor({ session, groupId, initial, onNavigate }) {
                               })
                             }
                           >
-                            {alignment[0].toUpperCase() + alignment.slice(1)}
+                            {alignmentLabel(alignment, t)}
                           </button>
                         ))}
                       </div>
                     </div>
                   </EditorGroup>
                   <TextStyleEditor
-                    label="Text style"
+                    label={t("builder.textStyle")}
                     text={footer.text}
                     onChange={(text, meta) =>
                       apply((next) => {
@@ -860,16 +875,17 @@ function KioskBuilderEditor({ session, groupId, initial, onNavigate }) {
                     }
                     onGestureStart={beginGesture}
                     onGestureEnd={endGesture}
+                    t={t}
                   />
-                  <EditorGroup title="Footer image">
+                  <EditorGroup title={t("builder.footerImage")}>
                     {previewFooterLogoUrl() ? (
                       <img className="kb-media-thumb" src={previewFooterLogoUrl()} alt="" />
                     ) : (
-                      <p className="kb-hint">No footer image — independent from Header logo.</p>
+                      <p className="kb-hint">{t("builder.noFooterImage")}</p>
                     )}
                     <div className="kb-chip-row">
                       <label className="kb-file-btn">
-                        {previewFooterLogoUrl() ? "Replace image" : "Upload image"}
+                        {previewFooterLogoUrl() ? t("builder.replaceImage") : t("builder.uploadImage")}
                         <input
                           type="file"
                           accept="image/jpeg,image/png,image/gif,image/webp"
@@ -892,15 +908,15 @@ function KioskBuilderEditor({ session, groupId, initial, onNavigate }) {
                             })
                           }
                         >
-                          Remove image
+                          {t("builder.removeImage")}
                         </button>
                       ) : null}
                     </div>
                     {previewFooterLogoUrl() ? (
                       <>
                         <div className="kb-subfield">
-                          <span className="kb-subfield-label">Image position</span>
-                          <div className="kb-chip-row" role="group" aria-label="Footer image position">
+                          <span className="kb-subfield-label">{t("builder.imagePosition")}</span>
+                          <div className="kb-chip-row" role="group" aria-label={t("builder.footerImagePositionAria")}>
                             {["left", "center", "right"].map((alignment) => (
                               <button
                                 key={alignment}
@@ -916,14 +932,14 @@ function KioskBuilderEditor({ session, groupId, initial, onNavigate }) {
                                   })
                                 }
                               >
-                                {alignment[0].toUpperCase() + alignment.slice(1)}
+                                {alignmentLabel(alignment, t)}
                               </button>
                             ))}
                           </div>
                         </div>
                         <div className="kb-slider-field">
                           <div className="kb-slider-head">
-                            <span className="kb-slider-label">Image size</span>
+                            <span className="kb-slider-label">{t("builder.imageSize")}</span>
                             <span className="kb-slider-value">
                               {Math.round(footerLogoSizeSafe * 100)}%
                             </span>
@@ -934,7 +950,7 @@ function KioskBuilderEditor({ session, groupId, initial, onNavigate }) {
                             max="1"
                             step="0.05"
                             value={footerLogoSizeSafe}
-                            aria-label="Footer image size"
+                            aria-label={t("builder.footerImageSizeAria")}
                             onPointerDown={beginGesture}
                             onChange={(event) =>
                               apply((next) => {
@@ -959,6 +975,7 @@ function KioskBuilderEditor({ session, groupId, initial, onNavigate }) {
 }
 
 export default function KioskBuilderScreen({ session, groupId, onNavigate }) {
+  const { t } = useTranslation("kiosk");
   const [status, setStatus] = useState("loading");
   const [error, setError] = useState("");
   const [initial, setInitial] = useState(null);
@@ -966,7 +983,7 @@ export default function KioskBuilderScreen({ session, groupId, onNavigate }) {
   useEffect(() => {
     let cancelled = false;
     if (!groupId) {
-      setError("This kiosk builder URL is missing a Group id.");
+      setError(t("builder.missingGroupId"));
       setStatus("error");
       return undefined;
     }
@@ -979,7 +996,7 @@ export default function KioskBuilderScreen({ session, groupId, onNavigate }) {
         if (cancelled) return;
         const data = designResult.data;
         if (!data || typeof data.config !== "object" || data.config === null) {
-          setError("This Group's kiosk design response did not include a config object.");
+          setError(t("builder.missingConfig"));
           setStatus("error");
           return;
         }
@@ -999,7 +1016,7 @@ export default function KioskBuilderScreen({ session, groupId, onNavigate }) {
           header_logo_url: resolveKioskMediaUrl(data.header_logo_url),
           footer_logo_url: resolveKioskMediaUrl(data.footer_logo_url),
           main_background_image_url: resolveKioskMediaUrl(data.main_background_image_url),
-          groupName: groupResult.data?.name || "Group",
+          groupName: groupResult.data?.name || t("builder.groupFallback"),
           groupType: groupResult.data?.group_type === "structured" ? "structured" : "standard",
           kioskBehavior: {
             mode:
@@ -1026,18 +1043,18 @@ export default function KioskBuilderScreen({ session, groupId, onNavigate }) {
       })
       .catch((err) => {
         if (cancelled) return;
-        setError(formatApiError(err) || "Could not load this kiosk design.");
+        setError(formatApiError(err) || t("builder.loadFailed"));
         setStatus("error");
       });
     return () => {
       cancelled = true;
     };
-  }, [session, groupId]);
+  }, [session, groupId, t]);
 
   if (status === "loading") {
     return (
       <div className="kb-fullscreen kb-boot">
-        <LoadingState label="Loading kiosk design…" />
+        <LoadingState label={t("builder.loading")} />
       </div>
     );
   }
@@ -1046,7 +1063,7 @@ export default function KioskBuilderScreen({ session, groupId, onNavigate }) {
       <div className="kb-fullscreen kb-boot">
         <p className="kb-save-error">{error}</p>
         <button type="button" className="kb-tool-btn" onClick={() => onNavigate({ name: "group-detail", groupId })}>
-          Back to Group
+          {t("builder.backToGroup")}
         </button>
       </div>
     );
@@ -1084,7 +1101,7 @@ class BuilderRenderError extends Component {
           className="kb-tool-btn"
           onClick={() => this.props.onNavigate({ name: "group-detail", groupId: this.props.groupId })}
         >
-          Back to Group
+          {t("builder.backToGroup")}
         </button>
       </div>
     );

@@ -1,7 +1,7 @@
-from django.conf import settings
-from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path
+
+from core.media_views import ProtectedMediaView
 
 urlpatterns = [
     path("admin/two-factor/", include("accounts.two_factor_urls")),
@@ -16,7 +16,9 @@ urlpatterns = [
     path("api/", include("kiosk_builder.urls")),
     path("api/", include("content.urls")),
     path("api/", include("contact.urls")),
+    path(
+        "media/<path:relative_path>",
+        ProtectedMediaView.as_view(),
+        name="protected-media",
+    ),
 ]
-
-if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

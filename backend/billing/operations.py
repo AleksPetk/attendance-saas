@@ -5,6 +5,7 @@ from __future__ import annotations
 from billing.catalog import PLAN_BUSINESS, PLAN_PLUS, PAID_INTERVALS
 from billing.exceptions import BillingStateError, StripeConfigurationError, StripeProviderError
 from billing.models import BillingStatus, PurchaseSource
+from billing.markets import market_for_existing_subscription, resolve_billing_market
 from billing.prices import require_stripe_api
 from billing.provider import get_billing_provider
 from billing.reconciliation import reconcile_subscription_snapshot
@@ -44,7 +45,8 @@ def _return_urls():
 
 def start_paid_checkout(organization, owner, *, plan_key, interval):
     _deny_checkstation_billing(organization)
-    require_stripe_api()
+    market = resolve_billing_market(organization)
+    require_stripe_api(market=market)
     plan = str(plan_key or "").strip().lower()
     interval_key = str(interval or "").strip().lower()
     if plan not in {PLAN_PLUS, PLAN_BUSINESS}:
@@ -70,6 +72,7 @@ def start_paid_checkout(organization, owner, *, plan_key, interval):
         organization=organization,
         plan_key=plan,
         interval=interval_key,
+        market=market,
     )
     success_url, cancel_url, _portal = _return_urls()
     provider = get_billing_provider()
@@ -78,6 +81,7 @@ def start_paid_checkout(organization, owner, *, plan_key, interval):
         owner=owner,
         plan_key=plan,
         interval=interval_key,
+        market=market,
         success_url=success_url,
         cancel_url=cancel_url,
         billing_start_at=billing_start_at_for_checkout(organization),
@@ -88,8 +92,9 @@ def start_paid_checkout(organization, owner, *, plan_key, interval):
 
 def preview_upgrade_to_business(organization):
     _deny_checkstation_billing(organization)
-    require_stripe_api()
     billing = get_workspace_billing(organization)
+    market = market_for_existing_subscription(billing, workspace=organization)
+    require_stripe_api(market=market)
     _require_stripe_source(billing)
     if billing.subscribed_plan != PLAN_PLUS:
         raise BillingStateError("Only Plus can preview an upgrade to Business.")
@@ -99,13 +104,15 @@ def preview_upgrade_to_business(organization):
         subscription_id=billing.external_subscription_id,
         target_plan=PLAN_BUSINESS,
         target_interval=interval,
+        market=market,
     )
 
 
 def apply_upgrade_to_business(organization):
     _deny_checkstation_billing(organization)
-    require_stripe_api()
     billing = get_workspace_billing(organization)
+    market = market_for_existing_subscription(billing, workspace=organization)
+    require_stripe_api(market=market)
     _require_stripe_source(billing)
     if billing.subscribed_plan != PLAN_PLUS:
         raise BillingStateError("Only Plus can upgrade to Business.")
@@ -116,6 +123,7 @@ def apply_upgrade_to_business(organization):
         subscription_id=billing.external_subscription_id,
         target_plan=PLAN_BUSINESS,
         target_interval=billing.billing_interval,
+        market=market,
     )
     reconcile_subscription_snapshot(organization, snapshot)
     organization.refresh_from_db()
@@ -124,8 +132,9 @@ def apply_upgrade_to_business(organization):
 
 def request_downgrade_to_plus(organization, *, interval=None):
     _deny_checkstation_billing(organization)
-    require_stripe_api()
     billing = get_workspace_billing(organization)
+    market = market_for_existing_subscription(billing, workspace=organization)
+    require_stripe_api(market=market)
     _require_stripe_source(billing)
     if billing.subscribed_plan != PLAN_BUSINESS:
         raise BillingStateError("Only Business can schedule a downgrade to Plus.")
@@ -148,6 +157,7 @@ def request_downgrade_to_plus(organization, *, interval=None):
         subscription_id=billing.external_subscription_id,
         target_plan=PLAN_PLUS,
         target_interval=target_interval,
+        market=market,
     )
     return schedule_billing_change(
         organization,
@@ -220,8 +230,9 @@ def request_cancel_scheduled_downgrade(organization):
 
 def request_schedule_billing_change(organization, *, plan, interval):
     _deny_checkstation_billing(organization)
-    require_stripe_api()
     billing = get_workspace_billing(organization)
+    market = market_for_existing_subscription(billing, workspace=organization)
+    require_stripe_api(market=market)
     _require_stripe_source(billing)
     if billing.status not in {BillingStatus.ACTIVE, BillingStatus.PAST_DUE}:
         raise BillingStateError("Scheduled changes require an active paid subscription.")
@@ -239,12 +250,14 @@ def request_schedule_billing_change(organization, *, plan, interval):
         organization=organization,
         target_plan=plan_key,
         target_interval=interval_key,
+        market=market,
     )
     provider = get_billing_provider()
     provider.schedule_downgrade(
         subscription_id=billing.external_subscription_id,
         target_plan=plan_key,
         target_interval=interval_key,
+        market=market,
         coupon_id=coupon_id,
         coupon_slot=coupon_slot,
     )

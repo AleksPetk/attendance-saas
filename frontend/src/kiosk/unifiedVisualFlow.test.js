@@ -47,16 +47,25 @@ test("A: Confirmation Template selector no longer renders in Kiosk Settings", ()
   assert.doesNotMatch(settingsSrc, /CONFIRMATION_TEMPLATES/);
   assert.doesNotMatch(settingsSrc, /title="Template"/);
   assert.doesNotMatch(settingsSrc, /id="template"/);
-  assert.match(settingsSrc, /Messages/);
-  assert.match(settingsSrc, /Return time/);
-  assert.match(settingsScreenSrc, /Confirmation Screen/);
+  assert.match(settingsSrc, /confirmation\.messages\.title/);
+  assert.match(settingsSrc, /confirmation\.return\.title/);
+  assert.match(settingsSrc, /confirmation\.effects\.title/);
+  assert.match(settingsScreenSrc, /settings\.confirmationScreen\.title/);
 });
 
 test("B/C: Messages and Return time still present", () => {
   assert.match(settingsSrc, /confirmation_return_seconds/);
   assert.match(settingsSrc, /confirmation_check_in_message|item\.field/);
-  assert.match(settingsSrc, /Available variables/);
+  assert.match(settingsSrc, /confirmation\.messages\.variablesTitle/);
   assert.match(settingsSrc, /\{name\}/);
+});
+
+test("Confirmation effects reuse the existing accordion and toggle controls", () => {
+  assert.match(settingsSrc, /id="effects"/);
+  assert.match(settingsSrc, /confirmation\.effects\.sound/);
+  assert.match(settingsSrc, /confirmation\.effects\.vibration/);
+  assert.match(settingsSrc, /<Toggle/);
+  assert.match(settingsSrc, /confirmation\.effects\.browserNote/);
 });
 
 test("D: old confirmation-template config does not override Card/Input template", () => {

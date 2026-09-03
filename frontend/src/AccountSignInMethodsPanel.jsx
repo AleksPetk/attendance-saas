@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { api } from "./api.js";
 import {
   ErrorBanner,
@@ -20,13 +21,13 @@ function fieldError(error, name) {
   return "";
 }
 
-function MethodRow({ name, connected, hint, action, actionDisabled, actionHint }) {
+function MethodRow({ name, connected, connectedLabel, notConnectedLabel, hint, action, actionDisabled, actionHint, lastMethodWarning }) {
   return (
     <div className="account-email-block">
       <div className="account-email-row">
         <div>
           <p className="account-email-label">{name}</p>
-          <strong>{connected ? "Connected" : "Not connected"}</strong>
+          <strong>{connected ? connectedLabel : notConnectedLabel}</strong>
           {hint ? <p className="hint">{hint}</p> : null}
         </div>
       </div>
@@ -35,7 +36,7 @@ function MethodRow({ name, connected, hint, action, actionDisabled, actionHint }
         <div className="account-inline-actions">{action}</div>
       ) : null}
       {actionDisabled && !action ? (
-        <p className="hint">At least one sign-in method must remain on your account.</p>
+        <p className="hint">{lastMethodWarning}</p>
       ) : null}
     </div>
   );
@@ -48,6 +49,7 @@ export default function AccountSignInMethodsPanel({
   onOpenChangePassword,
   onRefreshAccount,
 }) {
+  const { t } = useTranslation(["account", "common"]);
   const methods = account?.sign_in_methods;
   const passwordEnabled = Boolean(methods?.password?.enabled);
 
@@ -106,7 +108,7 @@ export default function AccountSignInMethodsPanel({
       setSetPasswordCode("");
       setSetPasswordRecoveryCode("");
       setSetPasswordOpen(false);
-      setSetPasswordSuccess("CheckStation password created.");
+      setSetPasswordSuccess(t("account:signInMethods.passwordCreated"));
       if (onRefreshAccount) {
         await onRefreshAccount(result.data);
       }
@@ -121,11 +123,10 @@ export default function AccountSignInMethodsPanel({
         setSetPasswordFieldErrors(next);
       } else if (err?.data?.code === "oauth_reauth_required") {
         setSetPasswordError(
-          err.data.detail ||
-            "Confirm your identity with a linked sign-in provider before setting a password.",
+          err.data.detail || t("account:signInMethods.errors.oauthReauthSetPassword"),
         );
       } else {
-        setSetPasswordError(err?.data?.detail || "Could not set password.");
+        setSetPasswordError(err?.data?.detail || t("account:signInMethods.errors.setPasswordFailed"));
       }
     } finally {
       setSetPasswordBusy(false);
@@ -171,13 +172,12 @@ export default function AccountSignInMethodsPanel({
         setUnlinkFieldErrors(next);
       } else if (err?.data?.code === "oauth_reauth_required") {
         setUnlinkError(
-          err.data.detail ||
-            "Confirm your identity with another linked sign-in provider before disconnecting.",
+          err.data.detail || t("account:signInMethods.errors.oauthReauthUnlink"),
         );
       } else if (err?.data?.code === "last_sign_in_method") {
-        setUnlinkError(err.data.detail || "At least one sign-in method must remain.");
+        setUnlinkError(err.data.detail || t("account:signInMethods.errors.lastMethod"));
       } else {
-        setUnlinkError(err?.data?.detail || "Could not disconnect sign-in method.");
+        setUnlinkError(err?.data?.detail || t("account:signInMethods.errors.unlinkFailed"));
       }
     } finally {
       setUnlinkBusy(false);
@@ -189,12 +189,15 @@ export default function AccountSignInMethodsPanel({
   return (
     <div className="account-email-section">
       <MethodRow
-        name="Password"
+        name={t("account:signInMethods.password")}
         connected={passwordEnabled}
+        connectedLabel={t("account:signInMethods.connected")}
+        notConnectedLabel={t("account:signInMethods.notSet")}
+        lastMethodWarning={t("account:signInMethods.lastMethodWarning")}
         action={
           passwordEnabled ? (
             <button type="button" className="btn-secondary btn-sm" onClick={onOpenChangePassword}>
-              Change password
+              {t("account:signInMethods.changePassword")}
             </button>
           ) : (
             <button
@@ -206,7 +209,7 @@ export default function AccountSignInMethodsPanel({
                 setSetPasswordSuccess("");
               }}
             >
-              Set password
+              {t("account:signInMethods.setPassword")}
             </button>
           )
         }
@@ -216,16 +219,14 @@ export default function AccountSignInMethodsPanel({
         <form className="auth-form account-inline-form" onSubmit={handleSetPassword} autoComplete="off">
           {needsOAuthReauthForSetPassword && !setPasswordReauthReady ? (
             <div className="account-inline-actions">
-              <p className="hint">
-                Confirm your identity with a linked provider before creating a CheckStation password.
-              </p>
+              <p className="hint">{t("account:signInMethods.oauthReauthSetPassword")}</p>
               {methods?.google?.linked ? (
                 <button
                   type="button"
                   className="btn-secondary btn-sm"
                   onClick={() => startOAuth("verify", "google")}
                 >
-                  Confirm with Google
+                  {t("account:signInMethods.confirmWithGoogle")}
                 </button>
               ) : null}
               {methods?.apple?.linked ? (
@@ -234,7 +235,7 @@ export default function AccountSignInMethodsPanel({
                   className="btn-secondary btn-sm"
                   onClick={() => startOAuth("verify", "apple")}
                 >
-                  Confirm with Apple
+                  {t("account:signInMethods.confirmWithApple")}
                 </button>
               ) : null}
             </div>
@@ -243,7 +244,7 @@ export default function AccountSignInMethodsPanel({
               {twoFactorEnabled ? (
                 <>
                   <Field
-                    label={setPasswordUseRecovery ? "Recovery code" : "Authentication code"}
+                    label={setPasswordUseRecovery ? t("account:twoFactor.recoveryCode") : t("account:signInMethods.authCode")}
                     error={
                       setPasswordFieldErrors.code || setPasswordFieldErrors.recovery_code
                     }
@@ -272,11 +273,11 @@ export default function AccountSignInMethodsPanel({
                     className="btn-link"
                     onClick={() => setSetPasswordUseRecovery((value) => !value)}
                   >
-                    {setPasswordUseRecovery ? "Use authenticator code" : "Use a recovery code"}
+                    {setPasswordUseRecovery ? t("account:twoFactor.useAuthenticator") : t("account:twoFactor.useRecovery")}
                   </button>
                 </>
               ) : null}
-              <Field label="New password" error={setPasswordFieldErrors.new_password}>
+              <Field label={t("account:password.new")} error={setPasswordFieldErrors.new_password}>
                 <PasswordInput
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
@@ -286,7 +287,7 @@ export default function AccountSignInMethodsPanel({
                   onVisibleChange={passwordVisibility.setVisible}
                 />
               </Field>
-              <Field label="Confirm new password" error={setPasswordFieldErrors.new_password_confirm}>
+              <Field label={t("account:password.confirmNew")} error={setPasswordFieldErrors.new_password_confirm}>
                 <PasswordInput
                   value={newPasswordConfirm}
                   onChange={(e) => setNewPasswordConfirm(e.target.value)}
@@ -298,7 +299,7 @@ export default function AccountSignInMethodsPanel({
               </Field>
               <div className="account-inline-actions">
                 <button type="submit" className="btn-primary" disabled={setPasswordBusy}>
-                  {setPasswordBusy ? "Saving…" : "Create password"}
+                  {setPasswordBusy ? t("account:password.saving") : t("account:signInMethods.createPassword")}
                 </button>
                 <button
                   type="button"
@@ -306,7 +307,7 @@ export default function AccountSignInMethodsPanel({
                   disabled={setPasswordBusy}
                   onClick={() => setSetPasswordOpen(false)}
                 >
-                  Cancel
+                  {t("common:cancel")}
                 </button>
               </div>
             </>
@@ -317,6 +318,9 @@ export default function AccountSignInMethodsPanel({
       <MethodRow
         name="Google"
         connected={Boolean(methods?.google?.linked)}
+        connectedLabel={t("account:signInMethods.connected")}
+        notConnectedLabel={t("account:signInMethods.notConnected")}
+        lastMethodWarning={t("account:signInMethods.lastMethodWarning")}
         hint={methods?.google?.provider_email || null}
         action={
           methods?.google?.linked ? (
@@ -331,7 +335,7 @@ export default function AccountSignInMethodsPanel({
                   setUnlinkFieldErrors({});
                 }}
               >
-                Disconnect Google
+                {t("account:signInMethods.disconnectGoogle")}
               </button>
             )
           ) : (
@@ -340,7 +344,7 @@ export default function AccountSignInMethodsPanel({
               className="btn-secondary btn-sm"
               onClick={() => startOAuth("link", "google")}
             >
-              Connect Google
+              {t("account:signInMethods.connectGoogle")}
             </button>
           )
         }
@@ -350,6 +354,9 @@ export default function AccountSignInMethodsPanel({
       <MethodRow
         name="Apple"
         connected={Boolean(methods?.apple?.linked)}
+        connectedLabel={t("account:signInMethods.connected")}
+        notConnectedLabel={t("account:signInMethods.notConnected")}
+        lastMethodWarning={t("account:signInMethods.lastMethodWarning")}
         hint={methods?.apple?.provider_email || null}
         action={
           methods?.apple?.linked ? (
@@ -364,7 +371,7 @@ export default function AccountSignInMethodsPanel({
                   setUnlinkFieldErrors({});
                 }}
               >
-                Disconnect Apple
+                {t("account:signInMethods.disconnectApple")}
               </button>
             )
           ) : (
@@ -373,7 +380,7 @@ export default function AccountSignInMethodsPanel({
               className="btn-secondary btn-sm"
               onClick={() => startOAuth("link", "apple")}
             >
-              Connect Apple
+              {t("account:signInMethods.connectApple")}
             </button>
           )
         }
@@ -383,25 +390,25 @@ export default function AccountSignInMethodsPanel({
       {unlinkProvider ? (
         <form className="auth-form account-inline-form" onSubmit={handleUnlink} autoComplete="off">
           <p className="hint">
-            Disconnect {providerDisplayName(unlinkProvider)} from your CheckStation account.
+            {t("account:signInMethods.disconnectFrom", { provider: providerDisplayName(unlinkProvider) })}
           </p>
           {!passwordEnabled && reauthProvider && !oauthReauthReady ? (
             <div className="account-inline-actions">
               <p className="hint">
-                Confirm your identity with {providerDisplayName(reauthProvider)} before disconnecting.
+                {t("account:signInMethods.oauthReauthUnlink", { provider: providerDisplayName(reauthProvider) })}
               </p>
               <button
                 type="button"
                 className="btn-secondary btn-sm"
                 onClick={() => startOAuth("verify", reauthProvider)}
               >
-                Confirm with {providerDisplayName(reauthProvider)}
+                {t("account:signInMethods.confirmWithProvider", { provider: providerDisplayName(reauthProvider) })}
               </button>
             </div>
           ) : (
             <>
               {passwordEnabled ? (
-                <Field label="Current password" error={unlinkFieldErrors.current_password}>
+                <Field label={t("account:email.currentPassword")} error={unlinkFieldErrors.current_password}>
                   <PasswordInput
                     value={unlinkPassword}
                     onChange={(e) => setUnlinkPassword(e.target.value)}
@@ -413,7 +420,7 @@ export default function AccountSignInMethodsPanel({
               {twoFactorEnabled ? (
                 <>
                   <Field
-                    label={unlinkUseRecovery ? "Recovery code" : "Authentication code"}
+                    label={unlinkUseRecovery ? t("account:twoFactor.recoveryCode") : t("account:signInMethods.authCode")}
                     error={unlinkFieldErrors.code || unlinkFieldErrors.recovery_code}
                   >
                     {unlinkUseRecovery ? (
@@ -440,13 +447,13 @@ export default function AccountSignInMethodsPanel({
                     className="btn-link"
                     onClick={() => setUnlinkUseRecovery((value) => !value)}
                   >
-                    {unlinkUseRecovery ? "Use authenticator code" : "Use a recovery code"}
+                    {unlinkUseRecovery ? t("account:twoFactor.useAuthenticator") : t("account:twoFactor.useRecovery")}
                   </button>
                 </>
               ) : null}
               <div className="account-inline-actions">
                 <button type="submit" className="btn-danger" disabled={unlinkBusy}>
-                  {unlinkBusy ? "Disconnecting…" : "Confirm disconnect"}
+                  {unlinkBusy ? t("account:signInMethods.disconnecting") : t("account:signInMethods.confirmDisconnect")}
                 </button>
                 <button
                   type="button"
@@ -454,7 +461,7 @@ export default function AccountSignInMethodsPanel({
                   disabled={unlinkBusy}
                   onClick={() => setUnlinkProvider(null)}
                 >
-                  Cancel
+                  {t("common:cancel")}
                 </button>
               </div>
             </>

@@ -3,6 +3,8 @@
  * Fourth tab is derived from Kiosk Settings mode (and Structured → Cards).
  */
 
+import i18n from "../../i18n/index.js";
+
 export function kioskPresentationSection({ mode, groupType }) {
   if (groupType === "structured") {
     return "cards";
@@ -15,10 +17,9 @@ export function kioskEditorSections({ mode, groupType }) {
 }
 
 export function kioskEditorSectionLabel(name) {
-  if (name === "cards") return "Cards";
-  if (name === "input") return "Input";
-  if (name === "header") return "Header";
-  if (name === "main") return "Main";
-  if (name === "footer") return "Footer";
-  return name ? name[0].toUpperCase() + name.slice(1) : "";
+  if (!name) return "";
+  const key = `editor.sections.${name}`;
+  const translated = i18n.t(`kiosk:${key}`, { defaultValue: "" });
+  if (translated) return translated;
+  return name[0].toUpperCase() + name.slice(1);
 }

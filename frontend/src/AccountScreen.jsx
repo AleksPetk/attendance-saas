@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { Navigate, useParams, useSearchParams } from "react-router-dom";
+import { Link, Navigate, useParams, useSearchParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { api, errorMessage } from "./api.js";
 import AccountSignInMethodsPanel from "./AccountSignInMethodsPanel.jsx";
 import AccountInfoPanel from "./AccountInfoPanel.js";
@@ -29,6 +30,10 @@ import {
   SuccessBanner,
   usePasswordVisibility,
 } from "./components.jsx";
+import { localizedErrorMessage } from "./i18n/errorMessages.js";
+import i18n from "./i18n/index.js";
+import { usePageTitle } from "./i18n/usePageTitle.js";
+import { useLanguage } from "./i18n/LanguageProvider.jsx";
 import {
   canManageSubscription,
   canViewBilling,
@@ -41,6 +46,7 @@ import {
 import {
   isOAuthVerifiedResult,
   oauthAccountSecurityResultMessage,
+  oauthStartUrl,
   passwordNotAvailableGuidance,
   signInMethodsStatusPills,
   signInMethodsStatusSummary,
@@ -57,15 +63,15 @@ function sensitiveActionErrorMessage(error) {
   return passwordNotAvailableGuidance(error) || errorMessage(error);
 }
 
-function EmailActionRow({ label, email, status, children }) {
+function EmailActionRow({ label, email, status, statusVariant, children }) {
   return (
     <div className="account-email-block">
       <div className="account-email-row">
         <div>
           <p className="account-email-label">{label}</p>
-          {email ? <strong>{email}</strong> : <span className="hint">Not added</span>}
+          {email ? <strong>{email}</strong> : <span className="hint">{i18n.t("account:notAdded")}</span>}
         </div>
-        {status ? <Badge variant={status === "Verified" ? "live" : undefined}>{status}</Badge> : null}
+        {status ? <Badge variant={statusVariant}>{status}</Badge> : null}
       </div>
       {children}
     </div>
@@ -73,7 +79,11 @@ function EmailActionRow({ label, email, status, children }) {
 }
 
 export default function AccountScreen({ session, setSession, onAccountDeleted }) {
+  const { t } = useTranslation(["account", "billing", "workspace", "common", "errors"]);
+  const { locale } = useLanguage();
+  const workspaceContentLang = locale === "ja" ? "ja" : "en";
   const { section: sectionParam } = useParams();
+  usePageTitle("pageTitles.account", { ns: "workspace" });
   const billingAllowed =
     canViewBilling(session) && canManageSubscription(session);
   const section = resolveAccountSection(sectionParam, session);
@@ -124,6 +134,10 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
   const [deleteError, setDeleteError] = useState("");
   const [deleteFieldErrors, setDeleteFieldErrors] = useState({});
   const [deleting, setDeleting] = useState(false);
+  const [deleteCode, setDeleteCode] = useState("");
+  const [deleteRecoveryCode, setDeleteRecoveryCode] = useState("");
+  const [deleteUseRecovery, setDeleteUseRecovery] = useState(false);
+  const [deleteSubscriptionBlocked, setDeleteSubscriptionBlocked] = useState(false);
   const [emailExpanded, setEmailExpanded] = useState(false);
   const [signInMethodsExpanded, setSignInMethodsExpanded] = useState(false);
   const [signInMethodsNotice, setSignInMethodsNotice] = useState("");
@@ -255,17 +269,17 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
 
     async function handleReturn() {
       if (checkout === "cancelled") {
-        setCheckoutNotice("Checkout was cancelled. Your plan was not changed.");
+        setCheckoutNotice(t("account:checkout.cancelled"));
         setSearchParams({}, { replace: true });
         return;
       }
       if (portal === "return") {
-        setPortalNotice("Returned from Stripe Customer Portal. Refreshing billing state…");
+        setPortalNotice(t("account:checkout.portalReturn"));
         await refreshWorkspaceSession();
         if (cancelled) return;
         await loadBilling();
         if (cancelled) return;
-        setPortalNotice("Billing state refreshed from the server.");
+        setPortalNotice(t("account:checkout.portalRefreshed"));
         setSearchParams({}, { replace: true });
         return;
       }
@@ -288,8 +302,8 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
             setConfirmingCheckout(false);
             setCheckoutNotice(
               activated
-                ? "Subscription confirmed from Stripe."
-                : "Still confirming with Stripe. Refresh this page in a moment if your plan has not updated.",
+                ? t("account:checkout.confirmed")
+                : t("account:checkout.stillConfirming"),
             );
             setSearchParams({}, { replace: true });
             return;
@@ -314,7 +328,7 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
       await api.csrf();
       const result = await api.startBillingCheckout({ plan, interval });
       const url = result.data?.checkout_url;
-      if (!url) throw { data: { detail: "Checkout URL was not returned." } };
+      if (!url) throw { data: { detail: t("account:checkout.urlMissing") } };
       window.location.assign(url);
     } catch (err) {
       setBillingError(errorMessage(err));
@@ -464,6 +478,7 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
       setOauthReauthReady(true);
       setSignInMethodsNotice(message);
       setSignInMethodsError("");
+      setDeleteOpen(true);
     } else if (oauthResult === "linked" || oauthResult === "already_linked") {
       setSignInMethodsNotice(message);
       setSignInMethodsError("");
@@ -493,7 +508,7 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
       setCurrentPassword("");
       setNewPassword("");
       setNewPasswordConfirm("");
-      setSuccess("Password changed.");
+      setSuccess(t("account:password.changed"));
     } catch (err) {
       const next = {
         current_password: fieldError(err, "current_password"),
@@ -525,7 +540,7 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
       setPrimaryEmail("");
       setPrimaryPassword("");
       setPrimaryOpen(false);
-      setEmailSuccess("Verification email sent to your new login email address.");
+      setEmailSuccess(t("account:emailMessages.verificationSentLogin"));
       await loadAccount();
     } catch (err) {
       const guidance = passwordNotAvailableGuidance(err);
@@ -558,7 +573,7 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
       setBackupEmail("");
       setBackupPassword("");
       setBackupOpen(false);
-      setEmailSuccess("Verification email sent to your backup email address.");
+      setEmailSuccess(t("account:emailMessages.verificationSentBackup"));
       await loadAccount();
     } catch (err) {
       const guidance = passwordNotAvailableGuidance(err);
@@ -587,7 +602,7 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
       await api.removeBackupEmail({ current_password: backupRemovePassword });
       setBackupRemovePassword("");
       setBackupRemoveOpen(false);
-      setEmailSuccess("Backup email removed.");
+      setEmailSuccess(t("account:emailMessages.backupRemoved"));
       await loadAccount();
     } catch (err) {
       const guidance = passwordNotAvailableGuidance(err);
@@ -608,7 +623,7 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
     try {
       await api.csrf();
       await api.resendBackupEmailVerification();
-      setEmailSuccess("Verification email sent.");
+      setEmailSuccess(t("account:emailMessages.verificationSent"));
     } catch (err) {
       setEmailError(errorMessage(err));
     }
@@ -620,7 +635,7 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
     try {
       await api.csrf();
       await api.cancelBackupEmailChange();
-      setEmailSuccess("Pending backup email change cancelled.");
+      setEmailSuccess(t("account:emailMessages.pendingBackupCancelled"));
       await loadAccount();
     } catch (err) {
       setEmailError(errorMessage(err));
@@ -633,7 +648,7 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
     try {
       await api.csrf();
       await api.resendPrimaryEmailChange();
-      setEmailSuccess("Verification email sent.");
+      setEmailSuccess(t("account:emailMessages.verificationSent"));
     } catch (err) {
       setEmailError(errorMessage(err));
     }
@@ -645,7 +660,7 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
     try {
       await api.csrf();
       await api.cancelPrimaryEmailChange();
-      setEmailSuccess("Pending login email change cancelled.");
+      setEmailSuccess(t("account:emailMessages.pendingLoginCancelled"));
       await loadAccount();
     } catch (err) {
       setEmailError(errorMessage(err));
@@ -654,27 +669,47 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
 
   async function handleDeleteAccount(event) {
     event.preventDefault();
-    const confirmed = window.confirm(
-      "This cannot be undone. Permanently delete your CheckStation account and workspace?"
-    );
+    const confirmed = window.confirm(t("account:danger.confirmDialog"));
     if (!confirmed) return;
     setDeleting(true);
     setDeleteError("");
     setDeleteFieldErrors({});
+    setDeleteSubscriptionBlocked(false);
     try {
       await api.csrf();
-      await api.deleteAccount({
-        current_password: deletePassword,
+      const payload = {
         confirmation: deleteConfirmation,
-      });
+      };
+      if (Boolean(account?.sign_in_methods?.password?.enabled)) {
+        payload.current_password = deletePassword;
+      }
+      if (account?.two_factor_status === "enabled") {
+        if (deleteUseRecovery) {
+          payload.recovery_code = deleteRecoveryCode;
+        } else {
+          payload.code = deleteCode;
+        }
+      }
+      await api.deleteAccount(payload);
       if (onAccountDeleted) onAccountDeleted();
     } catch (err) {
+      if (err?.data?.code === "active_subscription") {
+        setDeleteSubscriptionBlocked(true);
+        setDeleteError(err.data.detail || t("account:danger.activeSubscription"));
+        return;
+      }
+      if (err?.data?.code === "oauth_reauth_required") {
+        setDeleteError(err.data.detail || t("account:danger.oauthReauthRequired"));
+        return;
+      }
       const guidance = passwordNotAvailableGuidance(err);
       const next = {
         current_password: guidance || fieldError(err, "current_password"),
         confirmation: fieldError(err, "confirmation"),
+        code: fieldError(err, "code"),
+        recovery_code: fieldError(err, "recovery_code"),
       };
-      if (next.current_password || next.confirmation) {
+      if (Object.values(next).some(Boolean)) {
         setDeleteFieldErrors(next);
       } else {
         setDeleteError(errorMessage(err));
@@ -688,10 +723,15 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
     return <Navigate to="/account/security" replace />;
   }
 
+  const sectionDescription = t(`accountSectionDescriptions.${section}`, {
+    ns: "workspace",
+    defaultValue: sectionMeta.description,
+  });
+
   if (section === "subscription" || section === "billing" || section === "info" || section === "tutorial" || section === "status") {
     return (
       <div className="page account-page">
-        <PageHeader title="Account" description={sectionMeta.description} />
+        <PageHeader title={t("workspace:pageTitles.account")} description={sectionDescription} />
         <AccountSubNav session={session} />
         {section === "subscription" ? (
           <AccountSubscriptionPanel
@@ -726,9 +766,9 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
             onOpenPortal={handleOpenPortal}
           />
         ) : null}
-        {section === "info" ? <AccountInfoPanel /> : null}
+        {section === "info" ? <AccountInfoPanel contentLang={workspaceContentLang} /> : null}
         {section === "tutorial" ? <AccountTutorialPanel /> : null}
-        {section === "status" ? <AccountStatusPanel /> : null}
+        {section === "status" ? <AccountStatusPanel contentLang={workspaceContentLang} /> : null}
       </div>
     );
   }
@@ -736,7 +776,7 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
   if (loading) {
     return (
       <div className="page">
-        <LoadingState label="Loading account…" />
+        <LoadingState label={t("common:loading")} />
       </div>
     );
   }
@@ -754,13 +794,13 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
 
   return (
     <div className="page account-page" data-tutorial-target="account-security">
-      <PageHeader title="Account" description={sectionMeta.description} />
+      <PageHeader title={t("workspace:pageTitles.account")} description={sectionDescription} />
       <AccountSubNav session={session} />
       <div className="account-settings-stack">
         <AccountSettingsSection
           id="email"
-          title="Email"
-          description="Login and backup email settings"
+          title={t("account:sections.email.title")}
+          description={t("account:sections.email.description")}
           statusSummary={emailAccordionStatusSummary(account)}
           statusPills={emailAccordionStatusPills(account)}
           variant="email"
@@ -769,18 +809,19 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
         >
           <div className="account-email-section">
             <EmailActionRow
-              label="Login email"
+              label={t("account:email.loginEmail")}
               email={account.email}
-              status={account.email_verified ? "Verified" : "Unverified"}
+              status={account.email_verified ? t("account:emailStatus.verified") : t("account:emailStatus.unverified")}
+              statusVariant={account.email_verified ? "live" : undefined}
             >
               {!account.pending_primary_email && !primaryOpen ? (
                 <button type="button" className="btn-secondary btn-sm" onClick={() => setPrimaryOpen(true)}>
-                  Change email
+                  {t("account:email.changeEmail")}
                 </button>
               ) : null}
               {primaryOpen ? (
                 <form className="auth-form account-inline-form" onSubmit={handlePrimaryChange} autoComplete="off">
-                  <Field label="New login email" error={primaryFieldErrors.email}>
+                  <Field label={t("account:email.newLoginEmail")} error={primaryFieldErrors.email}>
                     <input
                       type="email"
                       value={primaryEmail}
@@ -789,7 +830,7 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
                       autoComplete="email"
                     />
                   </Field>
-                  <Field label="Current password" error={primaryFieldErrors.current_password}>
+                  <Field label={t("account:email.currentPassword")} error={primaryFieldErrors.current_password}>
                     <PasswordInput
                       value={primaryPassword}
                       onChange={(e) => setPrimaryPassword(e.target.value)}
@@ -801,7 +842,7 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
                   </Field>
                   <div className="account-inline-actions">
                     <button type="submit" className="btn-primary" disabled={primarySaving}>
-                      {primarySaving ? "Sending…" : "Send verification email"}
+                      {primarySaving ? t("account:email.sending") : t("account:email.sendVerification")}
                     </button>
                     <button
                       type="button"
@@ -814,7 +855,7 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
                         setPrimaryFieldErrors({});
                       }}
                     >
-                      Cancel
+                      {t("common:cancel")}
                     </button>
                   </div>
                 </form>
@@ -823,23 +864,23 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
 
             {account.pending_primary_email ? (
               <EmailActionRow
-                label="Pending change"
+                label={t("account:email.pendingChange")}
                 email={account.pending_primary_email}
-                status="Pending verification"
+                status={t("account:emailStatus.pendingVerification")}
               >
                 <div className="account-inline-actions">
                   <button type="button" className="btn-secondary btn-sm" onClick={handleResendPrimary}>
-                    Resend verification
+                    {t("account:email.resendVerification")}
                   </button>
                   <button type="button" className="btn-secondary btn-sm" onClick={handleCancelPrimary}>
-                    Cancel change
+                    {t("account:email.cancelChange")}
                   </button>
                 </div>
               </EmailActionRow>
             ) : null}
 
             <EmailActionRow
-              label="Backup email"
+              label={t("account:email.backupEmail")}
               email={
                 backupStatus === "pending"
                   ? account.pending_backup_email
@@ -849,40 +890,41 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
               }
               status={
                 backupStatus === "pending"
-                  ? "Pending verification"
+                  ? t("account:emailStatus.pendingVerification")
                   : backupStatus === "verified"
-                    ? "Verified"
+                    ? t("account:emailStatus.verified")
                     : null
               }
+              statusVariant={backupStatus === "verified" ? "live" : undefined}
             >
               {backupStatus === "none" && !backupOpen ? (
                 <button type="button" className="btn-secondary btn-sm" onClick={() => setBackupOpen(true)}>
-                  Add backup email
+                  {t("account:email.addBackupEmail")}
                 </button>
               ) : null}
               {backupStatus === "verified" && !backupOpen && !backupRemoveOpen ? (
                 <div className="account-inline-actions">
                   <button type="button" className="btn-secondary btn-sm" onClick={() => setBackupOpen(true)}>
-                    Change
+                    {t("account:email.change")}
                   </button>
                   <button type="button" className="btn-secondary btn-sm" onClick={() => setBackupRemoveOpen(true)}>
-                    Remove
+                    {t("account:email.remove")}
                   </button>
                 </div>
               ) : null}
               {backupStatus === "pending" ? (
                 <div className="account-inline-actions">
                   <button type="button" className="btn-secondary btn-sm" onClick={handleResendBackup}>
-                    Resend verification
+                    {t("account:email.resendVerification")}
                   </button>
                   <button type="button" className="btn-secondary btn-sm" onClick={handleCancelBackup}>
-                    Cancel pending change
+                    {t("account:email.cancelPendingChange")}
                   </button>
                 </div>
               ) : null}
               {backupOpen ? (
                 <form className="auth-form account-inline-form" onSubmit={handleBackupRequest} autoComplete="off">
-                  <Field label="Backup email" error={backupFieldErrors.email}>
+                  <Field label={t("account:email.backupEmail")} error={backupFieldErrors.email}>
                     <input
                       type="email"
                       value={backupEmail}
@@ -891,7 +933,7 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
                       autoComplete="email"
                     />
                   </Field>
-                  <Field label="Current password" error={backupFieldErrors.current_password}>
+                  <Field label={t("account:email.currentPassword")} error={backupFieldErrors.current_password}>
                     <PasswordInput
                       value={backupPassword}
                       onChange={(e) => setBackupPassword(e.target.value)}
@@ -903,7 +945,7 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
                   </Field>
                   <div className="account-inline-actions">
                     <button type="submit" className="btn-primary" disabled={backupSaving}>
-                      {backupSaving ? "Sending…" : "Send verification email"}
+                      {backupSaving ? t("account:email.sending") : t("account:email.sendVerification")}
                     </button>
                     <button
                       type="button"
@@ -916,14 +958,14 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
                         setBackupFieldErrors({});
                       }}
                     >
-                      Cancel
+                      {t("common:cancel")}
                     </button>
                   </div>
                 </form>
               ) : null}
               {backupRemoveOpen ? (
                 <form className="auth-form account-inline-form" onSubmit={handleBackupRemove} autoComplete="off">
-                  <Field label="Current password" error={backupFieldErrors.current_password}>
+                  <Field label={t("account:email.currentPassword")} error={backupFieldErrors.current_password}>
                     <PasswordInput
                       value={backupRemovePassword}
                       onChange={(e) => setBackupRemovePassword(e.target.value)}
@@ -933,7 +975,7 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
                   </Field>
                   <div className="account-inline-actions">
                     <button type="submit" className="btn-danger" disabled={backupSaving}>
-                      {backupSaving ? "Removing…" : "Remove backup email"}
+                      {backupSaving ? t("account:email.removing") : t("account:email.removeBackupEmail")}
                     </button>
                     <button
                       type="button"
@@ -945,22 +987,22 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
                         setBackupFieldErrors({});
                       }}
                     >
-                      Cancel
+                      {t("common:cancel")}
                     </button>
                   </div>
                 </form>
               ) : null}
             </EmailActionRow>
           </div>
-          <p className="hint">Workspace staff accounts use a separate login and are not verified here.</p>
+          <p className="hint">{t("account:email.staffHint")}</p>
           <ErrorBanner message={emailError} />
           <SuccessBanner message={emailSuccess} />
         </AccountSettingsSection>
 
         <AccountSettingsSection
           id="sign-in-methods"
-          title="Sign-in methods"
-          description="Password, Google, and Apple sign-in options"
+          title={t("account:sections.signInMethods.title")}
+          description={t("account:sections.signInMethods.description")}
           statusSummary={signInMethodsStatusSummary(account.sign_in_methods)}
           statusPills={signInMethodsStatusPills(account.sign_in_methods)}
           variant="signInMethods"
@@ -988,14 +1030,14 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
         {passwordEnabled ? (
         <AccountSettingsSection
           id="password"
-          title="Change password"
-          description="Update your account password"
+          title={t("account:sections.password.title")}
+          description={t("account:sections.password.description")}
           variant="password"
           isOpen={passwordExpanded}
           onToggle={() => setPasswordExpanded((open) => !open)}
         >
           <form className="auth-form" onSubmit={handleChangePassword} autoComplete="off">
-            <Field label="Current password" error={fieldErrors.current_password}>
+            <Field label={t("account:password.current")} error={fieldErrors.current_password}>
               <PasswordInput
                 value={currentPassword}
                 onChange={(e) => setCurrentPassword(e.target.value)}
@@ -1003,7 +1045,7 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
                 autoComplete="current-password"
               />
             </Field>
-            <Field label="New password" error={fieldErrors.new_password}>
+            <Field label={t("account:password.new")} error={fieldErrors.new_password}>
               <PasswordInput
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
@@ -1013,7 +1055,7 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
                 onVisibleChange={newPasswordVisibility.setVisible}
               />
             </Field>
-            <Field label="Confirm new password" error={fieldErrors.new_password_confirm}>
+            <Field label={t("account:password.confirmNew")} error={fieldErrors.new_password_confirm}>
               <PasswordInput
                 value={newPasswordConfirm}
                 onChange={(e) => setNewPasswordConfirm(e.target.value)}
@@ -1026,7 +1068,7 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
             <ErrorBanner message={formError} />
             <SuccessBanner message={success} />
             <button type="submit" className="btn-primary" disabled={saving}>
-              {saving ? "Saving…" : "Update password"}
+              {saving ? t("account:password.saving") : t("account:password.update")}
             </button>
           </form>
         </AccountSettingsSection>
@@ -1034,8 +1076,8 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
 
         <AccountSettingsSection
           id="two-factor"
-          title="Two-factor authentication"
-          description="Add an extra security step when signing in."
+          title={t("account:sections.twoFactor.title")}
+          description={t("account:sections.twoFactor.description")}
           statusPills={twoFactorStatusPills(account?.two_factor_status)}
           variant="twoFactor"
           isOpen={twoFactorExpanded}
@@ -1050,7 +1092,7 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
               {twoFactorAction === null ? (
                 <>
                   <p className="account-settings-note">
-                    <strong>Status: Enabled</strong>
+                    <strong>{t("account:twoFactor.statusEnabled")}</strong>
                   </p>
                   <div style={{ display: "grid", gap: "0.75rem" }}>
                     <button
@@ -1066,7 +1108,7 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
                         setRegenRecoveryCodes(null);
                       }}
                     >
-                      Regenerate recovery codes
+                      {t("account:twoFactor.regenerateCodes")}
                     </button>
                     <button
                       type="button"
@@ -1080,7 +1122,7 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
                         setDisableRecoveryCode("");
                       }}
                     >
-                      Disable two-factor authentication
+                      {t("account:twoFactor.disable")}
                     </button>
                   </div>
                 </>
@@ -1112,8 +1154,8 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
                     }
                   }}
                 >
-                  <h4 style={{ margin: 0, fontWeight: 700 }}>Regenerate recovery codes</h4>
-                  <Field label="Current password" error={regenError}>
+                  <h4 style={{ margin: 0, fontWeight: 700 }}>{t("account:twoFactor.regenerateTitle")}</h4>
+                  <Field label={t("account:password.current")} error={regenError}>
                     <PasswordInput value={regenPassword} onChange={(e) => setRegenPassword(e.target.value)} required autoComplete="current-password" />
                   </Field>
 
@@ -1127,11 +1169,11 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
                         setRegenRecoveryCode("");
                       }}
                     >
-                      {regenUseRecoveryCode ? "Use authenticator code" : "Use a recovery code"}
+                      {regenUseRecoveryCode ? t("account:twoFactor.useAuthenticator") : t("account:twoFactor.useRecovery")}
                     </button>
 
                     {!regenUseRecoveryCode ? (
-                      <Field label="Authenticator code">
+                      <Field label={t("account:twoFactor.authenticatorCode")}>
                         <input
                           value={regenCode}
                           onChange={(e) => setRegenCode(e.target.value)}
@@ -1142,14 +1184,14 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
                         />
                       </Field>
                     ) : (
-                      <Field label="Recovery code">
+                      <Field label={t("account:twoFactor.recoveryCode")}>
                         <input
                           value={regenRecoveryCode}
                           onChange={(e) => setRegenRecoveryCode(e.target.value)}
                           type="text"
                           autoComplete="one-time-code"
                           required
-                          placeholder="e.g. ABCD-EFGH"
+                          placeholder={t("account:twoFactor.recoveryPlaceholder")}
                         />
                       </Field>
                     )}
@@ -1161,7 +1203,7 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
                   {regenRecoveryCodes ? (
                     <div className="auth-status-panel">
                       <p className="account-settings-note">
-                        Recovery codes are shown once. Save them somewhere safe.
+                        {t("account:twoFactor.recoveryOnce")}
                       </p>
                       <div style={{ display: "grid", gap: "0.4rem" }}>
                         {regenRecoveryCodes.map((c) => (
@@ -1177,13 +1219,13 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
                             setTwoFactorAction(null);
                           }}
                         >
-                          Done
+                          {t("account:twoFactor.done")}
                         </button>
                       </div>
                     </div>
                   ) : (
                     <button type="submit" className="btn-primary" disabled={regenBusy}>
-                      {regenBusy ? "Working…" : "Regenerate"}
+                      {regenBusy ? t("common:working") : t("account:twoFactor.regenerate")}
                     </button>
                   )}
                 </form>
@@ -1214,8 +1256,8 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
                     }
                   }}
                 >
-                  <h4 style={{ margin: 0, fontWeight: 700 }}>Disable two-factor authentication</h4>
-                  <Field label="Current password">
+                  <h4 style={{ margin: 0, fontWeight: 700 }}>{t("account:twoFactor.disableTitle")}</h4>
+                  <Field label={t("account:password.current")}>
                     <PasswordInput value={disablePassword} onChange={(e) => setDisablePassword(e.target.value)} required autoComplete="current-password" />
                   </Field>
 
@@ -1229,23 +1271,23 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
                         setDisableRecoveryCode("");
                       }}
                     >
-                      {disableUseRecoveryCode ? "Use authenticator code" : "Use a recovery code"}
+                      {disableUseRecoveryCode ? t("account:twoFactor.useAuthenticator") : t("account:twoFactor.useRecovery")}
                     </button>
 
                     {!disableUseRecoveryCode ? (
-                      <Field label="Authenticator code">
+                      <Field label={t("account:twoFactor.authenticatorCode")}>
                         <input value={disableCode} onChange={(e) => setDisableCode(e.target.value)} type="text" inputMode="numeric" autoComplete="one-time-code" required />
                       </Field>
                     ) : (
-                      <Field label="Recovery code">
-                        <input value={disableRecoveryCode} onChange={(e) => setDisableRecoveryCode(e.target.value)} type="text" autoComplete="one-time-code" required placeholder="e.g. ABCD-EFGH" />
+                      <Field label={t("account:twoFactor.recoveryCode")}>
+                        <input value={disableRecoveryCode} onChange={(e) => setDisableRecoveryCode(e.target.value)} type="text" autoComplete="one-time-code" required placeholder={t("account:twoFactor.recoveryPlaceholder")} />
                       </Field>
                     )}
                   </div>
 
                   <ErrorBanner message={disableError} />
                   <button type="submit" className="btn-danger-soft" disabled={disableBusy}>
-                    {disableBusy ? "Working…" : "Disable two-factor authentication"}
+                    {disableBusy ? t("common:working") : t("account:twoFactor.disable")}
                   </button>
                 </form>
               ) : null}
@@ -1257,10 +1299,10 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
               {twoFactorAction === null ? (
                 <>
                   <p className="account-settings-note">
-                    <strong>Two-factor authentication is not enabled.</strong>
+                    <strong>{t("account:twoFactor.notEnabledTitle")}</strong>
                   </p>
                   <p className="account-settings-note">
-                    Protect your workspace with an authenticator app, even if your password is compromised.
+                    {t("account:twoFactor.notEnabledDescription")}
                   </p>
                   <button
                     type="button"
@@ -1276,7 +1318,7 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
                       setSetupRecoveryCodes(null);
                     }}
                   >
-                    Set up two-factor authentication
+                    {t("account:twoFactor.setup")}
                   </button>
                 </>
               ) : null}
@@ -1306,12 +1348,12 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
                         }
                       }}
                     >
-                      <Field label="Current password" error={setupError}>
+                      <Field label={t("account:password.current")} error={setupError}>
                         <PasswordInput value={setupPassword} onChange={(e) => setSetupPassword(e.target.value)} required autoComplete="current-password" />
                       </Field>
                       <ErrorBanner message={setupError} />
                       <button type="submit" className="btn-primary" disabled={setupBusy}>
-                        {setupBusy ? "Working…" : "Continue"}
+                        {setupBusy ? t("common:working") : t("account:twoFactor.continue")}
                       </button>
                     </form>
                   ) : null}
@@ -1337,7 +1379,7 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
                       {setupRecoveryCodes ? (
                         <div className="auth-status-panel">
                           <p className="account-settings-note">
-                            Recovery codes are shown once. Save them somewhere safe.
+                            {t("account:twoFactor.recoveryOnce")}
                           </p>
                           <div style={{ display: "grid", gap: "0.4rem" }}>
                             {setupRecoveryCodes.map((c) => (
@@ -1356,7 +1398,7 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
                                 await loadAccount();
                               }}
                             >
-                              Done
+                              {t("account:twoFactor.done")}
                             </button>
                           </div>
                         </div>
@@ -1366,23 +1408,23 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
                             {setupQrDataUri ? (
                               <div style={{ display: "grid", gap: "0.35rem", justifyItems: "start" }}>
                                 <p className="account-settings-note">
-                                  Scan this QR code with your authenticator app:
+                                  {t("account:twoFactor.scanQr")}
                                 </p>
-                                <img src={setupQrDataUri} alt="Authenticator QR code" style={{ width: 160, height: 160 }} />
+                                <img src={setupQrDataUri} alt={t("account:twoFactor.qrAlt")} style={{ width: 160, height: 160 }} />
                               </div>
                             ) : null}
 
                             {setupKey ? (
                               <div style={{ display: "grid", gap: "0.35rem" }}>
-                                <p className="account-settings-note">Manual setup key:</p>
+                                <p className="account-settings-note">{t("account:twoFactor.manualKey")}</p>
                                 <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
                                   <CodeBadge>{setupKey}</CodeBadge>
-                                  <CopyButton value={setupKey} label="Copy key" />
+                                  <CopyButton value={setupKey} label={t("account:twoFactor.copyKey")} />
                                 </div>
                               </div>
                             ) : null}
 
-                            <Field label="Authenticator code" error={setupError}>
+                            <Field label={t("account:twoFactor.authenticatorCode")} error={setupError}>
                               <input
                                 value={setupCode}
                                 onChange={(e) => setSetupCode(e.target.value)}
@@ -1390,14 +1432,14 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
                                 inputMode="numeric"
                                 autoComplete="one-time-code"
                                 required
-                                placeholder="6-digit code"
+                                placeholder={t("account:twoFactor.codePlaceholder")}
                               />
                             </Field>
                             <ErrorBanner message={setupError} />
                           </div>
 
                           <button type="submit" className="btn-primary" disabled={setupBusy}>
-                            {setupBusy ? "Verifying…" : "Verify & enable"}
+                            {setupBusy ? t("account:twoFactor.verifying") : t("account:twoFactor.verifyEnable")}
                           </button>
                           <button
                             type="button"
@@ -1411,7 +1453,7 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
                               setSetupRecoveryCodes(null);
                             }}
                           >
-                            Restart setup
+                            {t("account:twoFactor.restartSetup")}
                           </button>
                         </>
                       )}
@@ -1425,46 +1467,123 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
 
         <AccountSettingsSection
           id="danger"
-          title="Danger zone"
-          description="Permanent account deletion is separate from logout and archiving."
+          title={t("account:sections.danger.title")}
+          description={t("account:sections.danger.description")}
           variant="danger"
         >
           {!deleteOpen ? (
             <div className="danger-zone">
-              <p>
-                Permanently delete your CheckStation account, this workspace, and
-                customer-created operational data. This cannot be undone.
-              </p>
+              <p>{t("account:danger.intro")}</p>
               <button type="button" className="btn-danger btn-sm" onClick={() => setDeleteOpen(true)}>
-                Delete account
+                {t("account:danger.deleteAccount")}
               </button>
             </div>
           ) : (
             <form className="auth-form danger-zone-form" onSubmit={handleDeleteAccount} autoComplete="off">
               <div className="danger-zone-warning">
                 <p>
-                  <strong>This cannot be undone.</strong> Permanent deletion removes
-                  your CheckStation account, this workspace, and customer-created
-                  operational data such as Members, Groups, kiosk configuration,
-                  staff logins, and history.
+                  <strong>{t("account:danger.confirmTitle")}</strong> {t("account:danger.confirmBody1")}
                 </p>
-                <p>
-                  Your account and workspace data will be permanently deleted, except
-                  information we may be required to retain by law or for
-                  security/compliance purposes.
-                </p>
-                <p>This is not logout, archive, or subscription cancellation.</p>
+                <p>{t("account:danger.confirmBody2")}</p>
+                <p>{t("account:danger.confirmBody3")}</p>
               </div>
-              <Field label="Current password" error={deleteFieldErrors.current_password}>
-                <PasswordInput
-                  value={deletePassword}
-                  onChange={(e) => setDeletePassword(e.target.value)}
-                  required
-                  autoComplete="current-password"
-                />
-              </Field>
+              {deleteSubscriptionBlocked ? (
+                <div className="danger-zone-warning" role="alert">
+                  <p>{t("account:danger.activeSubscription")}</p>
+                  <p>{t("account:danger.activeSubscriptionHint")}</p>
+                  {canManageSubscription(session) ? (
+                    <p>
+                      <Link className="btn-secondary btn-sm" to="/account/subscription">
+                        {t("account:danger.manageSubscription")}
+                      </Link>
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
+              {passwordEnabled ? (
+                <Field label={t("account:password.current")} error={deleteFieldErrors.current_password}>
+                  <PasswordInput
+                    value={deletePassword}
+                    onChange={(e) => setDeletePassword(e.target.value)}
+                    required
+                    autoComplete="current-password"
+                  />
+                </Field>
+              ) : (
+                <div className="account-inline-actions">
+                  <p className="hint">{t("account:danger.oauthReauthRequired")}</p>
+                  {oauthReauthReady ? (
+                    <p className="hint">{t("account:danger.oauthReauthReady")}</p>
+                  ) : (
+                    <>
+                      {account?.sign_in_methods?.google?.linked ? (
+                        <button
+                          type="button"
+                          className="btn-secondary btn-sm"
+                          onClick={() => {
+                            window.location.assign(oauthStartUrl(api.baseUrl, "google", "verify"));
+                          }}
+                        >
+                          {t("account:signInMethods.confirmWithGoogle")}
+                        </button>
+                      ) : null}
+                      {account?.sign_in_methods?.apple?.linked ? (
+                        <button
+                          type="button"
+                          className="btn-secondary btn-sm"
+                          onClick={() => {
+                            window.location.assign(oauthStartUrl(api.baseUrl, "apple", "verify"));
+                          }}
+                        >
+                          {t("account:signInMethods.confirmWithApple")}
+                        </button>
+                      ) : null}
+                    </>
+                  )}
+                </div>
+              )}
+              {account?.two_factor_status === "enabled" ? (
+                <>
+                  <Field
+                    label={
+                      deleteUseRecovery
+                        ? t("account:twoFactor.recoveryCode")
+                        : t("account:signInMethods.authCode")
+                    }
+                    error={deleteFieldErrors.code || deleteFieldErrors.recovery_code}
+                  >
+                    {deleteUseRecovery ? (
+                      <input
+                        type="text"
+                        value={deleteRecoveryCode}
+                        onChange={(e) => setDeleteRecoveryCode(e.target.value)}
+                        required
+                        autoComplete="off"
+                      />
+                    ) : (
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={deleteCode}
+                        onChange={(e) => setDeleteCode(e.target.value)}
+                        required
+                        autoComplete="one-time-code"
+                      />
+                    )}
+                  </Field>
+                  <button
+                    type="button"
+                    className="btn-link"
+                    onClick={() => setDeleteUseRecovery((value) => !value)}
+                  >
+                    {deleteUseRecovery
+                      ? t("account:twoFactor.useAuthenticator")
+                      : t("account:twoFactor.useRecovery")}
+                  </button>
+                </>
+              ) : null}
               <Field
-                label='Type DELETE to confirm'
+                label={t("account:danger.confirmPrompt")}
                 error={deleteFieldErrors.confirmation}
               >
                 <input
@@ -1477,8 +1596,16 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
               </Field>
               <ErrorBanner message={deleteError} />
               <div className="danger-zone-actions">
-                <button type="submit" className="btn-danger" disabled={deleting}>
-                  {deleting ? "Deleting…" : "Permanently delete account"}
+                <button
+                  type="submit"
+                  className="btn-danger"
+                  disabled={
+                    deleting
+                    || deleteSubscriptionBlocked
+                    || (!passwordEnabled && !oauthReauthReady)
+                  }
+                >
+                  {deleting ? t("account:danger.deleting") : t("account:danger.permanentlyDelete")}
                 </button>
                 <button
                   type="button"
@@ -1490,9 +1617,13 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
                     setDeleteConfirmation("");
                     setDeleteError("");
                     setDeleteFieldErrors({});
+                    setDeleteCode("");
+                    setDeleteRecoveryCode("");
+                    setDeleteUseRecovery(false);
+                    setDeleteSubscriptionBlocked(false);
                   }}
                 >
-                  Cancel
+                  {t("common:cancel")}
                 </button>
               </div>
             </form>

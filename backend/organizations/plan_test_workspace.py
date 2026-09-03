@@ -90,9 +90,9 @@ def _add_membership(*, organization, group, member, section=None, code_suffix: i
         group=group,
         member=member,
         section=section,
-        participation_pin=f"{1000 + (code_suffix % 9000):04d}",
         group_participant_code=format_group_participant_code(group.pk, code_suffix),
     )
+    membership.set_participation_pin(f"{1000 + (code_suffix % 9000):04d}")
     membership.save()
     return membership
 
@@ -103,9 +103,9 @@ def _add_visitor(*, organization, group, section, name: str, code_suffix: int):
         group=group,
         section=section,
         name=name,
-        participation_pin=f"{2000 + (code_suffix % 8000):04d}",
         group_participant_code=format_group_participant_code(group.pk, code_suffix),
     )
+    visitor.set_participation_pin(f"{2000 + (code_suffix % 8000):04d}")
     visitor.save()
     return visitor
 

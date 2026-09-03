@@ -1,3 +1,5 @@
+import i18n from "./i18n/index.js";
+
 /** Workspace header bell poll while the shell stays mounted (~20s). */
 export const ANNOUNCEMENT_POLL_MS = 20000;
 export const ANNOUNCEMENT_ATTENTION_MS = 4200;
@@ -48,9 +50,13 @@ export function formatAnnouncementTime(value) {
 }
 
 export function announcementSeverityLabel(severity) {
-  if (severity === "maintenance") return "Maintenance";
-  if (severity === "important") return "Important";
-  return "Info";
+  if (severity === "maintenance") {
+    return i18n.t("announcementSeverity.maintenance", { ns: "workspace" });
+  }
+  if (severity === "important") {
+    return i18n.t("announcementSeverity.important", { ns: "workspace" });
+  }
+  return i18n.t("announcementSeverity.info", { ns: "workspace" });
 }
 
 export function shouldShowAnnouncementAttention({ unreadCount, previousUnreadCount, panelOpen }) {

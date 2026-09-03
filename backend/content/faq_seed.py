@@ -14,8 +14,9 @@ FAQ_ENTRIES = (
         "sort_order": 10,
         "answer": (
             "Open **Get started** on the CheckStation website (or go to `/register`). "
-            "Enter email and password, then create the account. Your workspace is created "
-            "automatically on **Basic**. Verify your email before you can use the workspace."
+            "Enter email and password, or use Google or Apple if enabled, then create the account. "
+            "Your workspace is created with a **7-day Business trial** (no card). "
+            "Verify your email before you can use the workspace when you register with email and password."
         ),
     },
     {
@@ -149,8 +150,11 @@ FAQ_ENTRIES = (
         "sort_order": 40,
         "answer": (
             "Yes. The owner can permanently delete the account and workspace from "
-            "**Account → Security** (Danger Zone). This is not the same as cancelling a "
-            "subscription. Cancellation stops paid renewal; deletion removes the workspace."
+            "**Account → Security** (Danger Zone) when no live paid subscription blocks "
+            "deletion. The built-in free Business trial alone does not block deletion. "
+            "Cancel-at-period-end still blocks until paid access actually ends. "
+            "Deletion does not automatically cancel Stripe billing. This is not the same "
+            "as cancelling a subscription."
         ),
     },
     {
@@ -589,7 +593,8 @@ FAQ_ENTRIES = (
             "Check that after-action email is enabled on the Group, the participant has "
             "participation email(s), the sender is configured, and the address is valid. "
             "Platform signup/verification mail uses Resend. Group attendance mail uses "
-            "the Group sender you configured (platform or custom SMTP). Ads or plan locks "
+            "the Group email sender you configured (custom SMTP, Gmail app password, "
+            "Outlook / Microsoft 365 SMTP, or Yahoo Mail app password). Ads or plan locks "
             "do not send mail."
         ),
     },
@@ -612,9 +617,9 @@ FAQ_ENTRIES = (
         "keywords": "smtp, custom sender, company email",
         "sort_order": 30,
         "answer": (
-            "Yes. Group email sender can be platform email or a custom company SMTP sender. "
-            "Configure it on the Group. This is separate from CheckStation's own "
-            "account/verification mail."
+            "Yes. Each Group configures its own email sender (custom company SMTP, Gmail, "
+            "Outlook / Microsoft 365, or Yahoo Mail). Platform transactional mail (Resend) "
+            "is separate and is used for account, verification, and billing-warning email."
         ),
     },
     {
@@ -814,7 +819,8 @@ FAQ_ENTRIES = (
         "answer": (
             "Plus is {{PLAN_PRICE_PLUS_MONTHLY}} / month or {{PLAN_PRICE_PLUS_YEARLY}} / "
             "year. Business is {{PLAN_PRICE_BUSINESS_MONTHLY}} / month or "
-            "{{PLAN_PRICE_BUSINESS_YEARLY}} / year. Basic is free. Yearly is 10 × monthly. "
+            "{{PLAN_PRICE_BUSINESS_YEARLY}} / year. Basic is free. Yearly pricing saves "
+            "approximately two months compared with paying monthly for 12 months. "
             "Taxes and Stripe proration are calculated by Stripe."
         ),
     },
@@ -1115,9 +1121,9 @@ FAQ_ENTRIES = (
         "related_document_slug": "groups-members",
         "sort_order": 50,
         "answer": (
-            "No. Group PINs are low-security attendance check-in codes so managers can "
-            "see assigned values. They are not workspace logins. Kiosk list payloads hide "
-            "PINs from participants."
+            "No. Group PINs are low-security attendance check-in codes. Managers can set, "
+            "change, or reset them, but saved PIN values are not shown again. They are not "
+            "workspace logins. Kiosk list payloads hide PINs from participants."
         ),
     },
     # General

@@ -7,6 +7,7 @@ STATE_MAJOR_OUTAGE = "major_outage"
 STATE_MAINTENANCE = "maintenance"
 STATE_UNKNOWN = "unknown"
 
+# English defaults kept for backward-compatible imports; localized labels live in i18n.py.
 COMPONENT_STATE_LABELS = {
     STATE_OPERATIONAL: "Operational",
     STATE_DEGRADED: "Degraded performance",
@@ -38,8 +39,10 @@ RESULT_FAILURE = "failure"
 RESULT_UNCONFIGURED = "unconfigured"
 
 
-def public_component_label(state):
-    return COMPONENT_STATE_LABELS.get(state, COMPONENT_STATE_LABELS[STATE_UNKNOWN])
+def public_component_label(state, locale="en"):
+    from status_service.i18n import public_component_label as localized_label
+
+    return localized_label(state, locale)
 
 
 def apply_probe_result(current_state, consecutive_failures, consecutive_successes, kind):

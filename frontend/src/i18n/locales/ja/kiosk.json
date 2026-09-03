@@ -2,6 +2,8 @@
   "eyebrow": "キオスク",
   "titleDefault": "キオスク",
   "titleUnavailable": "キオスクは利用できません",
+  "permissionDeniedTitle": "キオスクは利用できません",
+  "permissionDeniedBody": "このアカウントからキオスクを起動する権限がありません。",
   "exit": "終了",
   "exitKiosk": "キオスクを終了",
   "exitKioskAria": "キオスクを終了",

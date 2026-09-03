@@ -1,6 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { api, errorMessage } from "./api.js";
+import { useTranslation } from "react-i18next";
+import { api } from "./api.js";
 import { Field, SectionCard } from "./components.jsx";
+import { localizedErrorMessage } from "./i18n/errorMessages.js";
 import { revealParticipantEditPanel } from "./groupParticipantEdit.js";
 import {
   compactEmailSlots,
@@ -9,6 +11,7 @@ import {
   participationEmailsForEdit,
   participationEmailsForNewMember,
 } from "./groupParticipantEmails.js";
+import i18n from "./i18n/index.js";
 
 const EMPTY_PARTICIPATION = {
   participation_emails: [""],
@@ -23,7 +26,7 @@ function appendParticipationEmails(data, emails) {
 function formatParticipantEmails(emails, fallback = "") {
   const list = Array.isArray(emails) && emails.length ? emails : fallback ? [fallback] : [];
   if (!list.length) {
-    return "—";
+    return i18n.t("members:form.emptyValue");
   }
   return list.join(", ");
 }
@@ -41,15 +44,21 @@ export default function GroupParticipantsSection({
   onChanged,
   operationsDisabled = false,
 }) {
+  const { t } = useTranslation(["groups", "common", "errors"]);
   const [memberships, setMemberships] = useState([]);
   const [participants, setParticipants] = useState([]);
   const [available, setAvailable] = useState([]);
   const [selectedMemberId, setSelectedMemberId] = useState("");
   const [participation, setParticipation] = useState(EMPTY_PARTICIPATION);
   const [participant, setParticipant] = useState({ name: "", emails: [""], pin: "" });
-  const [saving, setSaving] = useState(false);
+  const [addingMember, setAddingMember] = useState(false);
+  const [addingVisitor, setAddingVisitor] = useState(false);
+  const [addSuccessKind, setAddSuccessKind] = useState(null);
   const [editingMembershipId, setEditingMembershipId] = useState(null);
   const [editingParticipantId, setEditingParticipantId] = useState(null);
+  const addingMemberRef = useRef(false);
+  const addingVisitorRef = useRef(false);
+  const addSuccessTimerRef = useRef(null);
   const editPanelRef = useRef(null);
   const editFocusRef = useRef(null);
 
@@ -82,20 +91,27 @@ export default function GroupParticipantsSection({
   }
 
   useEffect(() => {
-    load().catch((loadError) => onError?.(errorMessage(loadError)));
+    load().catch((loadError) => onError?.(localizedErrorMessage(loadError, t)));
   }, [groupId, classId]);
+
+  useEffect(
+    () => () => {
+      if (addSuccessTimerRef.current) {
+        window.clearTimeout(addSuccessTimerRef.current);
+      }
+    },
+    [],
+  );
 
   const selectedMember = available.find((member) => String(member.id) === String(selectedMemberId));
   const participantCount = memberships.length + participants.length;
-  const scopeLabel = classId ? "Class" : "Group";
+  const scopeLabel = classId ? t("participants.scopeClass") : t("participants.scopeGroup");
 
   useEffect(() => {
     if (!selectedMember) {
       setParticipation(EMPTY_PARTICIPATION);
       return;
     }
-    // New participation only: refresh #1 from the selected Member profile.
-    // Switching Members replaces the draft with that Member's profile email.
     setParticipation({
       participation_emails: participationEmailsForNewMember(selectedMember),
       participation_pin: "",
@@ -109,12 +125,33 @@ export default function GroupParticipantsSection({
     }
   }
 
+  function clearAddSuccess() {
+    if (addSuccessTimerRef.current) {
+      window.clearTimeout(addSuccessTimerRef.current);
+      addSuccessTimerRef.current = null;
+    }
+    setAddSuccessKind(null);
+  }
+
+  function showAddSuccess(kind) {
+    if (addSuccessTimerRef.current) {
+      window.clearTimeout(addSuccessTimerRef.current);
+    }
+    setAddSuccessKind(kind);
+    addSuccessTimerRef.current = window.setTimeout(() => {
+      setAddSuccessKind(null);
+      addSuccessTimerRef.current = null;
+    }, 1800);
+  }
+
   async function addMember(event) {
     event.preventDefault();
-    if (!selectedMember) {
+    if (!selectedMember || addingMemberRef.current) {
       return;
     }
-    setSaving(true);
+    addingMemberRef.current = true;
+    setAddingMember(true);
+    clearAddSuccess();
     onError?.("");
     const data = new FormData();
     data.append("member_id", selectedMember.id);
@@ -130,16 +167,23 @@ export default function GroupParticipantsSection({
       setSelectedMemberId("");
       setParticipation(EMPTY_PARTICIPATION);
       await refresh();
+      showAddSuccess("member");
     } catch (saveError) {
-      onError?.(errorMessage(saveError));
+      onError?.(localizedErrorMessage(saveError, t));
     } finally {
-      setSaving(false);
+      addingMemberRef.current = false;
+      setAddingMember(false);
     }
   }
 
   async function addParticipant(event) {
     event.preventDefault();
-    setSaving(true);
+    if (addingVisitorRef.current) {
+      return;
+    }
+    addingVisitorRef.current = true;
+    setAddingVisitor(true);
+    clearAddSuccess();
     onError?.("");
     const data = new FormData();
     data.append("name", participant.name);
@@ -151,17 +195,22 @@ export default function GroupParticipantsSection({
       await api.createParticipant(session, groupId, data, classId);
       setParticipant({ name: "", emails: [""], pin: "" });
       await refresh();
+      showAddSuccess("visitor");
     } catch (saveError) {
-      onError?.(errorMessage(saveError));
+      onError?.(localizedErrorMessage(saveError, t));
     } finally {
-      setSaving(false);
+      addingVisitorRef.current = false;
+      setAddingVisitor(false);
     }
   }
 
   async function removeMembership(membership) {
     if (
       !window.confirm(
-        `Remove ${membership.effective.name} from this ${scopeLabel}? The reusable Member will be kept.`,
+        t("participants.confirmRemoveMember", {
+          name: membership.effective.name,
+          scope: scopeLabel,
+        }),
       )
     ) {
       return;
@@ -171,7 +220,11 @@ export default function GroupParticipantsSection({
   }
 
   async function removeParticipant(record) {
-    if (!window.confirm(`Remove ${record.name} from this ${scopeLabel}?`)) {
+    if (
+      !window.confirm(
+        t("participants.confirmRemoveParticipant", { name: record.name, scope: scopeLabel }),
+      )
+    ) {
       return;
     }
     await api.removeParticipant(session, groupId, record.id, classId);
@@ -179,7 +232,7 @@ export default function GroupParticipantsSection({
   }
 
   return (
-    <SectionCard title={`Participants (${participantCount})`} id="group-participants">
+    <SectionCard title={t("participants.title", { count: participantCount })} id="group-participants">
       <div className="participant-list-scroll">
         <div className="participant-table">
           {memberships.map((membership) => (
@@ -187,12 +240,16 @@ export default function GroupParticipantsSection({
               key={`m-${membership.id}`}
               name={membership.effective.name}
               code={membership.group_participant_code}
-              kind="Member"
+              kind={t("participants.kindMember")}
               email={formatParticipantEmails(
                 membership.participation?.emails || membership.participation_emails,
                 membership.participation?.email,
               )}
-              pin={membership.participation?.pin}
+              pin={
+                membership.participation?.has_pin
+                  ? t("participants.pinIsSet")
+                  : ""
+              }
               incomplete={!membership.participation?.complete}
               onEdit={() => beginEditMembership(membership.id)}
               onRemove={() => removeMembership(membership)}
@@ -203,18 +260,18 @@ export default function GroupParticipantsSection({
               key={`p-${record.id}`}
               name={record.name}
               code={record.group_participant_code}
-              kind="Visitor"
+              kind={t("participants.kindVisitor")}
               email={formatParticipantEmails(
                 record.participation?.emails || record.participation_emails,
                 record.participation?.email || record.email,
               )}
-              pin={record.participation?.pin}
+              pin={record.participation?.has_pin ? t("participants.pinIsSet") : ""}
               incomplete={!record.participation?.complete}
               onEdit={() => beginEditParticipant(record.id)}
               onRemove={() => removeParticipant(record)}
             />
           ))}
-          {participantCount === 0 ? <p className="hint">No participants yet.</p> : null}
+          {participantCount === 0 ? <p className="hint">{t("participants.none")}</p> : null}
         </div>
       </div>
 
@@ -259,9 +316,7 @@ export default function GroupParticipantsSection({
 
       <div className="participant-add-grid">
         {operationsDisabled ? (
-          <p className="plan-locked-copy">
-            Participant changes are blocked while this Group is locked by the current plan.
-          </p>
+          <p className="plan-locked-copy">{t("participants.planLocked")}</p>
         ) : (
           <>
         <form className="add-participant-card add-participant-card-member" onSubmit={addMember}>
@@ -270,17 +325,17 @@ export default function GroupParticipantsSection({
               ◉
             </span>
             <div>
-              <h3>Add existing Member</h3>
-              <p className="hint">Add someone already saved in Members.</p>
+              <h3>{t("participants.addExistingMember")}</h3>
+              <p className="hint">{t("participants.addExistingMemberHint")}</p>
             </div>
           </header>
-          <Field label="Member">
+          <Field label={t("participants.memberField")}>
             <select
               value={selectedMemberId}
               onChange={(event) => setSelectedMemberId(event.target.value)}
               required
             >
-              <option value="">Select an active Member</option>
+              <option value="">{t("participants.selectMember")}</option>
               {available.map((member) => (
                 <option key={member.id} value={member.id}>
                   {member.name}
@@ -293,8 +348,8 @@ export default function GroupParticipantsSection({
             required={group.participation?.email_required}
             hint={
               group.participation?.email_required
-                ? "Prefilled from Member profile when available. Does not change the Member record."
-                : "Optional. Does not change the Member record."
+                ? t("participants.emailPrefilledHint")
+                : t("participants.emailOptionalHint")
             }
             onChange={(next) =>
               setParticipation((current) => ({
@@ -304,7 +359,7 @@ export default function GroupParticipantsSection({
             }
           />
           {group.participation?.pin_required ? (
-            <Field label="Group PIN" hint="Attendance check-in code for this Group.">
+            <Field label={t("participants.groupPinField")} hint={t("participants.groupPinHint")}>
               <input
                 value={participation.participation_pin}
                 onChange={(event) =>
@@ -317,9 +372,24 @@ export default function GroupParticipantsSection({
               />
             </Field>
           ) : null}
-          <button type="submit" className="btn-primary" disabled={saving || !selectedMemberId}>
-            Add to {scopeLabel}
-          </button>
+          <div className="participant-add-submit">
+            <button
+              type="submit"
+              className="btn-primary"
+              disabled={addingMember || !selectedMemberId}
+            >
+              {addingMember
+                ? t("participants.adding")
+                : t("participants.addToScope", { scope: scopeLabel })}
+            </button>
+            <span
+              className={`participant-add-success${addSuccessKind === "member" ? " is-visible" : ""}`}
+              role="status"
+              aria-live="polite"
+            >
+              {addSuccessKind === "member" ? t("participants.added") : ""}
+            </span>
+          </div>
         </form>
 
         <form className="add-participant-card add-participant-card-visitor" onSubmit={addParticipant}>
@@ -328,11 +398,11 @@ export default function GroupParticipantsSection({
               ◎
             </span>
             <div>
-              <h3>Add Visitor</h3>
-              <p className="hint">Someone who exists only in this {scopeLabel}.</p>
+              <h3>{t("participants.addVisitor")}</h3>
+              <p className="hint">{t("participants.addVisitorHint", { scope: scopeLabel })}</p>
             </div>
           </header>
-          <Field label="Name">
+          <Field label={t("editor.nameField")}>
             <input
               value={participant.name}
               onChange={(event) => setParticipant((current) => ({ ...current, name: event.target.value }))}
@@ -344,14 +414,18 @@ export default function GroupParticipantsSection({
             required={group.participation?.email_required}
             hint={
               group.participation?.email_required
-                ? "Required for this Group"
-                : "Optional"
+                ? t("participants.emailRequiredForGroup")
+                : t("common:optional")
             }
             onChange={(next) => setParticipant((current) => ({ ...current, emails: next }))}
           />
           <Field
-            label="Group PIN"
-            hint={group.participation?.pin_required ? "Required for this Group" : "Optional"}
+            label={t("participants.groupPinField")}
+            hint={
+              group.participation?.pin_required
+                ? t("participants.pinRequiredForGroup")
+                : t("common:optional")
+            }
           >
             <input
               value={participant.pin}
@@ -359,9 +433,18 @@ export default function GroupParticipantsSection({
               required={group.participation?.pin_required}
             />
           </Field>
-          <button type="submit" className="btn-primary" disabled={saving}>
-            Add visitor
-          </button>
+          <div className="participant-add-submit">
+            <button type="submit" className="btn-primary" disabled={addingVisitor}>
+              {addingVisitor ? t("participants.adding") : t("participants.addVisitorButton")}
+            </button>
+            <span
+              className={`participant-add-success${addSuccessKind === "visitor" ? " is-visible" : ""}`}
+              role="status"
+              aria-live="polite"
+            >
+              {addSuccessKind === "visitor" ? t("participants.added") : ""}
+            </span>
+          </div>
         </form>
           </>
         )}
@@ -371,6 +454,7 @@ export default function GroupParticipantsSection({
 }
 
 function ParticipationEmailsEditor({ emails, onChange, required = false, hint = "", firstFieldRef = null }) {
+  const { t } = useTranslation(["groups", "common"]);
   const slots = emailSlotsFromList(emails);
   const numbered = slots.length > 1;
 
@@ -401,7 +485,11 @@ function ParticipationEmailsEditor({ emails, onChange, required = false, hint = 
       {slots.map((email, index) => (
         <Field
           key={`participation-email-${index}`}
-          label={numbered ? `Group email ${index + 1}` : "Group email"}
+          label={
+            numbered
+              ? t("participants.groupEmailNumbered", { number: index + 1 })
+              : t("participants.groupEmail")
+          }
           hint={index === 0 ? hint : undefined}
         >
           <div className="forward-email-input-row">
@@ -416,7 +504,7 @@ function ParticipationEmailsEditor({ emails, onChange, required = false, hint = 
             />
             {numbered && index > 0 ? (
               <button type="button" className="btn-text" onClick={() => removeSlot(index)}>
-                Remove
+                {t("common:remove")}
               </button>
             ) : null}
           </div>
@@ -424,34 +512,34 @@ function ParticipationEmailsEditor({ emails, onChange, required = false, hint = 
       ))}
       {slots.length < MAX_PARTICIPATION_EMAILS ? (
         <button type="button" className="btn-secondary btn-sm" onClick={addSlot}>
-          + Add another email
+          {t("participants.addAnotherEmail")}
         </button>
       ) : null}
-      <p className="hint participation-emails-helper">
-        After-action notifications are sent to all configured addresses.
-      </p>
+      <p className="hint participation-emails-helper">{t("participants.notificationsHint")}</p>
     </div>
   );
 }
 
 function ParticipantRow({ name, code, kind, email, pin, incomplete, onEdit, onRemove }) {
+  const { t } = useTranslation(["groups", "common"]);
+  const emptyValue = t("members:form.emptyValue");
   return (
     <article className={`participant-row-compact${incomplete ? " incomplete" : ""}`}>
       <div>
         <strong>{name}</strong>
         <p className="participant-row-meta">
           {code} · {kind}
-          {incomplete ? " · Needs setup" : ""}
+          {incomplete ? ` · ${t("participants.needsSetup")}` : ""}
         </p>
       </div>
-      <div className="participant-row-meta">{email || "—"}</div>
-      <div className="participant-row-meta">{pin || "—"}</div>
+      <div className="participant-row-meta">{email || emptyValue}</div>
+      <div className="participant-row-meta">{pin || emptyValue}</div>
       <div className="participant-row-actions">
         <button type="button" className="btn-secondary btn-sm" onClick={onEdit}>
-          Edit
+          {t("common:edit")}
         </button>
         <button type="button" className="btn-danger-soft btn-sm" onClick={onRemove}>
-          Remove
+          {t("detail.remove")}
         </button>
       </div>
     </article>
@@ -469,12 +557,13 @@ function MembershipEditForm({
   onSaved,
   onError,
 }) {
+  const { t } = useTranslation(["groups", "common", "errors"]);
   const [values, setValues] = useState({
     participation_emails: participationEmailsForEdit(
       membership?.participation?.emails || membership?.participation_emails,
       membership?.participation?.email || "",
     ),
-    participation_pin: membership?.participation?.pin || "",
+    participation_pin: "",
   });
   if (!membership) {
     return null;
@@ -484,21 +573,25 @@ function MembershipEditForm({
     event.preventDefault();
     const data = new FormData();
     appendParticipationEmails(data, values.participation_emails);
-    if (values.participation_pin && values.participation_pin !== membership.participation?.pin) {
+    if (values.participation_pin) {
       data.append("participation_pin", values.participation_pin);
     }
     try {
       await api.updateMembership(session, groupId, membership.id, data, classId);
       await onSaved();
     } catch (saveError) {
-      onError?.(errorMessage(saveError));
+      onError?.(localizedErrorMessage(saveError, t));
     }
   }
 
   return (
     <form className="panel-form card-surface panel-form-edit" onSubmit={handleSubmit}>
-      <h3 id="participant-edit-heading">Edit participation for {membership.member.name}</h3>
-      <p className="hint">Code {membership.group_participant_code}. Member profile stays unchanged.</p>
+      <h3 id="participant-edit-heading">
+        {t("participants.editParticipationFor", { name: membership.member.name })}
+      </h3>
+      <p className="hint">
+        {t("participants.codeHintMember", { code: membership.group_participant_code })}
+      </p>
       <div className="form-grid">
         <ParticipationEmailsEditor
           emails={values.participation_emails}
@@ -508,22 +601,35 @@ function MembershipEditForm({
             setValues((current) => ({ ...current, participation_emails: next }))
           }
         />
-        <Field label="Group PIN" hint="Visible to workspace managers only.">
+        <Field
+          label={t("participants.groupPinField")}
+          hint={
+            membership.participation?.has_pin
+              ? t("participants.groupPinKeepHint")
+              : t("participants.groupPinManagersHint")
+          }
+        >
           <input
             value={values.participation_pin}
             onChange={(event) =>
               setValues((current) => ({ ...current, participation_pin: event.target.value }))
             }
+            placeholder={
+              membership.participation?.has_pin
+                ? t("participants.pinChangePlaceholder")
+                : t("participants.pinSetPlaceholder")
+            }
+            autoComplete="off"
             required={group.participation?.pin_required && !membership.participation?.has_pin}
           />
         </Field>
       </div>
       <div className="form-actions">
         <button type="submit" className="btn-primary">
-          Save
+          {t("common:save")}
         </button>
         <button type="button" className="btn-secondary" onClick={onCancel}>
-          Cancel
+          {t("common:cancel")}
         </button>
       </div>
     </form>
@@ -541,13 +647,14 @@ function ParticipantEditForm({
   onSaved,
   onError,
 }) {
+  const { t } = useTranslation(["groups", "common", "errors"]);
   const [values, setValues] = useState({
     name: participant?.name || "",
     emails: participationEmailsForEdit(
       participant?.participation?.emails || participant?.participation_emails,
       participant?.participation?.email || participant?.email || "",
     ),
-    participation_pin: participant?.participation?.pin || "",
+    participation_pin: "",
   });
   if (!participant) {
     return null;
@@ -558,23 +665,23 @@ function ParticipantEditForm({
     const data = new FormData();
     data.append("name", values.name);
     appendParticipationEmails(data, values.emails);
-    if (values.participation_pin && values.participation_pin !== participant.participation?.pin) {
+    if (values.participation_pin) {
       data.append("participation_pin", values.participation_pin);
     }
     try {
       await api.updateParticipant(session, groupId, participant.id, data, classId);
       await onSaved();
     } catch (saveError) {
-      onError?.(errorMessage(saveError));
+      onError?.(localizedErrorMessage(saveError, t));
     }
   }
 
   return (
     <form className="panel-form card-surface panel-form-edit" onSubmit={handleSubmit}>
-      <h3 id="participant-edit-heading">Edit {participant.name}</h3>
-      <p className="hint">Code {participant.group_participant_code}</p>
+      <h3 id="participant-edit-heading">{t("participants.editParticipant", { name: participant.name })}</h3>
+      <p className="hint">{t("participants.codeHint", { code: participant.group_participant_code })}</p>
       <div className="form-grid">
-        <Field label="Name">
+        <Field label={t("editor.nameField")}>
           <input
             ref={firstFieldRef}
             value={values.name}
@@ -587,22 +694,35 @@ function ParticipantEditForm({
           required={group.participation?.email_required}
           onChange={(next) => setValues((current) => ({ ...current, emails: next }))}
         />
-        <Field label="Group PIN">
+        <Field
+          label={t("participants.groupPinField")}
+          hint={
+            participant.participation?.has_pin
+              ? t("participants.groupPinKeepHint")
+              : t("participants.groupPinManagersHint")
+          }
+        >
           <input
             value={values.participation_pin}
             onChange={(event) =>
               setValues((current) => ({ ...current, participation_pin: event.target.value }))
             }
+            placeholder={
+              participant.participation?.has_pin
+                ? t("participants.pinChangePlaceholder")
+                : t("participants.pinSetPlaceholder")
+            }
+            autoComplete="off"
             required={group.participation?.pin_required && !participant.participation?.has_pin}
           />
         </Field>
       </div>
       <div className="form-actions">
         <button type="submit" className="btn-primary">
-          Save participant
+          {t("participants.saveParticipant")}
         </button>
         <button type="button" className="btn-secondary" onClick={onCancel}>
-          Cancel
+          {t("common:cancel")}
         </button>
       </div>
     </form>

@@ -15,6 +15,7 @@ from accounts.testing import force_platform_admin_login
 from organizations.entitlements.transitions import apply_effective_plan
 from organizations.models import (
     WORKSPACE_ID_PATTERN,
+    BillingMarketOverride,
     Organization,
     OrganizationPlan,
     OrganizationStatus,
@@ -50,9 +51,21 @@ class OrganizationModelTests(TestCase):
         self.assertEqual(organization.internal_label, "")
         self.assertEqual(organization.owner, owner)
         self.assertEqual(organization.status, OrganizationStatus.ACTIVE)
+        self.assertEqual(
+            organization.billing_market_override,
+            BillingMarketOverride.AUTO,
+        )
         self.assertEqual(owner.owned_organization, organization)
         self.assertFalse(owner.is_staff)
         self.assertFalse(WorkspaceStaffAccount.objects.exists())
+
+    def test_billing_market_override_rejects_values_outside_declared_choices(self):
+        organization = Organization.objects.create_with_owner(
+            owner=create_user("market-choice@example.com")
+        )
+        organization.billing_market_override = "language-derived"
+        with self.assertRaises(ValidationError):
+            organization.full_clean()
 
     def test_workspace_ids_are_globally_unique(self):
         first = Organization.objects.create_with_owner(
@@ -540,6 +553,9 @@ class OrganizationAdminTests(TestCase):
         self.assertLess(html.find('id="changelist-filter"'), html.find('id="result_list"'))
         self.assertContains(response, "By status")
         self.assertContains(response, "By plan")
+        self.assertContains(response, "By billing market override")
+        self.assertContains(response, "Market override")
+        self.assertContains(response, "Effective market")
         self.assertContains(response, "checkstation account")
 
         filtered = self.client.get(url, {"status__exact": OrganizationStatus.ARCHIVED})

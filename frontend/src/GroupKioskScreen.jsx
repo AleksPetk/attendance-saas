@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { flushSync } from "react-dom";
 import { api, errorMessage } from "./api.js";
 import { Field, LoadingState, PasswordInput } from "./components.jsx";
@@ -14,6 +15,11 @@ import { browserReportTimezone } from "./history/reportTimezone.js";
 import KioskRenderer from "./kiosk/KioskRenderer.jsx";
 import KioskConfirmationScreen from "./kiosk/KioskConfirmationScreen.jsx";
 import KioskProcessingScreen from "./kiosk/KioskProcessingScreen.jsx";
+import {
+  primeConfirmationAudio,
+  runConfirmationEffects,
+  shouldRunConfirmationEffects,
+} from "./kiosk/confirmationEffects.js";
 import { KioskParticipantSummary } from "./kiosk/KioskParticipantSummary.jsx";
 import { KioskIdentifyGenericVisual } from "./kiosk/kioskIdentifyGenericVisual.jsx";
 import {
@@ -31,6 +37,8 @@ import {
 } from "./kiosk/kioskUi.jsx";
 
 function PinDialog({ pin, onPinChange, error, verifying, onCancel, onConfirm }) {
+  const { t } = useTranslation("kiosk");
+  const { t: tCommon } = useTranslation("common");
   return (
     <div className="kiosk-modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="kiosk-pin-title">
       <form
@@ -40,9 +48,9 @@ function PinDialog({ pin, onPinChange, error, verifying, onCancel, onConfirm }) 
           onConfirm();
         }}
       >
-        <h2 id="kiosk-pin-title">Enter PIN</h2>
-        <p className="hint">Enter your Group participation PIN to continue.</p>
-        <Field label="PIN">
+        <h2 id="kiosk-pin-title">{t("live.pin.title")}</h2>
+        <p className="hint">{t("live.pin.hint")}</p>
+        <Field label={t("fields.pin")}>
           <KioskPinInput
             inputRef={null}
             id="kiosk-card-pin"
@@ -53,10 +61,10 @@ function PinDialog({ pin, onPinChange, error, verifying, onCancel, onConfirm }) 
         <KioskInlineError error={error} />
         <div className="kiosk-exit-actions">
           <button type="button" className="btn-secondary" onClick={onCancel} disabled={verifying}>
-            Cancel
+            {tCommon("cancel")}
           </button>
           <button type="submit" className="btn-primary" disabled={verifying || !pin}>
-            {verifying ? "Verifying…" : "Continue"}
+            {verifying ? t("verifying") : t("continue")}
           </button>
         </div>
       </form>
@@ -73,10 +81,12 @@ function ParticipantActionPanel({
   performing,
   onBack,
   onChooseAction,
+  showInstruction = true,
 }) {
+  const { t } = useTranslation("kiosk");
   return (
     <div className="kiosk-flow kiosk-flow--action">
-      <h2>Choose action</h2>
+      {showInstruction ? <h2>{t("live.chooseAction")}</h2> : null}
       {automaticNote ? <p className="hint">{automaticNote}</p> : null}
       {selected?.name ? (
         <KioskParticipantSummary
@@ -86,7 +96,7 @@ function ParticipantActionPanel({
         />
       ) : null}
       <KioskInlineError error={error} />
-      {allowedActions.length === 0 ? <p className="hint">No actions available right now.</p> : null}
+      {allowedActions.length === 0 ? <p className="hint">{t("live.noActions")}</p> : null}
       <div className="kiosk-actions">
         {allowedActions.map((action) => (
           <button
@@ -101,7 +111,7 @@ function ParticipantActionPanel({
         ))}
       </div>
       <button type="button" className="btn-secondary kiosk-submit" onClick={onBack} disabled={performing}>
-        Back to participants
+        {t("live.backToParticipants")}
       </button>
     </div>
   );
@@ -115,18 +125,20 @@ function ClassPinPanel({
   verifying,
   onCancel,
   onConfirm,
+  showInstruction = true,
 }) {
+  const { t } = useTranslation("kiosk");
   return (
     <div className="kiosk-flow kiosk-flow--pin">
       <h2>{className}</h2>
-      <p className="hint">Enter class PIN</p>
+      {showInstruction ? <p className="hint">{t("live.classPinHint")}</p> : null}
       <form
         onSubmit={(event) => {
           event.preventDefault();
           onConfirm();
         }}
       >
-        <Field label="Class PIN">
+        <Field label={t("fields.classPin")}>
           <KioskPinInput
             inputRef={null}
             id="kiosk-class-pin"
@@ -137,10 +149,10 @@ function ClassPinPanel({
         <KioskInlineError error={error} />
         <div className="kiosk-actions">
           <button type="submit" className="btn-primary kiosk-submit" disabled={verifying || !pin}>
-            {verifying ? "Verifying…" : "Continue"}
+            {verifying ? t("verifying") : t("continue")}
           </button>
           <button type="button" className="btn-secondary kiosk-submit" onClick={onCancel} disabled={verifying}>
-            Back to classes
+            {t("live.backToClasses")}
           </button>
         </div>
       </form>
@@ -156,6 +168,8 @@ function ExitKioskDialog({
   onCancel,
   onConfirm,
 }) {
+  const { t } = useTranslation("kiosk");
+  const { t: tCommon } = useTranslation("common");
   return (
     <div className="kiosk-modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="kiosk-exit-title">
       <form
@@ -165,9 +179,9 @@ function ExitKioskDialog({
           onConfirm();
         }}
       >
-        <h2 id="kiosk-exit-title">Exit kiosk</h2>
-        <p className="hint">Enter this Group&apos;s kiosk exit code to unlock this browser session.</p>
-        <Field label="Exit code" error={error}>
+        <h2 id="kiosk-exit-title">{t("live.exit.title")}</h2>
+        <p className="hint">{t("live.exit.hint")}</p>
+        <Field label={t("fields.exitCode")} error={error}>
           <PasswordInput
             value={exitCode}
             onChange={(event) => onExitCodeChange(event.target.value)}
@@ -178,10 +192,10 @@ function ExitKioskDialog({
         </Field>
         <div className="kiosk-exit-actions">
           <button type="button" className="btn-secondary" onClick={onCancel} disabled={verifying}>
-            Cancel
+            {tCommon("cancel")}
           </button>
           <button type="submit" className="btn-primary" disabled={verifying || !exitCode}>
-            {verifying ? "Verifying…" : "Exit kiosk"}
+            {verifying ? t("verifying") : t("exitKiosk")}
           </button>
         </div>
       </form>
@@ -190,6 +204,7 @@ function ExitKioskDialog({
 }
 
 export default function GroupKioskScreen({ session, groupId, onUnlocked, onKioskEntered }) {
+  const { t } = useTranslation("kiosk");
   const [loading, setLoading] = useState(true);
   const [unavailable, setUnavailable] = useState(false);
   const [error, setError] = useState(null);
@@ -224,12 +239,15 @@ export default function GroupKioskScreen({ session, groupId, onUnlocked, onKiosk
   const returnTimerRef = useRef(null);
   const performingRef = useRef(false);
   const pendingActionRef = useRef(null);
+  const confirmationPresentationSequenceRef = useRef(0);
+  const lastEffectsPresentationRef = useRef(null);
 
   const usePin = Boolean(kiosk?.use_pin);
   const kioskMode = kiosk?.kiosk_mode;
   const isStructured = Boolean(kiosk?.structured);
   const requireClassPin = Boolean(kiosk?.require_class_pin);
-  const participantCodeLabel = kiosk?.participant_code_label || "Group Participant Code";
+  const participantCodeLabel =
+    kiosk?.participant_code_label || t("fields.groupParticipantCode");
   const kioskLocked = Boolean(session?.workspace?.kiosk_locked);
 
   function clearParticipantFields() {
@@ -284,7 +302,7 @@ export default function GroupKioskScreen({ session, groupId, onUnlocked, onKiosk
         setKiosk(null);
         setVisualDesign(null);
       } else {
-        setError(kioskErrorCopy(err) || { title: "Could not load this kiosk." });
+        setError(kioskErrorCopy(err) || { title: t("errors.loadFailed") });
       }
     } finally {
       setLoading(false);
@@ -313,7 +331,22 @@ export default function GroupKioskScreen({ session, groupId, onUnlocked, onKiosk
     pinInputRef.current?.focus();
   }, [step, formKey, kiosk]);
 
-  const title = kiosk?.title || (unavailable ? "Kiosk unavailable" : "Kiosk");
+  useEffect(() => {
+    if (!shouldRunConfirmationEffects({
+      step,
+      confirmation,
+      lastPresentationId: lastEffectsPresentationRef.current,
+    })) {
+      return;
+    }
+    lastEffectsPresentationRef.current = confirmation.presentation_id;
+    runConfirmationEffects({
+      soundEnabled: confirmation.sound_enabled !== false,
+      vibrationEnabled: confirmation.vibration_enabled,
+    });
+  }, [confirmation, step]);
+
+  const title = kiosk?.title || (unavailable ? t("titleUnavailable") : t("titleDefault"));
   const welcomeText = kiosk?.welcome_text || "";
 
   const confirmationVisualFamily = useMemo(
@@ -347,7 +380,7 @@ export default function GroupKioskScreen({ session, groupId, onUnlocked, onKiosk
         lockPayload: exitResult.data,
       });
     } catch (err) {
-      setExitError(errorMessage(err) || "Exit code verification failed.");
+      setExitError(errorMessage(err) || t("errors.exitVerificationFailed"));
     } finally {
       setVerifyingExit(false);
     }
@@ -431,13 +464,13 @@ export default function GroupKioskScreen({ session, groupId, onUnlocked, onKiosk
       }
       const result = await api.identifyKiosk(session, groupId, payload);
       if (result.data.code !== "ok") {
-        setError(kioskErrorCopy({ data: result.data }) || { title: "Could not identify participant." });
+        setError(kioskErrorCopy({ data: result.data }) || { title: t("errors.identifyFailed") });
         return false;
       }
       await applyIdentifyResult(result);
       return true;
     } catch (err) {
-      setError(kioskErrorCopy(err) || { title: "Could not identify participant." });
+      setError(kioskErrorCopy(err) || { title: t("errors.identifyFailed") });
       if (usePin) {
         setPin("");
       }
@@ -489,29 +522,27 @@ export default function GroupKioskScreen({ session, groupId, onUnlocked, onKiosk
     setStep("classes");
   }
 
-  async function loadClassPeople(section, pinValue = "") {
+  async function loadClassPeople(section) {
     const sectionId = resolveClassSectionId(section);
     if (sectionId == null) {
-      setError({ title: "Could not open this Class.", detail: "Missing Class id." });
+      setError({ title: t("errors.openClassFailed"), detail: t("errors.missingClassId") });
       return false;
     }
     setIdentifying(true);
     setError(null);
     try {
-      const result = await api.getGroupKioskClassPeople(session, groupId, sectionId, {
-        pin: pinValue || undefined,
-      });
+      const result = await api.getGroupKioskClassPeople(session, groupId, sectionId);
       setSelectedClass({
         id: result.data.section_id,
         name: result.data.section_name,
         requires_class_pin: result.data.requires_class_pin,
       });
       setPeople(result.data.people || []);
-      setClassPin(pinValue || "");
+      setClassPin("");
       setStep("start");
       return true;
     } catch (err) {
-      setError(kioskErrorCopy(err) || { title: "Could not open this Class." });
+      setError(kioskErrorCopy(err) || { title: t("errors.openClassFailed") });
       setClassPin("");
       return false;
     } finally {
@@ -522,7 +553,7 @@ export default function GroupKioskScreen({ session, groupId, onUnlocked, onKiosk
   async function handleClassTap(section) {
     const sectionId = resolveClassSectionId(section);
     if (sectionId == null) {
-      setError({ title: "Could not open this Class.", detail: "Missing Class id." });
+      setError({ title: t("errors.openClassFailed"), detail: t("errors.missingClassId") });
       return;
     }
     setError(null);
@@ -544,9 +575,10 @@ export default function GroupKioskScreen({ session, groupId, onUnlocked, onKiosk
       await api.verifyGroupKioskClassPin(session, groupId, sectionId, {
         pin: classPin,
       });
-      await loadClassPeople(selectedClass, classPin);
+      setClassPin("");
+      await loadClassPeople(selectedClass);
     } catch (err) {
-      setError(kioskErrorCopy(err) || { title: "Incorrect PIN. Try again." });
+      setError(kioskErrorCopy(err) || { title: t("errors.incorrectPin") });
       setClassPin("");
     } finally {
       setIdentifying(false);
@@ -555,6 +587,7 @@ export default function GroupKioskScreen({ session, groupId, onUnlocked, onKiosk
 
   async function performAction(action) {
     if (!selected || performingRef.current || step === "processing") return;
+    primeConfirmationAudio({ enabled: kiosk?.confirmation?.sound_enabled !== false });
     performingRef.current = true;
     pendingActionRef.current = action;
     // Force Processing to paint before the network round-trip begins.
@@ -587,9 +620,15 @@ export default function GroupKioskScreen({ session, groupId, onUnlocked, onKiosk
         template: kiosk?.confirmation?.template || "clean",
         message: result.data.success_message || "",
         return_delay_seconds: result.data.return_delay_seconds || kiosk?.return_delay_seconds || 3,
+        sound_enabled: kiosk?.confirmation?.sound_enabled !== false,
+        vibration_enabled: Boolean(kiosk?.confirmation?.vibration_enabled),
         action,
       };
-      setConfirmation(conf);
+      confirmationPresentationSequenceRef.current += 1;
+      setConfirmation({
+        ...conf,
+        presentation_id: confirmationPresentationSequenceRef.current,
+      });
       setStep("success");
       setError(null);
       setInputValues({});
@@ -628,14 +667,14 @@ export default function GroupKioskScreen({ session, groupId, onUnlocked, onKiosk
       }
       const result = await api.identifyKiosk(session, groupId, payload);
       if (result.data.code !== "ok") {
-        setError(kioskErrorCopy({ data: result.data }) || { title: "Could not identify participant." });
+        setError(kioskErrorCopy({ data: result.data }) || { title: t("errors.identifyFailed") });
         setInputValues((current) => ({ ...current, pin: "" }));
         return;
       }
       await applyIdentifyResult(result);
       setInputValues((current) => ({ ...current, pin: "" }));
     } catch (err) {
-      setError(kioskErrorCopy(err) || { title: "Could not identify participant." });
+      setError(kioskErrorCopy(err) || { title: t("errors.identifyFailed") });
       setInputValues((current) => ({ ...current, pin: "" }));
       const fields = kiosk?.input_fields || [];
       window.setTimeout(() => {
@@ -650,6 +689,17 @@ export default function GroupKioskScreen({ session, groupId, onUnlocked, onKiosk
 
   const showExit = kioskLocked || Boolean(onUnlocked);
   const useVisualRenderer = Boolean(visualDesign?.config);
+  const structuredHelperText = isStructured
+    ? step === "classes"
+      ? t("live.classes.choose")
+      : step === "class_pin"
+        ? t("live.classPinHint")
+        : step === "start" && people.length > 0
+          ? t("live.participants.chooseStructured")
+          : step === "confirm"
+            ? t("live.chooseAction")
+            : ""
+    : "";
 
   const exitDialog = exitOpen ? (
     <ExitKioskDialog
@@ -683,10 +733,9 @@ export default function GroupKioskScreen({ session, groupId, onUnlocked, onKiosk
       {unavailable ? (
         <div className="kiosk-body kiosk-body-input">
           <div className="kiosk-flow">
-            <h2>This kiosk is no longer available</h2>
+            <h2>{t("live.unavailable.title")}</h2>
             <p className="hint">
-              The Group may have been archived or the kiosk turned off. Enter the kiosk
-              exit code to unlock this browser session.
+              {t("live.unavailable.body")}
             </p>
             <form
               className="kiosk-recovery-form"
@@ -696,7 +745,7 @@ export default function GroupKioskScreen({ session, groupId, onUnlocked, onKiosk
                 verifyExit();
               }}
             >
-              <Field label="Exit code" error={exitError}>
+              <Field label={t("fields.exitCode")} error={exitError}>
                 <PasswordInput
                   value={exitCode}
                   onChange={(event) => setExitCode(event.target.value)}
@@ -705,7 +754,7 @@ export default function GroupKioskScreen({ session, groupId, onUnlocked, onKiosk
                 />
               </Field>
               <button type="submit" className="btn-primary kiosk-submit" disabled={verifyingExit || !exitCode}>
-                {verifyingExit ? "Verifying…" : "Unlock session"}
+                {verifyingExit ? t("verifying") : t("live.unavailable.unlockSession")}
               </button>
             </form>
           </div>
@@ -730,13 +779,13 @@ export default function GroupKioskScreen({ session, groupId, onUnlocked, onKiosk
 
           {isStructured && step === "classes" ? (
             <>
-              <h2>Choose your class</h2>
+              {!useVisualRenderer ? <h2>{t("live.classes.choose")}</h2> : null}
               <KioskInlineError error={error} />
-              {identifying ? <p className="hint">Opening Class…</p> : null}
+              {identifying ? <p className="hint">{t("live.classes.opening")}</p> : null}
               {classes.length === 0 ? (
                 <div className="empty-state">
-                  <h2>No Classes available</h2>
-                  <p>Add a Class with participants before launching.</p>
+                  <h2>{t("live.classes.emptyTitle")}</h2>
+                  <p>{t("live.classes.emptyBody")}</p>
                 </div>
               ) : (
                 <div className="kiosk-people-grid">
@@ -751,9 +800,7 @@ export default function GroupKioskScreen({ session, groupId, onUnlocked, onKiosk
                       <KioskPersonAvatar name={section.name} variant="class" />
                       <KioskPersonCardFields
                         name={section.name}
-                        meta={`${section.participant_count} participant${
-                          section.participant_count === 1 ? "" : "s"
-                        }`}
+                        meta={t("participantCount", { count: section.participant_count })}
                       />
                     </button>
                   ))}
@@ -771,21 +818,22 @@ export default function GroupKioskScreen({ session, groupId, onUnlocked, onKiosk
               verifying={identifying}
               onCancel={backToClasses}
               onConfirm={submitClassPin}
+              showInstruction={!useVisualRenderer}
             />
           ) : null}
 
           {people.length === 0 && step === "start" && !isStructured ? (
             <div className="empty-state">
-              <h2>No participants available</h2>
-              <p>Add Members or Group-only Participants to this Group.</p>
+              <h2>{t("live.participants.emptyTitle")}</h2>
+              <p>{t("live.participants.emptyBody")}</p>
             </div>
           ) : null}
 
           {people.length === 0 && step === "start" && isStructured ? (
             <div className="empty-state">
-              <h2>No participants in this Class</h2>
+              <h2>{t("live.participants.emptyClassTitle")}</h2>
               <button type="button" className="btn-secondary kiosk-submit" onClick={backToClasses}>
-                Back to classes
+                {t("live.backToClasses")}
               </button>
             </div>
           ) : null}
@@ -795,9 +843,11 @@ export default function GroupKioskScreen({ session, groupId, onUnlocked, onKiosk
               {isStructured && selectedClass ? (
                 <h2>{selectedClass.name}</h2>
               ) : null}
-              <p className="hint kiosk-hint">
-                {isStructured ? "Choose participant" : "Tap your card to continue."}
-              </p>
+              {isStructured ? (
+                !useVisualRenderer ? (
+                  <p className="hint kiosk-hint">{t("live.participants.chooseStructured")}</p>
+                ) : null
+              ) : null}
               <div className="kiosk-people-grid">
                 {people.map((p) => (
                   <button
@@ -817,7 +867,7 @@ export default function GroupKioskScreen({ session, groupId, onUnlocked, onKiosk
                   >
                     <KioskPersonAvatar name={p.name} photoUrl={p.photo_url} />
                     <KioskPersonCardFields
-                      name={p.name || "Participant"}
+                      name={p.name || t("participantFallback")}
                       code={
                         p.participant_code
                           ? `${participantCodeLabel}: ${p.participant_code}`
@@ -828,10 +878,14 @@ export default function GroupKioskScreen({ session, groupId, onUnlocked, onKiosk
                   </button>
                 ))}
               </div>
-              {identifying ? <p className="hint">Loading…</p> : null}
+              {identifying ? <p className="hint">{t("live.participants.loading")}</p> : null}
               {isStructured ? (
-                <button type="button" className="btn-secondary kiosk-submit" onClick={backToClasses}>
-                  Back to classes
+                <button
+                  type="button"
+                  className="btn-secondary kiosk-submit kiosk-back-to-classes"
+                  onClick={backToClasses}
+                >
+                  {t("live.backToClasses")}
                 </button>
               ) : null}
             </>
@@ -847,6 +901,7 @@ export default function GroupKioskScreen({ session, groupId, onUnlocked, onKiosk
               performing={performing}
               onBack={backToParticipants}
               onChooseAction={performAction}
+              showInstruction={!isStructured || !useVisualRenderer}
             />
           ) : null}
 
@@ -873,16 +928,16 @@ export default function GroupKioskScreen({ session, groupId, onUnlocked, onKiosk
               onSubmit={handleInputSubmit}
             >
               <KioskIdentifyGenericVisual />
-              <h2>Check in</h2>
+              <h2>{t("live.identify.title")}</h2>
               {kiosk?.input_fields?.length ? (
                 <p className="hint">
-                  Enter your details.
-                  {usePin ? " PIN verification will be required." : ""}
+                  {t("live.identify.hint")}
+                  {usePin ? t("live.identify.pinRequired") : ""}
                 </p>
               ) : null}
 
               {(kiosk.input_fields || []).includes("name") ? (
-                <Field label="Name">
+                <Field label={t("fields.name")}>
                   <input
                     {...kioskAutofillShield({
                       ref: firstFieldRef,
@@ -897,7 +952,7 @@ export default function GroupKioskScreen({ session, groupId, onUnlocked, onKiosk
                 </Field>
               ) : null}
               {(kiosk.input_fields || []).includes("email") ? (
-                <Field label="Email">
+                <Field label={t("fields.email")}>
                   <input
                     {...kioskAutofillShield({
                       type: "text",
@@ -912,7 +967,7 @@ export default function GroupKioskScreen({ session, groupId, onUnlocked, onKiosk
                 </Field>
               ) : null}
               {(kiosk.input_fields || []).includes("participant_code") ? (
-                <Field label="Group Participant Code">
+                <Field label={t("fields.groupParticipantCode")}>
                   <input
                     {...kioskAutofillShield({
                       ref: firstFieldRef,
@@ -930,7 +985,7 @@ export default function GroupKioskScreen({ session, groupId, onUnlocked, onKiosk
                 </Field>
               ) : null}
               {(kiosk.input_fields || []).includes("pin") ? (
-                <Field label="PIN">
+                <Field label={t("fields.pin")}>
                   <KioskPinInput
                     inputRef={pinInputRef}
                     id={`kiosk-participant-pin-${groupId}`}
@@ -948,7 +1003,7 @@ export default function GroupKioskScreen({ session, groupId, onUnlocked, onKiosk
                   (kiosk.input_fields || []).includes("pin") && !(inputValues.pin || "").trim()
                 }
               >
-                Continue
+                {t("continue")}
               </button>
               {kiosk.warnings?.length ? (
                 <div className="kiosk-warnings">
@@ -984,7 +1039,7 @@ export default function GroupKioskScreen({ session, groupId, onUnlocked, onKiosk
   if (loading) {
     return (
       <div className={`kiosk-shell ${themeClass}`}>
-        <LoadingState label="Loading kiosk…" />
+        <LoadingState label={t("loading")} />
       </div>
     );
   }
@@ -996,6 +1051,14 @@ export default function GroupKioskScreen({ session, groupId, onUnlocked, onKiosk
           design={visualDesign}
           mode="live"
           kioskBehavior={{ mode: kioskMode || "card" }}
+          showCardHelper={
+            !isStructured &&
+            (kioskMode || "card") === "card" &&
+            step === "start" &&
+            people.length > 0 &&
+            !unavailable
+          }
+          helperText={structuredHelperText}
           showExit={showExit && !unavailable}
           onExit={() => setExitOpen(true)}
         >
@@ -1011,13 +1074,13 @@ export default function GroupKioskScreen({ session, groupId, onUnlocked, onKiosk
     <div className={`kiosk-shell ${themeClass}`}>
       <header className="kiosk-topbar">
         <div className="kiosk-topbar-copy">
-          <div className="kiosk-eyebrow">Kiosk</div>
+          <div className="kiosk-eyebrow">{t("eyebrow")}</div>
           <h1 className="kiosk-title">{title}</h1>
           {welcomeText && !unavailable ? <p className="kiosk-welcome">{welcomeText}</p> : null}
         </div>
         {showExit && !unavailable ? (
           <button type="button" className="kiosk-exit" onClick={() => setExitOpen(true)}>
-            Exit
+            {t("exit")}
           </button>
         ) : null}
       </header>

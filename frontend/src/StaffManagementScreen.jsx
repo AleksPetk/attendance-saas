@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useLocation } from "react-router-dom";
-import { api, errorMessage } from "./api.js";
+import { api } from "./api.js";
 import {
   CopyButton,
   ConfirmDialog,
@@ -13,6 +14,8 @@ import {
   StatusBadge,
   SuccessBanner,
 } from "./components.jsx";
+import { localizedErrorMessage } from "./i18n/errorMessages.js";
+import { usePageTitle } from "./i18n/usePageTitle.js";
 import {
   canManageStaffAccounts,
   canManageWorkspaceAdminAccounts,
@@ -23,8 +26,8 @@ import {
   planLocksFromSession,
   selectionRequired,
   usageTotalValue,
-  usageLimitCaption,
 } from "./workspaceEntitlements.js";
+import { memberUsageMetrics } from "./memberUsage.js";
 import PlanLockSelectionPanel from "./PlanLockSelectionPanel.jsx";
 import StaffGroupAccessEditor from "./StaffGroupAccessEditor.jsx";
 import {
@@ -32,8 +35,8 @@ import {
   updateStaffGroupAccessSummary,
 } from "./staffGroupAccess.js";
 import {
-  STAFF_EMAIL_DUPLICATE_MESSAGE,
   isStaffEmailRequired,
+  staffEmailDuplicateMessage,
   staffEmailFieldLabel,
 } from "./staffManagementEmail.js";
 import {
@@ -78,19 +81,29 @@ export function StaffRow({
   onManageAccess,
   managingAccess,
 }) {
+  const { t } = useTranslation(["staff", "workspace", "common"]);
   const planLocked = isStaffAccountPlanLocked(staff);
   const lifecycleAction = staffAccountLifecycleAction(staff, planLocked);
+  const roleLabel =
+    staff.role === "admin" || staff.role === "staff"
+      ? t(`workspace:roles.${staff.role}`)
+      : staff.role;
+
   return (
     <article className={`person-row staff-account-row${planLocked ? " person-row-plan-locked" : ""}`}>
       <div className="person-copy staff-account-identity">
         <strong>{staff.username}</strong>
         <p className="person-subtitle">
-          <span className="staff-role-badge">{staff.role}</span>
+          <span className="staff-role-badge">{roleLabel}</span>
           {" · "}
           <StatusBadge status={staff.status === "active" ? "active" : "inactive"} />
-          {planLocked ? <span className="plan-locked-badge">Plan locked</span> : null}
+          {planLocked ? (
+            <span className="plan-locked-badge">{t("common:planLocked")}</span>
+          ) : null}
         </p>
-        {planLocked ? <p className="plan-locked-copy">Locked by current plan</p> : null}
+        {planLocked ? (
+          <p className="plan-locked-copy">{t("staff:planLock.lockedCopy")}</p>
+        ) : null}
         {staff.email ? <p className="hint" style={{ marginTop: "0.35rem" }}>{staff.email}</p> : null}
       </div>
       {staff.role === "staff" ? <StaffGroupAccessSummary groups={staff.group_access} /> : <span />}
@@ -102,7 +115,7 @@ export function StaffRow({
         >
           {staff.role === "staff" && !planLocked ? (
             <button type="button" className="btn-secondary btn-sm" onClick={onManageAccess}>
-              {managingAccess ? "Close access" : "Group access"}
+              {managingAccess ? t("staff:row.closeAccess") : t("staff:row.groupAccess")}
             </button>
           ) : null}
           <button
@@ -110,21 +123,17 @@ export function StaffRow({
             className="btn-secondary btn-sm"
             onClick={onDeactivateToggle}
             disabled={lifecycleAction.disabled}
-            title={
-              planLocked && staff.status !== "active"
-                ? "Locked by current plan"
-                : undefined
-            }
+            title={planLocked && staff.status !== "active" ? t("staff:row.planLockedTitle") : undefined}
           >
             {lifecycleAction.label}
           </button>
           {canPermanentlyDeleteStaffAccount(staff) ? (
             <button type="button" className="btn-danger-soft btn-sm" onClick={onDelete}>
-              Delete
+              {t("staff:row.delete")}
             </button>
           ) : null}
           <button type="button" className="btn-ghost btn-sm" onClick={onResetPassword}>
-            Reset password
+            {t("staff:row.resetPassword")}
           </button>
         </div>
       ) : null}
@@ -133,11 +142,14 @@ export function StaffRow({
 }
 
 export default function StaffManagementScreen({ session, setSession }) {
+  const { t } = useTranslation(["staff", "workspace", "common", "errors", "entitlements"]);
   const location = useLocation();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const [staff, setStaff] = useState([]);
+
+  usePageTitle("pageTitles.staff");
 
   const canManageStaffRole = canManageStaffAccounts(session);
   const canManageStaff = canAccessStaffManagement(session, canManageStaffRole);
@@ -158,7 +170,6 @@ export default function StaffManagementScreen({ session, setSession }) {
 
   const effectiveCreateRole = canManageAdmins ? createRole : "staff";
   const createEmailRequired = isStaffEmailRequired(effectiveCreateRole);
-
   useEffect(() => {
     if (!canManageStaff) return;
     let cancelled = false;
@@ -171,7 +182,7 @@ export default function StaffManagementScreen({ session, setSession }) {
         setStaff(result.data || []);
       } catch (e) {
         if (cancelled) return;
-        setError(errorMessage(e));
+        setError(localizedErrorMessage(e, t));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -180,7 +191,7 @@ export default function StaffManagementScreen({ session, setSession }) {
     return () => {
       cancelled = true;
     };
-  }, [canManageStaff]);
+  }, [canManageStaff, t]);
 
   useEffect(() => {
     if (!staffTutorialRequestsGroupAccess(location.search) || accessStaffId) return;
@@ -212,9 +223,9 @@ export default function StaffManagementScreen({ session, setSession }) {
       setCreatePassword("");
       await refresh();
     } catch (e) {
-      const message = errorMessage(e);
+      const message = localizedErrorMessage(e, t);
       if (message.includes("already exists in this workspace")) {
-        setError(STAFF_EMAIL_DUPLICATE_MESSAGE);
+        setError(staffEmailDuplicateMessage());
       } else {
         setError(message);
       }
@@ -231,7 +242,7 @@ export default function StaffManagementScreen({ session, setSession }) {
       });
       await refresh();
     } catch (e) {
-      setError(errorMessage(e));
+      setError(localizedErrorMessage(e, t));
     }
   }
 
@@ -253,9 +264,9 @@ export default function StaffManagementScreen({ session, setSession }) {
       setStaff((current) => removeDeletedStaffAccount(current, deletedAccount.id));
       setAccessStaffId((current) => (current === deletedAccount.id ? null : current));
       setPendingDelete(null);
-      setSuccessMessage(`${deletedAccount.username} was permanently deleted.`);
+      setSuccessMessage(t("staff:delete.success", { username: deletedAccount.username }));
     } catch (e) {
-      setError(errorMessage(e));
+      setError(localizedErrorMessage(e, t));
     } finally {
       deleteInFlightRef.current = false;
       setDeleting(false);
@@ -263,13 +274,13 @@ export default function StaffManagementScreen({ session, setSession }) {
   }
 
   async function resetPassword(staffId) {
-    const newPassword = window.prompt("Enter new password for this staff account:");
+    const newPassword = window.prompt(t("staff:resetPassword.prompt"));
     if (!newPassword) return;
     try {
       await api.resetWorkspaceStaffPassword(null, staffId, { password: newPassword });
       await refresh();
     } catch (e) {
-      setError(errorMessage(e));
+      setError(localizedErrorMessage(e, t));
     }
   }
 
@@ -310,13 +321,21 @@ export default function StaffManagementScreen({ session, setSession }) {
     return (
       <div className="page">
         <PageHeader
-          title="Staff management"
-          description="Resolve account availability for the current plan."
+          title={t("staff:management.title")}
+          description={t("staff:management.resolveDescription")}
         />
         <PlanLockSelectionPanel
           kind={activeSelectionKind}
-          title={admins ? "Choose available Admins" : "Choose available Staff"}
-          description={`Select the ${admins ? "Admin" : "Staff"} accounts that can access this workspace.`}
+          title={
+            admins
+              ? t("staff:planLock.chooseAdminsTitle")
+              : t("staff:planLock.chooseStaffTitle")
+          }
+          description={
+            admins
+              ? t("staff:planLock.chooseAdminsDescription")
+              : t("staff:planLock.chooseStaffDescription")
+          }
           onSave={saveAvailability}
           onCancel={!requiredKind ? () => setChangeKind(null) : undefined}
         />
@@ -328,8 +347,8 @@ export default function StaffManagementScreen({ session, setSession }) {
     return (
       <div className="page">
         <EmptyState
-          title="Staff management is locked"
-          body="The Basic plan does not include Workspace Admin or Staff accounts. Upgrade to Plus or Business to unlock the Staff page."
+          title={t("staff:empty.lockedTitle")}
+          body={t("staff:empty.lockedBody")}
         />
       </div>
     );
@@ -339,8 +358,8 @@ export default function StaffManagementScreen({ session, setSession }) {
     return (
       <div className="page">
         <EmptyState
-          title="Not available"
-          body="Only the workspace owner or an admin can manage staff accounts."
+          title={t("staff:empty.notAvailableTitle")}
+          body={t("staff:empty.notAvailableBody")}
         />
       </div>
     );
@@ -349,7 +368,7 @@ export default function StaffManagementScreen({ session, setSession }) {
   if (loading) {
     return (
       <div className="page">
-        <LoadingState label="Loading staff accounts…" />
+        <LoadingState label={t("staff:loading")} />
       </div>
     );
   }
@@ -362,7 +381,16 @@ export default function StaffManagementScreen({ session, setSession }) {
   } = partitionStaffByPlanAvailability(staff);
   const adminLimit = planLimitValue(session, "workspace_admins");
   const staffLimit = planLimitValue(session, "workspace_staff");
+  const adminUsage = memberUsageMetrics(
+    usageTotalValue(session, "workspace_admins"),
+    adminLimit,
+  );
+  const staffUsage = memberUsageMetrics(
+    usageTotalValue(session, "workspace_staff"),
+    staffLimit,
+  );
   const hasLockedAccounts = lockedAdmins.length > 0 || lockedStaff.length > 0;
+  const lockedAccountCount = lockedAdmins.length + lockedStaff.length;
 
   function renderAccountRows(accounts) {
     return accounts.map((s) => (
@@ -395,25 +423,51 @@ export default function StaffManagementScreen({ session, setSession }) {
   }
 
   return (
-    <div className="page" data-tutorial-target="staff-overview">
+    <div className="page staff-management-page" data-tutorial-target="staff-overview">
       <PageHeader
-        title="Staff management"
+        title={t("staff:management.title")}
         description={
           canManageAdmins
-            ? "Create workspace admin and staff accounts. Share the Workspace ID so staff can sign in."
-            : "Create and manage staff accounts. Admin accounts can only be managed by the workspace owner."
+            ? t("staff:management.descriptionOwner")
+            : t("staff:management.descriptionAdmin")
         }
       />
-      {usageLimitCaption(session, "workspace_staff", "Staff") ||
-      usageLimitCaption(session, "workspace_admins", "Admins") ? (
-        <p className="plan-usage-hint" aria-live="polite">
+      {adminUsage || staffUsage ? (
+        <div className="groups-usage staff-usage" aria-label={t("staff:usage.label")} aria-live="polite">
           {[
-            usageLimitCaption(session, "workspace_admins", "Admins"),
-            usageLimitCaption(session, "workspace_staff", "Staff"),
-          ]
-            .filter(Boolean)
-            .join(" · ")}
-        </p>
+            { key: "admins", label: t("staff:usage.admins"), usage: adminUsage },
+            { key: "staff", label: t("staff:usage.staff"), usage: staffUsage },
+          ].map((item) =>
+            item.usage ? (
+              <section className={`groups-usage-item is-${item.key}`} key={item.key}>
+                <div className="groups-usage-copy">
+                  <strong>{item.label}</strong>
+                  <span>
+                    {t("staff:usage.summary", {
+                      count: item.usage.count,
+                      remaining: item.usage.remaining,
+                    })}
+                  </span>
+                </div>
+                <div
+                  className="groups-usage-progress"
+                  role="progressbar"
+                  aria-label={t("staff:usage.progressLabel", { type: item.label })}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={item.usage.percentage}
+                  aria-valuetext={t("staff:usage.progressValue", {
+                    type: item.label,
+                    count: item.usage.count,
+                    limit: item.usage.limit,
+                  })}
+                >
+                  <span style={{ width: `${item.usage.percentage}%` }} />
+                </div>
+              </section>
+            ) : null,
+          )}
+        </div>
       ) : null}
       {canManageAdmins &&
       (canChangeKind("workspace_admins") || canChangeKind("workspace_staff")) ? (
@@ -424,7 +478,7 @@ export default function StaffManagementScreen({ session, setSession }) {
               className="btn-secondary btn-sm"
               onClick={() => setChangeKind("workspace_admins")}
             >
-              Change available Admins
+              {t("staff:planLock.changeAdmins")}
             </button>
           ) : null}
           {canChangeKind("workspace_staff") ? (
@@ -433,21 +487,19 @@ export default function StaffManagementScreen({ session, setSession }) {
               className="btn-secondary btn-sm"
               onClick={() => setChangeKind("workspace_staff")}
             >
-              Change available Staff
+              {t("staff:planLock.changeStaff")}
             </button>
           ) : null}
         </div>
       ) : null}
 
       <div className="workspace-id-card" data-tutorial-target="staff-workspace-id">
-        <h3>Workspace ID</h3>
+        <h3>{t("staff:workspaceId.title")}</h3>
         <div className="workspace-id-value">
           <span className="workspace-id-code">{workspaceId}</span>
-          <CopyButton value={workspaceId} label="Copy ID" />
+          <CopyButton value={workspaceId} label={t("staff:workspaceId.copyLabel")} />
         </div>
-        <p className="hint">
-          Staff use this ID with their username and password to sign in at the staff login page.
-        </p>
+        <p className="hint">{t("staff:workspaceId.hint")}</p>
       </div>
 
       <ErrorBanner message={error} />
@@ -456,23 +508,26 @@ export default function StaffManagementScreen({ session, setSession }) {
       <div className="staff-grid">
         <section className="section-card">
           <header className="section-card-header">
-            <h2>Existing accounts</h2>
+            <h2>{t("staff:sections.existingAccounts")}</h2>
             <p>
               {canManageAdmins
-                ? "Admins and staff who can access this workspace."
-                : "Staff accounts you can manage in this workspace."}
+                ? t("staff:sections.existingAccountsOwner")
+                : t("staff:sections.existingAccountsAdmin")}
             </p>
           </header>
           <div className="section-card-body">
             {staff.length ? (
               <div className="staff-plan-sections">
                 {canManageAdmins && availableAdmins.length > 0 ? (
-                  <section className="staff-plan-section" aria-label="Available Admins">
+                  <section className="staff-plan-section" aria-label={t("staff:sections.availableAdmins")}>
                     <header className="groups-plan-section-heading">
-                      <h3>Available Admins</h3>
+                      <h3>{t("staff:sections.availableAdmins")}</h3>
                       <p>
                         {typeof adminLimit === "number"
-                          ? `${availableAdmins.length} of ${adminLimit}`
+                          ? t("entitlements:usageOf", {
+                              usage: availableAdmins.length,
+                              limit: adminLimit,
+                            })
                           : String(availableAdmins.length)}
                       </p>
                     </header>
@@ -480,12 +535,15 @@ export default function StaffManagementScreen({ session, setSession }) {
                   </section>
                 ) : null}
                 {availableStaff.length > 0 ? (
-                  <section className="staff-plan-section" aria-label="Available Staff">
+                  <section className="staff-plan-section" aria-label={t("staff:sections.availableStaff")}>
                     <header className="groups-plan-section-heading">
-                      <h3>Available Staff</h3>
+                      <h3>{t("staff:sections.availableStaff")}</h3>
                       <p>
                         {typeof staffLimit === "number"
-                          ? `${availableStaff.length} of ${staffLimit}`
+                          ? t("entitlements:usageOf", {
+                              usage: availableStaff.length,
+                              limit: staffLimit,
+                            })
                           : String(availableStaff.length)}
                       </p>
                     </header>
@@ -493,23 +551,27 @@ export default function StaffManagementScreen({ session, setSession }) {
                   </section>
                 ) : null}
                 {hasLockedAccounts ? (
-                  <section className="staff-plan-section is-locked" aria-label="Locked by current plan">
+                  <section
+                    className="staff-plan-section is-locked"
+                    aria-label={t("staff:planLock.lockedSection")}
+                  >
                     <header className="groups-plan-section-heading">
-                      <h3>Locked by current plan</h3>
-                      <p>
-                        {lockedAdmins.length + lockedStaff.length} account
-                        {lockedAdmins.length + lockedStaff.length === 1 ? "" : "s"}
-                      </p>
+                      <h3>{t("staff:planLock.lockedSection")}</h3>
+                      <p>{t("staff:sections.accountCount", { count: lockedAccountCount })}</p>
                     </header>
                     {canManageAdmins && lockedAdmins.length > 0 ? (
                       <div className="staff-locked-role-block">
-                        <p className="staff-locked-role-label">Admin accounts</p>
+                        <p className="staff-locked-role-label">
+                          {t("staff:planLock.lockedAdminAccounts")}
+                        </p>
                         <div className="activity-list">{renderAccountRows(lockedAdmins)}</div>
                       </div>
                     ) : null}
                     {lockedStaff.length > 0 ? (
                       <div className="staff-locked-role-block">
-                        <p className="staff-locked-role-label">Staff accounts</p>
+                        <p className="staff-locked-role-label">
+                          {t("staff:planLock.lockedStaffAccounts")}
+                        </p>
                         <div className="activity-list">{renderAccountRows(lockedStaff)}</div>
                       </div>
                     ) : null}
@@ -518,11 +580,11 @@ export default function StaffManagementScreen({ session, setSession }) {
               </div>
             ) : (
               <EmptyState
-                title="No staff accounts yet"
+                title={t("staff:empty.noAccountsTitle")}
                 body={
                   canManageAdmins
-                    ? "Create an admin or staff account for someone who needs workspace access."
-                    : "Create a staff account for someone who needs workspace access."
+                    ? t("staff:empty.noAccountsBodyOwner")
+                    : t("staff:empty.noAccountsBodyAdmin")
                 }
               />
             )}
@@ -534,9 +596,9 @@ export default function StaffManagementScreen({ session, setSession }) {
           style={{ padding: "var(--space-5)" }}
           data-tutorial-target="staff-create-account"
         >
-          <h3 style={{ marginBottom: "var(--space-4)" }}>Create account</h3>
+          <h3 style={{ marginBottom: "var(--space-4)" }}>{t("staff:create.title")}</h3>
           <form onSubmit={handleCreate} className="auth-form">
-            <Field label="Username" hint="Unique within this workspace">
+            <Field label={t("staff:create.usernameLabel")} hint={t("staff:create.usernameHint")}>
               <input
                 value={createUsername}
                 onChange={(e) => setCreateUsername(e.target.value)}
@@ -545,7 +607,7 @@ export default function StaffManagementScreen({ session, setSession }) {
             </Field>
             <Field
               label={staffEmailFieldLabel(effectiveCreateRole)}
-              hint={createEmailRequired ? "Required for admin accounts" : undefined}
+              hint={createEmailRequired ? t("staff:create.adminEmailHint") : undefined}
             >
               <input
                 value={createEmail}
@@ -556,19 +618,19 @@ export default function StaffManagementScreen({ session, setSession }) {
             </Field>
             <div data-tutorial-target="staff-role-selection">
               {canManageAdmins ? (
-                <Field label="Role">
+                <Field label={t("staff:create.roleLabel")}>
                   <select value={createRole} onChange={(e) => setCreateRole(e.target.value)}>
-                    <option value="admin">Admin</option>
-                    <option value="staff">Staff</option>
+                    <option value="admin">{t("workspace:roles.admin")}</option>
+                    <option value="staff">{t("workspace:roles.staff")}</option>
                   </select>
                 </Field>
               ) : (
-                <Field label="Role">
-                  <input value="Staff" readOnly disabled />
+                <Field label={t("staff:create.roleLabel")}>
+                  <input value={t("workspace:roles.staff")} readOnly disabled />
                 </Field>
               )}
             </div>
-            <Field label="Password">
+            <Field label={t("staff:create.passwordLabel")}>
               <PasswordInput
                 value={createPassword}
                 onChange={(e) => setCreatePassword(e.target.value)}
@@ -577,7 +639,7 @@ export default function StaffManagementScreen({ session, setSession }) {
               />
             </Field>
             <button type="submit" className="btn-primary btn-block" disabled={creating}>
-              {creating ? "Creating…" : "Create account"}
+              {creating ? t("staff:create.submitting") : t("staff:create.submit")}
             </button>
           </form>
         </section>

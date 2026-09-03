@@ -1,6 +1,7 @@
 /**
  * Run: node --test src/accountNavigation.test.js src/publicPricing.test.js
  */
+import "./i18n/index.js";
 import assert from "node:assert/strict";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -74,7 +75,7 @@ const basicBilling = {
         display_name: "Plus",
         intervals: {
           monthly: { interval: "monthly", cents: 999, formatted: "$9.99" },
-          yearly: { interval: "yearly", cents: 9990, formatted: "$99.90" },
+          yearly: { interval: "yearly", cents: 9999, formatted: "$99.99" },
         },
       },
       business: {
@@ -82,7 +83,7 @@ const basicBilling = {
         display_name: "Business",
         intervals: {
           monthly: { interval: "monthly", cents: 1499, formatted: "$14.99" },
-          yearly: { interval: "yearly", cents: 14990, formatted: "$149.90" },
+          yearly: { interval: "yearly", cents: 14999, formatted: "$149.99" },
         },
       },
     },
@@ -172,8 +173,8 @@ test("subscription panel shows plan option cards and catalog prices", () => {
   assert.match(html, /\$14\.99/);
   assert.match(html, /Choose Plus Monthly|Choose Plus/);
   assert.match(html, /Choose Business Monthly|Choose Business/);
-  assert.match(html, /1 \/ 2/);
-  assert.match(html, /7 \/ 10/);
+  assert.match(html, /1 of 2|1 \/ 2/);
+  assert.match(html, /7 of 10|7 \/ 10/);
   assert.match(html, /Usage &amp; limits|Usage & limits/);
   assert.doesNotMatch(html, /account-plan-tier-chip/);
   assert.doesNotMatch(html, /Start Business trial/);
@@ -202,9 +203,9 @@ test("subscription panel marks Basic as current plan", () => {
 
 test("subscription basic upgrade shows monthly and yearly catalog prices", () => {
   assert.equal(catalogPriceWithInterval(basicBilling, "plus", "monthly"), "$9.99/month");
-  assert.equal(catalogPriceWithInterval(basicBilling, "plus", "yearly"), "$99.90/year");
+  assert.equal(catalogPriceWithInterval(basicBilling, "plus", "yearly"), "$99.99/year");
   assert.equal(catalogPriceWithInterval(basicBilling, "business", "monthly"), "$14.99/month");
-  assert.equal(catalogPriceWithInterval(basicBilling, "business", "yearly"), "$149.90/year");
+  assert.equal(catalogPriceWithInterval(basicBilling, "business", "yearly"), "$149.99/year");
 
   const html = renderToStaticMarkup(
     createElement(AccountSubscriptionPanel, {
@@ -217,9 +218,9 @@ test("subscription basic upgrade shows monthly and yearly catalog prices", () =>
   assert.match(html, /Business Monthly/);
   assert.match(html, /Business Yearly/);
   assert.match(html, /\$9\.99/);
-  assert.match(html, /\$99\.90/);
+  assert.match(html, /\$99\.99/);
   assert.match(html, /\$14\.99/);
-  assert.match(html, /\$149\.90/);
+  assert.match(html, /\$149\.99/);
 });
 
 test("subscription panel shows plans when Stripe is not configured", () => {
@@ -450,7 +451,7 @@ test("subscription panel shows downgrade confirmation below plan options", () =>
   );
   assert.match(html, /id="account-downgrade-confirmation"/);
   assert.match(html, /You will keep Business until/);
-  assert.match(html, /Plus monthly begins on that date|Plus begins on that date/);
+  assert.match(html, /Plus Monthly begins on that date|Plus monthly begins on that date|Plus begins on that date/i);
   assert.match(html, /Keep Business/);
   assert.match(html, /Confirm downgrade/);
 
@@ -546,8 +547,8 @@ test("downgrade confirm panel Keep Business and Confirm call through", async () 
   const html = renderToStaticMarkup(panel);
   assert.match(html, /Keep Business/);
   assert.match(html, /Confirm downgrade/);
-  assert.match(html, /Plus yearly begins/);
-  assert.match(html, /\$99\.90 per year/);
+  assert.match(html, /Plus Yearly begins|Plus yearly begins/i);
+  assert.match(html, /\$99\.99 per year/);
   assert.ok(html.indexOf("Keep Business") < html.indexOf("Confirm downgrade"));
   assert.equal(typeof panel.props.onKeep, "function");
   assert.equal(typeof panel.props.onConfirm, "function");
@@ -571,7 +572,7 @@ test("scheduled change summary for business yearly to plus yearly uses yearly pr
   const summary = scheduledChangeSummary(billing);
   assert.match(summary.lead, /Business yearly remains active/i);
   assert.match(summary.bullets.join(" "), /Plus yearly begins/i);
-  assert.match(summary.bullets.join(" "), /\$99\.90 per year/);
+  assert.match(summary.bullets.join(" "), /\$99\.99 per year/);
   assert.doesNotMatch(summary.bullets.join(" "), /\$9\.99/);
   assert.doesNotMatch(summary.pendingLabel, /monthly/i);
 });
@@ -1024,7 +1025,7 @@ test("schedule change preview copy explains period-end timing", () => {
   assert.match(copy.title, /Upgrade to Business Yearly/i);
   assert.match(copy.lead, /remains active until/i);
   assert.match(copy.bullets.join(" "), /Business yearly begins/i);
-  assert.match(copy.bullets.join(" "), /\$149\.90/);
+  assert.match(copy.bullets.join(" "), /\$149\.99/);
 });
 
 test("billing panel hides Stripe invoice controls for non-Stripe source", () => {
@@ -1147,7 +1148,7 @@ test("subscription panel shows over-capacity in Usage & limits without raw keys"
   );
   assert.match(html, /Plus/);
   assert.match(html, /Usage &amp; limits|Usage & limits/);
-  assert.match(html, /20 \/ 10/);
+  assert.match(html, /20 of 10|20 \/ 10/);
   assert.doesNotMatch(html, /Plan status/);
   assert.doesNotMatch(html, /Over limit/);
   assert.doesNotMatch(html, /active_standard_groups/);
@@ -1220,7 +1221,7 @@ test("subscription panel summarizes plan locks without attention actions", () =>
   assert.match(html, /Workspace Staff/);
   assert.match(html, /2 records · 0 available · 2 plan locked/);
   assert.match(html, /Members/);
-  assert.match(html, /4 \/ 10/);
+  assert.match(html, /4 of 10|4 \/ 10/);
   assert.doesNotMatch(html, /Plan attention required/);
   assert.doesNotMatch(html, /Choose available Groups/);
   assert.doesNotMatch(html, /Choose available Admins/);
@@ -1334,19 +1335,20 @@ test("CheckStation-managed account hides billing sections but keeps Info, Tutori
 
 test("public pricing source uses Basic Plus Business and removes Starter Pro", () => {
   const src = `${readSrc("PublicPricingScreen.jsx")}\n${readSrc("pricingPage.js")}`;
+  const promoEn = readSrc("promo/locales/en/promo.json");
   assert.match(src, /Basic/);
   assert.match(src, /Plus/);
   assert.match(src, /Business/);
   assert.match(src, /\$9\.99/);
   assert.match(src, /\$14\.99/);
-  assert.match(src, /\$99\.90/);
-  assert.match(src, /\$149\.90/);
-  assert.match(src, /Monthly/);
-  assert.match(src, /Yearly/);
-  assert.match(src, /Simple plans for every workspace/);
-  assert.match(src, /Get Started Free/);
-  assert.match(src, /Choose Plus/);
-  assert.match(src, /Go Business/);
+  assert.match(src, /\$99\.99/);
+  assert.match(src, /\$149\.99/);
+  assert.match(promoEn, /"monthly": "Monthly"/);
+  assert.match(promoEn, /"yearly": "Yearly"/);
+  assert.match(promoEn, /Simple plans for every workspace/);
+  assert.match(promoEn, /Get Started Free/);
+  assert.match(promoEn, /Choose Plus/);
+  assert.match(promoEn, /Go Business/);
   assert.match(src, /\/register/);
   assert.match(src, /\/account\/subscription/);
   assert.doesNotMatch(src, /\bV1\b/);

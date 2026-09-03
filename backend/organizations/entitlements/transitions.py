@@ -45,4 +45,5 @@ def apply_effective_plan(organization, plan, *, source=""):
     locked.plan = target
     locked.save(update_fields=["plan", "updated_at"])
     locked.refresh_from_db()
+    organization.plan = locked.plan
     return locked

@@ -38,7 +38,7 @@ def _is_allowed_during_kiosk_lock(request):
     method = request.method.upper()
     group_id = locked_group_id(request)
 
-    # Uploaded media is already public when unlocked (DEBUG static serve / CDN).
+    # Protected media is served by Django with the app session cookie.
     # Kiosk lock must not rewrite /media/ into JSON 403 — Header/Footer logos,
     # backgrounds, and participant photos are loaded as <img> with session cookies.
     if path.startswith("/media/") and method in {"GET", "HEAD"}:

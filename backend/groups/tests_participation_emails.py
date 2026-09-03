@@ -407,6 +407,7 @@ class ParticipationEmailReadinessTests(TestCase):
 
 
 @override_settings(
+    DEBUG=True,
     APP_SECRETS_ENCRYPTION_KEY="",
     SECRET_KEY="test-secret-key-for-participation-emails-suite",
 )
@@ -667,8 +668,9 @@ class ParticipationEmailSnapshotImportTests(TestCase):
             group=self.source,
             member=self.member,
             participation_emails=["mother@example.com", "father@example.com"],
-            participation_pin="1111",
         )
+        self.membership.set_participation_pin("1111")
+        self.membership.save(update_fields=["participation_pin_hash"])
         self.destination = Group.objects.create_group(
             organization=self.organization,
             name="School Event",

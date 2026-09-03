@@ -12,9 +12,10 @@ from accounts.owner_authentication import complete_owner_authentication, establi
 from accounts.owner_two_factor import (
     OWNER_2FA_PENDING_AT_KEY,
     OWNER_2FA_PENDING_USER_KEY,
-    encrypt_totp_secret,
+    decrypt_owner_totp_secret,
+    encrypt_owner_totp_secret,
 )
-from accounts.two_factor import TOTP_INTERVAL, decrypt_totp_secret, generate_totp_secret
+from accounts.two_factor import TOTP_INTERVAL, generate_totp_secret
 from organizations.models import Organization, OrganizationStatus
 
 User = get_user_model()
@@ -85,7 +86,7 @@ class CompleteOwnerAuthenticationTests(TestCase):
     def test_owner_with_2fa_returns_two_factor_required_without_logging_in(self):
         OwnerTOTPDevice.objects.create(
             user=self.owner,
-            secret_encrypted=encrypt_totp_secret(generate_totp_secret()),
+            secret_encrypted=encrypt_owner_totp_secret(generate_totp_secret()),
             confirmed=True,
         )
         request = self._request()
@@ -168,7 +169,7 @@ class CompleteOwnerAuthenticationIntegrationTests(TestCase):
             format="json",
         )
         device = OwnerTOTPDevice.objects.get(user=self.owner)
-        totp_secret = decrypt_totp_secret(device.secret_encrypted)
+        totp_secret = decrypt_owner_totp_secret(device.secret_encrypted)
         challenge_code = _totp_code_for_device_step(totp_secret, device)
         challenge = login.post(
             "/api/auth/owner-2fa/challenge/",

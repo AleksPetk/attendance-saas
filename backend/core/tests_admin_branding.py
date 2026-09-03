@@ -1,7 +1,9 @@
 from django.contrib import admin
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.test import Client, RequestFactory, TestCase
 from django.urls import reverse
+from unittest.mock import patch
 
 from accounts.testing import force_platform_admin_login
 from core.admin_branding import INDEX_TITLE, SITE_HEADER, SITE_TITLE
@@ -171,7 +173,28 @@ class PlatformAdminDashboardTests(TestCase):
         self.assertContains(response, "Customer accounts")
         self.assertContains(response, f'<p class="cs-metric-value">{metrics["customer_owners"]}</p>', html=True)
 
+    def test_operational_metric_failure_does_not_break_dashboard(self):
+        cache.clear()
+        self.addCleanup(cache.clear)
+        with (
+            patch(
+                "core.operational_metrics.application_size_bytes",
+                side_effect=OSError("sensitive path detail"),
+            ),
+            self.assertLogs("core.operational_metrics", level="WARNING"),
+        ):
+            response = self.client.get("/admin/")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Application size")
+        self.assertContains(response, "Media storage")
+        self.assertContains(response, "Database size")
+        self.assertContains(response, "Memory usage")
+        self.assertContains(response, '<p class="cs-metric-value">—</p>', html=True)
+
     def test_plan_metrics_count_active_workspace_entitlements(self):
+        self.organization.plan = OrganizationPlan.BASIC
+        self.organization.save(update_fields=["plan", "updated_at"])
+
         plus_owner = User.objects.create_user(
             email="plus-owner@example.com",
             password="secure-password",

@@ -6,6 +6,7 @@ const ERROR_CODE_KEYS = {
   plan_account_locked: "planAccountLocked",
   email_not_verified: "emailNotVerified",
   two_factor_required: "twoFactorRequired",
+  rate_limited: "rateLimited",
   checkstation_managed_account: "checkstationManaged",
   purchase_source_not_stripe: "notStripeBilling",
   purchase_source_apple: "appleBilling",

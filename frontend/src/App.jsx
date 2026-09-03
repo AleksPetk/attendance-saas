@@ -11,47 +11,48 @@ import {
   useParams,
 } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import SignInScreen from "./SignInScreen.jsx";
-import WorkspaceLayout from "./WorkspaceLayout.jsx";
 import { TutorialProvider } from "./TutorialContext.jsx";
-import MembersScreen from "./MembersScreen.jsx";
-import MemberCreateScreen from "./MemberCreateScreen.jsx";
-import MemberProfileScreen from "./MemberProfileScreen.jsx";
-import GroupsScreen from "./GroupsScreen.jsx";
-import GroupEditorScreen from "./GroupEditorScreen.jsx";
-import GroupDetailScreen from "./GroupDetailScreen.jsx";
-import GroupClassDetailScreen from "./GroupClassDetailScreen.jsx";
-import KioskSettingsScreen from "./kiosk/KioskSettingsScreen.jsx";
-import KioskBuilderScreen from "./kiosk/builder/KioskBuilderScreen.jsx";
-import HistoryScreen from "./HistoryScreen.jsx";
-import GroupKioskScreen from "./GroupKioskScreen.jsx";
-
-import PublicHomeScreen from "./PublicHomeScreen.jsx";
-import PublicFeaturesScreen from "./PublicFeaturesScreen.jsx";
-import PublicHowItWorksScreen from "./PublicHowItWorksScreen.jsx";
-import PublicPricingScreen from "./PublicPricingScreen.jsx";
-import PublicContactScreen from "./PublicContactScreen.jsx";
+import RouteSuspense from "./RouteSuspense.jsx";
+import {
+  AccountScreen,
+  CheckEmailScreen,
+  DashboardScreen,
+  ForgotPasswordScreen,
+  GroupClassDetailScreen,
+  GroupDetailScreen,
+  GroupEditorScreen,
+  GroupKioskScreen,
+  GroupsScreen,
+  HistoryScreen,
+  KioskBuilderScreen,
+  KioskSettingsScreen,
+  MemberCreateScreen,
+  MemberProfileScreen,
+  MembersScreen,
+  OwnerLoginScreen,
+  OwnerOAuthResultScreen,
+  PublicContactScreen,
+  PublicFeaturesScreen,
+  PublicHomeScreen,
+  PublicHowItWorksScreen,
+  PublicPricingScreen,
+  RegisterScreen,
+  ResetPasswordScreen,
+  StaffLoginScreen,
+  StaffManagementScreen,
+  VerifyBackupEmailScreen,
+  VerifyEmailScreen,
+  VerifyPrimaryEmailScreen,
+  WorkspaceLayout,
+} from "./lazyScreens.jsx";
+import { api } from "./api.js";
+import { LoadingState } from "./components.jsx";
 import { PromoLocaleProvider } from "./promo/PromoLocaleContext.jsx";
 import {
   isPromoMarketingPath,
   promoPathFor,
   resolveInitialPromoLocale,
 } from "./promo/locale.js";
-import OwnerOAuthResultScreen from "./OwnerOAuthResultScreen.jsx";
-import OwnerLoginScreen from "./OwnerLoginScreen.jsx";
-import StaffLoginScreen from "./StaffLoginScreen.jsx";
-import RegisterScreen from "./RegisterScreen.jsx";
-import CheckEmailScreen from "./CheckEmailScreen.jsx";
-import VerifyEmailScreen from "./VerifyEmailScreen.jsx";
-import VerifyBackupEmailScreen from "./VerifyBackupEmailScreen.jsx";
-import VerifyPrimaryEmailScreen from "./VerifyPrimaryEmailScreen.jsx";
-import ForgotPasswordScreen from "./ForgotPasswordScreen.jsx";
-import ResetPasswordScreen from "./ResetPasswordScreen.jsx";
-import DashboardScreen from "./DashboardScreen.jsx";
-import StaffManagementScreen from "./StaffManagementScreen.jsx";
-import AccountScreen from "./AccountScreen.jsx";
-import { api } from "./api.js";
-import { LoadingState } from "./components.jsx";
 import {
   canLaunchKiosk,
   canManageGroupConfiguration,
@@ -193,11 +194,46 @@ function PromoLocaleLayout({ locale }) {
 function promoMarketingChildRoutes(session) {
   return (
     <>
-      <Route index element={<PublicHomeScreen />} />
-      <Route path="features" element={<PublicFeaturesScreen />} />
-      <Route path="how-it-works" element={<PublicHowItWorksScreen />} />
-      <Route path="pricing" element={<PublicPricingScreen session={session} />} />
-      <Route path="contact" element={<PublicContactScreen />} />
+      <Route
+        index
+        element={(
+          <RouteSuspense>
+            <PublicHomeScreen />
+          </RouteSuspense>
+        )}
+      />
+      <Route
+        path="features"
+        element={(
+          <RouteSuspense>
+            <PublicFeaturesScreen />
+          </RouteSuspense>
+        )}
+      />
+      <Route
+        path="how-it-works"
+        element={(
+          <RouteSuspense>
+            <PublicHowItWorksScreen />
+          </RouteSuspense>
+        )}
+      />
+      <Route
+        path="pricing"
+        element={(
+          <RouteSuspense>
+            <PublicPricingScreen session={session} />
+          </RouteSuspense>
+        )}
+      />
+      <Route
+        path="contact"
+        element={(
+          <RouteSuspense>
+            <PublicContactScreen />
+          </RouteSuspense>
+        )}
+      />
     </>
   );
 }
@@ -266,6 +302,7 @@ function WorkspaceRoutes({
   onKioskUnlockedLocally,
   requestInterstitial,
 }) {
+  const { t } = useTranslation("kiosk");
   const kioskLocked = Boolean(session.workspace.kiosk_locked);
   const canUseKiosk = canLaunchKiosk(session) || kioskLocked;
   const nav = useNavigate();
@@ -359,16 +396,18 @@ function WorkspaceRoutes({
           path="/kiosk/:groupId"
           element={
             canUseKiosk ? (
-              <KioskByParam
-                session={session}
-                onUnlocked={onKioskUnlocked}
-                onKioskEntered={onKioskEntered}
-              />
+              <RouteSuspense>
+                <KioskByParam
+                  session={session}
+                  onUnlocked={onKioskUnlocked}
+                  onKioskEntered={onKioskEntered}
+                />
+              </RouteSuspense>
             ) : (
               <div className="page" style={{ padding: "var(--space-8)" }}>
                 <div className="empty-state">
-                  <h2>Kiosk unavailable</h2>
-                  <p>You do not have permission to launch the kiosk from this account.</p>
+                  <h2>{t("permissionDeniedTitle")}</h2>
+                  <p>{t("permissionDeniedBody")}</p>
                 </div>
               </div>
             )
@@ -385,7 +424,9 @@ function WorkspaceRoutes({
           path="/groups/:groupId/kiosk-builder"
           element={
             canManageGroupConfiguration(session) ? (
-              <GroupKioskBuilderByParam session={session} onNavigate={onNavigate} />
+              <RouteSuspense>
+                <GroupKioskBuilderByParam session={session} onNavigate={onNavigate} />
+              </RouteSuspense>
             ) : (
               <Navigate to="/groups" replace />
             )
@@ -396,7 +437,8 @@ function WorkspaceRoutes({
   }
 
   return (
-    <WorkspaceLayout
+    <RouteSuspense>
+      <WorkspaceLayout
       session={session}
       route={sidebarRoute}
       onNavigate={onNavigate}
@@ -508,6 +550,7 @@ function WorkspaceRoutes({
         />
       </Routes>
     </WorkspaceLayout>
+    </RouteSuspense>
   );
 }
 
@@ -657,11 +700,13 @@ export default function App() {
             path="/login"
             element={
               <RedirectIfSignedIn session={session}>
-                <OwnerLoginScreen
-                  onSignedIn={(next) => {
-                    setSession(next);
-                  }}
-                />
+                <RouteSuspense>
+                  <OwnerLoginScreen
+                    onSignedIn={(next) => {
+                      setSession(next);
+                    }}
+                  />
+                </RouteSuspense>
               </RedirectIfSignedIn>
             }
           />
@@ -669,11 +714,13 @@ export default function App() {
             path="/staff-login"
             element={
               <RedirectIfSignedIn session={session}>
-                <StaffLoginScreen
-                  onSignedIn={(next) => {
-                    setSession(next);
-                  }}
-                />
+                <RouteSuspense>
+                  <StaffLoginScreen
+                    onSignedIn={(next) => {
+                      setSession(next);
+                    }}
+                  />
+                </RouteSuspense>
               </RedirectIfSignedIn>
             }
           />
@@ -681,46 +728,89 @@ export default function App() {
             path="/register"
             element={
               <RedirectIfSignedIn session={session}>
-                <RegisterScreen />
+                <RouteSuspense>
+                  <RegisterScreen />
+                </RouteSuspense>
               </RedirectIfSignedIn>
             }
           />
-          <Route path="/check-email" element={<CheckEmailScreen />} />
+          <Route
+            path="/check-email"
+            element={(
+              <RouteSuspense>
+                <CheckEmailScreen />
+              </RouteSuspense>
+            )}
+          />
           <Route
             path="/verify-email/:uid/:token"
-            element={
-              <VerifyEmailScreen
-                onSignedIn={(next) => {
-                  setSession(next);
-                }}
-              />
-            }
+            element={(
+              <RouteSuspense>
+                <VerifyEmailScreen
+                  onSignedIn={(next) => {
+                    setSession(next);
+                  }}
+                />
+              </RouteSuspense>
+            )}
           />
-          <Route path="/verify-backup-email/:uid/:token" element={<VerifyBackupEmailScreen />} />
-          <Route path="/verify-primary-email/:uid/:token" element={<VerifyPrimaryEmailScreen />} />
-          <Route path="/forgot-password" element={<ForgotPasswordScreen />} />
-          <Route path="/reset-password/:uid/:token" element={<ResetPasswordScreen />} />
+          <Route
+            path="/verify-backup-email/:uid/:token"
+            element={(
+              <RouteSuspense>
+                <VerifyBackupEmailScreen />
+              </RouteSuspense>
+            )}
+          />
+          <Route
+            path="/verify-primary-email/:uid/:token"
+            element={(
+              <RouteSuspense>
+                <VerifyPrimaryEmailScreen />
+              </RouteSuspense>
+            )}
+          />
+          <Route
+            path="/forgot-password"
+            element={(
+              <RouteSuspense>
+                <ForgotPasswordScreen />
+              </RouteSuspense>
+            )}
+          />
+          <Route
+            path="/reset-password/:uid/:token"
+            element={(
+              <RouteSuspense>
+                <ResetPasswordScreen />
+              </RouteSuspense>
+            )}
+          />
           <Route
             path="/auth/google/result"
-            element={
-              <OwnerOAuthResultScreen
-                provider="google"
-                onSignedIn={(next) => {
-                  setSession(next);
-                }}
-              />
-            }
+            element={(
+              <RouteSuspense>
+                <OwnerOAuthResultScreen
+                  provider="google"
+                  onSignedIn={(next) => {
+                    setSession(next);
+                  }}
+                />
+              </RouteSuspense>
+            )}
           />
           <Route
             path="/auth/apple/result"
-            element={
-              <OwnerOAuthResultScreen
-                provider="apple"
-                onSignedIn={(next) => {
-                  setSession(next);
-                }}
-              />
-            }
+            element={(
+              <RouteSuspense>
+                <OwnerOAuthResultScreen
+                  provider="apple"
+                  onSignedIn={(next) => {
+                    setSession(next);
+                  }}
+                />
+              </RouteSuspense>
+            )}
           />
           <Route
             path="/*"

@@ -2,11 +2,11 @@ from django.db import migrations, models
 
 
 def seed_groups_billing_faq(apps, schema_editor):
-    from content.models import Document
+    Document = apps.get_model("content", "Document")
     from content.seed import SEED_DIR, seed_documents, seed_faq_entries
 
-    seed_documents(overwrite=False)
-    seed_faq_entries(overwrite=False)
+    seed_documents(overwrite=False, apps=apps)
+    seed_faq_entries(overwrite=False, apps=apps)
 
     home = Document.objects.filter(slug="documentation").first()
     if home is not None:

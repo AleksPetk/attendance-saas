@@ -32,7 +32,7 @@ test("focused modules hydrate Completed and Replay from the persisted API payloa
 test("focused completion is server-first and has no browser-storage dependency", () => {
   const source = readFileSync(new URL("TutorialContext.jsx", import.meta.url), "utf8");
   const persistCall = source.indexOf("api.completeTutorialModule(tour.module.id)");
-  const successFeedback = source.indexOf("tutorial complete.", persistCall);
+  const successFeedback = source.indexOf("tutorialHub.feedbackComplete", persistCall);
 
   assert.ok(persistCall >= 0);
   assert.ok(successFeedback > persistCall);

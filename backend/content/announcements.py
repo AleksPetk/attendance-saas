@@ -10,8 +10,10 @@ from content.models import (
     Announcement,
     AnnouncementAcknowledgement,
     AnnouncementAudience,
+    AnnouncementMarket,
     PublicationStatus,
 )
+from billing.markets import resolve_billing_market
 from organizations.entitlements.service import get_organization_plan_key
 from organizations.models import WorkspaceStaffAccount
 from organizations.permissions import get_active_workspace_organization
@@ -40,19 +42,23 @@ def published_announcement_queryset(now=None) -> QuerySet:
 
 
 def eligible_announcements_for_organization(organization, now=None) -> QuerySet:
-    """Filter published announcements whose audience matches this Organization."""
+    """Apply publication, audience, and effective billing-market eligibility."""
     if organization is None:
         return Announcement.objects.none()
 
     plan_key = get_organization_plan_key(organization)
     base = published_announcement_queryset(now=now)
-    return base.filter(
+    audience_match = base.filter(
         Q(audience=AnnouncementAudience.ALL)
         | Q(audience=AnnouncementAudience.PLAN, target_plans__contains=[plan_key])
         | Q(
             audience=AnnouncementAudience.WORKSPACES,
             target_workspaces=organization,
         )
+    )
+    effective_market = resolve_billing_market(organization)
+    return audience_match.filter(
+        Q(market=AnnouncementMarket.ALL) | Q(market=effective_market)
     ).distinct()
 
 

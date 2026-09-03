@@ -12,6 +12,7 @@ browsers or devices.
 
 from rest_framework.authentication import SessionAuthentication
 
+from attendance.class_pin_access import clear_class_pin_grant
 from groups.models import Group, GroupStatus
 from organizations.permissions import get_active_workspace_organization
 
@@ -50,14 +51,19 @@ def lock_kiosk_session(request, group_id):
     """
     if not uses_cookie_session_auth(request):
         return
+    previous = request.session.get(SESSION_KIOSK_GROUP_ID)
     request.session[SESSION_KIOSK_LOCKED] = True
     request.session[SESSION_KIOSK_GROUP_ID] = int(group_id)
+    # Switching Groups must not keep a prior Class PIN grant.
+    if previous is None or int(previous) != int(group_id):
+        clear_class_pin_grant(request)
     request.session.modified = True
 
 
 def clear_kiosk_lock(request):
     request.session.pop(SESSION_KIOSK_LOCKED, None)
     request.session.pop(SESSION_KIOSK_GROUP_ID, None)
+    clear_class_pin_grant(request)
     request.session.modified = True
 
 

@@ -7,14 +7,14 @@ You will: create an account, create a Group, add people, configure and launch a 
 ## 1. Create your CheckStation account
 
 1. Open **Get started** on the CheckStation website (or go to `/register`).
-2. Enter **Email**, **Password**, and **Confirm password**. First and last name are optional.
-3. Choose **Create account**.
+2. Create the account with **email and password**, or use **Continue with Google** / **Continue with Apple** if those sign-in methods are enabled.
+3. If you register with email and password, enter **Email**, **Password**, and **Confirm password**. First and last name are optional, then choose **Create account**.
 
-Your workspace is created automatically with **Business included for 7 days** (no card). Email verification is required before you can use the workspace. After registration you land on **Check your email**.
+Your workspace is created automatically with **Business included for 7 days** (no card). Email verification is required before you can use the workspace when you register with email and password. After registration you land on **Check your email**.
 
 Open the verification link (it expires in 24 hours). Use **Resend verification email** if needed. After verification, continue to Check Station or sign in at **Login**.
 
-> Owners sign in with email and password. Workspace staff use a different screen later: **Staff login** (Workspace ID + username + password).
+> Owners sign in with email and password, Google, or Apple. Optional two-factor authentication (2FA) can be enabled in **Account → Security**. **Sign-in Methods** in the same area lets you link or unlink Google and Apple when you also have a password. Workspace staff use a different screen: **Staff login** (Workspace ID + username + password).
 
 ## 2. Your workspace
 
@@ -204,13 +204,13 @@ You can skip email entirely for a first check-in.
 
 The owner creates logins on **Staff**: username, role (Admin or Staff), password, and email (required for Admin). Copy the **Workspace ID**. Staff sign in at **Staff login** with Workspace ID + username + password. Staff can be limited to specific Groups.
 
-The owner still signs in with email and password and does not use Workspace ID.
+The owner still signs in with email and password, Google, or Apple and does not use Workspace ID.
 
 ## 18. Subscription and billing
 
 The owner opens **Account**:
 
-- **Security** — login email, backup email, password, 2FA, account deletion
+- **Security** — login email, backup email, password, optional 2FA, Sign-in Methods (Google/Apple linking), account deletion
 - **Subscription** — current plan, usage, upgrades and downgrades
 - **Billing** — invoices, receipts, payment details (Stripe for web checkout)
 

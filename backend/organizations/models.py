@@ -42,6 +42,12 @@ class OrganizationPlan(models.TextChoices):
     BUSINESS = "business", "Business"
 
 
+class BillingMarketOverride(models.TextChoices):
+    AUTO = "auto", "Auto"
+    GLOBAL = "global", "Global"
+    JP = "jp", "Japan"
+
+
 class WorkspaceStaffRole(models.TextChoices):
     ADMIN = "admin", "Admin"
     STAFF = "staff", "Staff"
@@ -130,6 +136,16 @@ class Organization(models.Model):
             "Not customer-mutable via workspace APIs."
         ),
     )
+    billing_market_override = models.CharField(
+        max_length=10,
+        choices=BillingMarketOverride.choices,
+        default=BillingMarketOverride.AUTO,
+        db_index=True,
+        help_text=(
+            "Platform-admin billing market override. Auto currently resolves to "
+            "Global; customers cannot change this field."
+        ),
+    )
     active_standard_groups_slots_resolved = models.BooleanField(default=True)
     archived_groups_slots_resolved = models.BooleanField(default=True)
     members_slots_resolved = models.BooleanField(default=True)
@@ -152,6 +168,12 @@ class Organization(models.Model):
             models.CheckConstraint(
                 condition=models.Q(plan__in=OrganizationPlan.values),
                 name="organizations_organization_plan_valid",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(
+                    billing_market_override__in=BillingMarketOverride.values
+                ),
+                name="organizations_billing_market_override_valid",
             ),
             models.CheckConstraint(
                 condition=models.Q(workspace_id__regex=WORKSPACE_ID_PATTERN),

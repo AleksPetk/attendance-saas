@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { api } from "./api.js";
 import {
   ANNOUNCEMENT_ATTENTION_MS,
@@ -25,6 +26,7 @@ function BellIcon() {
 }
 
 export default function WorkspaceAnnouncementBell({ session, onNavigate }) {
+  const { t } = useTranslation("workspace");
   const canOpenStatus = canManageOwnerAccount(session);
   const panelId = useId();
   const rootRef = useRef(null);
@@ -203,7 +205,11 @@ export default function WorkspaceAnnouncementBell({ session, onNavigate }) {
           unreadCount > 0 ? "has-unread" : "",
           attention ? "is-attention" : "",
         ].filter(Boolean).join(" ")}
-        aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : "Notifications"}
+        aria-label={
+          unreadCount > 0
+            ? t("notifications.unreadAria", { count: unreadCount })
+            : t("notifications.aria")
+        }
         aria-expanded={open}
         aria-controls={panelId}
         onClick={toggleOpen}
@@ -221,14 +227,14 @@ export default function WorkspaceAnnouncementBell({ session, onNavigate }) {
           className="workspace-announcement-panel"
           id={panelId}
           role="dialog"
-          aria-label="Notifications"
+          aria-label={t("notifications.aria")}
         >
           <header className="workspace-announcement-panel-header">
-            <h2>Notifications</h2>
-            {loadError ? <p className="workspace-announcement-hint">Could not refresh.</p> : null}
+            <h2>{t("notifications.title")}</h2>
+            {loadError ? <p className="workspace-announcement-hint">{t("notifications.refreshFailed")}</p> : null}
           </header>
           {results.length === 0 ? (
-            <p className="workspace-announcement-empty">No announcements yet.</p>
+            <p className="workspace-announcement-empty">{t("notifications.empty")}</p>
           ) : (
             <ul className="workspace-announcement-list">
               {results.map((item) => (
@@ -259,7 +265,7 @@ export default function WorkspaceAnnouncementBell({ session, onNavigate }) {
                         onNavigate({ name: "account", section: "status" });
                       }}
                     >
-                      View Status
+                      {t("notifications.viewStatus")}
                     </button>
                   ) : null}
                 </li>

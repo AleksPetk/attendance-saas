@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { api, errorMessage } from "../api.js";
 import {
   ConfirmDialog,
@@ -24,10 +25,9 @@ import KioskConfirmationSettings from "./KioskConfirmationSettings.jsx";
 import KioskAttendanceResetSettings from "./KioskAttendanceResetSettings.jsx";
 import "./kioskSettings.css";
 
-const LEAVE_CONFIRM_MESSAGE =
-  "You have changes that haven't been saved. Leave without saving?";
-
 export default function KioskSettingsScreen({ session, groupId, onNavigate }) {
+  const { t } = useTranslation("kiosk");
+  const { t: tCommon } = useTranslation("common");
   const [group, setGroup] = useState(null);
   const [settings, setSettings] = useState(null);
   const [form, setForm] = useState(EMPTY_KIOSK_SETTINGS_FORM);
@@ -101,7 +101,7 @@ export default function KioskSettingsScreen({ session, groupId, onNavigate }) {
     setWorkspaceLeaveChecker(() => {
       if (skipLeaveConfirmRef.current) return true;
       if (!dirty) return true;
-      return window.confirm(LEAVE_CONFIRM_MESSAGE);
+      return window.confirm(t("settings.leaveConfirm"));
     });
     return () => setWorkspaceLeaveChecker(null);
   }, [dirty]);
@@ -172,7 +172,7 @@ export default function KioskSettingsScreen({ session, groupId, onNavigate }) {
         ...current,
         manual_reset_at: result.data.manual_reset_at,
       }));
-      setSuccessMessage(result.data.message || "Attendance cycle reset for this Group.");
+      setSuccessMessage(result.data.message || t("settings.attendanceResetSuccess"));
       setResetDialogOpen(false);
     } catch (resetError) {
       setError(errorMessage(resetError));
@@ -205,7 +205,7 @@ export default function KioskSettingsScreen({ session, groupId, onNavigate }) {
       setSavedForm(next);
       setChangingExitCode(nextChangingExitCode);
       setSavedChangingExitCode(nextChangingExitCode);
-      setSuccessMessage("Kiosk settings saved.");
+      setSuccessMessage(t("settings.saved"));
     } catch (saveError) {
       setError(errorMessage(saveError));
     } finally {
@@ -217,7 +217,7 @@ export default function KioskSettingsScreen({ session, groupId, onNavigate }) {
     return (
       <div className="page">
         <ErrorBanner message={error} />
-        <LoadingState label="Loading kiosk settings…" />
+        <LoadingState label={t("settings.loading")} />
       </div>
     );
   }
@@ -227,7 +227,7 @@ export default function KioskSettingsScreen({ session, groupId, onNavigate }) {
   return (
     <div className="page kiosk-settings-page">
       <PageHeader
-        title="Kiosk Settings"
+        title={t("settings.title")}
         meta={
           <>
             <span className="entity-kicker">{formatGroupId(group.id)}</span>
@@ -236,13 +236,13 @@ export default function KioskSettingsScreen({ session, groupId, onNavigate }) {
         }
         description={
           <>
-            <strong>{group.name}</strong> — identification, confirmation, and exit security.
+            <strong>{group.name}</strong> — {t("settings.description")}
           </>
         }
         actions={
           <>
             <button type="button" className="btn-secondary" onClick={handleBack}>
-              Back
+              {tCommon("back")}
             </button>
             <button
               type="submit"
@@ -251,7 +251,7 @@ export default function KioskSettingsScreen({ session, groupId, onNavigate }) {
               disabled={!dirty || saving}
               aria-disabled={!dirty || saving}
             >
-              {saving ? "Saving…" : "Save Kiosk Settings"}
+              {saving ? t("settings.saving") : t("settings.save")}
             </button>
           </>
         }
@@ -259,7 +259,7 @@ export default function KioskSettingsScreen({ session, groupId, onNavigate }) {
 
       {readiness && !readiness.ready && (readiness.issues || []).length > 0 ? (
         <div className="kiosk-settings-status-banner" role="status">
-          <strong>Needs setup</strong>
+          <strong>{t("settings.needsSetup")}</strong>
           <ul className="kiosk-settings-issues compact">
             {readiness.issues.map((issue) => (
               <li key={issue}>{issue}</li>
@@ -268,7 +268,7 @@ export default function KioskSettingsScreen({ session, groupId, onNavigate }) {
         </div>
       ) : readiness?.ready ? (
         <div className="kiosk-settings-status-banner kiosk-settings-status-banner-ready" role="status">
-          Ready to launch once Group setup is complete.
+          {t("settings.readyBanner")}
         </div>
       ) : null}
 
@@ -292,24 +292,24 @@ export default function KioskSettingsScreen({ session, groupId, onNavigate }) {
             data-tutorial-target="kiosk-settings-type"
           >
             <div className="kiosk-settings-card-head">
-              <h3 id="ks-type-title">Kiosk Type</h3>
+              <h3 id="ks-type-title">{t("settings.type.title")}</h3>
               <p className="hint">
                 {isStructured
-                  ? "Structured Groups use a fixed Class → Participant card flow."
-                  : "Choose how participants identify themselves."}
+                  ? t("settings.type.structuredHint")
+                  : t("settings.type.standardHint")}
               </p>
             </div>
             {isStructured ? (
               <div className="kiosk-structured-flow-note">
-                <strong>Kiosk flow</strong>
-                <p className="hint">Class cards → Participant cards</p>
-                <p className="hint">Class PINs are managed from each Class.</p>
+                <strong>{t("settings.type.flowTitle")}</strong>
+                <p className="hint">{t("settings.type.flowSteps")}</p>
+                <p className="hint">{t("settings.type.classPinsNote")}</p>
               </div>
             ) : (
-              <div className="kiosk-type-picker" role="radiogroup" aria-label="Kiosk type">
+              <div className="kiosk-type-picker" role="radiogroup" aria-label={t("settings.type.ariaLabel")}>
                 {[
-                  { id: "card", label: "Card", hint: "Participants tap their card." },
-                  { id: "input", label: "Input", hint: "Participants enter their code." },
+                  { id: "card", label: t("settings.type.card"), hint: t("settings.type.cardHint") },
+                  { id: "input", label: t("settings.type.input"), hint: t("settings.type.inputHint") },
                 ].map((option) => (
                   <label
                     key={option.id}
@@ -336,29 +336,29 @@ export default function KioskSettingsScreen({ session, groupId, onNavigate }) {
             data-tutorial-target="kiosk-settings-exit"
           >
             <div className="kiosk-settings-card-head">
-              <h3 id="ks-exit-title">Exit Kiosk</h3>
-              <p className="hint">Set the code used to leave live kiosk mode.</p>
+              <h3 id="ks-exit-title">{t("settings.exit.title")}</h3>
+              <p className="hint">{t("settings.exit.hint")}</p>
             </div>
             <div className="kiosk-settings-exit-body">
               {settings.exit_code_configured && !changingExitCode ? (
                 <div className="kiosk-exit-configured-panel">
                   <p className="kiosk-exit-status kiosk-exit-status-ok">
-                    <span aria-hidden="true">✓</span> Exit code configured
+                    <span aria-hidden="true">✓</span> {t("settings.exit.configured")}
                   </p>
                   <button
                     type="button"
                     className="btn-secondary btn-sm kiosk-exit-change-btn"
                     onClick={() => setChangingExitCode(true)}
                   >
-                    Change exit code
+                    {t("settings.exit.change")}
                   </button>
                 </div>
               ) : (
                 <>
                   {!settings.exit_code_configured ? (
-                    <p className="kiosk-exit-status kiosk-exit-status-required">Exit code required</p>
+                    <p className="kiosk-exit-status kiosk-exit-status-required">{t("settings.exit.required")}</p>
                   ) : null}
-                  <Field label="Kiosk Exit Code">
+                  <Field label={t("settings.exit.codeLabel")}>
                     <PasswordInput
                       value={form.exit_code}
                       onChange={(event) => patchForm({ exit_code: event.target.value })}
@@ -366,7 +366,7 @@ export default function KioskSettingsScreen({ session, groupId, onNavigate }) {
                       name="kiosk-exit-code-new"
                     />
                   </Field>
-                  <Field label="Confirm exit code">
+                  <Field label={t("settings.exit.confirmLabel")}>
                     <PasswordInput
                       value={form.exit_code_confirm}
                       onChange={(event) => patchForm({ exit_code_confirm: event.target.value })}
@@ -375,7 +375,7 @@ export default function KioskSettingsScreen({ session, groupId, onNavigate }) {
                     />
                   </Field>
                   <p className="hint kiosk-settings-helper">
-                    4–10 letters or numbers. Used only to exit kiosk mode.
+                    {t("settings.exit.helper")}
                   </p>
                   {settings.exit_code_configured ? (
                     <button
@@ -386,7 +386,7 @@ export default function KioskSettingsScreen({ session, groupId, onNavigate }) {
                         patchForm({ exit_code: "", exit_code_confirm: "" });
                       }}
                     >
-                      Cancel change
+                      {t("settings.exit.cancelChange")}
                     </button>
                   ) : null}
                 </>
@@ -401,8 +401,8 @@ export default function KioskSettingsScreen({ session, groupId, onNavigate }) {
           data-tutorial-target="kiosk-settings-identification"
         >
           <div className="kiosk-settings-card-head">
-            <h3 id="ks-identification-title">Identification</h3>
-            <p className="hint">Configure how participants are shown or identified.</p>
+            <h3 id="ks-identification-title">{t("settings.identification.title")}</h3>
+            <p className="hint">{t("settings.identification.hint")}</p>
           </div>
 
           {form.mode === "card" || isStructured ? (
@@ -411,7 +411,7 @@ export default function KioskSettingsScreen({ session, groupId, onNavigate }) {
                 className="kiosk-settings-subsection"
                 data-tutorial-target="kiosk-settings-identification-fields"
               >
-                <h4>Card content</h4>
+                <h4>{t("settings.identification.cardContent")}</h4>
                 <div className="kiosk-settings-option-stack">
                   <label className="ks-option-row">
                     <input
@@ -419,7 +419,7 @@ export default function KioskSettingsScreen({ session, groupId, onNavigate }) {
                       checked={form.card_show_name}
                       onChange={(event) => patchForm({ card_show_name: event.target.checked })}
                     />
-                    <span>Name</span>
+                    <span>{t("fields.name")}</span>
                   </label>
                   <label className={`ks-option-row ${pinForcedCode ? "locked" : ""}`}>
                     <input
@@ -431,9 +431,9 @@ export default function KioskSettingsScreen({ session, groupId, onNavigate }) {
                       }
                     />
                     <span>
-                      {isStructured ? "Class Participant Code" : "Group Participant Code"}
+                      {isStructured ? t("fields.classParticipantCode") : t("fields.groupParticipantCode")}
                       {pinForcedCode ? (
-                        <span className="ks-option-meta">Required when PIN verification is enabled.</span>
+                        <span className="ks-option-meta">{t("settings.identification.pinRequiredMeta")}</span>
                       ) : null}
                     </span>
                   </label>
@@ -447,10 +447,10 @@ export default function KioskSettingsScreen({ session, groupId, onNavigate }) {
                       }
                     />
                     <span>
-                      Email
+                      {t("fields.email")}
                       {!groupEmailOn ? (
                         <span className="ks-option-meta">
-                          Enable Email in Group configuration to use it here.
+                          {t("settings.identification.emailDisabledMeta")}
                         </span>
                       ) : null}
                     </span>
@@ -462,7 +462,7 @@ export default function KioskSettingsScreen({ session, groupId, onNavigate }) {
                 className="kiosk-settings-subsection"
                 data-tutorial-target="kiosk-settings-verification"
               >
-                <h4>Participant verification</h4>
+                <h4>{t("settings.identification.verification")}</h4>
                 <div className="kiosk-settings-option-stack">
                   <label className={`ks-option-row ${!groupPinOn ? "disabled-option" : ""}`}>
                     <input
@@ -472,10 +472,10 @@ export default function KioskSettingsScreen({ session, groupId, onNavigate }) {
                       onChange={(event) => patchForm({ use_pin: event.target.checked })}
                     />
                     <span>
-                      Require PIN after card selection
+                      {t("settings.identification.requirePin")}
                       {!groupPinOn ? (
                         <span className="ks-option-meta">
-                          Enable PIN in Group configuration to use it here.
+                          {t("settings.identification.pinDisabledMeta")}
                         </span>
                       ) : null}
                     </span>
@@ -489,8 +489,8 @@ export default function KioskSettingsScreen({ session, groupId, onNavigate }) {
               data-tutorial-target="kiosk-settings-identification-fields"
             >
               <div className="kiosk-settings-subsection">
-                <h4>Number of input fields</h4>
-                <div className="kiosk-segment-picker" role="radiogroup" aria-label="Input field count">
+                <h4>{t("settings.identification.fieldCount")}</h4>
+                <div className="kiosk-segment-picker" role="radiogroup" aria-label={t("settings.identification.fieldCountAria")}>
                   {[1, 2].map((count) => (
                     <label
                       key={count}
@@ -502,7 +502,7 @@ export default function KioskSettingsScreen({ session, groupId, onNavigate }) {
                         checked={form.input_field_count === count}
                         onChange={() => patchForm({ input_field_count: count })}
                       />
-                      {count} field{count > 1 ? "s" : ""}
+                      {t("settings.identification.fieldCountLabel", { count })}
                     </label>
                   ))}
                 </div>
@@ -512,46 +512,46 @@ export default function KioskSettingsScreen({ session, groupId, onNavigate }) {
                 className="kiosk-settings-subsection"
                 data-tutorial-target="kiosk-settings-verification"
               >
-                <h4>Field configuration</h4>
+                <h4>{t("settings.identification.fieldConfig")}</h4>
                 <div className="kiosk-field-config">
                   <div className="kiosk-field-config-row locked">
-                    <div className="kiosk-field-config-label">Field 1</div>
+                    <div className="kiosk-field-config-label">{t("settings.identification.field1")}</div>
                     <div className="kiosk-field-config-value">
-                      <strong>Group Participant Code</strong>
-                      <span className="kiosk-field-config-badge">Required</span>
+                      <strong>{t("fields.groupParticipantCode")}</strong>
+                      <span className="kiosk-field-config-badge">{tCommon("required")}</span>
                     </div>
                   </div>
 
                   {form.input_field_count === 1 ? (
                     <p className="hint kiosk-settings-helper">
-                      One-field mode uses Group Participant Code.
+                      {t("settings.identification.oneFieldHint")}
                     </p>
                   ) : (
                     <div className="kiosk-field-config-row">
-                      <div className="kiosk-field-config-label">Field 2</div>
+                      <div className="kiosk-field-config-label">{t("settings.identification.field2")}</div>
                       <div className="kiosk-field-config-value">
                         <select
                           className="kiosk-field-select"
                           value={form.input_second_field}
                           onChange={(event) => patchForm({ input_second_field: event.target.value })}
-                          aria-label="Field 2 identification option"
+                          aria-label={t("settings.identification.field2Aria")}
                         >
-                          <option value="name">Name</option>
+                          <option value="name">{t("fields.name")}</option>
                           <option value="email" disabled={!groupEmailOn}>
-                            Email{groupEmailOn ? "" : " (enable in Group config)"}
+                            {t("fields.email")}{groupEmailOn ? "" : t("settings.identification.emailOptionSuffix")}
                           </option>
                           <option value="pin" disabled={!groupPinOn}>
-                            PIN{groupPinOn ? "" : " (enable in Group config)"}
+                            {t("fields.pin")}{groupPinOn ? "" : t("settings.identification.pinOptionSuffix")}
                           </option>
                         </select>
                         {!groupEmailOn ? (
                           <span className="ks-option-meta">
-                            Enable Email in Group configuration to use it here.
+                            {t("settings.identification.emailDisabledMeta")}
                           </span>
                         ) : null}
                         {!groupPinOn ? (
                           <span className="ks-option-meta">
-                            Enable PIN in Group configuration to use it here.
+                            {t("settings.identification.pinDisabledMeta")}
                           </span>
                         ) : null}
                       </div>
@@ -569,8 +569,8 @@ export default function KioskSettingsScreen({ session, groupId, onNavigate }) {
           data-tutorial-target="kiosk-settings-reset"
         >
           <div className="kiosk-settings-card-head">
-            <h3 id="ks-attendance-reset-title">Attendance Reset</h3>
-            <p className="hint">Choose when participants can start a new attendance cycle.</p>
+            <h3 id="ks-attendance-reset-title">{t("settings.attendanceReset.title")}</h3>
+            <p className="hint">{t("settings.attendanceReset.hint")}</p>
           </div>
           <KioskAttendanceResetSettings
             form={form}
@@ -586,8 +586,8 @@ export default function KioskSettingsScreen({ session, groupId, onNavigate }) {
           data-tutorial-target="kiosk-settings-confirmation"
         >
           <div className="kiosk-settings-card-head">
-            <h3 id="ks-confirmation-title">Confirmation Screen</h3>
-            <p className="hint">What participants see after a successful action.</p>
+            <h3 id="ks-confirmation-title">{t("settings.confirmationScreen.title")}</h3>
+            <p className="hint">{t("settings.confirmationScreen.hint")}</p>
           </div>
           <KioskConfirmationSettings
             form={form}
@@ -600,10 +600,10 @@ export default function KioskSettingsScreen({ session, groupId, onNavigate }) {
 
       {resetDialogOpen ? (
         <ConfirmDialog
-          title="Reset attendance cycle?"
-          body="All participants in this Group will be able to start a new attendance cycle immediately. Existing attendance history will not be deleted."
-          cancelLabel="Cancel"
-          confirmLabel="Reset all participants"
+          title={t("settings.resetDialog.title")}
+          body={t("settings.resetDialog.body")}
+          cancelLabel={tCommon("cancel")}
+          confirmLabel={t("settings.resetDialog.confirm")}
           danger
           onCancel={() => setResetDialogOpen(false)}
           onConfirm={confirmResetNow}
@@ -612,10 +612,10 @@ export default function KioskSettingsScreen({ session, groupId, onNavigate }) {
 
       {leaveDialogOpen ? (
         <ConfirmDialog
-          title="Unsaved kiosk settings"
-          body={LEAVE_CONFIRM_MESSAGE}
-          cancelLabel="Stay"
-          confirmLabel="Leave without saving"
+          title={t("settings.leaveDialogTitle")}
+          body={t("settings.leaveConfirm")}
+          cancelLabel={t("settings.leaveStay")}
+          confirmLabel={t("settings.leaveWithoutSaving")}
           danger
           onCancel={handleStay}
           onConfirm={handleLeaveWithoutSaving}

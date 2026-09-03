@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { KIOSK_FONTS, kioskFontPickerIds, kioskFontPickerValue } from "../kioskFonts.js";
 import ColorField from "./ColorField.jsx";
 
@@ -11,6 +12,7 @@ export default function TextStyleEditor({
   onGestureEnd,
   showSize = true,
 }) {
+  const { t } = useTranslation("kiosk");
   const effects = text?.effects || { shadow: false, outline: false };
   const sizeRem = Number(text?.size_rem) || 1.5;
 
@@ -22,7 +24,7 @@ export default function TextStyleEditor({
     <fieldset className="kb-fieldset">
       {label ? <legend>{label}</legend> : null}
       <label className="kb-label">
-        Font
+        {t("builder.font")}
         <select
           value={kioskFontPickerValue(text?.font)}
           onChange={(event) => update({ font: event.target.value })}
@@ -37,7 +39,7 @@ export default function TextStyleEditor({
       {showSize ? (
         <div className="kb-slider-field">
           <div className="kb-slider-head">
-            <span className="kb-slider-label">Font size</span>
+            <span className="kb-slider-label">{t("builder.fontSize")}</span>
             <span className="kb-slider-value">{sizeRem.toFixed(2)} rem</span>
           </div>
           <input
@@ -46,7 +48,7 @@ export default function TextStyleEditor({
             max="3.5"
             step="0.05"
             value={sizeRem}
-            aria-label="Font size"
+            aria-label={t("builder.fontSizeAria")}
             onPointerDown={onGestureStart}
             onPointerUp={onGestureEnd}
             onChange={(event) =>
@@ -56,35 +58,35 @@ export default function TextStyleEditor({
         </div>
       ) : null}
       <ColorField
-        label="Text color"
+        label={t("builder.textColor")}
         value={text?.color || "#111827"}
         onChange={(color, meta) => update({ color }, meta)}
         onGestureStart={onGestureStart}
         onGestureEnd={onGestureEnd}
       />
       <div className="kb-subfield">
-        <span className="kb-subfield-label">Effects</span>
-        <div className="kb-chip-row" role="group" aria-label="Text effects">
+        <span className="kb-subfield-label">{t("builder.effects")}</span>
+        <div className="kb-chip-row" role="group" aria-label={t("builder.textEffectsAria")}>
           <button
             type="button"
             className={`kb-chip ${!effects.shadow && !effects.outline ? "active" : ""}`}
             onClick={() => update({ effects: { shadow: false, outline: false } })}
           >
-            None
+            {t("builder.overlayNone")}
           </button>
           <button
             type="button"
             className={`kb-chip ${effects.shadow ? "active" : ""}`}
             onClick={() => update({ effects: { ...effects, shadow: !effects.shadow } })}
           >
-            Shadow
+            {t("builder.shadow")}
           </button>
           <button
             type="button"
             className={`kb-chip ${effects.outline ? "active" : ""}`}
             onClick={() => update({ effects: { ...effects, outline: !effects.outline } })}
           >
-            Outline
+            {t("builder.outline")}
           </button>
         </div>
       </div>

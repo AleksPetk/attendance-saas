@@ -1,23 +1,26 @@
+import i18n from "../i18n/index.js";
+
 /** Development/mock ad copy. No third-party network, IDs, or tracking. */
 
-const BANNER = {
-  kind: "banner",
-  kicker: "ADVERTISEMENT",
-  headline: "Development placeholder",
-};
-
-const INTERSTITIAL = {
-  kind: "interstitial",
-  kicker: "ADVERTISEMENT",
-  headline: "Development placeholder",
-  continueLabel: "Continue",
-};
+function adCopy() {
+  return {
+    kicker: i18n.t("advertising.kicker", { ns: "entitlements" }),
+    headline: i18n.t("advertising.headline", { ns: "entitlements" }),
+    continueLabel: i18n.t("advertising.continue", { ns: "entitlements" }),
+  };
+}
 
 export const mockProvider = {
   banner() {
-    return { ...BANNER };
+    return {
+      kind: "banner",
+      ...adCopy(),
+    };
   },
   interstitial() {
-    return { ...INTERSTITIAL };
+    return {
+      kind: "interstitial",
+      ...adCopy(),
+    };
   },
 };

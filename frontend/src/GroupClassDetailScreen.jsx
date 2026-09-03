@@ -1,10 +1,13 @@
 import { useEffect, useState } from "react";
-import { api, errorMessage } from "./api.js";
+import { useTranslation } from "react-i18next";
+import { api } from "./api.js";
 import { ErrorBanner, Field, LoadingState, PasswordInput, StatusBadge } from "./components.jsx";
 import GroupParticipantsSection from "./GroupParticipantsSection.jsx";
+import { localizedErrorMessage } from "./i18n/errorMessages.js";
 import { formatClassId, formatGroupId, setupIncompleteSummary } from "./groupForm.js";
 
 export default function GroupClassDetailScreen({ session, groupId, classId, onNavigate }) {
+  const { t } = useTranslation(["groups", "common", "errors"]);
   const [group, setGroup] = useState(null);
   const [section, setSection] = useState(null);
   const [error, setError] = useState("");
@@ -35,9 +38,9 @@ export default function GroupClassDetailScreen({ session, groupId, classId, onNa
       setGroup(groupResult.data);
       setSection(classResult.data);
       setNameDraft(classResult.data.name || "");
-      setPinDraft(classResult.data.class_pin || "");
+      setPinDraft("");
     } catch (loadError) {
-      setError(errorMessage(loadError));
+      setError(localizedErrorMessage(loadError, t));
     }
   }
 
@@ -51,16 +54,16 @@ export default function GroupClassDetailScreen({ session, groupId, classId, onNa
     setError("");
     try {
       const body = { name: nameDraft.trim() };
-      if (group.require_class_pin || pinDraft) {
-        body.class_pin = pinDraft;
+      if (pinDraft.trim()) {
+        body.class_pin = pinDraft.trim();
       }
       const updated = await api.updateGroupClass(session, groupId, classId, body);
       setSection(updated.data);
-      setPinDraft(updated.data.class_pin || "");
+      setPinDraft("");
       setEditing(false);
       await load();
     } catch (saveError) {
-      setError(errorMessage(saveError));
+      setError(localizedErrorMessage(saveError, t));
     } finally {
       setSaving(false);
     }
@@ -70,7 +73,7 @@ export default function GroupClassDetailScreen({ session, groupId, classId, onNa
     return (
       <div className="page">
         <ErrorBanner message={error} />
-        <LoadingState label="Loading Class…" />
+        <LoadingState label={t("loadingClass")} />
       </div>
     );
   }
@@ -92,20 +95,23 @@ export default function GroupClassDetailScreen({ session, groupId, classId, onNa
             )}
           </div>
           <p>
-            {formatGroupId(group.id)} · {group.name} · {section.participant_count} participant
-            {section.participant_count === 1 ? "" : "s"}
+            {t("classDetail.participantLine", {
+              groupId: formatGroupId(group.id),
+              groupName: group.name,
+              count: section.participant_count,
+            })}
           </p>
         </div>
         <div className="header-actions">
           <button type="button" className="btn-secondary" onClick={() => setEditing((open) => !open)}>
-            {editing ? "Cancel edit" : "Edit Class"}
+            {editing ? t("classDetail.cancelEdit") : t("classDetail.editClass")}
           </button>
           <button
             type="button"
             className="btn-secondary"
             onClick={() => onNavigate({ name: "group-detail", groupId })}
           >
-            Back to Group
+            {t("backToGroup")}
           </button>
         </div>
       </header>
@@ -115,16 +121,16 @@ export default function GroupClassDetailScreen({ session, groupId, classId, onNa
       {setupIncomplete ? (
         <div className="setup-incomplete-banner">
           <div>
-            <strong>Group setup incomplete</strong>
-            <p className="hint">{setupSummary || "Complete participant setup across Classes."}</p>
+            <strong>{t("classDetail.groupSetupIncomplete")}</strong>
+            <p className="hint">{setupSummary || t("classDetail.completeAcrossClasses")}</p>
           </div>
         </div>
       ) : null}
 
       {editing ? (
         <form className="panel-form card-surface panel-form-edit" onSubmit={saveRename}>
-          <h3>Edit Class</h3>
-          <Field label="Name">
+          <h3>{t("classDetail.editClass")}</h3>
+          <Field label={t("editor.nameField")}>
             <input
               value={nameDraft}
               onChange={(event) => setNameDraft(event.target.value)}
@@ -132,11 +138,13 @@ export default function GroupClassDetailScreen({ session, groupId, classId, onNa
             />
           </Field>
           <Field
-            label="Class PIN"
+            label={t("detail.classPinLabel")}
             hint={
-              group.require_class_pin
-                ? "Required while Require PIN for classes is ON."
-                : "Optional. Stored for when Class PIN is enabled."
+              section.has_class_pin
+                ? t("detail.classPinKeepHint")
+                : group.require_class_pin
+                  ? t("classDetail.classPinRequiredHint")
+                  : t("classDetail.classPinOptionalHint")
             }
           >
             <PasswordInput
@@ -144,12 +152,17 @@ export default function GroupClassDetailScreen({ session, groupId, classId, onNa
               onChange={(event) => setPinDraft(event.target.value)}
               autoComplete="off"
               name="class-pin"
-              required={Boolean(group.require_class_pin)}
+              placeholder={
+                section.has_class_pin
+                  ? t("detail.classPinChangePlaceholder")
+                  : t("detail.classPinSetPlaceholder")
+              }
+              required={Boolean(group.require_class_pin) && !section.has_class_pin}
             />
           </Field>
           <div className="form-actions">
             <button type="submit" className="btn-primary" disabled={saving}>
-              Save
+              {t("common:save")}
             </button>
           </div>
         </form>
@@ -157,35 +170,35 @@ export default function GroupClassDetailScreen({ session, groupId, classId, onNa
 
       <div className="summary-grid">
         <article className="summary-card">
-          <h3>Parent Group</h3>
+          <h3>{t("classDetail.parentGroup")}</h3>
           <p>{group.name}</p>
           <p className="hint">{formatGroupId(group.id)}</p>
         </article>
         <article className="summary-card">
-          <h3>People</h3>
+          <h3>{t("classDetail.people")}</h3>
           <p className="summary-stat">
-            <strong>{section.participant_count}</strong> participants
+            <strong>{section.participant_count}</strong> {t("classDetail.participantsCountLabel")}
           </p>
         </article>
         <article className="summary-card">
-          <h3>Participation rules</h3>
+          <h3>{t("classDetail.participationRules")}</h3>
           <ul className="summary-list compact">
             <li>
-              <span>Email</span>
-              <strong>{group.participation?.email_required ? "Required" : "Optional"}</strong>
+              <span>{t("detail.emailLabel")}</span>
+              <strong>{group.participation?.email_required ? t("detail.emailRequired") : t("detail.emailOptional")}</strong>
             </li>
             <li>
-              <span>PIN</span>
-              <strong>{group.participation?.pin_required ? "Required" : "Optional"}</strong>
+              <span>{t("detail.pinLabel")}</span>
+              <strong>{group.participation?.pin_required ? t("detail.pinRequired") : t("detail.pinOptional")}</strong>
             </li>
             <li>
-              <span>Class PIN</span>
+              <span>{t("detail.classPinLabel")}</span>
               <strong>
                 {group.require_class_pin
                   ? section.has_class_pin
-                    ? "Set"
-                    : "Needed"
-                  : "Off"}
+                    ? t("classDetail.classPinSet")
+                    : t("classDetail.classPinNeeded")
+                  : t("classDetail.classPinOff")}
               </strong>
             </li>
           </ul>

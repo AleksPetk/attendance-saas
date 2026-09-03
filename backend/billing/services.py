@@ -140,6 +140,7 @@ def record_deferred_paid_start(
     trial_ends_at,
     external_customer_id="",
     external_subscription_id="",
+    currency="usd",
     now=None,
 ):
     """Record a provider paid subscription whose first invoice is delayed.
@@ -150,6 +151,9 @@ def record_deferred_paid_start(
     plan = _require_paid_plan(subscribed_plan)
     interval = _require_interval(billing_interval)
     source = _require_purchase_source(purchase_source)
+    currency = str(currency or "usd").strip().lower()
+    if currency not in {"usd", "jpy"}:
+        raise BillingStateError("Unsupported billing currency.")
     started = trial_started_at or _now(now)
     ends = trial_ends_at
     if ends is None or ends <= started:
@@ -172,10 +176,12 @@ def record_deferred_paid_start(
             external_subscription_id or billing.external_subscription_id
         )
         billing.purchase_source = source
+        billing.currency = currency
         return _save_billing(
             billing,
             [
                 "purchase_source",
+                "currency",
                 "external_customer_id",
                 "external_subscription_id",
             ],
@@ -187,6 +193,7 @@ def record_deferred_paid_start(
         )
 
     billing.purchase_source = source
+    billing.currency = currency
     billing.external_customer_id = external_customer_id or billing.external_customer_id
     billing.external_subscription_id = (
         external_subscription_id or billing.external_subscription_id
@@ -204,6 +211,7 @@ def record_deferred_paid_start(
         billing,
         [
             "purchase_source",
+            "currency",
             "external_customer_id",
             "external_subscription_id",
             "status",
@@ -237,12 +245,16 @@ def activate_paid_subscription(
     current_period_end,
     external_customer_id="",
     external_subscription_id="",
+    currency="usd",
     now=None,
 ):
     """Activate or confirm a paid Plus/Business subscription."""
     plan = _require_paid_plan(subscribed_plan)
     interval = _require_interval(billing_interval)
     source = _require_purchase_source(purchase_source)
+    currency = str(currency or "usd").strip().lower()
+    if currency not in {"usd", "jpy"}:
+        raise BillingStateError("Unsupported billing currency.")
     period_start = current_period_start or _now(now)
     if current_period_end is None or current_period_end <= period_start:
         raise BillingStateError("Paid period end must be after period start.")
@@ -265,6 +277,7 @@ def activate_paid_subscription(
     if not builtin_trial_is_active(org, now=now):
         apply_effective_plan(org, plan, source="billing.activate_paid_subscription")
     billing.purchase_source = source
+    billing.currency = currency
     billing.external_customer_id = external_customer_id or billing.external_customer_id
     billing.external_subscription_id = (
         external_subscription_id or billing.external_subscription_id
@@ -280,6 +293,7 @@ def activate_paid_subscription(
         billing,
         [
             "purchase_source",
+            "currency",
             "external_customer_id",
             "external_subscription_id",
             "status",
@@ -308,6 +322,7 @@ def apply_successful_upgrade(
     current_period_start=None,
     current_period_end=None,
     external_subscription_id="",
+    currency=None,
     now=None,
 ):
     """Immediate paid-tier upgrade. Does not calculate money."""
@@ -324,6 +339,11 @@ def apply_successful_upgrade(
 
     apply_effective_plan(org, target, source="billing.apply_successful_upgrade")
     billing.subscribed_plan = target
+    if currency:
+        value = str(currency).strip().lower()
+        if value not in {"usd", "jpy"}:
+            raise BillingStateError("Unsupported billing currency.")
+        billing.currency = value
     billing.status = BillingStatus.ACTIVE
     if current_period_start is not None:
         billing.current_period_start = current_period_start
@@ -338,6 +358,7 @@ def apply_successful_upgrade(
         billing,
         [
             "subscribed_plan",
+            "currency",
             "status",
             "current_period_start",
             "current_period_end",

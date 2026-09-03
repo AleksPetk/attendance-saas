@@ -22,6 +22,11 @@ from attendance.attendance_report import (
     list_report_members,
 )
 from attendance.report_export import render_attendance_report_export
+from attendance.class_pin_access import (
+    class_pin_required_for_group,
+    grant_class_pin_access,
+    require_class_pin_access,
+)
 from attendance.kiosk_lock import (
     attach_kiosk_status,
     clear_kiosk_lock,
@@ -185,6 +190,76 @@ def _deny_locked_group(group):
         raise_plan_denied(exc)
 
 
+def get_operable_kiosk_group(request, organization, group_pk):
+    """
+    Resolve a Group for live kiosk endpoints.
+
+    Group authorization (can_access_group) is enforced here independently of
+    kiosk-lock middleware. Unassigned Staff receive the same 404 as a missing
+    Group so existence is not revealed.
+    """
+    group = (
+        Group.objects.filter(pk=group_pk, organization=organization)
+        .select_related("kiosk_design", "kiosk_settings")
+        .exclude(status=GroupStatus.ARCHIVED)
+        .first()
+    )
+    if group is None or not can_access_group(request.user, group):
+        raise NotFound("Group not found in this workspace.")
+    _deny_locked_group(group)
+    return group
+
+
+def _reject_class_pin_query_param(request):
+    if "pin" in request.query_params:
+        raise ValidationError(
+            {
+                "pin": (
+                    "Class PIN must not be sent in the URL. "
+                    "Use POST /verify-pin/ first."
+                )
+            }
+        )
+
+
+def _participant_section_id(*, participant_kind, membership, group_only_participant):
+    if participant_kind == "member" and membership is not None:
+        return membership.section_id
+    if participant_kind == "group_only_participant" and group_only_participant is not None:
+        return group_only_participant.section_id
+    return None
+
+
+def _enforce_structured_class_pin_for_participant(
+    request, *, group, organization, participant_kind, membership, group_only_participant
+):
+    if not class_pin_required_for_group(group):
+        return None
+    section_id = _participant_section_id(
+        participant_kind=participant_kind,
+        membership=membership,
+        group_only_participant=group_only_participant,
+    )
+    if section_id is None:
+        return Response(
+            {
+                "code": "class_pin_required",
+                "detail": "Enter the Class PIN before continuing.",
+            },
+            status=status.HTTP_403_FORBIDDEN,
+        )
+    denied = require_class_pin_access(
+        request,
+        organization_id=organization.pk,
+        group_id=group.pk,
+        section_id=section_id,
+    )
+    if denied is None:
+        return None
+    payload, code = denied
+    return Response(payload, status=code)
+
+
 class OwnedWorkspaceMixin:
     permission_classes = [CanUseKioskAndViewHistory]
 
@@ -201,18 +276,7 @@ class GroupKioskStartView(OwnedWorkspaceMixin, APIView):
     """
 
     def get_object(self, group_pk):
-        group = (
-            Group.objects.filter(pk=group_pk, organization=self.organization)
-            .select_related("kiosk_design", "kiosk_settings")
-            .exclude(status=GroupStatus.ARCHIVED)
-            .first()
-        )
-        if group is None:
-            raise NotFound("Group not found in this workspace.")
-        if not can_access_group(self.request.user, group):
-            raise NotFound("Group not found in this workspace.")
-        _deny_locked_group(group)
-        return group
+        return get_operable_kiosk_group(self.request, self.organization, group_pk)
 
     def post(self, request, group_pk):
         """Lock this Check Station app session to the Group kiosk."""
@@ -296,14 +360,8 @@ class GroupKioskClassPeopleView(OwnedWorkspaceMixin, APIView):
     """Return participant cards for one active Class (Structured Groups)."""
 
     def get(self, request, group_pk, section_pk):
-        group = (
-            Group.objects.filter(pk=group_pk, organization=self.organization)
-            .exclude(status=GroupStatus.ARCHIVED)
-            .first()
-        )
-        if group is None:
-            raise NotFound("Group not found in this workspace.")
-        _deny_locked_group(group)
+        _reject_class_pin_query_param(request)
+        group = get_operable_kiosk_group(request, self.organization, group_pk)
         blocked = ensure_kiosk_launch_ready(group)
         if blocked:
             return Response(blocked, status=status.HTTP_409_CONFLICT)
@@ -318,16 +376,16 @@ class GroupKioskClassPeopleView(OwnedWorkspaceMixin, APIView):
         if section is None:
             raise NotFound("Class not found in this Group.")
 
-        if group.require_class_pin:
-            pin = request.query_params.get("pin", "")
-            if not section.check_class_pin(pin):
-                return Response(
-                    {
-                        "code": "invalid_class_pin",
-                        "detail": "Incorrect PIN. Try again.",
-                    },
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
+        if class_pin_required_for_group(group):
+            denied = require_class_pin_access(
+                request,
+                organization_id=self.organization.pk,
+                group_id=group.pk,
+                section_id=section.pk,
+            )
+            if denied is not None:
+                payload, code = denied
+                return Response(payload, status=code)
 
         settings_obj = get_kiosk_settings_for_group(group)
         people = build_card_people(
@@ -349,17 +407,16 @@ class GroupKioskClassPeopleView(OwnedWorkspaceMixin, APIView):
 
 
 class GroupKioskClassVerifyPinView(OwnedWorkspaceMixin, APIView):
-    """Verify Class PIN for Structured kiosk Class entry."""
+    """Verify Class PIN for Structured kiosk Class entry; records a session grant."""
 
     def post(self, request, group_pk, section_pk):
-        group = (
-            Group.objects.filter(pk=group_pk, organization=self.organization)
-            .exclude(status=GroupStatus.ARCHIVED)
-            .first()
+        from core.auth_rate_limits import (
+            check_class_pin_allowed,
+            clear_class_pin_failures,
+            record_class_pin_failure,
         )
-        if group is None:
-            raise NotFound("Group not found in this workspace.")
-        _deny_locked_group(group)
+
+        group = get_operable_kiosk_group(request, self.organization, group_pk)
         blocked = ensure_kiosk_launch_ready(group)
         if blocked:
             return Response(blocked, status=status.HTTP_409_CONFLICT)
@@ -374,7 +431,13 @@ class GroupKioskClassVerifyPinView(OwnedWorkspaceMixin, APIView):
         if section is None:
             raise NotFound("Class not found in this Group.")
 
-        if not group.require_class_pin:
+        if not class_pin_required_for_group(group):
+            grant_class_pin_access(
+                request,
+                organization_id=self.organization.pk,
+                group_id=group.pk,
+                section_id=section.pk,
+            )
             return Response(
                 {
                     "ok": True,
@@ -383,8 +446,28 @@ class GroupKioskClassVerifyPinView(OwnedWorkspaceMixin, APIView):
                 }
             )
 
+        if not check_class_pin_allowed(
+            request,
+            organization_id=self.organization.pk,
+            group_id=group.pk,
+            section_id=section.pk,
+        ):
+            return Response(
+                {
+                    "detail": "Too many attempts. Wait a moment and try again.",
+                    "code": "rate_limited",
+                },
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
+
         pin = request.data.get("pin", "")
         if not section.check_class_pin(pin):
+            record_class_pin_failure(
+                request,
+                organization_id=self.organization.pk,
+                group_id=group.pk,
+                section_id=section.pk,
+            )
             return Response(
                 {
                     "code": "invalid_class_pin",
@@ -392,6 +475,18 @@ class GroupKioskClassVerifyPinView(OwnedWorkspaceMixin, APIView):
                 },
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        clear_class_pin_failures(
+            request,
+            organization_id=self.organization.pk,
+            group_id=group.pk,
+            section_id=section.pk,
+        )
+        grant_class_pin_access(
+            request,
+            organization_id=self.organization.pk,
+            group_id=group.pk,
+            section_id=section.pk,
+        )
         return Response(
             {
                 "ok": True,
@@ -459,14 +554,7 @@ class GroupKioskIdentifyView(OwnedWorkspaceMixin, APIView):
         return True
 
     def post(self, request, group_pk):
-        group = (
-            Group.objects.filter(pk=group_pk, organization=self.organization)
-            .exclude(status=GroupStatus.ARCHIVED)
-            .first()
-        )
-        if group is None:
-            raise NotFound("Group not found in this workspace.")
-        _deny_locked_group(group)
+        group = get_operable_kiosk_group(request, self.organization, group_pk)
         blocked = ensure_kiosk_launch_ready(group)
         if blocked:
             return Response(blocked, status=status.HTTP_409_CONFLICT)
@@ -483,6 +571,18 @@ class GroupKioskIdentifyView(OwnedWorkspaceMixin, APIView):
                     {"code": "not_found", "detail": "Selected participant is not available."},
                     status=status.HTTP_404_NOT_FOUND,
                 )
+            membership = obj if participant_kind == "member" else None
+            group_only = obj if participant_kind == "group_only_participant" else None
+            class_denied = _enforce_structured_class_pin_for_participant(
+                request,
+                group=group,
+                organization=self.organization,
+                participant_kind=participant_kind,
+                membership=membership,
+                group_only_participant=group_only,
+            )
+            if class_denied is not None:
+                return class_denied
             pin = data.get("pin") or ""
             if not self._verify_card_pin(
                 settings_obj=settings_obj,
@@ -497,8 +597,8 @@ class GroupKioskIdentifyView(OwnedWorkspaceMixin, APIView):
             payload = build_kiosk_identify_payload(
                 group=group,
                 participant_kind=participant_kind,
-                membership=obj if participant_kind == "member" else None,
-                group_only_participant=obj if participant_kind == "group_only_participant" else None,
+                membership=membership,
+                group_only_participant=group_only,
                 request=request,
                 absolute_file_url=absolute_file_url,
             )
@@ -525,6 +625,17 @@ class GroupKioskIdentifyView(OwnedWorkspaceMixin, APIView):
                 {"code": "not_found", "detail": "No participant matches the provided code."},
                 status=status.HTTP_404_NOT_FOUND,
             )
+
+        class_denied = _enforce_structured_class_pin_for_participant(
+            request,
+            group=group,
+            organization=self.organization,
+            participant_kind=kind,
+            membership=obj if kind == "member" else None,
+            group_only_participant=obj if kind == "group_only_participant" else None,
+        )
+        if class_denied is not None:
+            return class_denied
 
         if settings_obj.input_field_count == 2:
             if not verify_second_field(
@@ -560,14 +671,7 @@ class GroupKioskPerformView(OwnedWorkspaceMixin, APIView):
     """
 
     def post(self, request, group_pk):
-        group = (
-            Group.objects.filter(pk=group_pk, organization=self.organization)
-            .exclude(status=GroupStatus.ARCHIVED)
-            .first()
-        )
-        if group is None:
-            raise NotFound("Group not found in this workspace.")
-        _deny_locked_group(group)
+        group = get_operable_kiosk_group(request, self.organization, group_pk)
         blocked = ensure_kiosk_launch_ready(group)
         if blocked:
             return Response(blocked, status=status.HTTP_409_CONFLICT)
@@ -609,6 +713,17 @@ class GroupKioskPerformView(OwnedWorkspaceMixin, APIView):
                 raise ValidationError({"participant": "Selected group-only participant is not part of this Group."})
         else:
             raise ValidationError({"participant_kind": "Invalid participant kind."})
+
+        class_denied = _enforce_structured_class_pin_for_participant(
+            request,
+            group=group,
+            organization=self.organization,
+            participant_kind=participant_kind,
+            membership=membership,
+            group_only_participant=group_only_participant,
+        )
+        if class_denied is not None:
+            return class_denied
 
         # Card mode: verify PIN when kiosk settings require it after card selection.
         # Input mode with PIN as second field is verified during identify.
@@ -903,24 +1018,13 @@ class GroupKioskExitView(APIView):
 
     permission_classes = [IsAuthenticated]
 
-    SESSION_EXIT_ATTEMPTS = "kiosk_exit_attempt_timestamps"
-
-    def _rate_limited(self, request):
-        import time
-
-        now = time.time()
-        window = 60
-        max_attempts = 15
-        stamps = [t for t in request.session.get(self.SESSION_EXIT_ATTEMPTS, []) if now - t < window]
-        if len(stamps) >= max_attempts:
-            return True
-        stamps.append(now)
-        request.session[self.SESSION_EXIT_ATTEMPTS] = stamps
-        request.session.modified = True
-        return False
-
     def post(self, request):
         from attendance.kiosk_lock import locked_group_id
+        from core.auth_rate_limits import (
+            check_kiosk_exit_allowed,
+            clear_kiosk_exit_failures,
+            record_kiosk_exit_failure,
+        )
         from organizations.permissions import get_active_workspace_organization
 
         actor = request.user
@@ -930,12 +1034,6 @@ class GroupKioskExitView(APIView):
         exit_code = str(request.data.get("exit_code") or "").strip()
         if not exit_code:
             return Response({"detail": "Exit code is required."}, status=400)
-
-        if self._rate_limited(request):
-            return Response(
-                {"detail": "Too many attempts. Wait a moment and try again."},
-                status=429,
-            )
 
         group_id = locked_group_id(request)
         if not group_id:
@@ -952,13 +1050,34 @@ class GroupKioskExitView(APIView):
         if group is None:
             return Response({"detail": "Kiosk Group is not available."}, status=403)
 
+        if not check_kiosk_exit_allowed(
+            request,
+            organization_id=organization.pk,
+            group_id=group.pk,
+        ):
+            return Response(
+                {
+                    "detail": "Too many attempts. Wait a moment and try again.",
+                    "code": "rate_limited",
+                },
+                status=429,
+            )
+
         settings_obj = ensure_group_kiosk_settings(group)
         if not settings_obj.check_exit_code(exit_code):
+            record_kiosk_exit_failure(
+                request,
+                organization_id=organization.pk,
+                group_id=group.pk,
+            )
             return Response({"detail": "Exit code verification failed."}, status=403)
 
+        clear_kiosk_exit_failures(
+            request,
+            organization_id=organization.pk,
+            group_id=group.pk,
+        )
         clear_kiosk_lock(request)
-        request.session.pop(self.SESSION_EXIT_ATTEMPTS, None)
-        request.session.modified = True
         payload = {"ok": True}
         payload.update(kiosk_status_payload(request))
         return Response(payload)

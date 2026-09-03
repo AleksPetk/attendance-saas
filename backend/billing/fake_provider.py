@@ -8,7 +8,7 @@ from uuid import uuid4
 
 from django.utils import timezone
 
-from billing.catalog import price_cents
+from billing.catalog import price_amount_minor
 from billing.exceptions import StripeSignatureError
 from billing.prices import price_id_for
 from billing.snapshots import (
@@ -57,6 +57,7 @@ class FakeStripeProvider:
         owner,
         plan_key,
         interval,
+        market="global",
         success_url,
         cancel_url,
         billing_start_at=None,
@@ -66,13 +67,14 @@ class FakeStripeProvider:
         session_id = f"cs_test_{uuid4().hex[:16]}"
         customer_id = self.customers.get(organization.pk) or f"cus_test_{organization.pk}"
         self.customers[organization.pk] = customer_id
-        price_id = price_id_for(plan_key, interval)
+        price_id = price_id_for(plan_key, interval, market=market)
         self.checkouts[session_id] = {
             "organization_id": organization.pk,
             "owner_id": owner.pk,
             "plan_key": plan_key,
             "interval": interval,
             "price_id": price_id,
+            "market": market,
             "customer_id": customer_id,
             "billing_start_at": billing_start_at,
             "success_url": success_url,
@@ -175,18 +177,18 @@ class FakeStripeProvider:
             "client_reference_id": str(checkout["organization_id"]),
         }
 
-    def preview_upgrade(self, *, subscription_id, target_plan, target_interval):
+    def preview_upgrade(self, *, subscription_id, target_plan, target_interval, market="global"):
         snapshot = self.retrieve_subscription(subscription_id)
         return UpgradePreview(
             amount_due_cents=int(self.preview_amount_cents),
-            currency="usd",
-            recurring_cents=price_cents(target_plan, target_interval),
+            currency="jpy" if market == "jp" else "usd",
+            recurring_cents=price_amount_minor(target_plan, target_interval, market=market),
             recurring_interval=target_interval,
             target_plan=target_plan,
             next_renewal_at=snapshot.current_period_end,
         )
 
-    def apply_upgrade(self, *, subscription_id, target_plan, target_interval):
+    def apply_upgrade(self, *, subscription_id, target_plan, target_interval, market="global"):
         if self.fail_next_upgrade:
             self.fail_next_upgrade = False
             from billing.exceptions import StripeProviderError
@@ -197,6 +199,7 @@ class FakeStripeProvider:
                 "subscription_id": subscription_id,
                 "target_plan": target_plan,
                 "target_interval": target_interval,
+                "market": market,
             }
         )
         current = self.subscriptions[subscription_id]
@@ -204,7 +207,7 @@ class FakeStripeProvider:
             subscription_id=current.subscription_id,
             customer_id=current.customer_id,
             status="active",
-            price_id=price_id_for(target_plan, target_interval),
+            price_id=price_id_for(target_plan, target_interval, market=market),
             cancel_at_period_end=False,
             current_period_start=current.current_period_start,
             current_period_end=current.current_period_end,
@@ -221,6 +224,7 @@ class FakeStripeProvider:
         subscription_id,
         target_plan,
         target_interval,
+        market="global",
         coupon_id=None,
         coupon_slot=None,
     ):
@@ -235,6 +239,7 @@ class FakeStripeProvider:
             "target_interval": target_interval,
             "coupon_id": str(coupon_id or "").strip() or None,
             "coupon_slot": str(coupon_slot or "").strip() or None,
+            "market": market,
         }
         self.downgrade_calls.append(record)
         self.schedule_change_calls.append(record)
@@ -243,16 +248,19 @@ class FakeStripeProvider:
             "target_interval": target_interval,
             "coupon_id": record["coupon_id"],
             "coupon_slot": record["coupon_slot"],
+            "market": market,
         }
         return self.retrieve_subscription(subscription_id)
 
-    def apply_scheduled_price(self, subscription_id: str, plan_key: str, interval: str):
+    def apply_scheduled_price(self, subscription_id: str, plan_key: str, interval: str, market=None):
         current = self.subscriptions[subscription_id]
+        scheduled = self.scheduled_downgrades.get(subscription_id) or {}
+        effective_market = market or scheduled.get("market") or "global"
         updated = SubscriptionSnapshot(
             subscription_id=current.subscription_id,
             customer_id=current.customer_id,
             status="active",
-            price_id=price_id_for(plan_key, interval),
+            price_id=price_id_for(plan_key, interval, market=effective_market),
             cancel_at_period_end=current.cancel_at_period_end,
             current_period_start=current.current_period_end or timezone.now(),
             current_period_end=(current.current_period_end or timezone.now())

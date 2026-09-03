@@ -5,6 +5,7 @@ import {
   HEADER_HEIGHT_MIN,
   MAIN_MIN_FRACTION,
 } from "../kioskVisual.js";
+import i18n from "../../i18n/index.js";
 
 export {
   FOOTER_HEIGHT_MAX,
@@ -37,7 +38,7 @@ export const COLOR_SWATCHES = [
 
 export function cloneConfig(config) {
   if (config == null || typeof config !== "object") {
-    throw new Error("Kiosk design config is missing.");
+    throw new Error(i18n.t("kiosk:builder.errors.missingConfig"));
   }
   return JSON.parse(JSON.stringify(config));
 }
@@ -75,6 +76,11 @@ export function normalizeHex(raw) {
   return null;
 }
 
+export function hexColorError() {
+  return i18n.t("kiosk:builder.errors.hexColor");
+}
+
+/** @deprecated Use hexColorError() for localized copy. */
 export const HEX_COLOR_ERROR = "Enter a hex color like #3B82F6.";
 
 export function evaluateHexDraft(raw) {
@@ -83,7 +89,7 @@ export function evaluateHexDraft(raw) {
   return {
     draft,
     color,
-    error: color ? "" : HEX_COLOR_ERROR,
+    error: color ? "" : hexColorError(),
   };
 }
 
@@ -116,13 +122,13 @@ export function clampFooterHeight(height, headerEnabled, headerHeight) {
 }
 
 export function isAllowedImageFile(file) {
-  if (!file) return { ok: false, error: "Choose an image file." };
+  if (!file) return { ok: false, error: i18n.t("kiosk:builder.errors.chooseImage") };
   const types = ["image/jpeg", "image/png", "image/gif", "image/webp"];
   if (!types.includes(file.type)) {
-    return { ok: false, error: "Use a JPEG, PNG, GIF, or WebP image." };
+    return { ok: false, error: i18n.t("kiosk:builder.errors.imageType") };
   }
   if (file.size > MAX_IMAGE_BYTES) {
-    return { ok: false, error: "Image must be under 10 MB." };
+    return { ok: false, error: i18n.t("kiosk:builder.errors.imageSize") };
   }
   return { ok: true };
 }
@@ -165,7 +171,7 @@ export function normalizeDesignMediaConfig(config) {
 
 export function formatApiError(error) {
   const data = error?.data;
-  if (!data) return "Save failed. Try again.";
+  if (!data) return i18n.t("kiosk:builder.errors.saveFailed");
   if (typeof data === "string") return data;
   if (typeof data.detail === "string") return data.detail;
   const parts = [];
@@ -185,24 +191,24 @@ export function formatApiError(error) {
     }
   }
   walk(data, "");
-  return parts.slice(0, 5).join(" · ") || "Save failed. Try again.";
+  return parts.slice(0, 5).join(" · ") || i18n.t("kiosk:builder.errors.saveFailed");
 }
 
 export function validateWorkingConfig(config) {
   const errors = [];
   const title = config?.header?.title?.text || "";
-  if (title.length > 150) errors.push("Header title is too long.");
+  if (title.length > 150) errors.push(i18n.t("kiosk:builder.errors.headerTitleTooLong"));
   const lines = config?.footer?.text?.lines || [];
-  if (lines.length > 1) errors.push("Footer supports at most one line of text.");
+  if (lines.length > 1) errors.push(i18n.t("kiosk:builder.errors.footerOneLine"));
   lines.forEach((line, index) => {
     if (typeof line !== "string") {
-      errors.push(`Footer line ${index + 1} must be text.`);
+      errors.push(i18n.t("kiosk:builder.errors.footerLineText", { index: index + 1 }));
       return;
     }
-    if (/\r|\n/.test(line)) errors.push("Footer text must be a single line.");
-    if (line.length > 200) errors.push(`Footer line ${index + 1} is too long.`);
+    if (/\r|\n/.test(line)) errors.push(i18n.t("kiosk:builder.errors.footerSingleLine"));
+    if (line.length > 200) errors.push(i18n.t("kiosk:builder.errors.footerLineTooLong", { index: index + 1 }));
   });
   const mainTitle = config?.main?.title?.text || "";
-  if (mainTitle.length > 150) errors.push("Main title is too long.");
+  if (mainTitle.length > 150) errors.push(i18n.t("kiosk:builder.errors.mainTitleTooLong"));
   return errors;
 }

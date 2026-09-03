@@ -24,8 +24,7 @@ from kiosk_builder.models import KioskDesign, KioskSettings
 from members.models import Member
 from organizations.models import Organization, WorkspaceStaffAccount, WorkspaceStaffGroupAccess
 
-STAFF_BACKEND = "organizations.authentication.WorkspaceStaffSessionAuthenticationBackend"
-
+from organizations.authentication import WORKSPACE_STAFF_SESSION_AUTH_BACKEND
 logger = logging.getLogger("accounts.deletion")
 User = get_user_model()
 
@@ -34,6 +33,25 @@ DELETE_CONFIRMATION_TEXT = "DELETE"
 
 class PermanentDeletionError(ValidationError):
     """Raised when a permanent delete cannot proceed."""
+
+    def __init__(self, message, *, code: str | None = None, params=None):
+        self.error_code = code
+        self.extra = params if isinstance(params, dict) else {}
+        if code:
+            super().__init__(message, code=code)
+        else:
+            super().__init__(message)
+
+
+class ActiveSubscriptionBlocksDeletion(PermanentDeletionError):
+    """Owner/API permanent deletion blocked by a live paid subscription."""
+
+    def __init__(self, payload: dict | None = None):
+        from organizations.lifecycle import OWNER_ACTIVE_SUBSCRIPTION_DELETION_MESSAGE
+
+        data = dict(payload or {})
+        detail = data.get("detail") or OWNER_ACTIVE_SUBSCRIPTION_DELETION_MESSAGE
+        super().__init__(detail, code="active_subscription", params=data)
 
 
 def hard_delete_queryset(queryset):
@@ -85,7 +103,7 @@ def invalidate_staff_sessions_for_organization(organization_id):
         if str(data.get("_auth_user_id") or "") not in staff_ids:
             continue
         backend = data.get("_auth_user_backend") or ""
-        if backend != STAFF_BACKEND:
+        if backend != WORKSPACE_STAFF_SESSION_AUTH_BACKEND:
             continue
         session.delete()
 
@@ -133,15 +151,11 @@ def permanently_delete_customer_account(
             "This user still owns a workspace. Permanently delete the Organization first."
         )
     if require_no_live_subscription and organization is not None:
-        from organizations.lifecycle import live_subscription_block_reason
+        from organizations.lifecycle import owner_deletion_blocked_by_live_subscription
 
-        reason = live_subscription_block_reason(organization)
-        if reason:
-            raise PermanentDeletionError(
-                "This workspace still has a live paid subscription. "
-                "Handle or end billing first. Permanent deletion cannot leave "
-                "Stripe charging a deleted workspace."
-            )
+        blocked = owner_deletion_blocked_by_live_subscription(organization)
+        if blocked:
+            raise ActiveSubscriptionBlocksDeletion(blocked)
 
     organization_id = organization.pk if organization is not None else None
     user_id = user.pk

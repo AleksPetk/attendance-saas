@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { api, errorMessage } from "./api.js";
 import { AuthLayout, ErrorBanner, LoadingState, SuccessBanner } from "./components.jsx";
 
 export default function VerifyBackupEmailScreen() {
+  const { t } = useTranslation("auth");
   const { uid, token } = useParams();
   const [status, setStatus] = useState("loading");
   const [message, setMessage] = useState("");
@@ -16,7 +18,7 @@ export default function VerifyBackupEmailScreen() {
         const result = await api.verifyBackupEmail({ uid, token });
         if (cancelled) return;
         setStatus("verified");
-        setMessage(result.data.detail || "Backup email verified.");
+        setMessage(result.data.detail || t("verifyBackupEmail.verifiedDefault"));
       } catch (err) {
         if (cancelled) return;
         const code = err?.data?.code;
@@ -34,12 +36,12 @@ export default function VerifyBackupEmailScreen() {
     return () => {
       cancelled = true;
     };
-  }, [uid, token]);
+  }, [uid, token, t]);
 
   if (status === "loading") {
     return (
-      <AuthLayout title="Verifying backup email" lead="Please wait while we confirm your backup email.">
-        <LoadingState label="Verifying…" />
+      <AuthLayout title={t("verifyBackupEmail.loadingTitle")} lead={t("verifyBackupEmail.loadingLead")}>
+        <LoadingState label={t("verifyEmail.verifying")} />
       </AuthLayout>
     );
   }
@@ -47,20 +49,20 @@ export default function VerifyBackupEmailScreen() {
   if (status === "verified") {
     return (
       <AuthLayout
-        title="Backup email verified"
-        lead="Your CheckStation backup email is confirmed."
+        title={t("verifyBackupEmail.verifiedTitle")}
+        lead={t("verifyBackupEmail.verifiedLead")}
         footnote={
           <p>
-            <Link to="/account/security">Return to account</Link>
+            <Link to="/account/security">{t("verifyBackupEmail.returnToAccount")}</Link>
             {" · "}
-            <Link to="/login">Go to login</Link>
+            <Link to="/login">{t("verifyEmail.goToLogin")}</Link>
           </p>
         }
       >
         <div className="auth-status-panel">
           <SuccessBanner message={message} />
           <Link className="btn-primary btn-block" to="/account/security">
-            Return to account
+            {t("verifyBackupEmail.returnToAccount")}
           </Link>
         </div>
       </AuthLayout>
@@ -69,16 +71,16 @@ export default function VerifyBackupEmailScreen() {
 
   const title =
     status === "expired"
-      ? "Link expired"
+      ? t("linkExpired")
       : status === "unavailable"
-        ? "Email unavailable"
-        : "Link invalid";
+        ? t("verifyBackupEmail.unavailableTitle")
+        : t("linkInvalid");
   const lead =
     status === "expired"
-      ? "This backup email verification link has expired. Request a new one from your account page."
+      ? t("verifyBackupEmail.expiredLead")
       : status === "unavailable"
-        ? "This email address is no longer available for your account."
-        : "This backup email verification link is invalid or has already been used.";
+        ? t("verifyBackupEmail.unavailableLead")
+        : t("verifyBackupEmail.invalidLead");
 
   return (
     <AuthLayout
@@ -86,9 +88,9 @@ export default function VerifyBackupEmailScreen() {
       lead={lead}
       footnote={
         <p>
-          <Link to="/account/security">Return to account</Link>
+          <Link to="/account/security">{t("verifyBackupEmail.returnToAccount")}</Link>
           {" · "}
-          <Link to="/login">Return to login</Link>
+          <Link to="/login">{t("verifyEmail.returnToLogin")}</Link>
         </p>
       }
     >

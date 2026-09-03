@@ -114,6 +114,9 @@ def render_branded_email(
     extra_html="",
     extra_text="",
     footer_note="",
+    language="en",
+    expiry_text="",
+    action_help_text="",
 ):
     """Render the shared HTML + plain-text transactional layout."""
     name = product_name()
@@ -137,6 +140,9 @@ def render_branded_email(
         "extra_html": extra_html,
         "extra_text": extra_text,
         "footer_note": footer_note,
+        "language": language,
+        "expiry_text": expiry_text,
+        "action_help_text": action_help_text,
     }
     html_body = render_to_string("email/branded_message.html", context)
     text_body = render_to_string("email/branded_message.txt", context)

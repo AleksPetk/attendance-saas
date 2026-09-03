@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useLocation } from "react-router-dom";
-import { api, errorMessage } from "./api.js";
+import { api } from "./api.js";
+import { localizedErrorMessage } from "./i18n/errorMessages.js";
+import i18n from "./i18n/index.js";
+import { usePageTitle } from "./i18n/usePageTitle.js";
 import {
   ConfirmDialog,
   ErrorBanner,
@@ -88,9 +92,6 @@ const EMPTY_SENDER_FORM = {
   change_password: false,
 };
 
-const LEAVE_CONFIRM_MESSAGE =
-  "You have changes that haven't been saved. Leave without saving?";
-
 const CREATE_BASELINE = cloneGroup(EMPTY_GROUP);
 
 function cloneGroup(source) {
@@ -109,17 +110,20 @@ function senderStatusBadge(status) {
 
 function senderStatusLabel(sender) {
   const labels = {
-    not_configured: "Not configured",
-    needs_verification: "Needs verification",
-    ready: "Ready",
-    error: "Error",
+    not_configured: i18n.t("groups:editor.senderNotConfigured"),
+    needs_verification: i18n.t("groups:editor.senderNeedsVerification"),
+    ready: i18n.t("groups:editor.senderReady"),
+    error: i18n.t("groups:editor.senderError"),
   };
-  return labels[sender?.status] || sender?.status_label || "Not configured";
+  return labels[sender?.status] || sender?.status_label || i18n.t("groups:editor.senderNotConfigured");
 }
 
 export default function GroupEditorScreen({ session, groupId, onNavigate }) {
+  const { t } = useTranslation(["groups", "common", "errors"]);
   const location = useLocation();
   const isEdit = Boolean(groupId);
+
+  usePageTitle("pageTitles.groups", { ns: "workspace" });
   const structuredAllowed = canCreateStructuredGroups(session);
   const forwardEmailsAllowed = canUseGroupForwardEmails(session);
   const [values, setValues] = useState(cloneGroup(EMPTY_GROUP));
@@ -246,13 +250,13 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
 
   function displayedSenderStatus() {
     if (draftStatus === "verified") {
-      return { status: "ready", label: "Verified — ready to save" };
+      return { status: "ready", label: t("editor.senderVerifiedReady") };
     }
     if (draftStatus === "error") {
-      return { status: "error", label: "Error" };
+      return { status: "error", label: t("editor.senderError") };
     }
     if (senderDraftIsDirty()) {
-      return { status: "needs_verification", label: "Draft — not saved" };
+      return { status: "needs_verification", label: t("editor.senderDraftNotSaved") };
     }
     return { status: emailSender.status, label: senderStatusLabel(emailSender) };
   }
@@ -334,7 +338,7 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
           setPlanAccessDenied(true);
           return;
         }
-        setError(errorMessage(loadError));
+        setError(localizedErrorMessage(loadError, t));
       });
   }, [groupId, onNavigate, session]);
 
@@ -352,7 +356,7 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
     setWorkspaceLeaveChecker(() => {
       if (skipLeaveConfirmRef.current) return true;
       if (!dirty) return true;
-      return window.confirm(LEAVE_CONFIRM_MESSAGE);
+      return window.confirm(t("editor.leaveConfirm"));
     });
     return () => setWorkspaceLeaveChecker(null);
   }, [dirty]);
@@ -431,8 +435,8 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
   ).length;
   const forwardEmailSummary =
     configuredForwardCount === 0
-      ? "None"
-      : `${configuredForwardCount} configured`;
+      ? t("editor.forwardNone")
+      : t("editor.forwardConfigured", { count: configuredForwardCount });
   const forwardSlots = forwardEmailSlots();
   const forwardNumbered = forwardSlots.length > 1;
 
@@ -443,9 +447,7 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
     patch(path, checked);
     if (checked && !values.participation.email_required) {
       patch("participation.email_required", true);
-      setRequireEmailNotice(
-        "Participant email was enabled because after-action emails require an email address."
-      );
+      setRequireEmailNotice(t("editor.requireEmailNotice"));
     }
   }
 
@@ -565,11 +567,9 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
         setSavedBaseline(next);
         setReadiness(updated.data.readiness || null);
         if (updated.data.require_email_enabled_for_after_action) {
-          setRequireEmailNotice(
-            "Participant email was enabled because after-action emails require an email address."
-          );
+          setRequireEmailNotice(t("editor.requireEmailNotice"));
         }
-        setSuccessMessage("Group settings saved.");
+        setSuccessMessage(t("editor.saved"));
       } else {
         const created = await api.createGroup(session, payload);
         skipLeaveConfirmRef.current = true;
@@ -577,7 +577,7 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
         onNavigate({ name: "group-detail", groupId: created.data.id });
       }
     } catch (saveError) {
-      setError(errorMessage(saveError));
+      setError(localizedErrorMessage(saveError, t));
     } finally {
       setSaving(false);
     }
@@ -597,11 +597,11 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
       applyPersistedSender(result.data);
       setSenderMessage(
         result.data.status === "ready"
-          ? "Email sender saved and active."
-          : "Email sender saved."
+          ? t("editor.senderSavedActive")
+          : t("editor.senderSaved"),
       );
     } catch (saveError) {
-      setError(errorMessage(saveError));
+      setError(localizedErrorMessage(saveError, t));
     } finally {
       setSavingSender(false);
     }
@@ -629,13 +629,12 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
       setDraftVerified(Boolean(result.data.draft_verified));
       setDraftStatus(result.data.draft_verified ? "verified" : "");
       setSenderMessage(
-        result.data.detail ||
-          "Test email sent. Save the sender to make this configuration active."
+        result.data.detail || t("editor.testSentHint"),
       );
     } catch (testError) {
       setDraftVerified(false);
       setDraftStatus("error");
-      setDraftError(errorMessage(testError));
+      setDraftError(localizedErrorMessage(testError, t));
       setError("");
       // Refresh persisted sender only — do not apply failed draft as saved config.
       try {
@@ -661,12 +660,9 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
     return (
       <div className="page">
         <div className="plan-locked-banner plan-locked-page" role="alert">
-          <span className="plan-locked-badge">Plan locked</span>
-          <strong>This Group is not available on the current plan</strong>
-          <p className="hint">
-            Configuration stays preserved. Unlock the Group during capacity selection or upgrade
-            the plan before editing.
-          </p>
+          <span className="plan-locked-badge">{t("planLocked")}</span>
+          <strong>{t("detail.planLockedPageTitle")}</strong>
+          <p className="hint">{t("detail.planLockedEditorHint")}</p>
           <button
             type="button"
             className="btn-secondary"
@@ -675,7 +671,7 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
               onNavigate({ name: "groups" });
             }}
           >
-            Back to Groups
+            {t("backToGroups")}
           </button>
         </div>
       </div>
@@ -685,7 +681,7 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
   return (
     <div className="page">
       <PageHeader
-        title={isEdit ? "Edit Group" : "Create Group"}
+        title={isEdit ? t("editor.editTitle") : t("editor.createTitle")}
         meta={
           isEdit ? (
             <>
@@ -701,7 +697,7 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
         actions={
           <>
             <button type="button" className="btn-secondary" onClick={handleBack}>
-              Back
+              {t("common:back")}
             </button>
             <button
               type="submit"
@@ -710,7 +706,7 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
               disabled={isEdit ? !dirty || saving || savedBaseline === null : saving}
               aria-disabled={isEdit ? !dirty || saving || savedBaseline === null : saving}
             >
-              {saving ? "Saving…" : isEdit ? "Save Group" : "Create Group"}
+              {saving ? t("editor.saving") : isEdit ? t("editor.saveGroup") : t("createGroup")}
             </button>
           </>
         }
@@ -727,7 +723,7 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
           {error ? <ErrorBanner message={error} /> : null}
           {setupSummary ? (
             <div className="alert alert-warning" role="status">
-              Setup incomplete: {setupSummary}
+              {t("editor.setupIncompletePrefix")} {setupSummary}
             </div>
           ) : null}
           {requireEmailNotice ? (
@@ -746,11 +742,11 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
       >
         {!isEdit ? (
           <SectionCard
-            title="Group type"
+            title={t("editor.groupType")}
             className="section-group-type"
             tutorialTarget="group-editor-type"
           >
-            <div className="group-type-selector" role="radiogroup" aria-label="Group type">
+            <div className="group-type-selector" role="radiogroup" aria-label={t("editor.groupTypeAria")}>
               <button
                 type="button"
                 className="group-type-option"
@@ -765,8 +761,8 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
                   }))
                 }
               >
-                <strong>Standard Group</strong>
-                <span>Participants belong directly to the Group.</span>
+                <strong>{t("type.standardShort")}</strong>
+                <span>{t("type.standardDescription")}</span>
               </button>
               <button
                 type="button"
@@ -775,11 +771,7 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
                 aria-checked={values.group_type === "structured"}
                 data-selected={values.group_type === "structured" ? "true" : "false"}
                 disabled={!structuredAllowed}
-                title={
-                  structuredAllowed
-                    ? undefined
-                    : "Structured Groups require the Business plan"
-                }
+                title={structuredAllowed ? undefined : t("type.structuredPlanRequired")}
                 onClick={() => {
                   if (!structuredAllowed) return;
                   setValues((current) => ({
@@ -788,30 +780,34 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
                   }));
                 }}
               >
-                <strong>Structured Group</strong>
+                <strong>{t("type.structuredShort")}</strong>
                 <span>
                   {structuredAllowed
-                    ? "Organize participants inside Classes/Sections."
-                    : "Business plan feature — locked on your current plan."}
+                    ? t("type.structuredDescription")
+                    : t("type.structuredLocked")}
                 </span>
               </button>
             </div>
           </SectionCard>
         ) : (
-          <SectionCard title="Group type" className="section-group-type">
+          <SectionCard title={t("editor.groupType")} className="section-group-type">
             <p className="hint">
-              {values.group_type === "structured" ? "Structured Group" : "Standard Group"} — type
-              cannot be changed after creation.
+              {t("type.immutableHint", {
+                type:
+                  values.group_type === "structured"
+                    ? t("type.structured")
+                    : t("type.standard"),
+              })}
             </p>
           </SectionCard>
         )}
 
         <SectionCard
-          title="Group name"
+          title={t("editor.groupName")}
           className="section-name"
           tutorialTarget="group-editor-name"
         >
-          <Field label="Name">
+          <Field label={t("editor.nameField")}>
             <input
               value={values.name}
               onChange={(event) => patch("name", event.target.value)}
@@ -821,31 +817,31 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
         </SectionCard>
 
         <SectionCard
-          title="Actions"
-          description="What this Group can perform."
+          title={t("editor.actionsTitle")}
+          description={t("editor.actionsDescription")}
           className="section-actions"
           tutorialTarget="group-editor-actions"
         >
           <div className="toggle-grid toggle-grid-compact">
             <Toggle
-              label="Check-in"
+              label={t("actions.checkIn")}
               checked={actions.check_in_enabled}
               onChange={(checked) => patch("actions.check_in_enabled", checked)}
             />
             <Toggle
-              label="Check-out"
+              label={t("actions.checkOut")}
               checked={actions.check_out_enabled}
               onChange={(checked) => patch("actions.check_out_enabled", checked)}
             />
             <Toggle
-              label="Breaks"
+              label={t("editor.breaks")}
               checked={actions.breaks_enabled}
               onChange={(checked) => patch("actions.breaks_enabled", checked)}
             />
           </div>
           {actions.breaks_enabled ? (
-            <Field label="Maximum breaks">
-              <div className="max-breaks-control" role="radiogroup" aria-label="Maximum breaks">
+            <Field label={t("editor.maxBreaks")}>
+              <div className="max-breaks-control" role="radiogroup" aria-label={t("editor.maxBreaksAria")}>
                 {[1, 2, 3].map((count) => (
                   <button
                     key={count}
@@ -865,14 +861,22 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
         </SectionCard>
 
         <SectionCard
-          title="Participation"
-          description="Require participation email or PIN for operational participants."
+          title={
+            isEdit
+              ? t("editor.participationTitle")
+              : t("editor.participationTitle", { context: "create" })
+          }
+          description={
+            isEdit
+              ? t("editor.participationDescription")
+              : t("editor.participationDescription", { context: "create" })
+          }
           className="section-participation"
           tutorialTarget="group-editor-participation"
         >
           <div className="toggle-grid toggle-grid-compact toggle-grid-stack">
             <Toggle
-              label="Require email"
+              label={t("editor.requireEmail")}
               checked={participation.email_required}
               onChange={(checked) => {
                 patch("participation.email_required", checked);
@@ -882,47 +886,41 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
               }}
             />
             <Toggle
-              label="Require PIN"
+              label={t("editor.requirePin")}
               checked={participation.pin_required}
               onChange={(checked) => patch("participation.pin_required", checked)}
             />
             {values.group_type === "structured" ? (
               <Toggle
-                label="Require PIN for classes"
+                label={t("editor.requireClassPin")}
                 checked={Boolean(values.require_class_pin)}
                 onChange={(checked) => patch("require_class_pin", checked)}
               />
             ) : null}
           </div>
           {values.group_type === "structured" ? (
-            <p className="hint">
-              Class PIN is stored for upcoming Structured kiosk flow. Kiosk class entry is not
-              enabled in this stage.
-            </p>
+            <p className="hint">{t("editor.classPinHint")}</p>
           ) : null}
         </SectionCard>
 
         <SectionCard
-          title="After-action"
-          description="Email participants after enabled actions."
+          title={t("editor.afterActionTitle")}
+          description={t("editor.afterActionDescription")}
           className={`section-after-action${afterActionDisabled ? " is-disabled" : ""}`}
           tutorialTarget="group-editor-after-action"
         >
           {afterActionDisabled ? (
-            <p className="hint after-action-blocked">
-              Configure and verify an email sender in Advanced before enabling after-action
-              emails.
-            </p>
+            <p className="hint after-action-blocked">{t("editor.afterActionBlocked")}</p>
           ) : null}
           {!actions.check_in_enabled &&
           !actions.check_out_enabled &&
           !actions.breaks_enabled ? (
-            <p className="hint">Enable an action to configure after-action behavior.</p>
+            <p className="hint">{t("editor.afterActionEnableHint")}</p>
           ) : (
             <div className="after-action-accordion" aria-disabled={afterActionDisabled}>
               {actions.check_in_enabled ? (
                 <AfterActionRow
-                  title="After check-in"
+                  title={t("editor.afterCheckIn")}
                   expanded={expandedAfterAction === "check_in"}
                   onToggle={() =>
                     setExpandedAfterAction((current) =>
@@ -939,7 +937,7 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
               ) : null}
               {actions.check_out_enabled ? (
                 <AfterActionRow
-                  title="After check-out"
+                  title={t("editor.afterCheckOut")}
                   expanded={expandedAfterAction === "check_out"}
                   onToggle={() =>
                     setExpandedAfterAction((current) =>
@@ -956,7 +954,7 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
               ) : null}
               {actions.breaks_enabled ? (
                 <AfterActionRow
-                  title="After break"
+                  title={t("editor.afterBreak")}
                   expanded={expandedAfterAction === "break"}
                   onToggle={() =>
                     setExpandedAfterAction((current) => (current === "break" ? "" : "break"))
@@ -976,8 +974,8 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
         <section className="section-card section-advanced" data-tutorial-target="group-email-settings">
           <header className="advanced-header">
             <div>
-              <h2>Advanced</h2>
-              <p>Outgoing email settings for this Group.</p>
+              <h2>{t("editor.advanced")}</h2>
+              <p>{t("editor.advancedDescription")}</p>
             </div>
             <button
               type="button"
@@ -986,7 +984,7 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
               aria-expanded={advancedOpen}
               onClick={() => setAdvancedOpen((open) => !open)}
             >
-              {advancedOpen ? "Hide" : "Show"}
+              {advancedOpen ? t("editor.hide") : t("editor.show")}
             </button>
           </header>
           {advancedOpen ? (
@@ -999,81 +997,58 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
                   onClick={() => setEmailSenderOpen((open) => !open)}
                 >
                   <span className="advanced-subsection-copy">
-                    <span className="advanced-subsection-title">Email sender</span>
-                    <span className="advanced-subsection-hint">
-                      Provider configuration for after-action emails.
-                    </span>
+                    <span className="advanced-subsection-title">{t("editor.emailSender")}</span>
+                    <span className="advanced-subsection-hint">{t("editor.emailSenderHint")}</span>
                   </span>
                   <span className="advanced-subsection-meta">
                     <span className="advanced-subsection-summary">{senderDisplay.label}</span>
                     <span className="advanced-subsection-action">
-                      {emailSenderOpen ? "Hide" : "Show"}
+                      {emailSenderOpen ? t("editor.hide") : t("editor.show")}
                     </span>
                   </span>
                 </button>
                 {emailSenderOpen ? (
                   <div className="advanced-subsection-body">
                     {!isEdit ? (
-                      <p className="hint">Save the Group first, then configure an email sender here.</p>
+                      <p className="hint">{t("editor.saveGroupFirst")}</p>
                     ) : (
                       <>
                     <div
                       className="email-sender-status-row"
                       data-tutorial-target="group-email-sender"
                     >
-                      <Field label="Provider">
+                      <Field label={t("editor.provider")}>
                         <select
                           value={senderForm.provider}
                           onChange={(event) => requestProviderChange(event.target.value)}
                         >
-                          <option value={PROVIDER_CUSTOM_SMTP}>Custom SMTP</option>
-                          <option value={PROVIDER_GMAIL}>Gmail</option>
-                          <option value={PROVIDER_MICROSOFT}>Outlook / Microsoft 365</option>
-                          <option value={PROVIDER_YAHOO}>Yahoo Mail</option>
+                          <option value={PROVIDER_CUSTOM_SMTP}>{t("editor.providerCustomSmtp")}</option>
+                          <option value={PROVIDER_GMAIL}>{t("editor.providerGmail")}</option>
+                          <option value={PROVIDER_MICROSOFT}>{t("editor.providerMicrosoft")}</option>
+                          <option value={PROVIDER_YAHOO}>{t("editor.providerYahoo")}</option>
                         </select>
                       </Field>
                       <div className="email-sender-badge">
-                        <span className="field-label">Status</span>
+                        <span className="field-label">{t("editor.status")}</span>
                         <StatusBadge status={senderStatusBadge(senderDisplay.status)}>
                           {senderDisplay.label}
                         </StatusBadge>
                       </div>
                     </div>
                     {isGmail ? (
-                      <p className="hint">
-                        Use a Google App Password, not your normal Google password. Google App
-                        Passwords require 2-Step Verification. Create an App Password in your
-                        Google Account, then paste it here.
-                      </p>
+                      <p className="hint">{t("editor.gmailHint")}</p>
                     ) : isMicrosoft ? (
                       <div className="alert alert-warning email-sender-availability" role="status">
-                        <strong>Microsoft SMTP availability</strong>
-                        <p>
-                          This connection requires a Microsoft mailbox with Authenticated SMTP
-                          (SMTP AUTH) enabled.
-                        </p>
-                        <p>
-                          It is mainly intended for Microsoft 365 business/work accounts where
-                          SMTP AUTH can be enabled by an administrator.
-                        </p>
-                        <p>
-                          Personal Outlook.com / Hotmail accounts may not support this
-                          connection method. If you use a personal Microsoft account and cannot
-                          enable SMTP AUTH, this option may not work.
-                        </p>
-                        <p className="email-sender-availability-alt">
-                          If your organization provides different SMTP server credentials, you
-                          can use Custom SMTP instead.
-                        </p>
+                        <strong>{t("editor.microsoftAvailabilityTitle")}</strong>
+                        <p>{t("editor.microsoftAvailabilityP1")}</p>
+                        <p>{t("editor.microsoftAvailabilityP2")}</p>
+                        <p>{t("editor.microsoftAvailabilityP3")}</p>
+                        <p className="email-sender-availability-alt">{t("editor.microsoftAvailabilityAlt")}</p>
                       </div>
                     ) : isYahoo ? (
-                      <p className="hint">
-                        Use a Yahoo App Password, not your normal Yahoo password.
-                      </p>
+                      <p className="hint">{t("editor.yahooHint")}</p>
                     ) : (
-                      <p className="hint">
-                        You can use SMTP credentials from your email provider.
-                      </p>
+                      <p className="hint">{t("editor.customSmtpHint")}</p>
                     )}
                     {senderMessage ? (
                       <div className="alert alert-info" role="status">
@@ -1095,7 +1070,7 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
                     ) : null}
                     {isGmail ? (
                       <div className="email-sender-fields">
-                        <Field label="Gmail address">
+                        <Field label={t("editor.gmailAddress")}>
                           <input
                             type="email"
                             value={senderForm.gmail_address}
@@ -1106,18 +1081,18 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
                             autoComplete="off"
                           />
                         </Field>
-                        <Field label="App password">
+                        <Field label={t("editor.appPassword")}>
                           {emailSender.password_configured &&
                           emailSender.provider === PROVIDER_GMAIL &&
                           !senderForm.change_password ? (
                             <div className="password-configured-row">
-                              <span className="hint">Configured</span>
+                              <span className="hint">{t("editor.configured")}</span>
                               <button
                                 type="button"
                                 className="btn-link btn-sm"
                                 onClick={() => patchSender("change_password", true)}
                               >
-                                Change app password
+                                {t("editor.changeAppPassword")}
                               </button>
                             </div>
                           ) : (
@@ -1130,8 +1105,8 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
                               placeholder={
                                 emailSender.password_configured &&
                                 emailSender.provider === PROVIDER_GMAIL
-                                  ? "Enter new App Password"
-                                  : "Google App Password"
+                                  ? t("editor.enterNewAppPassword")
+                                  : t("editor.googleAppPassword")
                               }
                             />
                           )}
@@ -1141,10 +1116,10 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
                           className="btn-link email-sender-help-link"
                           onClick={() => setShowAppPasswordGuide(true)}
                         >
-                          How to create a Gmail App Password
+                          {t("editor.gmailAppPasswordGuide")}
                         </button>
                         {senderForm.gmail_address ? (
-                          <Field label="Sender email">
+                          <Field label={t("editor.senderEmail")}>
                             <input
                               type="email"
                               value={senderForm.gmail_address}
@@ -1153,7 +1128,7 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
                             />
                           </Field>
                         ) : null}
-                        <Field label="From name (optional)">
+                        <Field label={t("editor.fromNameOptional")}>
                           <input
                             value={senderForm.from_name}
                             onChange={(event) =>
@@ -1165,7 +1140,7 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
                       </div>
                     ) : isMicrosoft ? (
                       <div className="email-sender-fields">
-                        <Field label="Microsoft email">
+                        <Field label={t("editor.microsoftEmail")}>
                           <input
                             type="email"
                             value={senderForm.microsoft_email}
@@ -1177,20 +1152,20 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
                           />
                         </Field>
                         <Field
-                          label="Password / App password"
-                          hint="Only use a credential that works with Authenticated SMTP. An app password does not help if SMTP AUTH is disabled for the mailbox."
+                          label={t("editor.passwordAppPassword")}
+                          hint={t("editor.microsoftPasswordHint")}
                         >
                           {emailSender.password_configured &&
                           emailSender.provider === PROVIDER_MICROSOFT &&
                           !senderForm.change_password ? (
                             <div className="password-configured-row">
-                              <span className="hint">Configured</span>
+                              <span className="hint">{t("editor.configured")}</span>
                               <button
                                 type="button"
                                 className="btn-link btn-sm"
                                 onClick={() => patchSender("change_password", true)}
                               >
-                                Change password
+                                {t("editor.changePassword")}
                               </button>
                             </div>
                           ) : (
@@ -1203,8 +1178,8 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
                               placeholder={
                                 emailSender.password_configured &&
                                 emailSender.provider === PROVIDER_MICROSOFT
-                                  ? "Enter new password / app password"
-                                  : "Password or app password"
+                                  ? t("editor.enterNewPassword")
+                                  : t("editor.passwordOrAppPassword")
                               }
                             />
                           )}
@@ -1214,10 +1189,10 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
                           className="btn-link email-sender-help-link"
                           onClick={() => setShowMicrosoftGuide(true)}
                         >
-                          How to connect Outlook / Microsoft 365
+                          {t("editor.microsoftGuide")}
                         </button>
                         {senderForm.microsoft_email ? (
-                          <Field label="Sender email">
+                          <Field label={t("editor.senderEmail")}>
                             <input
                               type="email"
                               value={senderForm.microsoft_email}
@@ -1226,7 +1201,7 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
                             />
                           </Field>
                         ) : null}
-                        <Field label="From name (optional)">
+                        <Field label={t("editor.fromNameOptional")}>
                           <input
                             value={senderForm.from_name}
                             onChange={(event) =>
@@ -1238,7 +1213,7 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
                       </div>
                     ) : isYahoo ? (
                       <div className="email-sender-fields">
-                        <Field label="Yahoo email">
+                        <Field label={t("editor.yahooEmail")}>
                           <input
                             type="email"
                             value={senderForm.yahoo_email}
@@ -1250,20 +1225,20 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
                           />
                         </Field>
                         <Field
-                          label="App password"
-                          hint="Use a Yahoo App Password, not your normal Yahoo password."
+                          label={t("editor.appPassword")}
+                          hint={t("editor.yahooAppPasswordHint")}
                         >
                           {emailSender.password_configured &&
                           emailSender.provider === PROVIDER_YAHOO &&
                           !senderForm.change_password ? (
                             <div className="password-configured-row">
-                              <span className="hint">Configured</span>
+                              <span className="hint">{t("editor.configured")}</span>
                               <button
                                 type="button"
                                 className="btn-link btn-sm"
                                 onClick={() => patchSender("change_password", true)}
                               >
-                                Change app password
+                                {t("editor.changeAppPassword")}
                               </button>
                             </div>
                           ) : (
@@ -1276,8 +1251,8 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
                               placeholder={
                                 emailSender.password_configured &&
                                 emailSender.provider === PROVIDER_YAHOO
-                                  ? "Enter new App Password"
-                                  : "Yahoo App Password"
+                                  ? t("editor.enterNewYahooAppPassword")
+                                  : t("editor.yahooAppPassword")
                               }
                             />
                           )}
@@ -1287,10 +1262,10 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
                           className="btn-link email-sender-help-link"
                           onClick={() => setShowYahooGuide(true)}
                         >
-                          How to create a Yahoo App Password
+                          {t("editor.yahooAppPasswordGuide")}
                         </button>
                         {senderForm.yahoo_email ? (
-                          <Field label="Sender email">
+                          <Field label={t("editor.senderEmail")}>
                             <input
                               type="email"
                               value={senderForm.yahoo_email}
@@ -1299,7 +1274,7 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
                             />
                           </Field>
                         ) : null}
-                        <Field label="From name (optional)">
+                        <Field label={t("editor.fromNameOptional")}>
                           <input
                             value={senderForm.from_name}
                             onChange={(event) =>
@@ -1311,7 +1286,7 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
                       </div>
                     ) : (
                       <div className="email-sender-fields">
-                        <Field label="SMTP host">
+                        <Field label={t("editor.smtpHost")}>
                           <input
                             value={senderForm.smtp_host}
                             onChange={(event) => patchSender("smtp_host", event.target.value)}
@@ -1320,7 +1295,7 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
                           />
                         </Field>
                         <div className="email-sender-row">
-                          <Field label="Port">
+                          <Field label={t("editor.port")}>
                             <input
                               type="number"
                               min="1"
@@ -1330,14 +1305,14 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
                             />
                           </Field>
                           <Field
-                            label="Security"
+                            label={t("editor.security")}
                             hint={
                               senderForm.smtp_security === "ssl"
-                                ? "Commonly port 465"
+                                ? t("editor.securitySslHint")
                                 : senderForm.smtp_security === "starttls"
-                                  ? "Commonly port 587"
+                                  ? t("editor.securityStarttlsHint")
                                   : senderForm.smtp_security === "none"
-                                    ? "Not recommended"
+                                    ? t("editor.securityNoneHint")
                                     : ""
                             }
                           >
@@ -1345,19 +1320,16 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
                               value={senderForm.smtp_security}
                               onChange={(event) => onSecurityChange(event.target.value)}
                             >
-                              <option value="ssl">SSL/TLS</option>
-                              <option value="starttls">STARTTLS</option>
-                              <option value="none">None</option>
+                              <option value="ssl">{t("editor.securitySsl")}</option>
+                              <option value="starttls">{t("editor.securityStarttls")}</option>
+                              <option value="none">{t("editor.securityNone")}</option>
                             </select>
                           </Field>
                         </div>
                         {senderForm.smtp_security === "none" ? (
-                          <p className="hint warning-hint">
-                            Sending without encryption is insecure. Use only if your provider
-                            requires it on a trusted network.
-                          </p>
+                          <p className="hint warning-hint">{t("editor.securityNoneWarning")}</p>
                         ) : null}
-                        <Field label="Username">
+                        <Field label={t("editor.username")}>
                           <input
                             value={senderForm.smtp_username}
                             onChange={(event) =>
@@ -1366,18 +1338,18 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
                             autoComplete="off"
                           />
                         </Field>
-                        <Field label="Password">
+                        <Field label={t("editor.password")}>
                           {emailSender.password_configured &&
                           emailSender.provider === PROVIDER_CUSTOM_SMTP &&
                           !senderForm.change_password ? (
                             <div className="password-configured-row">
-                              <span className="hint">Configured</span>
+                              <span className="hint">{t("editor.configured")}</span>
                               <button
                                 type="button"
                                 className="btn-link btn-sm"
                                 onClick={() => patchSender("change_password", true)}
                               >
-                                Change password
+                                {t("editor.changePassword")}
                               </button>
                             </div>
                           ) : (
@@ -1390,16 +1362,16 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
                               placeholder={
                                 emailSender.password_configured &&
                                 emailSender.provider === PROVIDER_CUSTOM_SMTP
-                                  ? "Enter new password"
-                                  : "SMTP password"
+                                  ? t("editor.enterNewSmtpPassword")
+                                  : t("editor.smtpPassword")
                               }
                             />
                           )}
                         </Field>
                         <div className="email-sender-row">
                           <Field
-                            label="From email"
-                            hint="Must be an address your SMTP mailbox is allowed to send as."
+                            label={t("editor.fromEmail")}
+                            hint={t("editor.fromEmailHint")}
                           >
                             <input
                               type="email"
@@ -1409,7 +1381,7 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
                               }
                             />
                           </Field>
-                          <Field label="From name (optional)">
+                          <Field label={t("editor.fromNameOptional")}>
                             <input
                               value={senderForm.from_name}
                               onChange={(event) =>
@@ -1421,7 +1393,7 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
                       </div>
                     )}
                     <div className="email-sender-test">
-                      <Field label="Send test email">
+                      <Field label={t("editor.sendTestEmail")}>
                         <div className="email-sender-test-row">
                           <input
                             type="email"
@@ -1435,13 +1407,11 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
                             disabled={testingSender || !testEmail}
                             onClick={handleTestSender}
                           >
-                            {testingSender ? "Sending…" : "Send test"}
+                            {testingSender ? t("editor.sending") : t("editor.sendTest")}
                           </button>
                         </div>
                       </Field>
-                      <p className="hint">
-                        Verify the draft first. Save becomes available only after a successful test.
-                      </p>
+                      <p className="hint">{t("editor.testVerifyHint")}</p>
                     </div>
                     <div className="email-sender-actions">
                       <button
@@ -1450,7 +1420,7 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
                         disabled={!canSaveSender()}
                         onClick={handleSaveSender}
                       >
-                        {savingSender ? "Saving…" : "Save sender"}
+                        {savingSender ? t("editor.saving") : t("editor.saveSender")}
                       </button>
                     </div>
                       </>
@@ -1468,19 +1438,19 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
                   onClick={() => setForwardEmailsOpen((open) => !open)}
                 >
                   <span className="advanced-subsection-copy">
-                    <span className="advanced-subsection-title">Forward emails</span>
+                    <span className="advanced-subsection-title">{t("editor.forwardEmails")}</span>
                     <span className="advanced-subsection-hint">
                       {forwardEmailsAllowed
-                        ? "Send a copy of this Group’s after-action emails to additional addresses."
-                        : "Forward emails require Plus or Business."}
+                        ? t("editor.forwardEmailsHint")
+                        : t("editor.forwardEmailsLockedHint")}
                     </span>
                   </span>
                   <span className="advanced-subsection-meta">
                     <span className="advanced-subsection-summary">
-                      {forwardEmailsAllowed ? forwardEmailSummary : "Locked"}
+                      {forwardEmailsAllowed ? forwardEmailSummary : t("editor.forwardLocked")}
                     </span>
                     <span className="advanced-subsection-action">
-                      {forwardEmailsOpen ? "Hide" : "Show"}
+                      {forwardEmailsOpen ? t("editor.hide") : t("editor.show")}
                     </span>
                   </span>
                 </button>
@@ -1488,8 +1458,7 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
                   <div className="advanced-subsection-body forward-emails-body">
                     {!forwardEmailsAllowed ? (
                       <p className="plan-lock-note" role="status">
-                        Forward emails are not included on the Basic plan. Existing empty
-                        configuration is unchanged; upgrades unlock this setting.
+                        {t("editor.forwardBasicLock")}
                       </p>
                     ) : (
                       <>
@@ -1498,8 +1467,8 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
                             <Field
                               label={
                                 forwardNumbered
-                                  ? `Forward email ${index + 1}`
-                                  : "Forward email"
+                                  ? t("editor.forwardEmailNumbered", { number: index + 1 })
+                                  : t("editor.forwardEmail")
                               }
                             >
                               <div className="forward-email-input-row">
@@ -1518,7 +1487,7 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
                                     className="btn-text"
                                     onClick={() => removeForwardEmail(index)}
                                   >
-                                    Remove
+                                    {t("common:remove")}
                                   </button>
                                 ) : null}
                               </div>
@@ -1531,7 +1500,7 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
                             className="btn-secondary btn-sm"
                             onClick={addForwardEmail}
                           >
-                            + Add another email
+                            {t("editor.addAnotherForwardEmail")}
                           </button>
                         ) : null}
                       </>
@@ -1545,9 +1514,9 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
       </form>
       {pendingProvider ? (
         <ConfirmDialog
-          title="Switch email provider?"
-          body="Switching email provider will remove the current provider credentials. Continue?"
-          confirmLabel="Switch provider"
+          title={t("editor.switchProviderTitle")}
+          body={t("editor.switchProviderBody")}
+          confirmLabel={t("editor.switchProviderConfirm")}
           danger
           onCancel={() => setPendingProvider("")}
           onConfirm={confirmProviderChange}
@@ -1564,10 +1533,10 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
       ) : null}
       {leaveDialogOpen ? (
         <ConfirmDialog
-          title={isEdit ? "Unsaved group settings" : "Unsaved group"}
-          body={LEAVE_CONFIRM_MESSAGE}
-          cancelLabel="Stay"
-          confirmLabel="Leave without saving"
+          title={isEdit ? t("editor.unsavedSettings") : t("editor.unsavedGroup")}
+          body={t("editor.leaveConfirm")}
+          cancelLabel={t("editor.stay")}
+          confirmLabel={t("editor.leaveWithoutSaving")}
           danger
           onCancel={handleStay}
           onConfirm={handleLeaveWithoutSaving}
@@ -1578,6 +1547,8 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
 }
 
 function GmailAppPasswordGuide({ onClose }) {
+  const { t } = useTranslation(["groups", "common"]);
+  const g = t("editor.gmailGuide", { returnObjects: true });
   return (
     <div
       className="confirm-modal-backdrop"
@@ -1586,42 +1557,30 @@ function GmailAppPasswordGuide({ onClose }) {
       aria-labelledby="gmail-app-password-guide-title"
     >
       <div className="confirm-modal email-sender-guide-modal">
-        <h2 id="gmail-app-password-guide-title">How to create a Gmail App Password</h2>
+        <h2 id="gmail-app-password-guide-title">{g.title}</h2>
         <ol className="email-sender-guide-steps">
-          <li>Open your Google Account security settings.</li>
-          <li>Turn on 2-Step Verification if it is not already enabled.</li>
-          <li>Open App Passwords (search for “App passwords” in Google Account).</li>
-          <li>Create an App Password for CheckStation (or Mail / Other).</li>
-          <li>Copy the generated 16-character password.</li>
-          <li>Paste it into CheckStation as the App password.</li>
-          <li>Save the sender, then send a test email.</li>
+          <li>{g.step1}</li>
+          <li>{g.step2}</li>
+          <li>{g.step3}</li>
+          <li>{g.step4}</li>
+          <li>{g.step5}</li>
+          <li>{g.step6}</li>
+          <li>{g.step7}</li>
         </ol>
+        <p className="hint">{g.workspaceNote}</p>
         <p className="hint">
-          App Passwords may not be available for some Google Workspace or security-managed
-          accounts. If App Passwords are unavailable, use Custom SMTP with another mailbox
-          for now.
-        </p>
-        <p className="hint">
-          Official Google pages:{" "}
-          <a
-            href="https://myaccount.google.com/apppasswords"
-            target="_blank"
-            rel="noreferrer"
-          >
-            App Passwords
+          {g.officialPages}{" "}
+          <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noreferrer">
+            {g.appPasswords}
           </a>
           {" · "}
-          <a
-            href="https://myaccount.google.com/security"
-            target="_blank"
-            rel="noreferrer"
-          >
-            Security
+          <a href="https://myaccount.google.com/security" target="_blank" rel="noreferrer">
+            {g.security}
           </a>
         </p>
         <div className="confirm-modal-actions">
           <button type="button" className="btn-primary" onClick={onClose}>
-            Close
+            {t("common:close")}
           </button>
         </div>
       </div>
@@ -1630,6 +1589,8 @@ function GmailAppPasswordGuide({ onClose }) {
 }
 
 function MicrosoftSmtpGuide({ onClose }) {
+  const { t } = useTranslation(["groups", "common"]);
+  const g = t("editor.microsoftGuide", { returnObjects: true });
   return (
     <div
       className="confirm-modal-backdrop"
@@ -1638,43 +1599,29 @@ function MicrosoftSmtpGuide({ onClose }) {
       aria-labelledby="microsoft-smtp-guide-title"
     >
       <div className="confirm-modal email-sender-guide-modal">
-        <h2 id="microsoft-smtp-guide-title">How to connect Outlook / Microsoft 365</h2>
-        <p className="hint">
-          CheckStation uses Authenticated SMTP (SMTP AUTH) for this provider. Microsoft OAuth
-          is not available yet.
-        </p>
-
-        <h3 className="email-sender-guide-subtitle">Using Microsoft 365 for work or business</h3>
-        <p className="hint">
-          This is the main supported use case. An administrator can enable Authenticated SMTP
-          for the mailbox in Microsoft 365 Admin Center:
-        </p>
+        <h2 id="microsoft-smtp-guide-title">{g.title}</h2>
+        <p className="hint">{g.intro}</p>
+        <h3 className="email-sender-guide-subtitle">{g.businessSubtitle}</h3>
+        <p className="hint">{g.businessIntro}</p>
         <ol className="email-sender-guide-steps">
-          <li>Open Microsoft 365 Admin Center.</li>
-          <li>Go to Users → Active users.</li>
-          <li>Select the user / mailbox.</li>
-          <li>Open Mail → Manage email apps.</li>
-          <li>Enable Authenticated SMTP for the mailbox.</li>
-          <li>In CheckStation, enter the Microsoft email and allowed password/app password.</li>
-          <li>Save the sender, then send a test email.</li>
+          <li>{g.step1}</li>
+          <li>{g.step2}</li>
+          <li>{g.step3}</li>
+          <li>{g.step4}</li>
+          <li>{g.step5}</li>
+          <li>{g.step6}</li>
+          <li>{g.step7}</li>
         </ol>
-
-        <h3 className="email-sender-guide-subtitle">Personal Outlook / Hotmail accounts</h3>
+        <h3 className="email-sender-guide-subtitle">{g.personalSubtitle}</h3>
+        <p className="hint">{g.personalNote}</p>
         <p className="hint">
-          Microsoft increasingly requires Modern Authentication / OAuth for personal Outlook
-          accounts. CheckStation does not yet support Microsoft OAuth, so personal
-          Outlook/Hotmail accounts may not be able to use this provider. An app password does
-          not guarantee compatibility if SMTP AUTH is unavailable.
-        </p>
-
-        <p className="hint">
-          Official Microsoft pages:{" "}
+          {g.officialPages}{" "}
           <a
             href="https://learn.microsoft.com/en-us/exchange/clients-and-mobile-in-exchange-online/authenticated-client-smtp-submission"
             target="_blank"
             rel="noreferrer"
           >
-            Authenticated SMTP
+            {g.authenticatedSmtp}
           </a>
           {" · "}
           <a
@@ -1682,7 +1629,7 @@ function MicrosoftSmtpGuide({ onClose }) {
             target="_blank"
             rel="noreferrer"
           >
-            SMTP submission settings
+            {g.smtpSubmission}
           </a>
           {" · "}
           <a
@@ -1690,12 +1637,12 @@ function MicrosoftSmtpGuide({ onClose }) {
             target="_blank"
             rel="noreferrer"
           >
-            Outlook.com SMTP settings
+            {g.outlookSmtp}
           </a>
         </p>
         <div className="confirm-modal-actions">
           <button type="button" className="btn-primary" onClick={onClose}>
-            Close
+            {t("common:close")}
           </button>
         </div>
       </div>
@@ -1704,6 +1651,8 @@ function MicrosoftSmtpGuide({ onClose }) {
 }
 
 function YahooAppPasswordGuide({ onClose }) {
+  const { t } = useTranslation(["groups", "common"]);
+  const g = t("editor.yahooGuide", { returnObjects: true });
   return (
     <div
       className="confirm-modal-backdrop"
@@ -1712,50 +1661,35 @@ function YahooAppPasswordGuide({ onClose }) {
       aria-labelledby="yahoo-app-password-guide-title"
     >
       <div className="confirm-modal email-sender-guide-modal">
-        <h2 id="yahoo-app-password-guide-title">How to create a Yahoo App Password</h2>
+        <h2 id="yahoo-app-password-guide-title">{g.title}</h2>
         <ol className="email-sender-guide-steps">
-          <li>Open Yahoo Account Security.</li>
-          <li>Find External connections (or Generate app password).</li>
-          <li>Choose Create app password.</li>
-          <li>Enter a name such as CheckStation.</li>
-          <li>Generate the password.</li>
-          <li>Copy it.</li>
-          <li>Paste it into CheckStation as the App password.</li>
-          <li>Save the sender, then send a test email.</li>
+          <li>{g.step1}</li>
+          <li>{g.step2}</li>
+          <li>{g.step3}</li>
+          <li>{g.step4}</li>
+          <li>{g.step5}</li>
+          <li>{g.step6}</li>
+          <li>{g.step7}</li>
+          <li>{g.step8}</li>
         </ol>
+        <p className="hint">{g.unavailableNote}</p>
         <p className="hint">
-          Yahoo may temporarily prevent App Password creation for some accounts. If the option
-          is unavailable, check your Yahoo Account Security settings and try again later.
-        </p>
-        <p className="hint">
-          Official Yahoo pages:{" "}
-          <a
-            href="https://login.yahoo.com/account/security"
-            target="_blank"
-            rel="noreferrer"
-          >
-            Account Security
+          {g.officialPages}{" "}
+          <a href="https://login.yahoo.com/account/security" target="_blank" rel="noreferrer">
+            {g.accountSecurity}
           </a>
           {" · "}
-          <a
-            href="https://help.yahoo.com/kb/account/SLN27791.html"
-            target="_blank"
-            rel="noreferrer"
-          >
-            App passwords help
+          <a href="https://help.yahoo.com/kb/account/SLN27791.html" target="_blank" rel="noreferrer">
+            {g.appPasswordsHelp}
           </a>
           {" · "}
-          <a
-            href="https://help.yahoo.com/kb/pop-smtp-settings-article-sln4724.html"
-            target="_blank"
-            rel="noreferrer"
-          >
-            SMTP settings
+          <a href="https://help.yahoo.com/kb/pop-smtp-settings-article-sln4724.html" target="_blank" rel="noreferrer">
+            {g.smtpSettings}
           </a>
         </p>
         <div className="confirm-modal-actions">
           <button type="button" className="btn-primary" onClick={onClose}>
-            Close
+            {t("common:close")}
           </button>
         </div>
       </div>
@@ -1772,6 +1706,7 @@ function AfterActionRow({
   onTemplate,
   disabled = false,
 }) {
+  const { t } = useTranslation("groups");
   return (
     <div className={`after-action-row${expanded ? " expanded" : ""}${disabled ? " disabled" : ""}`}>
       <div className="after-action-row-head">
@@ -1783,12 +1718,12 @@ function AfterActionRow({
         />
         {setting.send_email && !disabled ? (
           <button type="button" className="btn-link btn-sm" onClick={onToggle}>
-            {expanded ? "Hide message" : "Edit message"}
+            {expanded ? t("editor.hideMessage") : t("editor.editMessage")}
           </button>
         ) : null}
       </div>
       {setting.send_email && expanded && !disabled ? (
-        <Field label="Email message" hint="Placeholders: {name}, {time}, {group}">
+        <Field label={t("editor.emailMessage")} hint={t("editor.emailMessageHint")}>
           <textarea
             className="template-input"
             rows="2"

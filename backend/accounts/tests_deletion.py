@@ -13,7 +13,7 @@ from PIL import Image
 from rest_framework.test import APIClient
 
 from accounts.deletion import permanently_delete_customer_account
-from accounts.testing import force_platform_admin_login
+from accounts.testing import admin_post_confirmation, force_platform_admin_login
 from accounts.tokens import email_verification_token_generator
 from attendance.models import ActionRecord, ActionSource, ActionType
 from groups.models import Group, GroupMembership, GroupOnlyParticipant
@@ -399,7 +399,7 @@ class DjangoAdminPermanentDeleteTests(TestCase):
         )
         get_page = self.client.get(url)
         self.assertEqual(get_page.status_code, 200)
-        post = self.client.post(url, {"post": "yes"})
+        post = admin_post_confirmation(self.client, url, get_page=get_page)
         self.assertEqual(post.status_code, 302)
         organization.refresh_from_db()
         self.assertEqual(organization.status, OrganizationStatus.ARCHIVED)

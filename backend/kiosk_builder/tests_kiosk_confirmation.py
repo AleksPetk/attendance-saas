@@ -55,6 +55,10 @@ class KioskConfirmationDefaultsTests(TestCase):
             CONFIRMATION_RETURN_SECONDS_DEFAULT,
         )
 
+    def test_default_effects_are_sound_on_and_vibration_off(self):
+        self.assertTrue(self.settings.confirmation_sound_enabled)
+        self.assertFalse(self.settings.confirmation_vibration_enabled)
+
     def test_default_messages_when_fields_blank(self):
         for action_type, expected in DEFAULT_CONFIRMATION_MESSAGES.items():
             self.assertEqual(
@@ -76,7 +80,7 @@ class KioskConfirmationValidationTests(TestCase):
             breaks_enabled=True,
             max_breaks=1,
         )
-        ensure_group_kiosk_settings(self.group)
+        self.settings = ensure_group_kiosk_settings(self.group)
         self.client = APIClient()
 
     def _login(self):
@@ -134,6 +138,23 @@ class KioskConfirmationValidationTests(TestCase):
             format="json",
         )
         self.assertEqual(response.status_code, 400)
+
+    def test_confirmation_effects_persist_through_settings_api(self):
+        self._login()
+        response = self.client.patch(
+            f"/api/groups/{self.group.pk}/kiosk-settings/",
+            {
+                "confirmation_sound_enabled": False,
+                "confirmation_vibration_enabled": True,
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertFalse(response.data["confirmation_sound_enabled"])
+        self.assertTrue(response.data["confirmation_vibration_enabled"])
+        self.settings.refresh_from_db()
+        self.assertFalse(self.settings.confirmation_sound_enabled)
+        self.assertTrue(self.settings.confirmation_vibration_enabled)
 
 
 class KioskConfirmationVariableTests(TestCase):
@@ -261,6 +282,8 @@ class KioskConfirmationRuntimeTests(TestCase):
         self.settings.confirmation_template = KioskConfirmationTemplate.FRIENDLY
         self.settings.confirmation_check_in_message = "Thanks {name} at {time}."
         self.settings.confirmation_return_seconds = 1
+        self.settings.confirmation_sound_enabled = False
+        self.settings.confirmation_vibration_enabled = True
         self.settings.save()
         self.member = Member.objects.create_member(organization=self.org, name="Aleks", pin="")
         self.membership = GroupMembership.objects.create(
@@ -293,6 +316,8 @@ class KioskConfirmationRuntimeTests(TestCase):
         self.assertEqual(confirmation["template"], KioskConfirmationTemplate.FRIENDLY)
         self.assertEqual(confirmation["action"], ActionType.CHECK_IN)
         self.assertEqual(confirmation["return_delay_seconds"], 1)
+        self.assertFalse(confirmation["sound_enabled"])
+        self.assertTrue(confirmation["vibration_enabled"])
         self.assertIn("Aleks", confirmation["message"])
         self.assertEqual(response.data["success_message"], confirmation["message"])
         self.assertEqual(response.data["return_delay_seconds"], 1)
@@ -303,6 +328,8 @@ class KioskConfirmationRuntimeTests(TestCase):
         confirmation = response.data["kiosk"]["confirmation"]
         self.assertEqual(confirmation["template"], KioskConfirmationTemplate.FRIENDLY)
         self.assertEqual(confirmation["return_delay_seconds"], 1)
+        self.assertFalse(confirmation["sound_enabled"])
+        self.assertTrue(confirmation["vibration_enabled"])
         self.assertIn("check_in", confirmation["messages"])
 
     def test_confirmation_payload_helper_matches_perform(self):

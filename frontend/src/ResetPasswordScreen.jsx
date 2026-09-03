@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { api, errorMessage } from "./api.js";
 import { AuthLayout, ErrorBanner, Field, PasswordInput, usePasswordVisibility } from "./components.jsx";
 
@@ -11,6 +12,7 @@ function fieldError(error, name) {
 }
 
 export default function ResetPasswordScreen() {
+  const { t } = useTranslation("auth");
   const { uid, token } = useParams();
   const navigate = useNavigate();
   const [password, setPassword] = useState("");
@@ -50,19 +52,19 @@ export default function ResetPasswordScreen() {
 
   return (
     <AuthLayout
-      title="Reset password"
-      lead="Choose a new password for your CheckStation owner account."
+      title={t("resetPassword.title")}
+      lead={t("resetPassword.lead")}
       footnote={
         <p>
-          <Link to="/forgot-password">Request a new reset link</Link>
+          <Link to="/forgot-password">{t("resetPassword.requestNew")}</Link>
           {" · "}
-          <Link to="/login">Back to login</Link>
+          <Link to="/login">{t("resetPassword.backToLogin")}</Link>
         </p>
       }
     >
       <form onSubmit={handleSubmit} className="auth-form">
         <div className="auth-fields">
-          <Field label="New password" error={passwordError}>
+          <Field label={t("fields.newPassword")} error={passwordError}>
             <PasswordInput
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -72,7 +74,7 @@ export default function ResetPasswordScreen() {
               onVisibleChange={pairVisibility.setVisible}
             />
           </Field>
-          <Field label="Confirm new password">
+          <Field label={t("fields.confirmNewPassword")}>
             <PasswordInput
               value={passwordConfirm}
               onChange={(e) => setPasswordConfirm(e.target.value)}
@@ -85,7 +87,7 @@ export default function ResetPasswordScreen() {
         </div>
         <ErrorBanner message={error} />
         <button type="submit" className="btn-primary btn-block" disabled={loading}>
-          {loading ? "Updating…" : "Update password"}
+          {loading ? t("updating") : t("updatePassword")}
         </button>
       </form>
     </AuthLayout>

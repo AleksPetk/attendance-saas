@@ -5,8 +5,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import {
-  STAFF_EMAIL_DUPLICATE_MESSAGE,
   isStaffEmailRequired,
+  staffEmailDuplicateMessage,
   staffEmailFieldLabel,
 } from "./staffManagementEmail.js";
 
@@ -21,6 +21,6 @@ test("staff email field remains optional", () => {
 });
 
 test("duplicate email message is workspace-scoped", () => {
-  assert.match(STAFF_EMAIL_DUPLICATE_MESSAGE, /this workspace/i);
-  assert.doesNotMatch(STAFF_EMAIL_DUPLICATE_MESSAGE, /global|owner account/i);
+  assert.match(staffEmailDuplicateMessage(), /this workspace/i);
+  assert.doesNotMatch(staffEmailDuplicateMessage(), /global|owner account/i);
 });

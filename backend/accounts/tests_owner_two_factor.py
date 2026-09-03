@@ -6,10 +6,10 @@ from rest_framework import status
 from rest_framework.test import APIClient
 
 from accounts.customer_two_factor_models import OwnerRecoveryCode, OwnerTOTPDevice
+from accounts.owner_two_factor import decrypt_owner_totp_secret
 from accounts.two_factor import (
     TOTP_INTERVAL,
     hash_recovery_code,
-    decrypt_totp_secret,
     current_timestep,
 )
 from accounts.two_factor import verify_totp_code  # noqa: F401 (debug helper)
@@ -208,7 +208,7 @@ class OwnerTwoFactorLoginTests(TestCase):
         self.assertEqual(verify.status_code, 200)
         self.recovery_codes = verify.data["recovery_codes"]
         device = OwnerTOTPDevice.objects.get(user=self.owner)
-        self.secret = decrypt_totp_secret(device.secret_encrypted)
+        self.secret = decrypt_owner_totp_secret(device.secret_encrypted)
 
     def test_owner_without_2fa_logs_in_normally(self):
         other = User.objects.create_user(email="other@example.com", password="secure-password")
@@ -342,7 +342,7 @@ class OwnerTwoFactorManagementTests(TestCase):
         self.assertEqual(verify.status_code, 200)
         self.recovery_codes = verify.data["recovery_codes"]
         device = OwnerTOTPDevice.objects.get(user=self.owner)
-        self.secret = decrypt_totp_secret(device.secret_encrypted)
+        self.secret = decrypt_owner_totp_secret(device.secret_encrypted)
 
     def test_disable_requires_password_and_valid_second_factor(self):
         self.api.force_authenticate(self.owner)

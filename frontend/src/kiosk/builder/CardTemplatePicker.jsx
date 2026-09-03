@@ -1,6 +1,7 @@
 /**
  * Compact Card template picker — mirrors Input Templates UX.
  */
+import { useTranslation } from "react-i18next";
 import { CARD_TEMPLATE_IDS, CARD_TEMPLATES } from "../cardTemplates.js";
 
 function CardTemplateMini({ id }) {
@@ -17,11 +18,12 @@ function CardTemplateMini({ id }) {
 }
 
 export default function CardTemplatePicker({ value, onChange }) {
+  const { t } = useTranslation("kiosk");
   const selected = CARD_TEMPLATES[value] ? value : "clean";
 
   return (
     <fieldset className="kb-fieldset kb-card-templates">
-      <legend>Card template</legend>
+      <legend>{t("builder.cardTemplate")}</legend>
       <div className="kb-template-grid" role="list">
         {CARD_TEMPLATE_IDS.map((id) => {
           const meta = CARD_TEMPLATES[id];
@@ -36,7 +38,7 @@ export default function CardTemplatePicker({ value, onChange }) {
               onClick={() => onChange(id)}
             >
               <CardTemplateMini id={id} />
-              <strong>{meta.label}</strong>
+              <strong>{t(`templates.card.${id}`, { defaultValue: meta.label })}</strong>
             </button>
           );
         })}

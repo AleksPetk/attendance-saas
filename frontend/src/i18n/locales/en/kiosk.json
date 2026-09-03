@@ -2,6 +2,8 @@
   "eyebrow": "Kiosk",
   "titleDefault": "Kiosk",
   "titleUnavailable": "Kiosk unavailable",
+  "permissionDeniedTitle": "Kiosk unavailable",
+  "permissionDeniedBody": "You do not have permission to launch the kiosk from this account.",
   "exit": "Exit",
   "exitKiosk": "Exit kiosk",
   "exitKioskAria": "Exit kiosk",

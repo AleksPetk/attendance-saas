@@ -139,7 +139,7 @@ test("Workspace header owns live announcement polling across Workspace routes", 
   assert.match(app, /path="\/history"/);
   assert.match(app, /path="\/account/);
 
-  assert.match(bell, /Notifications/);
+  assert.match(bell, /t\("notifications\.title"\)/);
   assert.match(bell, /workspace-announcement-badge/);
   assert.match(bell, /is-attention/);
   assert.match(bell, /markAnnouncementsRead/);

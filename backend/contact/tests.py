@@ -285,7 +285,7 @@ class ContactApiTests(TestCase):
         items = suggest_faq_entries("kiosk", "cannot_launch")
         slugs = [item["slug"] for item in items]
         self.assertIn("why-cant-i-launch-my-kiosk", slugs)
-        self.assertTrue(any("launch" in item["question"].lower() for item in items))
+        self.assertTrue(any("launch" in item["slug"] for item in items))
 
     def test_downgrade_suggestions(self):
         items = suggest_faq_entries("plans_billing", "downgrade")

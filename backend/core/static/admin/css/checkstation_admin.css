@@ -2140,6 +2140,24 @@ body.login .submit-row input {
   margin-top: 0.85rem;
 }
 
+.cs-market-forced {
+  display: inline-flex;
+  margin-left: 0.45rem;
+  padding: 0.12rem 0.45rem;
+  border: 1px solid #f59e0b;
+  border-radius: 999px;
+  color: #92400e;
+  background: #fffbeb;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.cs-lifecycle-card .cs-market-warning {
+  margin-top: 0.7rem;
+  color: #78350f;
+}
+
 .cs-lifecycle-danger {
   border-color: #fecaca;
   background: #fef2f2;

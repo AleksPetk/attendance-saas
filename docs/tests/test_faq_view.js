@@ -62,6 +62,8 @@ test("result count keeps the current matching-answers wording", () => {
   assert.equal(faqCountLabel(52), "52 matching answers");
   assert.equal(faqCountLabel(1), "1 matching answer");
   assert.equal(faqCountLabel(0), "0 matching answers");
+  assert.equal(faqCountLabel(52, "ja"), "52 件の一致する回答");
+  assert.equal(faqCountLabel(1, "ja"), "1 件の一致する回答");
 });
 
 test("opening another FAQ item closes the previously opened one", () => {
@@ -117,8 +119,8 @@ test("related guide uses the canonical Docs document title and href", () => {
   const meta = relatedGuideMeta("groups-members", [
     { slug: "groups-members", title: "Groups & Members" },
     { slug: "kiosk-setup", title: "Kiosk Setup" },
-  ]);
-  assert.equal(meta.href, "/groups-members");
+  ], "en");
+  assert.equal(meta.href, "/en/groups-members");
   assert.equal(meta.label, "Groups & Members");
   assert.equal(relatedGuideMeta("", []), null);
 });
@@ -170,7 +172,7 @@ test("FAQ accordion markup and CSS stay accessible and mobile-safe", () => {
   assert.match(js, /width="16" height="16"/);
   assert.match(js, /faq-chevron/);
   assert.match(js, /aria-hidden="true"/);
-  assert.match(js, /Related guide/);
+  assert.match(js, /ui\.relatedGuide/);
   assert.match(js, /faq-related-link/);
   assert.match(js, /relatedGuideMeta/);
   assert.match(js, /faqCountLabel/);

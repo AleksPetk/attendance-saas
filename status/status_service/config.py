@@ -31,4 +31,7 @@ def load_config():
         "data_dir": data_dir,
         "database_path": data_dir / "status.sqlite3",
         "static_dir": Path(__file__).resolve().parent.parent / "static",
+        "public_url": _url("STATUS_PUBLIC_URL", "http://localhost:8090"),
+        # Shared secret for Django provider health (/api/health/email|stripe/).
+        "status_probe_token": str(os.environ.get("STATUS_PROBE_TOKEN", "") or "").strip(),
     }

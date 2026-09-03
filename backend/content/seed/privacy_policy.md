@@ -65,7 +65,8 @@ Customers remain responsible for having a lawful basis, notices, and any require
 When an owner registers or manages an account, Check Station processes:
 
 - login email address
-- password (stored as a password hash, not in recoverable form)
+- password (stored as a password hash, not in recoverable form), when used
+- optional Google or Apple sign-in identity when linked through Sign-in Methods
 - email verification state and related timestamps
 - optional backup email and verification state
 - pending login-email changes and related timestamps
@@ -249,7 +250,11 @@ Local development databases persist on disk volumes; that is not a production ba
 
 ## 14. Deletion
 
-Owners may permanently delete their Check Station account. Permanent deletion is owner-only (or a platform superuser in administration), requires re-authentication, and is irreversible in the product.
+Owners may permanently delete their Check Station account when no live paid subscription blocks deletion. The built-in free Business trial alone does not block deletion.
+
+Permanent deletion is owner-only (or a platform superuser in administration), requires sensitive confirmation (password re-entry, or provider re-authentication for OAuth-only owners), and is irreversible in the product.
+
+A live paid subscription (including cancel-at-period-end while paid access continues) blocks permanent deletion until paid access actually ends. Deleting the account does **not** cancel Stripe billing automatically.
 
 As implemented, permanent deletion removes the paying user, the Organization, workspace staff, Members, Groups, kiosk configuration, Group email senders and delivery audit rows, Action Records for that workspace, and stored media for that workspace.
 
@@ -263,7 +268,7 @@ Stripe or other provider objects may still exist at the provider until canceled 
 
 Check Station uses access controls, password hashing, CSRF protection, isolated admin sessions, optional owner TOTP, mandatory platform-admin TOTP for Django administration, encryption of certain secrets at rest (including TOTP secrets and Group SMTP passwords), and kiosk session lock to keep the workspace UI away from participants.
 
-Attendance PINs and some class PINs are operational codes and may be stored in recoverable form so managers can administer them. They are not equivalent to login passwords.
+Attendance PINs and class PINs are operational codes stored using one-way hashing. Managers can set, change, or reset them, but the product does not display saved PIN values. They are not equivalent to login passwords.
 
 No method of transmission or storage is completely secure. Check Station does not guarantee absolute security and does not claim a specific certification (for example ISO 27001 or SOC 2) in this Policy.
 

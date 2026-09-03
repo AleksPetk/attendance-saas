@@ -1,6 +1,7 @@
 /**
  * Run: node --test src/accountScreenUi.test.js
  */
+import "./i18n/index.js";
 import assert from "node:assert/strict";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";

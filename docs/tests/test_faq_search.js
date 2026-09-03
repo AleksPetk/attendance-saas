@@ -108,11 +108,11 @@ test("FAQ UI is accordion-accessible and has a no-result state", () => {
   assert.match(js, /aria-expanded/);
   assert.match(js, /aria-controls/);
   assert.match(js, /toggleFaqExclusive/);
-  assert.match(js, /No matching answers found/);
-  assert.match(js, /faqPathForQuery/);
+  assert.match(js, /noMatchingAnswers/);
+  assert.match(js, /faqPathForLocale/);
   assert.match(js, /\/api\/content\/faq\//);
   assert.match(js, /id="faq-search"/);
-  assert.match(js, /Search CheckStation help/);
+  assert.match(js, /searchPlaceholder/);
   assert.match(js, /faqCountLabel/);
   assert.match(js, /faq-related-link/);
   assert.doesNotMatch(js, /What is a Member\?/);

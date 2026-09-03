@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { api, errorMessage } from "./api.js";
+import i18n from "./i18n/index.js";
 import { confirmWorkspaceLeave } from "./kiosk/builder/workspaceLeaveGuard.js";
 import TutorialOverlay from "./TutorialOverlay.jsx";
 import {
@@ -91,7 +92,7 @@ export function TutorialProvider({ session, onTutorialStateChange, children }) {
     try {
       const nextGroupId = await resolveGroup();
       const module = tutorialModuleById(session, moduleId, { groupId: nextGroupId });
-      if (!module) throw new Error("This tutorial is not available for the current Workspace.");
+      if (!module) throw new Error(i18n.t("tutorialHub.unavailable", { ns: "workspace" }));
       const automatic = Boolean(options.automatic);
       let index = 0;
       if (automatic && tutorialState?.status === "in_progress" && tutorialState.last_step) {
@@ -233,7 +234,10 @@ export function TutorialProvider({ session, onTutorialStateChange, children }) {
       try {
         const result = await api.completeTutorialModule(tour.module.id);
         applyTutorialState(result.data);
-        setFeedback(`${tour.module.title} tutorial complete.`);
+        setFeedback(i18n.t("tutorialHub.feedbackComplete", {
+          ns: "workspace",
+          title: tour.module.title,
+        }));
         setTour(null);
         setError("");
         navigate(focusedTutorialReturnRoute(completedFlow));

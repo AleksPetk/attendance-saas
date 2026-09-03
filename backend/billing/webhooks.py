@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import timedelta
 
 from django.db import transaction
 from django.utils import timezone
@@ -34,6 +35,9 @@ HANDLED_EVENT_TYPES = frozenset(
     }
 )
 
+# If a worker dies after claiming PROCESSING, another delivery may reclaim.
+PROCESSING_RECLAIM_AFTER = timedelta(minutes=15)
+
 
 def _subscription_id_from_object(obj: dict) -> str:
     if not obj:
@@ -53,21 +57,75 @@ def _customer_id_from_object(obj: dict) -> str:
     return str(customer or "")
 
 
-def _claim_event(event) -> ProviderEvent:
-    """Create or lock the idempotency row. Survives later processing failures."""
+def _mark_processing(row: ProviderEvent, *, now) -> ProviderEvent:
+    row.status = ProviderEventStatus.PROCESSING
+    row.processing_started_at = now
+    row.error_summary = ""
+    row.save(
+        update_fields=["status", "processing_started_at", "error_summary"]
+    )
+    return row
+
+
+def claim_provider_event_for_processing(event) -> tuple[ProviderEvent | None, str]:
+    """
+    Atomically claim one provider event for dispatch.
+
+    Returns (row, outcome):
+      - claimed: this worker owns PROCESSING and must dispatch
+      - duplicate: already PROCESSED or IGNORED — do not dispatch
+      - in_progress: another worker holds PROCESSING — do not dispatch
+    """
+    now = timezone.now()
     with transaction.atomic():
-        existing = ProviderEvent.objects.select_for_update().filter(
-            provider=PurchaseSource.STRIPE,
-            external_event_id=event.event_id,
-        ).first()
+        existing = (
+            ProviderEvent.objects.select_for_update()
+            .filter(
+                provider=PurchaseSource.STRIPE,
+                external_event_id=event.event_id,
+            )
+            .first()
+        )
         if existing is None:
-            existing = ProviderEvent.objects.create(
+            row = ProviderEvent.objects.create(
                 provider=PurchaseSource.STRIPE,
                 external_event_id=event.event_id,
                 event_type=event.event_type,
-                status=ProviderEventStatus.RECEIVED,
+                status=ProviderEventStatus.PROCESSING,
+                processing_started_at=now,
             )
-        return existing
+            return row, "claimed"
+
+        if existing.status in {
+            ProviderEventStatus.PROCESSED,
+            ProviderEventStatus.IGNORED,
+        }:
+            return existing, "duplicate"
+
+        if existing.status == ProviderEventStatus.PROCESSING:
+            started = existing.processing_started_at or existing.created_at
+            if started is not None and now - started < PROCESSING_RECLAIM_AFTER:
+                return existing, "in_progress"
+            # Stale PROCESSING: reclaim for retry after crash/timeout.
+            return _mark_processing(existing, now=now), "claimed"
+
+        # RECEIVED (legacy) or FAILED → claim for (re)processing.
+        if existing.status in {
+            ProviderEventStatus.RECEIVED,
+            ProviderEventStatus.FAILED,
+        }:
+            if not existing.event_type and event.event_type:
+                existing.event_type = event.event_type
+                existing.save(update_fields=["event_type"])
+            return _mark_processing(existing, now=now), "claimed"
+
+        # Unknown status: fail closed — treat as in-progress duplicate.
+        logger.warning(
+            "Unexpected ProviderEvent status=%s event_id=%s; skipping dispatch",
+            existing.status,
+            event.event_id,
+        )
+        return existing, "in_progress"
 
 
 def _mark_processed(existing: ProviderEvent):
@@ -98,9 +156,15 @@ def _mark_failed(existing: ProviderEvent, exc: Exception):
 
 def process_provider_event(event) -> str:
     """Process one verified provider event. Safe to retry the same event id."""
-    existing = _claim_event(event)
-    if existing.status == ProviderEventStatus.PROCESSED:
+    existing, outcome = claim_provider_event_for_processing(event)
+    if outcome == "duplicate":
         return "duplicate"
+    if outcome == "in_progress":
+        # Idempotent success so Stripe does not hammer retries while a peer runs.
+        return "duplicate"
+    if existing is None:
+        return "duplicate"
+
     if event.event_type not in HANDLED_EVENT_TYPES:
         _mark_ignored(existing)
         return "ignored"

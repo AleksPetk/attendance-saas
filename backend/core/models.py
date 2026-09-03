@@ -277,6 +277,11 @@ class PromotionalTextStyle(models.TextChoices):
     ARCADE = "arcade", "Arcade"
 
 
+class PromotionalTextMarketMode(models.TextChoices):
+    TOGETHER = "together", "Markets Together"
+    SEPARATE = "separate", "Markets Separate"
+
+
 class PlatformPromotionalTextSettings(models.Model):
     """Singleton display-copy setting for pricing surfaces only.
 
@@ -286,6 +291,13 @@ class PlatformPromotionalTextSettings(models.Model):
 
     SINGLETON_PK = 1
 
+    mode = models.CharField(
+        max_length=12,
+        choices=PromotionalTextMarketMode.choices,
+        default=PromotionalTextMarketMode.TOGETHER,
+        verbose_name="Market Mode",
+        help_text="Choose one shared presentation or independent Global and Japan presentations.",
+    )
     enabled = models.BooleanField(
         default=False,
         help_text="Show this display text on public and workspace pricing areas.",
@@ -305,6 +317,44 @@ class PlatformPromotionalTextSettings(models.Model):
         choices=PromotionalTextStyle.choices,
         default=PromotionalTextStyle.NORMAL,
         verbose_name="Text Style",
+        help_text="Presentation only. This is independent from Pricing Card Templates.",
+    )
+    global_enabled = models.BooleanField(
+        default=False,
+        verbose_name="Global Enabled",
+        help_text="Show the Global display text in Global billing contexts.",
+    )
+    global_text = models.CharField(
+        max_length=280,
+        blank=True,
+        default="",
+        verbose_name="Global Message",
+        help_text="Display text for the Global billing market only.",
+    )
+    global_text_style = models.CharField(
+        max_length=32,
+        choices=PromotionalTextStyle.choices,
+        default=PromotionalTextStyle.NORMAL,
+        verbose_name="Global Text Style",
+        help_text="Presentation only. This is independent from Pricing Card Templates.",
+    )
+    jp_enabled = models.BooleanField(
+        default=False,
+        verbose_name="Japan Enabled",
+        help_text="Show the Japan display text in Japan billing contexts.",
+    )
+    jp_text = models.CharField(
+        max_length=280,
+        blank=True,
+        default="",
+        verbose_name="Japan Message",
+        help_text="Display text for the Japan billing market only.",
+    )
+    jp_text_style = models.CharField(
+        max_length=32,
+        choices=PromotionalTextStyle.choices,
+        default=PromotionalTextStyle.NORMAL,
+        verbose_name="Japan Text Style",
         help_text="Presentation only. This is independent from Pricing Card Templates.",
     )
     updated_at = models.DateTimeField(auto_now=True)
@@ -328,6 +378,18 @@ class PlatformPromotionalTextSettings(models.Model):
                 condition=models.Q(text_style__in=PromotionalTextStyle.values),
                 name="core_platformpromotionaltextsettings_style_valid",
             ),
+            models.CheckConstraint(
+                condition=models.Q(mode__in=PromotionalTextMarketMode.values),
+                name="core_promotionaltext_market_mode_valid",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(global_text_style__in=PromotionalTextStyle.values),
+                name="core_promotionaltext_global_style_valid",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(jp_text_style__in=PromotionalTextStyle.values),
+                name="core_promotionaltext_jp_style_valid",
+            ),
         ]
 
     def __str__(self):
@@ -349,6 +411,7 @@ class PlatformPromotionalTextSettings(models.Model):
         obj, _created = cls.objects.get_or_create(
             pk=cls.SINGLETON_PK,
             defaults={
+                "mode": PromotionalTextMarketMode.TOGETHER,
                 "enabled": False,
                 "text": "",
                 "text_style": PromotionalTextStyle.NORMAL,
@@ -361,6 +424,10 @@ class PlatformAdminActionType(models.TextChoices):
     CHECKSTATION_ACCOUNT_ON = "checkstation_account_on", "CheckStation Account ON"
     CHECKSTATION_ACCOUNT_OFF = "checkstation_account_off", "CheckStation Account OFF"
     CHECKSTATION_PLAN_CHANGE = "checkstation_plan_change", "CheckStation plan change"
+    BILLING_MARKET_OVERRIDE_CHANGE = (
+        "billing_market_override_change",
+        "Billing market override change",
+    )
     ORGANIZATION_BLOCK = "organization_block", "Block organization"
     ORGANIZATION_UNBLOCK = "organization_unblock", "Unblock organization"
     ORGANIZATION_PERMANENT_DELETE = (

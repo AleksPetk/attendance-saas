@@ -491,13 +491,14 @@ class GroupSection(models.Model):
         related_name="sections",
     )
     name = models.CharField(max_length=150)
-    class_pin = models.CharField(
-        max_length=12,
+    class_pin_hash = models.CharField(
+        max_length=128,
         blank=True,
         default="",
         help_text=(
-            "Low-security Class PIN for Structured kiosk Class entry when "
-            "the parent Group has require_class_pin enabled. Not a password."
+            "Django password hash of the Class PIN for Structured kiosk Class "
+            "entry when require_class_pin is enabled. Never store or return the "
+            "raw PIN."
         ),
     )
     status = models.CharField(
@@ -535,20 +536,19 @@ class GroupSection(models.Model):
 
     @property
     def has_class_pin(self):
-        return bool((self.class_pin or "").strip())
+        return bool(self.class_pin_hash)
 
     def set_class_pin(self, raw_pin):
         pin = validate_member_pin(raw_pin)
-        self.class_pin = pin
+        self.class_pin_hash = make_password(pin)
 
     def clear_class_pin(self):
-        self.class_pin = ""
+        self.class_pin_hash = ""
 
     def check_class_pin(self, raw_pin):
-        stored = (self.class_pin or "").strip()
-        if not stored:
+        if not self.class_pin_hash:
             return False
-        return str(raw_pin or "") == stored
+        return check_password(str(raw_pin or ""), self.class_pin_hash)
 
     def archive(self):
         if self.status == GroupSectionStatus.ARCHIVED:
@@ -567,7 +567,6 @@ class GroupSection(models.Model):
 
     def save(self, *args, **kwargs):
         self.name = (self.name or "").strip()
-        self.class_pin = (self.class_pin or "").strip()
         if self.group_id:
             self.organization_id = self.group.organization_id
         self._assert_structured_group()
@@ -702,8 +701,15 @@ class GroupMembership(models.Model):
             "Independent of Member profile email."
         ),
     )
-    participation_pin = models.CharField(max_length=12, blank=True, default="")
-    override_pin_hash = models.CharField(max_length=128, blank=True, default="")
+    participation_pin_hash = models.CharField(
+        max_length=128,
+        blank=True,
+        default="",
+        help_text=(
+            "Django password hash of the Group participation PIN. "
+            "Never store or return the raw PIN."
+        ),
+    )
     status = models.CharField(
         max_length=20,
         choices=GroupMembershipStatus.choices,
@@ -775,11 +781,11 @@ class GroupMembership(models.Model):
 
     @property
     def has_override_pin(self):
-        return bool(self.override_pin_hash)
+        return bool(self.participation_pin_hash)
 
     @property
     def has_participation_pin(self):
-        return bool((self.participation_pin or "").strip()) or self.has_override_pin
+        return bool(self.participation_pin_hash)
 
     @property
     def has_effective_photo(self):
@@ -808,28 +814,22 @@ class GroupMembership(models.Model):
 
     def set_participation_pin(self, raw_pin):
         pin = validate_member_pin(raw_pin)
-        self.participation_pin = pin
-        self.override_pin_hash = ""
+        self.participation_pin_hash = make_password(pin)
 
     def clear_participation_pin(self):
-        self.participation_pin = ""
-        self.override_pin_hash = ""
+        self.participation_pin_hash = ""
 
     def set_override_pin(self, raw_pin):
-        """Legacy hash storage; prefer set_participation_pin for new data."""
-        pin = validate_member_pin(raw_pin)
-        self.participation_pin = pin
-        self.override_pin_hash = ""
+        """Alias for set_participation_pin (legacy override naming)."""
+        self.set_participation_pin(raw_pin)
 
     def clear_override_pin(self):
         self.clear_participation_pin()
 
     def check_effective_pin(self, raw_pin):
         entered = str(raw_pin or "")
-        if self.participation_pin:
-            return entered == self.participation_pin
-        if self.override_pin_hash:
-            return check_password(entered, self.override_pin_hash)
+        if self.participation_pin_hash:
+            return check_password(entered, self.participation_pin_hash)
         return self.member.check_pin(raw_pin)
 
     def deactivate(self):
@@ -861,7 +861,6 @@ class GroupMembership(models.Model):
                 emails = [legacy]
         self.participation_emails = emails
         self.participation_email = primary_participation_email(emails)
-        self.participation_pin = (self.participation_pin or "").strip()
         self.override_check_in_identifier = (
             self.override_check_in_identifier or ""
         ).strip()
@@ -1015,8 +1014,15 @@ class GroupOnlyParticipant(models.Model):
     check_in_identifier = models.CharField(max_length=80, blank=True, default="")
     notes = models.TextField(blank=True, default="")
     group_participant_code = models.CharField(max_length=20, blank=True, default="")
-    participation_pin = models.CharField(max_length=12, blank=True, default="")
-    pin_hash = models.CharField(max_length=128, blank=True, default="")
+    pin_hash = models.CharField(
+        max_length=128,
+        blank=True,
+        default="",
+        help_text=(
+            "Django password hash of the Group-only participant PIN. "
+            "Never store or return the raw PIN."
+        ),
+    )
     status = models.CharField(
         max_length=20,
         choices=GroupOnlyParticipantStatus.choices,
@@ -1055,7 +1061,7 @@ class GroupOnlyParticipant(models.Model):
 
     @property
     def has_pin(self):
-        return bool((self.participation_pin or "").strip()) or bool(self.pin_hash)
+        return bool(self.pin_hash)
 
     @property
     def has_photo(self):
@@ -1063,11 +1069,9 @@ class GroupOnlyParticipant(models.Model):
 
     def set_participation_pin(self, raw_pin):
         pin = validate_member_pin(raw_pin)
-        self.participation_pin = pin
-        self.pin_hash = ""
+        self.pin_hash = make_password(pin)
 
     def clear_participation_pin(self):
-        self.participation_pin = ""
         self.pin_hash = ""
 
     def set_pin(self, raw_pin):
@@ -1077,12 +1081,9 @@ class GroupOnlyParticipant(models.Model):
         self.clear_participation_pin()
 
     def check_pin(self, raw_pin):
-        entered = str(raw_pin or "")
-        if self.participation_pin:
-            return entered == self.participation_pin
         if not self.pin_hash:
             return False
-        return check_password(entered, self.pin_hash)
+        return check_password(str(raw_pin or ""), self.pin_hash)
 
     def archive(self):
         if self.status == GroupOnlyParticipantStatus.ARCHIVED:
@@ -1110,7 +1111,6 @@ class GroupOnlyParticipant(models.Model):
                 emails = [legacy]
         self.participation_emails = emails
         self.email = primary_participation_email(emails)
-        self.participation_pin = (self.participation_pin or "").strip()
         self.phone = (self.phone or "").strip()
         self.check_in_identifier = (self.check_in_identifier or "").strip()
         self.notes = (self.notes or "").strip()

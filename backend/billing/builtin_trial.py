@@ -18,6 +18,8 @@ from organizations.entitlements.transitions import apply_effective_plan
 from organizations.models import Organization, OrganizationPlan
 
 BUILTIN_TRIAL_DAYS = 7
+# Public/catalog surfaces must read this rather than hardcoding offer assumptions.
+BUILTIN_TRIAL_OFFERED = True
 
 _LIVE_COMMERCIAL = frozenset(
     {BillingStatus.TRIALING, BillingStatus.ACTIVE, BillingStatus.PAST_DUE}
@@ -226,27 +228,43 @@ def close_builtin_trial_for_checkstation(organization, *, now=None):
 
 
 def expire_due_builtin_trials(*, now=None) -> dict:
-    """Expire every granted trial whose window has ended. Used by the command."""
+    """Expire every granted trial whose window has ended. Used by the command.
+
+    Concurrent invocations are safe: each row is re-locked and skipped once
+    expired_at is set. Re-running after success is a no-op for those trials.
+    """
     moment = _now(now)
-    rows = WorkspaceBuiltinTrial.objects.filter(
-        started_at__isnull=False,
-        ends_at__isnull=False,
-        ends_at__lte=moment,
-        expired_at__isnull=True,
-    ).select_related("organization")
+    due_ids = list(
+        WorkspaceBuiltinTrial.objects.filter(
+            started_at__isnull=False,
+            ends_at__isnull=False,
+            ends_at__lte=moment,
+            expired_at__isnull=True,
+        ).values_list("pk", flat=True)
+    )
     expired = 0
     skipped = 0
-    for trial in rows:
-        org = trial.organization
-        if org is None:
-            skipped += 1
-            continue
-        expire_due_builtin_trial(org, now=moment)
-        trial.refresh_from_db()
-        if trial.expired_at is not None:
-            expired += 1
-        else:
-            skipped += 1
+    for trial_id in due_ids:
+        with transaction.atomic():
+            trial = (
+                WorkspaceBuiltinTrial.objects.select_for_update()
+                .select_related("organization")
+                .filter(pk=trial_id, expired_at__isnull=True)
+                .first()
+            )
+            if trial is None:
+                skipped += 1
+                continue
+            org = trial.organization
+            if org is None:
+                skipped += 1
+                continue
+            expire_due_builtin_trial(org, now=moment)
+            trial.refresh_from_db()
+            if trial.expired_at is not None:
+                expired += 1
+            else:
+                skipped += 1
     return {"expired": expired, "skipped": skipped}
 
 

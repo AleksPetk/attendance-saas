@@ -130,6 +130,8 @@ def confirmation_payload_for_perform(
         "return_delay_seconds": normalize_return_seconds(
             settings.confirmation_return_seconds
         ),
+        "sound_enabled": bool(settings.confirmation_sound_enabled),
+        "vibration_enabled": bool(settings.confirmation_vibration_enabled),
         "action": action_type,
     }
 
@@ -148,6 +150,8 @@ def confirmation_settings_payload(settings, *, group):
         "return_delay_seconds": normalize_return_seconds(
             settings.confirmation_return_seconds
         ),
+        "sound_enabled": bool(settings.confirmation_sound_enabled),
+        "vibration_enabled": bool(settings.confirmation_vibration_enabled),
         "messages": messages,
         "defaults": dict(DEFAULT_CONFIRMATION_MESSAGES),
         "group_actions": {

@@ -1,4 +1,18 @@
+import i18n from "../i18n/index.js";
+
 export const ATTENDANCE_RESET_MODES = ["daily", "rolling"];
+
+export function dailyResetPresetLabel(preset) {
+  if (preset.id === "custom") return i18n.t("kiosk:attendanceReset.custom");
+  return preset.label;
+}
+
+export function rollingResetPresetLabel(preset) {
+  if (preset.id === "custom") return i18n.t("kiosk:attendanceReset.custom");
+  if (preset.id === "8") return i18n.t("kiosk:attendanceReset.hours8");
+  if (preset.id === "12") return i18n.t("kiosk:attendanceReset.hours12");
+  return preset.label;
+}
 
 export const DAILY_RESET_PRESETS = [
   { id: "00:00", label: "00:00" },

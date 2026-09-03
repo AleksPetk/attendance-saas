@@ -1,11 +1,14 @@
+import i18n from "../i18n/index.js";
 import { KioskPersonAvatar } from "./kioskParticipantAvatar.jsx";
 
 function formatAttendanceStatus(attendanceState) {
   if (!attendanceState) return "";
   if (attendanceState.is_checked_in) {
-    return attendanceState.is_on_break ? "Status: checked in, on break" : "Status: checked in";
+    return attendanceState.is_on_break
+      ? i18n.t("kiosk:status.checkedInOnBreak")
+      : i18n.t("kiosk:status.checkedIn");
   }
-  return "Status: not checked in";
+  return i18n.t("kiosk:status.notCheckedIn");
 }
 
 /**

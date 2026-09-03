@@ -150,7 +150,7 @@ class PublicFaqApiTests(TestCase):
         self.assertEqual(tokenize_query("  Cancel   Subscription "), ["cancel", "subscription"])
 
     def test_seed_faq_does_not_overwrite(self):
-        entry = FaqEntry.objects.get(slug="what-is-a-member")
+        entry = FaqEntry.objects.get(slug="what-is-a-member", language="en")
         entry.question = "Edited by admin"
         entry.save()
         created, updated = seed_faq_entries(overwrite=False)

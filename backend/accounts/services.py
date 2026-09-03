@@ -155,7 +155,7 @@ def verify_email_uid_token(uid, token):
     return "verified", user
 
 
-def request_password_reset(email):
+def request_password_reset(email, *, language=None):
     """Always return the same public message (anti-enumeration)."""
     normalized = User.objects.normalize_email(email or "")
     user = User.objects.filter(email=normalized, is_active=True).first()
@@ -168,7 +168,7 @@ def request_password_reset(email):
     if remaining:
         return FORGOT_PASSWORD_MESSAGE
     try:
-        send_password_reset_email(user)
+        send_password_reset_email(user, language=language)
         _mark_password_reset_sent(user)
     except (EmailConfigurationError, EmailSendError) as exc:
         logger.error("Password reset email failed for user_id=%s: %s", user.pk, exc)

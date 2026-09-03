@@ -1,7 +1,11 @@
+import i18n from "./i18n/index.js";
+
 export function staffAccountLifecycleAction(account, planLocked = false) {
   const inactive = account?.status === "inactive";
   return {
-    label: inactive ? "Reactivate" : "Deactivate",
+    label: inactive
+      ? i18n.t("staff:lifecycle.reactivate")
+      : i18n.t("staff:lifecycle.deactivate"),
     disabled: inactive && Boolean(planLocked),
   };
 }
@@ -12,10 +16,12 @@ export function canPermanentlyDeleteStaffAccount(account) {
 
 export function staffDeleteConfirmation(account) {
   if (!account) return null;
+  const bodyKey =
+    account.role === "admin" ? "staff:delete.bodyAdmin" : "staff:delete.bodyStaff";
   return {
-    title: "Permanently delete account?",
-    body: `Permanently delete the ${account.role} account “${account.username}”? Its sign-in credentials and private access assignments will be removed. This action cannot be undone.`,
-    confirmLabel: "Delete permanently",
+    title: i18n.t("staff:delete.title"),
+    body: i18n.t(bodyKey, { username: account.username }),
+    confirmLabel: i18n.t("staff:delete.confirmLabel"),
   };
 }
 

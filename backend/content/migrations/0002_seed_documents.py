@@ -4,7 +4,7 @@ from django.db import migrations
 def seed_canonical_documents(apps, schema_editor):
     from content.seed import seed_documents
 
-    seed_documents(overwrite=False)
+    seed_documents(overwrite=False, apps=apps)
 
 
 def noop(apps, schema_editor):

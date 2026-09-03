@@ -17,6 +17,7 @@ from django.conf import settings
 
 from billing.catalog import INTERVAL_MONTHLY, INTERVAL_YEARLY, PLAN_BUSINESS, PLAN_PLUS
 from billing.exceptions import StripeConfigurationError
+from billing.markets import MARKET_GLOBAL, MARKET_JP
 from billing.promotion import (
     AUDIENCE_BASIC,
     AUDIENCE_BUSINESS_MONTHLY,
@@ -33,7 +34,7 @@ from billing.promotion import (
     resolve_audience,
 )
 
-# Env setting name for each commercial slot (10 simple coupons).
+# GLOBAL env setting name for each commercial slot (10 simple coupons).
 ACQUISITION_COUPON_SETTINGS = {
     (MODE_NORMAL, PLAN_PLUS, INTERVAL_MONTHLY): "STRIPE_COUPON_ACQ_NORMAL_PLUS_MONTHLY",
     (MODE_NORMAL, PLAN_BUSINESS, INTERVAL_MONTHLY): (
@@ -56,9 +57,27 @@ RETENTION_COUPON_SETTINGS = {
     "business_yearly_30": "STRIPE_COUPON_BUSINESS_MONTHLY_TO_YEARLY",
 }
 
+JP_ACQUISITION_COUPON_SETTINGS = {
+    (MODE_NORMAL, PLAN_PLUS, INTERVAL_MONTHLY): "STRIPE_COUPON_JP_ACQ_NORMAL_PLUS_MONTHLY",
+    (MODE_NORMAL, PLAN_BUSINESS, INTERVAL_MONTHLY): "STRIPE_COUPON_JP_ACQ_NORMAL_BUSINESS_MONTHLY",
+    (MODE_NORMAL, PLAN_PLUS, INTERVAL_YEARLY): "STRIPE_COUPON_JP_ACQ_NORMAL_PLUS_YEARLY",
+    (MODE_NORMAL, PLAN_BUSINESS, INTERVAL_YEARLY): "STRIPE_COUPON_JP_ACQ_NORMAL_BUSINESS_YEARLY",
+    (MODE_BIG, PLAN_PLUS, INTERVAL_MONTHLY): "STRIPE_COUPON_JP_ACQ_BIG_PLUS_MONTHLY",
+    (MODE_BIG, PLAN_BUSINESS, INTERVAL_MONTHLY): "STRIPE_COUPON_JP_ACQ_BIG_BUSINESS_MONTHLY",
+    (MODE_BIG, PLAN_PLUS, INTERVAL_YEARLY): "STRIPE_COUPON_JP_ACQ_BIG_PLUS_YEARLY",
+    (MODE_BIG, PLAN_BUSINESS, INTERVAL_YEARLY): "STRIPE_COUPON_JP_ACQ_BIG_BUSINESS_YEARLY",
+}
+JP_RETENTION_COUPON_SETTINGS = {
+    "plus_yearly_30": "STRIPE_COUPON_JP_PLUS_MONTHLY_TO_PLUS_YEARLY",
+    "business_yearly_30": "STRIPE_COUPON_JP_BUSINESS_MONTHLY_TO_YEARLY",
+    "business_upgrade_yearly_30": "STRIPE_COUPON_JP_BUSINESS_UPGRADE_YEARLY",
+}
+
 ALL_COUPON_SETTING_NAMES = (
     tuple(ACQUISITION_COUPON_SETTINGS.values())
     + tuple(RETENTION_COUPON_SETTINGS.values())
+    + tuple(JP_ACQUISITION_COUPON_SETTINGS.values())
+    + tuple(JP_RETENTION_COUPON_SETTINGS.values())
 )
 
 
@@ -74,8 +93,9 @@ def coupon_configured(setting_name: str) -> bool:
     return bool(coupon_id_for_setting(setting_name))
 
 
-def acquisition_setting_name(mode: str, plan_key: str, interval: str) -> Optional[str]:
-    return ACQUISITION_COUPON_SETTINGS.get(
+def acquisition_setting_name(mode: str, plan_key: str, interval: str, *, market=MARKET_GLOBAL) -> Optional[str]:
+    mapping = JP_ACQUISITION_COUPON_SETTINGS if market == MARKET_JP else ACQUISITION_COUPON_SETTINGS
+    return mapping.get(
         (
             str(mode or "").strip().lower(),
             str(plan_key or "").strip().lower(),
@@ -84,11 +104,12 @@ def acquisition_setting_name(mode: str, plan_key: str, interval: str) -> Optiona
     )
 
 
-def retention_setting_name(slot_key: str) -> Optional[str]:
-    return RETENTION_COUPON_SETTINGS.get(str(slot_key or "").strip())
+def retention_setting_name(slot_key: str, *, market=MARKET_GLOBAL) -> Optional[str]:
+    mapping = JP_RETENTION_COUPON_SETTINGS if market == MARKET_JP else RETENTION_COUPON_SETTINGS
+    return mapping.get(str(slot_key or "").strip())
 
 
-def offer_slot_has_coupon(group: str, provider_slot: str) -> bool:
+def offer_slot_has_coupon(group: str, provider_slot: str, *, market=MARKET_GLOBAL) -> bool:
     """Whether the env coupon for this commercial slot is configured."""
     group = str(group or "").strip()
     slot = str(provider_slot or "").strip()
@@ -99,9 +120,9 @@ def offer_slot_has_coupon(group: str, provider_slot: str) -> bool:
         if len(parts) != 3:
             return False
         mode, plan, interval = parts
-        setting_name = acquisition_setting_name(mode, plan, interval)
+        setting_name = acquisition_setting_name(mode, plan, interval, market=market)
         return bool(setting_name and coupon_configured(setting_name))
-    setting_name = retention_setting_name(slot)
+    setting_name = retention_setting_name(slot, market=market)
     return bool(setting_name and coupon_configured(setting_name))
 
 
@@ -123,6 +144,7 @@ def resolve_checkout_coupon(
     organization,
     plan_key: str,
     interval: str,
+    market=MARKET_GLOBAL,
 ) -> tuple[Optional[str], Optional[str]]:
     """Resolve coupon for new Checkout (Group 1 acquisition only).
 
@@ -143,7 +165,7 @@ def resolve_checkout_coupon(
 
     plan = str(plan_key or "").strip().lower()
     interval_key = str(interval or "").strip().lower()
-    setting_name = acquisition_setting_name(mode, plan, interval_key)
+    setting_name = acquisition_setting_name(mode, plan, interval_key, market=market)
     if not setting_name:
         # Wrong plan/interval for acquisition — do not invent a coupon.
         return None, None
@@ -160,6 +182,7 @@ def resolve_schedule_coupon(
     organization,
     target_plan: str,
     target_interval: str,
+    market=MARKET_GLOBAL,
 ) -> tuple[Optional[str], Optional[str]]:
     """Resolve coupon for period-end schedule changes (Groups 2 and 3).
 
@@ -174,7 +197,7 @@ def resolve_schedule_coupon(
         GROUP_PLUS_MONTHLY, settings_obj=promo_settings
     ):
         if plan == PLAN_PLUS and interval == INTERVAL_YEARLY:
-            setting_name = retention_setting_name("plus_yearly_30")
+            setting_name = retention_setting_name("plus_yearly_30", market=market)
             return (
                 require_coupon_id(
                     setting_name,
@@ -183,8 +206,9 @@ def resolve_schedule_coupon(
                 setting_name,
             )
         if plan == PLAN_BUSINESS and interval == INTERVAL_YEARLY:
-            # Same $45 Business Yearly coupon as Group 3 (Business Monthly).
-            setting_name = retention_setting_name("business_yearly_30")
+            # JP has a distinct ¥3,000 upgrade coupon; GLOBAL shares $45.
+            slot = "business_upgrade_yearly_30" if market == MARKET_JP else "business_yearly_30"
+            setting_name = retention_setting_name(slot, market=market)
             return (
                 require_coupon_id(
                     setting_name,
@@ -198,7 +222,7 @@ def resolve_schedule_coupon(
         GROUP_BUSINESS_MONTHLY, settings_obj=promo_settings
     ):
         if plan == PLAN_BUSINESS and interval == INTERVAL_YEARLY:
-            setting_name = retention_setting_name("business_yearly_30")
+            setting_name = retention_setting_name("business_yearly_30", market=market)
             return (
                 require_coupon_id(
                     setting_name,

@@ -4,6 +4,7 @@ from django import forms
 from django.contrib import admin
 from django.core.exceptions import ValidationError
 from django.utils import timezone
+from django.utils.html import format_html
 
 from content.models import (
     Announcement,
@@ -34,6 +35,9 @@ class AnnouncementAdminForm(forms.ModelForm):
         model = Announcement
         fields = "__all__"
 
+    class Media:
+        js = ("admin/js/announcement_market_warning.js",)
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["target_workspaces"].queryset = self.fields[
@@ -41,6 +45,11 @@ class AnnouncementAdminForm(forms.ModelForm):
         ].queryset.order_by("workspace_id")
         self.fields["target_workspaces"].help_text = (
             "Search by Workspace ID, owner email, or internal label."
+        )
+        self.fields["market"].help_text = format_html(
+            '<span id="announcement-market-all-warning">{}</span>',
+            "This announcement may appear across all billing markets. Make sure "
+            "the message is appropriate for every region.",
         )
         if self.instance and self.instance.pk:
             self.fields["target_plans"].initial = self.instance.target_plans or []
@@ -80,6 +89,7 @@ class DocumentAdmin(admin.ModelAdmin):
     list_display = (
         "title",
         "slug",
+        "language",
         "document_type",
         "nav_group",
         "status",
@@ -88,7 +98,7 @@ class DocumentAdmin(admin.ModelAdmin):
         "effective_on",
         "updated_at",
     )
-    list_filter = ("document_type", "nav_group", "status", "is_public")
+    list_filter = ("language", "document_type", "nav_group", "status", "is_public")
     search_fields = ("slug", "title", "description")
     readonly_fields = ("created_at", "updated_at", "published_at")
     fieldsets = (
@@ -98,6 +108,7 @@ class DocumentAdmin(admin.ModelAdmin):
                 "fields": (
                     "title",
                     "slug",
+                    "language",
                     "document_type",
                     "nav_group",
                     "description",
@@ -135,6 +146,7 @@ class FaqEntryAdmin(admin.ModelAdmin):
     list_display = (
         "question",
         "slug",
+        "language",
         "category",
         "status",
         "is_public",
@@ -142,7 +154,7 @@ class FaqEntryAdmin(admin.ModelAdmin):
         "sort_order",
         "updated_at",
     )
-    list_filter = ("category", "status", "is_public", "featured")
+    list_filter = ("language", "category", "status", "is_public", "featured")
     search_fields = ("slug", "question", "keywords", "answer_markdown")
     readonly_fields = ("created_at", "updated_at", "published_at")
     fieldsets = (
@@ -152,6 +164,7 @@ class FaqEntryAdmin(admin.ModelAdmin):
                 "fields": (
                     "question",
                     "slug",
+                    "language",
                     "category",
                     "keywords",
                     "related_document_slug",
@@ -188,15 +201,24 @@ class AnnouncementAdmin(admin.ModelAdmin):
     form = AnnouncementAdminForm
     list_display = (
         "title",
+        "language",
         "severity",
         "status",
         "audience",
+        "market",
         "target_plans_display",
         "published_at",
         "expires_at",
         "updated_at",
     )
-    list_filter = ("status", "severity", "audience", "include_status_link")
+    list_filter = (
+        "status",
+        "severity",
+        "audience",
+        "market",
+        "language",
+        "include_status_link",
+    )
     search_fields = ("title", "message", "admin_notes")
     autocomplete_fields = ("target_workspaces",)
     readonly_fields = ("created_at", "updated_at", "published_at")
@@ -208,6 +230,7 @@ class AnnouncementAdmin(admin.ModelAdmin):
                 "fields": (
                     "title",
                     "message",
+                    "language",
                     "severity",
                     "include_status_link",
                 )
@@ -218,6 +241,7 @@ class AnnouncementAdmin(admin.ModelAdmin):
             {
                 "fields": (
                     "audience",
+                    "market",
                     "target_plans",
                     "target_workspaces",
                 ),

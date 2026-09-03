@@ -212,6 +212,7 @@ class NotificationEmailRenderUnitTests(SimpleTestCase):
 
 
 @override_settings(
+    DEBUG=True,
     APP_SECRETS_ENCRYPTION_KEY="",
     SECRET_KEY="test-secret-key-for-notification-email",
 )
@@ -475,6 +476,7 @@ class NotificationEmailLocalTimeTests(SimpleTestCase):
 
 
 @override_settings(
+    DEBUG=True,
     APP_SECRETS_ENCRYPTION_KEY="",
     SECRET_KEY="test-secret-key-for-notification-email",
     TIME_ZONE="UTC",

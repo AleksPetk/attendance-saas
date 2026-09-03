@@ -10,21 +10,28 @@
     <link rel="icon" type="image/png" href="/favicon-48x48.png?v=20260831" sizes="48x48" />
     <link rel="icon" type="image/png" href="/favicon-192x192.png?v=20260831" sizes="192x192" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=20260831" sizes="180x180" />
-    <title>CheckStation Status</title>
-    <meta name="description" content="Live CheckStation service status." />
+    <title>__PAGE_TITLE__</title>
+    <meta name="description" content="__PAGE_DESCRIPTION__" />
+    <link rel="canonical" href="__PAGE_CANONICAL__" />
+    __PAGE_HREFLANG__
     <link rel="stylesheet" href="/status.css" />
   </head>
   <body>
     <main class="status-shell">
       <header class="status-brand">
-        <img
-          class="status-logo"
-          src="/brand/logo-text.png"
-          width="180"
-          height="60"
-          alt="CheckStation"
-        />
-        <p class="status-kicker">System Status</p>
+        <div class="status-brand-row">
+          <div class="status-brand-copy">
+            <img
+              class="status-logo"
+              src="/brand/logo-text.png"
+              width="180"
+              height="60"
+              alt="CheckStation"
+            />
+            <p class="status-kicker" id="status-kicker">System Status</p>
+          </div>
+          <div class="status-language-root" id="status-language-root"></div>
+        </div>
       </header>
       <section id="overall" class="overall overall-loading" aria-live="polite">
         <div class="overall-row">

@@ -1,14 +1,18 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   DAILY_RESET_PRESETS,
   ROLLING_MAX_HOURS,
   ROLLING_MAX_MINUTES,
   ROLLING_RESET_PRESETS,
   dailyResetPresetForTime,
+  dailyResetPresetLabel,
   rollingResetPresetForDuration,
+  rollingResetPresetLabel,
 } from "./attendanceResetForm.js";
 
 export default function KioskAttendanceResetSettings({ form, onPatch, onResetNow, resetting }) {
+  const { t } = useTranslation("kiosk");
   const [dailyCustomSelected, setDailyCustomSelected] = useState(false);
   const [rollingCustomSelected, setRollingCustomSelected] = useState(false);
   const derivedDailyPreset = dailyResetPresetForTime(form.attendance_reset_daily_time);
@@ -48,11 +52,11 @@ export default function KioskAttendanceResetSettings({ form, onPatch, onResetNow
   return (
     <div className="ks-attendance-reset">
       <div className="kiosk-settings-subsection" data-tutorial-target="kiosk-reset-mode">
-        <h4>Reset mode</h4>
-        <div className="kiosk-segment-picker" role="radiogroup" aria-label="Attendance reset mode">
+        <h4>{t("attendanceReset.mode")}</h4>
+        <div className="kiosk-segment-picker" role="radiogroup" aria-label={t("attendanceReset.modeAria")}>
           {[
-            { id: "daily", label: "Daily" },
-            { id: "rolling", label: "Rolling" },
+            { id: "daily", label: t("attendanceReset.daily") },
+            { id: "rolling", label: t("attendanceReset.rolling") },
           ].map((option) => (
             <label
               key={option.id}
@@ -72,8 +76,8 @@ export default function KioskAttendanceResetSettings({ form, onPatch, onResetNow
 
       {isDaily ? (
         <div className="kiosk-settings-subsection" data-tutorial-target="kiosk-reset-schedule">
-          <h4>Reset at</h4>
-          <div className="kiosk-segment-picker" role="radiogroup" aria-label="Daily reset time">
+          <h4>{t("attendanceReset.resetAt")}</h4>
+          <div className="kiosk-segment-picker" role="radiogroup" aria-label={t("attendanceReset.dailyAria")}>
             {DAILY_RESET_PRESETS.map((preset) => (
               <label
                 key={preset.id}
@@ -85,14 +89,14 @@ export default function KioskAttendanceResetSettings({ form, onPatch, onResetNow
                   checked={dailyPreset === preset.id}
                   onChange={() => selectDailyPreset(preset.id)}
                 />
-                {preset.label}
+                {dailyResetPresetLabel(preset)}
               </label>
             ))}
           </div>
           {dailyPreset === "custom" ? (
             <div className="ks-reset-custom-field">
               <label className="field-label" htmlFor="daily-reset-custom-time">
-                Custom time (24-hour)
+                {t("attendanceReset.customTime")}
               </label>
               <input
                 id="daily-reset-custom-time"
@@ -108,8 +112,8 @@ export default function KioskAttendanceResetSettings({ form, onPatch, onResetNow
 
       {isRolling ? (
         <div className="kiosk-settings-subsection" data-tutorial-target="kiosk-reset-schedule">
-          <h4>Reset after</h4>
-          <div className="kiosk-segment-picker" role="radiogroup" aria-label="Rolling reset duration">
+          <h4>{t("attendanceReset.resetAfter")}</h4>
+          <div className="kiosk-segment-picker" role="radiogroup" aria-label={t("attendanceReset.rollingAria")}>
             {ROLLING_RESET_PRESETS.map((preset) => (
               <label
                 key={preset.id}
@@ -121,7 +125,7 @@ export default function KioskAttendanceResetSettings({ form, onPatch, onResetNow
                   checked={rollingPreset === preset.id}
                   onChange={() => selectRollingPreset(preset.id)}
                 />
-                {preset.label}
+                {rollingResetPresetLabel(preset)}
               </label>
             ))}
           </div>
@@ -129,7 +133,7 @@ export default function KioskAttendanceResetSettings({ form, onPatch, onResetNow
             <div className="ks-reset-duration-grid">
               <div className="ks-reset-custom-field">
                 <label className="field-label" htmlFor="rolling-reset-hours">
-                  Hours
+                  {t("attendanceReset.hours")}
                 </label>
                 <input
                   id="rolling-reset-hours"
@@ -145,7 +149,7 @@ export default function KioskAttendanceResetSettings({ form, onPatch, onResetNow
               </div>
               <div className="ks-reset-custom-field">
                 <label className="field-label" htmlFor="rolling-reset-minutes">
-                  Minutes
+                  {t("attendanceReset.minutes")}
                 </label>
                 <input
                   id="rolling-reset-minutes"
@@ -165,9 +169,9 @@ export default function KioskAttendanceResetSettings({ form, onPatch, onResetNow
       ) : null}
 
       <div className="ks-reset-manual" data-tutorial-target="kiosk-reset-now">
-        <h4>Manual reset</h4>
+        <h4>{t("attendanceReset.manual")}</h4>
         <p className="hint kiosk-settings-helper">
-          Need a fresh cycle before the scheduled reset?
+          {t("attendanceReset.manualHint")}
         </p>
         <button
           type="button"
@@ -175,7 +179,7 @@ export default function KioskAttendanceResetSettings({ form, onPatch, onResetNow
           onClick={onResetNow}
           disabled={resetting}
         >
-          {resetting ? "Resetting…" : "Reset now"}
+          {resetting ? t("attendanceReset.resetting") : t("attendanceReset.resetNow")}
         </button>
       </div>
     </div>

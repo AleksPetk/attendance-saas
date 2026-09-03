@@ -6,6 +6,14 @@ from django.test import RequestFactory
 from groups.email_providers.base import EmailSenderProviderError
 from groups.email_sender import save_group_email_sender, send_group_email_sender_test
 
+# Django's test runner forces DEBUG=False. Group sender suites intentionally leave
+# APP_SECRETS_ENCRYPTION_KEY empty to exercise SECRET_KEY derivation, which
+# requires DEBUG=True.
+GROUP_EMAIL_CRYPTO_TEST_SETTINGS = {
+    "DEBUG": True,
+    "APP_SECRETS_ENCRYPTION_KEY": "",
+    "SECRET_KEY": "test-secret-key-for-group-email-sender-suite",
+}
 
 def mock_batch_send_success(_sender, *, messages):
     """Simulate successful SMTP batch delivery for all recipients."""

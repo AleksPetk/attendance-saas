@@ -1,10 +1,13 @@
 import { useEffect, useState } from "react";
-import { api, errorMessage } from "./api.js";
+import { useTranslation } from "react-i18next";
+import { api } from "./api.js";
 import { ErrorBanner, Field, LoadingState, PasswordInput, SectionCard, StatusBadge } from "./components.jsx";
 import GroupParticipantsSection from "./GroupParticipantsSection.jsx";
+import { localizedErrorMessage } from "./i18n/errorMessages.js";
+import { usePageTitle } from "./i18n/usePageTitle.js";
 import { canLaunchKiosk, canManageGroupConfiguration } from "./workspaceSession.js";
-import { actionSummary } from "./GroupsScreen.jsx";
 import {
+  actionSummary,
   formatClassId,
   formatGroupId,
   isStructuredGroup,
@@ -12,6 +15,7 @@ import {
 } from "./groupForm.js";
 
 export default function GroupDetailScreen({ session, groupId, onNavigate }) {
+  const { t } = useTranslation(["groups", "common", "errors"]);
   const canConfigure = canManageGroupConfiguration(session);
   const canLaunch = canLaunchKiosk(session);
   const [group, setGroup] = useState(null);
@@ -32,6 +36,8 @@ export default function GroupDetailScreen({ session, groupId, onNavigate }) {
   const [saving, setSaving] = useState(false);
   const [planAccessDenied, setPlanAccessDenied] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  usePageTitle("pageTitles.groups", { ns: "workspace" });
 
   async function load() {
     setError("");
@@ -77,11 +83,16 @@ export default function GroupDetailScreen({ session, groupId, onNavigate }) {
         setPlanAccessDenied(true);
         setGroup(null);
       } else {
-        setError(errorMessage(loadError));
+        setError(localizedErrorMessage(loadError, t));
       }
     } finally {
       setLoading(false);
     }
+  }
+
+  async function refreshGroupAfterParticipantChange() {
+    const groupResult = await api.getGroup(session, groupId);
+    setGroup(groupResult.data);
   }
 
   useEffect(() => {
@@ -91,7 +102,7 @@ export default function GroupDetailScreen({ session, groupId, onNavigate }) {
   if (loading) {
     return (
       <div className="page">
-        <LoadingState label="Loading Group…" />
+        <LoadingState label={t("loadingOne")} />
       </div>
     );
   }
@@ -100,14 +111,11 @@ export default function GroupDetailScreen({ session, groupId, onNavigate }) {
     return (
       <div className="page">
         <div className="plan-locked-banner plan-locked-page" role="alert">
-          <span className="plan-locked-badge">Plan locked</span>
-          <strong>This Group is not available on the current plan</strong>
-          <p className="hint">
-            The Group and its history remain preserved. Open it again after the owner unlocks it
-            during capacity selection or upgrades the plan. Structured Groups require Business.
-          </p>
+          <span className="plan-locked-badge">{t("planLocked")}</span>
+          <strong>{t("detail.planLockedPageTitle")}</strong>
+          <p className="hint">{t("detail.planLockedPageHint")}</p>
           <button type="button" className="btn-secondary" onClick={() => onNavigate({ name: "groups" })}>
-            Back to Groups
+            {t("backToGroups")}
           </button>
         </div>
       </div>
@@ -117,9 +125,9 @@ export default function GroupDetailScreen({ session, groupId, onNavigate }) {
   if (!group) {
     return (
       <div className="page">
-        <ErrorBanner message={error || "Group not found."} />
+        <ErrorBanner message={error || t("notFound")} />
         <button type="button" className="btn-secondary" onClick={() => onNavigate({ name: "groups" })}>
-          Back to Groups
+          {t("backToGroups")}
         </button>
       </div>
     );
@@ -135,7 +143,7 @@ export default function GroupDetailScreen({ session, groupId, onNavigate }) {
   const setupSummary = setupIncompleteSummary(group?.readiness);
 
   async function archiveGroup() {
-    if (!window.confirm(`Archive ${group.name}?`)) {
+    if (!window.confirm(t("confirmArchive", { name: group.name }))) {
       return;
     }
     await api.archiveGroup(session, groupId);
@@ -156,7 +164,7 @@ export default function GroupDetailScreen({ session, groupId, onNavigate }) {
       setNewClassPin("");
       await load();
     } catch (saveError) {
-      setError(errorMessage(saveError));
+      setError(localizedErrorMessage(saveError, t));
     } finally {
       setSaving(false);
     }
@@ -173,7 +181,7 @@ export default function GroupDetailScreen({ session, groupId, onNavigate }) {
   async function copyStandardGroupAsClass(event) {
     event.preventDefault();
     if (!importSourceId) {
-      setError("Select a Standard Group to copy.");
+      setError(t("detail.selectStandardGroupError"));
       return;
     }
     setSaving(true);
@@ -185,14 +193,14 @@ export default function GroupDetailScreen({ session, groupId, onNavigate }) {
         name: importClassName.trim() || undefined,
         ...(importClassPin ? { class_pin: importClassPin } : {}),
       });
-      setImportNotice(result.data.message || "Class copied.");
+      setImportNotice(result.data.message || t("detail.classCopied"));
       setImportSourceId("");
       setImportClassName("");
       setImportClassPin("");
       setAddClassMode("create");
       await load();
     } catch (saveError) {
-      setError(errorMessage(saveError));
+      setError(localizedErrorMessage(saveError, t));
     } finally {
       setSaving(false);
     }
@@ -215,18 +223,14 @@ export default function GroupDetailScreen({ session, groupId, onNavigate }) {
       setEditingClassPin("");
       await load();
     } catch (saveError) {
-      setError(errorMessage(saveError));
+      setError(localizedErrorMessage(saveError, t));
     } finally {
       setSaving(false);
     }
   }
 
   async function removeClass(section) {
-    if (
-      !window.confirm(
-        `Archive ${section.name}? Participants stay attached and can return if you restore the Class.`,
-      )
-    ) {
+    if (!window.confirm(t("detail.confirmArchiveClass", { name: section.name }))) {
       return;
     }
     setError("");
@@ -234,9 +238,12 @@ export default function GroupDetailScreen({ session, groupId, onNavigate }) {
       await api.archiveGroupClass(session, groupId, section.id);
       await load();
     } catch (saveError) {
-      setError(errorMessage(saveError));
+      setError(localizedErrorMessage(saveError, t));
     }
   }
+
+  const requiredLabel = t("detail.emailRequired");
+  const optionalLabel = t("detail.emailOptional");
 
   return (
     <div className="page page-detail">
@@ -245,7 +252,7 @@ export default function GroupDetailScreen({ session, groupId, onNavigate }) {
           <div className="editor-title-row">
             <h2>{group.name}</h2>
             <span className="entity-kicker">{formatGroupId(group.id)}</span>
-            {structured ? <span className="entity-kicker">Structured</span> : null}
+            {structured ? <span className="entity-kicker">{t("structuredLabel")}</span> : null}
             {setupIncomplete ? (
               <StatusBadge status="setup_incomplete" />
             ) : (
@@ -262,15 +269,15 @@ export default function GroupDetailScreen({ session, groupId, onNavigate }) {
                 className="btn-secondary"
                 onClick={() => onNavigate({ name: "group-editor", groupId })}
               >
-                Edit configuration
+                {t("editConfiguration")}
               </button>
               <button type="button" className="btn-danger-soft" onClick={archiveGroup}>
-                Archive
+                {t("archive")}
               </button>
             </>
           ) : null}
           <button type="button" className="btn-secondary" onClick={() => onNavigate({ name: "groups" })}>
-            Back
+            {t("common:back")}
           </button>
         </div>
       </header>
@@ -279,12 +286,12 @@ export default function GroupDetailScreen({ session, groupId, onNavigate }) {
       {setupIncomplete ? (
         <div className="setup-incomplete-banner">
           <div>
-            <strong>Setup incomplete</strong>
+            <strong>{t("detail.setupIncomplete")}</strong>
             <p className="hint">
               {setupSummary ||
                 (structured
-                  ? "Complete Class participant setup before this Group is ready."
-                  : "Complete participant setup before launching the kiosk.")}
+                  ? t("detail.setupIncompleteStructured")
+                  : t("detail.setupIncompleteStandard"))}
             </p>
           </div>
           {!structured ? (
@@ -295,7 +302,7 @@ export default function GroupDetailScreen({ session, groupId, onNavigate }) {
                 document.getElementById("group-participants")?.scrollIntoView({ behavior: "smooth" });
               }}
             >
-              Complete participant setup
+              {t("detail.completeParticipantSetup")}
             </button>
           ) : null}
         </div>
@@ -304,7 +311,7 @@ export default function GroupDetailScreen({ session, groupId, onNavigate }) {
       {canConfigureUnlocked && kioskNeedsSetup && !setupIncomplete && !planLocked ? (
         <div className="setup-incomplete-banner">
           <div>
-            <strong>Kiosk settings need attention</strong>
+            <strong>{t("detail.kioskNeedsAttention")}</strong>
             <ul className="kiosk-settings-issues compact">
               {(kioskReadiness?.issues || []).map((issue) => (
                 <li key={issue}>{issue}</li>
@@ -316,31 +323,31 @@ export default function GroupDetailScreen({ session, groupId, onNavigate }) {
             className="btn-secondary"
             onClick={() => onNavigate({ name: "kiosk-settings", groupId })}
           >
-            Open Kiosk Settings
+            {t("detail.openKioskSettings")}
           </button>
         </div>
       ) : null}
 
       <div className="summary-grid">
         <article className="summary-card">
-          <h3>Actions</h3>
+          <h3>{t("detail.summaryActions")}</h3>
           <p>{actionSummary(group.actions)}</p>
         </article>
         <article className="summary-card">
-          <h3>Participation</h3>
+          <h3>{t("detail.summaryParticipation")}</h3>
           <ul className="summary-list compact">
             <li>
-              <span>Email</span>
-              <strong>{group.participation?.email_required ? "Required" : "Optional"}</strong>
+              <span>{t("detail.emailLabel")}</span>
+              <strong>{group.participation?.email_required ? requiredLabel : optionalLabel}</strong>
             </li>
             <li>
-              <span>PIN</span>
-              <strong>{group.participation?.pin_required ? "Required" : "Optional"}</strong>
+              <span>{t("detail.pinLabel")}</span>
+              <strong>{group.participation?.pin_required ? t("detail.pinRequired") : t("detail.pinOptional")}</strong>
             </li>
             {structured ? (
               <li>
-                <span>Class PIN</span>
-                <strong>{group.require_class_pin ? "Required" : "Off"}</strong>
+                <span>{t("detail.classPinLabel")}</span>
+                <strong>{group.require_class_pin ? t("detail.classPinRequired") : t("detail.classPinOff")}</strong>
               </li>
             ) : null}
           </ul>
@@ -348,22 +355,22 @@ export default function GroupDetailScreen({ session, groupId, onNavigate }) {
         <article className="summary-card">
           {structured ? (
             <>
-              <h3>Classes</h3>
+              <h3>{t("detail.summaryClasses")}</h3>
               <p className="summary-stat">
-                <strong>{group.section_count ?? classes.length}</strong> active classes
+                <strong>{group.section_count ?? classes.length}</strong> {t("detail.activeClassesLabel")}
               </p>
               <p className="summary-stat">
-                <strong>{group.participant_count ?? 0}</strong> participants total
+                <strong>{group.participant_count ?? 0}</strong> {t("detail.participantsTotalLabel")}
               </p>
             </>
           ) : (
             <>
-              <h3>People</h3>
+              <h3>{t("detail.summaryPeople")}</h3>
               <p className="summary-stat">
-                <strong>{group.member_count}</strong> reusable Members
+                <strong>{group.member_count}</strong> {t("detail.reusableMembersLabel")}
               </p>
               <p className="summary-stat">
-                <strong>{group.group_only_participant_count}</strong> visitors
+                <strong>{group.group_only_participant_count}</strong> {t("detail.visitorsLabel")}
               </p>
             </>
           )}
@@ -372,11 +379,9 @@ export default function GroupDetailScreen({ session, groupId, onNavigate }) {
 
       <div className="kiosk-section-panel" data-tutorial-target="group-kiosk-actions">
         <div className="kiosk-section-head">
-          <h3>{group.name} Kiosk</h3>
+          <h3>{t("detail.kioskTitle", { name: group.name })}</h3>
           <p className="hint">
-            {structured
-              ? "Class cards → Participant cards. Settings, design, and live launch for this Group."
-              : "Settings, design, and live launch for this Group."}
+            {structured ? t("detail.kioskHintStructured") : t("detail.kioskHintStandard")}
           </p>
         </div>
         <div className="kiosk-action-row">
@@ -388,7 +393,7 @@ export default function GroupDetailScreen({ session, groupId, onNavigate }) {
                 data-tutorial-target="kiosk-settings-action"
                 onClick={() => onNavigate({ name: "kiosk-settings", groupId })}
               >
-                Kiosk Settings
+                {t("detail.kioskSettings")}
               </button>
               <button
                 type="button"
@@ -396,7 +401,7 @@ export default function GroupDetailScreen({ session, groupId, onNavigate }) {
                 data-tutorial-target="kiosk-design-action"
                 onClick={() => onNavigate({ name: "kiosk-builder", groupId })}
               >
-                Edit Kiosk Design
+                {t("detail.editKioskDesign")}
               </button>
             </>
           ) : null}
@@ -408,29 +413,28 @@ export default function GroupDetailScreen({ session, groupId, onNavigate }) {
               disabled={launchBlocked}
               title={
                 setupIncomplete
-                  ? "Complete setup before launching."
+                  ? t("detail.launchBlockedSetup")
                   : kioskNeedsSetup
-                    ? "Complete Kiosk Settings before launching."
+                    ? t("detail.launchBlockedKiosk")
                     : undefined
               }
               onClick={() => onNavigate({ name: "kiosk", groupId })}
             >
-              Launch Kiosk
+              {t("detail.launchKiosk")}
             </button>
           ) : null}
         </div>
       </div>
 
       {structured ? (
-        <SectionCard title={`Classes (${classes.length})`} id="group-classes">
+        <SectionCard title={t("detail.classesTitle", { count: classes.length })} id="group-classes">
           <div className="class-list">
             {classes.map((section) => (
               <article key={section.id} className="class-row">
                 <div>
                   <strong>{section.name}</strong>
                   <p className="participant-row-meta">
-                    {formatClassId(section.id)} · {section.participant_count} participant
-                    {section.participant_count === 1 ? "" : "s"}
+                    {formatClassId(section.id)} · {t("participants.count", { count: section.participant_count })}
                   </p>
                 </div>
                 <div className="participant-row-actions">
@@ -441,7 +445,7 @@ export default function GroupDetailScreen({ session, groupId, onNavigate }) {
                       onNavigate({ name: "group-class", groupId, classId: section.id })
                     }
                   >
-                    Open
+                    {t("detail.open")}
                   </button>
                   {canConfigureUnlocked ? (
                     <>
@@ -451,30 +455,30 @@ export default function GroupDetailScreen({ session, groupId, onNavigate }) {
                         onClick={() => {
                           setEditingClassId(section.id);
                           setEditingClassName(section.name);
-                          setEditingClassPin(section.class_pin || "");
+                          setEditingClassPin("");
                         }}
                       >
-                        Edit
+                        {t("common:edit")}
                       </button>
                       <button
                         type="button"
                         className="btn-danger-soft btn-sm"
                         onClick={() => removeClass(section)}
                       >
-                        Remove
+                        {t("detail.remove")}
                       </button>
                     </>
                   ) : null}
                 </div>
               </article>
             ))}
-            {classes.length === 0 ? <p className="hint">No Classes yet.</p> : null}
+            {classes.length === 0 ? <p className="hint">{t("detail.noClasses")}</p> : null}
           </div>
 
           {canConfigureUnlocked && editingClassId ? (
             <form className="panel-form card-surface panel-form-edit" onSubmit={saveClassRename}>
-              <h3>Edit Class</h3>
-              <Field label="Name">
+              <h3>{t("detail.editClass")}</h3>
+              <Field label={t("editor.nameField")}>
                 <input
                   value={editingClassName}
                   onChange={(event) => setEditingClassName(event.target.value)}
@@ -482,18 +486,34 @@ export default function GroupDetailScreen({ session, groupId, onNavigate }) {
                 />
               </Field>
               {group.require_class_pin ? (
-                <Field label="Class PIN" hint="Leave blank to keep the current PIN.">
+                <Field
+                  label={t("detail.classPinLabel")}
+                  hint={
+                    classes.find((item) => item.id === editingClassId)?.has_class_pin
+                      ? t("detail.classPinKeepHint")
+                      : t("detail.classPinRequiredHint")
+                  }
+                >
                   <PasswordInput
                     value={editingClassPin}
                     onChange={(event) => setEditingClassPin(event.target.value)}
                     autoComplete="off"
                     name="class-pin-edit"
+                    placeholder={
+                      classes.find((item) => item.id === editingClassId)?.has_class_pin
+                        ? t("detail.classPinChangePlaceholder")
+                        : t("detail.classPinSetPlaceholder")
+                    }
+                    required={
+                      Boolean(group.require_class_pin) &&
+                      !classes.find((item) => item.id === editingClassId)?.has_class_pin
+                    }
                   />
                 </Field>
               ) : null}
               <div className="form-actions">
                 <button type="submit" className="btn-primary" disabled={saving}>
-                  Save
+                  {t("common:save")}
                 </button>
                 <button
                   type="button"
@@ -504,7 +524,7 @@ export default function GroupDetailScreen({ session, groupId, onNavigate }) {
                     setEditingClassPin("");
                   }}
                 >
-                  Cancel
+                  {t("common:cancel")}
                 </button>
               </div>
             </form>
@@ -517,14 +537,14 @@ export default function GroupDetailScreen({ session, groupId, onNavigate }) {
           >
             <header className="add-participant-card-head">
               <div>
-                <h3>Add Class</h3>
-                <p className="hint">Create empty or copy participants from a Standard Group.</p>
+                <h3>{t("detail.addClass")}</h3>
+                <p className="hint">{t("detail.addClassHint")}</p>
               </div>
             </header>
-            <div className="kiosk-segment-picker" role="radiogroup" aria-label="Add Class mode">
+            <div className="kiosk-segment-picker" role="radiogroup" aria-label={t("detail.addClassModeAria")}>
               {[
-                { id: "create", label: "Create new Class" },
-                { id: "import", label: "Copy from existing Group" },
+                { id: "create", label: t("detail.createNewClass") },
+                { id: "import", label: t("detail.copyFromGroup") },
               ].map((option) => (
                 <label
                   key={option.id}
@@ -548,16 +568,16 @@ export default function GroupDetailScreen({ session, groupId, onNavigate }) {
 
             {addClassMode === "create" ? (
               <>
-                <Field label="Name">
+                <Field label={t("editor.nameField")}>
                   <input
                     value={newClassName}
                     onChange={(event) => setNewClassName(event.target.value)}
-                    placeholder="Class A"
+                    placeholder={t("detail.classPinPlaceholder")}
                     required
                   />
                 </Field>
                 {group.require_class_pin ? (
-                  <Field label="Class PIN" hint="Required while Require PIN for classes is ON.">
+                  <Field label={t("editor.requireClassPin")} hint={t("detail.classPinRequiredHint")}>
                     <PasswordInput
                       value={newClassPin}
                       onChange={(event) => setNewClassPin(event.target.value)}
@@ -572,50 +592,47 @@ export default function GroupDetailScreen({ session, groupId, onNavigate }) {
                   className="btn-primary"
                   disabled={saving || !newClassName.trim()}
                 >
-                  Add Class
+                  {t("detail.submitAddClass")}
                 </button>
               </>
             ) : (
               <>
-                <Field
-                  label="Source Group"
-                  hint="Creates a one-time copy of this Group’s current participants. Future changes to the original Group will not affect this Class."
-                >
+                <Field label={t("detail.sourceGroup")} hint={t("detail.sourceGroupHint")}>
                   <select
                     value={importSourceId}
                     onChange={(event) => selectImportSource(event.target.value)}
                     required
                   >
-                    <option value="">Select a Standard Group</option>
+                    <option value="">{t("detail.selectStandardGroup")}</option>
                     {importSources.map((source) => (
                       <option key={source.id} value={source.id}>
-                        {source.name} ({source.participant_count} participant
-                        {source.participant_count === 1 ? "" : "s"})
+                        {source.name} ({t("participants.count", { count: source.participant_count })})
                       </option>
                     ))}
                   </select>
                 </Field>
                 {importSources.length === 0 ? (
-                  <p className="hint">No active Standard Groups available to copy.</p>
+                  <p className="hint">{t("detail.noStandardGroupsToCopy")}</p>
                 ) : null}
-                <Field label="Class name">
+                <Field label={t("detail.className")}>
                   <input
                     value={importClassName}
                     onChange={(event) => setImportClassName(event.target.value)}
-                    placeholder="Fitness"
+                    placeholder={t("detail.classNamePlaceholder")}
                     required
                   />
                 </Field>
                 {importSourceId ? (
                   <p className="hint">
-                    One-time copy. Future changes to{" "}
-                    {importSources.find((item) => String(item.id) === String(importSourceId))
-                      ?.name || "the source Group"}{" "}
-                    will not update this Class.
+                    {t("detail.oneTimeCopyHint", {
+                      sourceName:
+                        importSources.find((item) => String(item.id) === String(importSourceId))
+                          ?.name || t("detail.sourceGroupFallback"),
+                    })}
                   </p>
                 ) : null}
                 {group.require_class_pin ? (
-                  <Field label="Class PIN" hint="Required while Require PIN for classes is ON.">
+                  <Field label={t("editor.requireClassPin")} hint={t("detail.classPinRequiredHint")}>
                     <PasswordInput
                       value={importClassPin}
                       onChange={(event) => setImportClassPin(event.target.value)}
@@ -630,7 +647,7 @@ export default function GroupDetailScreen({ session, groupId, onNavigate }) {
                   className="btn-primary"
                   disabled={saving || !importSourceId || !importClassName.trim()}
                 >
-                  Copy as Class
+                  {t("detail.copyAsClass")}
                 </button>
               </>
             )}
@@ -644,7 +661,7 @@ export default function GroupDetailScreen({ session, groupId, onNavigate }) {
           group={group}
           groupId={groupId}
           onError={setError}
-          onChanged={load}
+          onChanged={refreshGroupAfterParticipantChange}
           operationsDisabled={planLocked}
         />
       )}

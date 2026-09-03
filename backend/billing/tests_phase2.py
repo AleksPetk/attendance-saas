@@ -5,6 +5,7 @@ All provider calls use BILLING_PROVIDER=fake. No network requests.
 
 import json
 from datetime import timedelta
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from django.test import Client, TestCase, override_settings
@@ -16,6 +17,7 @@ from rest_framework.test import APIClient
 from accounts.models import User
 from attendance.kiosk_lock import SESSION_KIOSK_GROUP_ID, SESSION_KIOSK_LOCKED
 from billing.fake_provider import FAKE_SIGNATURE_OK, get_fake_provider
+from billing.exceptions import StripeProviderError
 from billing.models import (
     BillingStatus,
     ProviderEvent,
@@ -24,6 +26,7 @@ from billing.models import (
     WorkspaceSubscription,
 )
 from billing.services import activate_paid_subscription, mark_payment_failure
+from billing.stripe_provider import StripeProvider
 from billing.testing import simulate_migrated_existing_workspace
 from groups.models import Group
 from kiosk_builder.kiosk_settings_constants import KioskType
@@ -140,6 +143,98 @@ class BillingPhase2ApiTests(TestCase):
         self.assertEqual(yearly.status_code, 200)
         session = fake.checkouts[yearly.data["session_id"]]
         self.assertEqual(session["price_id"], "price_business_yearly")
+
+    def test_global_business_yearly_checkout_with_promotions_off(self):
+        from billing.promotion import GROUP_NEW_BASIC, MODE_OFF, set_group_value
+
+        set_group_value(GROUP_NEW_BASIC, MODE_OFF)
+        response = self.api.post(
+            "/api/billing/checkout/",
+            {"plan": "business", "interval": "yearly"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        session = get_fake_provider().checkouts[response.data["session_id"]]
+        self.assertEqual(session["market"], "global")
+        self.assertEqual(session["price_id"], "price_business_yearly")
+        self.assertIsNone(session["coupon_id"])
+
+    @override_settings(
+        STRIPE_COUPON_ACQ_NORMAL_BUSINESS_YEARLY="coupon_business_yearly_45",
+    )
+    def test_global_business_yearly_normal_promotion_is_104_99(self):
+        from billing.catalog import catalog_public_payload
+        from billing.promotion import GROUP_NEW_BASIC, MODE_NORMAL, set_group_value
+
+        set_group_value(GROUP_NEW_BASIC, MODE_NORMAL)
+        catalog = catalog_public_payload()
+        yearly = catalog["plans"]["business"]["intervals"]["yearly"]
+        self.assertEqual(yearly["cents"], 14999)
+        self.assertEqual(yearly["promotion"]["first_period_cents"], 10499)
+        self.assertEqual(yearly["promotion"]["first_period_formatted"], "$104.99")
+        response = self.api.post(
+            "/api/billing/checkout/",
+            {"plan": "business", "interval": "yearly"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        session = get_fake_provider().checkouts[response.data["session_id"]]
+        self.assertEqual(session["price_id"], "price_business_yearly")
+        self.assertEqual(session["coupon_id"], "coupon_business_yearly_45")
+
+    def test_stripe_checkout_logs_provider_detail_but_returns_safe_error(self):
+        provider = StripeProvider()
+
+        class ProviderFailure(Exception):
+            code = "resource_missing"
+            param = "line_items[0][price]"
+            request_id = "req_test_business_yearly"
+
+        stripe_client = SimpleNamespace(
+            checkout=SimpleNamespace(
+                Session=SimpleNamespace(
+                    create=lambda **_params: (_ for _ in ()).throw(
+                        ProviderFailure("No such price: price_business_yearly")
+                    )
+                )
+            )
+        )
+        with patch.object(provider, "_client", return_value=stripe_client):
+            with self.assertLogs("billing.stripe_provider", level="ERROR") as logs:
+                with self.assertRaises(StripeProviderError) as caught:
+                    provider.create_checkout_session(
+                        organization=self.org,
+                        owner=self.owner,
+                        plan_key="business",
+                        interval="yearly",
+                        market="global",
+                        success_url="http://localhost/success",
+                        cancel_url="http://localhost/cancel",
+                    )
+        self.assertEqual(str(caught.exception), "Stripe Checkout could not be created.")
+        message = "\n".join(logs.output)
+        self.assertIn("resource_missing", message)
+        self.assertIn("line_items[0][price]", message)
+        self.assertIn("req_test_business_yearly", message)
+
+    def test_checkout_ignores_client_market_currency_price_and_coupon(self):
+        response = self.api.post(
+            "/api/billing/checkout/",
+            {
+                "plan": "plus",
+                "interval": "monthly",
+                "market": "jp",
+                "currency": "jpy",
+                "price_id": "price_jp_business_yearly",
+                "coupon_id": "attacker_coupon",
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        session = get_fake_provider().checkouts[response.data["session_id"]]
+        self.assertEqual(session["market"], "global")
+        self.assertEqual(session["price_id"], "price_plus_monthly")
+        self.assertNotEqual(session["coupon_id"], "attacker_coupon")
 
     def test_old_trial_checkout_endpoint_is_gone(self):
         response = self.api.post(

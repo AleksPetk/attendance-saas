@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { I18nextProvider } from "react-i18next";
 import App from "./App.jsx";
 import i18n from "./i18n/index.js";
+import "./appFonts.css";
 import "./index.css";
 
 createRoot(document.getElementById("root")).render(

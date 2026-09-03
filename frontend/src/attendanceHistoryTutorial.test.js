@@ -48,6 +48,21 @@ test("Attendance & History tutorial targets real History controls", () => {
   assert.ok(tutorial.steps.every((step) => !("action" in step)));
 });
 
+test("Activity Log keeps the segmented switch and places filters directly below it", () => {
+  const screen = readFileSync(new URL("./HistoryScreen.jsx", import.meta.url), "utf8");
+  const activity = readFileSync(
+    new URL("./history/ActivityLogPanel.jsx", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(screen, /history-view-switch/);
+  assert.match(screen, /history-page-activity/);
+  assert.doesNotMatch(screen, /description=\{t\("description"\)\}/);
+  assert.doesNotMatch(activity, /history-view-lede|activity\.lede|activity\.ledeShowing/);
+  assert.match(activity, /className="btn-ghost groups-toolbar-clear"/);
+  assert.match(activity, /t\("activity\.clear"\)/);
+});
+
 test("report steps select the report view without invoking export", () => {
   const tutorial = attendanceTutorial();
   const reportSteps = tutorial.steps.slice(2);

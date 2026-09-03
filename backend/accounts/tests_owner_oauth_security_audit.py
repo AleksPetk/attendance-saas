@@ -29,7 +29,8 @@ from accounts.google_oauth_state import OWNER_GOOGLE_OAUTH_SESSION_KEY
 from accounts.customer_two_factor_models import OwnerTOTPDevice
 from accounts.owner_auth_provider_models import OwnerAuthProvider, OwnerAuthProviderLink
 from accounts.owner_sensitive_auth import PASSWORD_NOT_AVAILABLE_MESSAGE
-from accounts.two_factor import encrypt_totp_secret, generate_totp_secret
+from accounts.owner_two_factor import encrypt_owner_totp_secret
+from accounts.two_factor import generate_totp_secret
 from organizations.models import Organization
 
 User = get_user_model()
@@ -75,7 +76,7 @@ class OwnerOAuthTwoFactorGateAuditTests(TestCase):
         owner, _organization = create_owner(email="google-2fa-audit@example.com")
         OwnerTOTPDevice.objects.create(
             user=owner,
-            secret_encrypted=encrypt_totp_secret(generate_totp_secret()),
+            secret_encrypted=encrypt_owner_totp_secret(generate_totp_secret()),
             confirmed=True,
         )
         OwnerAuthProviderLink.objects.create(
@@ -103,7 +104,7 @@ class OwnerOAuthTwoFactorGateAuditTests(TestCase):
         owner, _organization = create_owner(email="apple-2fa-audit@example.com")
         OwnerTOTPDevice.objects.create(
             user=owner,
-            secret_encrypted=encrypt_totp_secret(generate_totp_secret()),
+            secret_encrypted=encrypt_owner_totp_secret(generate_totp_secret()),
             confirmed=True,
         )
         OwnerAuthProviderLink.objects.create(
@@ -173,7 +174,6 @@ class OAuthOnlySensitiveActionAuditTests(TestCase):
         ("/api/auth/account/backup-email/", {"email": "backup@example.com", "current_password": "x"}),
         ("/api/auth/account/backup-email/remove/", {"current_password": "x"}),
         ("/api/auth/owner-2fa/setup/", {"current_password": "x"}),
-        ("/api/auth/account/delete/", {"current_password": "x", "confirmation": "DELETE"}),
         (
             "/api/auth/change-password/",
             {"current_password": "x", "new_password": "x", "new_password_confirm": "x"},
@@ -197,6 +197,16 @@ class OAuthOnlySensitiveActionAuditTests(TestCase):
                 self.assertEqual(response.status_code, 400, response.data)
                 self.assertEqual(response.data.get("code"), "password_not_available")
                 self.assertIn(PASSWORD_NOT_AVAILABLE_MESSAGE, response.data.get("detail", ""))
+
+    def test_oauth_only_owner_delete_requires_oauth_reauth_not_password(self):
+        response = self.client.post(
+            "/api/auth/account/delete/",
+            {"current_password": "x", "confirmation": "DELETE"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400, response.data)
+        self.assertEqual(response.data.get("code"), "oauth_reauth_required")
+        self.assertTrue(User.objects.filter(pk=self.owner.pk).exists())
 
 
 @override_settings(**GOOGLE_SETTINGS)

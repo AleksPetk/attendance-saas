@@ -14,7 +14,8 @@ from accounts.google_oauth import GoogleOAuthResultCode
 from accounts.google_oauth_state import load_google_oauth_state
 from accounts.owner_auth_provider_models import OwnerAuthProvider, OwnerAuthProviderLink
 from accounts.owner_sensitive_auth import OWNER_OAUTH_REAUTH_SESSION_KEY
-from accounts.two_factor import TOTP_INTERVAL, current_timestep, decrypt_totp_secret
+from accounts.owner_two_factor import decrypt_owner_totp_secret
+from accounts.two_factor import TOTP_INTERVAL, current_timestep
 from django.utils import timezone
 from organizations.models import Organization
 
@@ -319,7 +320,7 @@ class UnlinkProviderViewTests(TestCase):
         self.assertEqual(response.status_code, 400)
 
         device = OwnerTOTPDevice.objects.get(user=self.owner, confirmed=True)
-        secret = decrypt_totp_secret(device.secret_encrypted)
+        secret = decrypt_owner_totp_secret(device.secret_encrypted)
         code = _totp_code_for_device_step(secret, device)
         response = self.client.post(
             "/api/auth/google/unlink/",
@@ -415,13 +416,13 @@ class PasswordNotAvailableApiTests(TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.data["code"], "password_not_available")
 
-    def test_delete_account_returns_password_not_available(self):
+    def test_delete_account_returns_oauth_reauth_required(self):
         response = self.client.post(
             "/api/auth/account/delete/",
             {"current_password": "anything", "confirmation": "DELETE"},
         )
         self.assertEqual(response.status_code, 400)
-        self.assertEqual(response.data["code"], "password_not_available")
+        self.assertEqual(response.data["code"], "oauth_reauth_required")
 
     def test_owner_2fa_setup_returns_password_not_available(self):
         response = self.client.post(

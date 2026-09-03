@@ -15,6 +15,7 @@ from datetime import timedelta
 from django.db.utils import OperationalError, ProgrammingError
 from django.utils import timezone
 
+from core.crypto import decrypt_secret, encrypt_secret
 from accounts.two_factor import (
     MAX_FAILURES,
     LOCK_SECONDS,
@@ -25,8 +26,6 @@ from accounts.two_factor import (
     VALID_WINDOW,
     authenticator_label,
     build_totp,
-    decrypt_totp_secret,
-    encrypt_totp_secret,
     generate_recovery_codes,
     generate_totp_secret,
     hash_recovery_code,
@@ -47,6 +46,14 @@ OWNER_2FA_PENDING_AT_KEY = "_owner_2fa_pending_at"
 
 
 OWNER_AUTHENTICATION_BACKEND = "django.contrib.auth.backends.ModelBackend"
+
+
+def encrypt_owner_totp_secret(secret):
+    return encrypt_secret(secret)
+
+
+def decrypt_owner_totp_secret(payload):
+    return decrypt_secret(payload)
 
 
 def has_confirmed_owner_totp(user) -> bool:
@@ -75,10 +82,10 @@ def get_or_create_unconfirmed_device(user, *, rotate: bool = False):
         return device, None
 
     if device is not None and not rotate:
-        return device, decrypt_totp_secret(device.secret_encrypted)
+        return device, decrypt_owner_totp_secret(device.secret_encrypted)
 
     secret = generate_totp_secret()
-    encrypted = encrypt_totp_secret(secret)
+    encrypted = encrypt_owner_totp_secret(secret)
     if device is None:
         device = OwnerTOTPDevice.objects.create(
             user=user,
@@ -296,8 +303,8 @@ __all__ = [
     "seconds_until",
     "lock_is_active",
     "verify_totp_code",
-    "decrypt_totp_secret",
-    "encrypt_totp_secret",
+    "decrypt_owner_totp_secret",
+    "encrypt_owner_totp_secret",
     "generate_totp_secret",
 ]
 

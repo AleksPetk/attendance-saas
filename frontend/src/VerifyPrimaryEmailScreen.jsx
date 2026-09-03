@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { api, errorMessage } from "./api.js";
 import { AuthLayout, ErrorBanner, LoadingState, SuccessBanner } from "./components.jsx";
 
 export default function VerifyPrimaryEmailScreen() {
+  const { t } = useTranslation("auth");
   const { uid, token } = useParams();
   const [status, setStatus] = useState("loading");
   const [message, setMessage] = useState("");
@@ -16,7 +18,7 @@ export default function VerifyPrimaryEmailScreen() {
         const result = await api.verifyPrimaryEmail({ uid, token });
         if (cancelled) return;
         setStatus("verified");
-        setMessage(result.data.detail || "Login email updated.");
+        setMessage(result.data.detail || t("verifyPrimaryEmail.verifiedDefault"));
       } catch (err) {
         if (cancelled) return;
         const code = err?.data?.code;
@@ -34,12 +36,12 @@ export default function VerifyPrimaryEmailScreen() {
     return () => {
       cancelled = true;
     };
-  }, [uid, token]);
+  }, [uid, token, t]);
 
   if (status === "loading") {
     return (
-      <AuthLayout title="Confirming login email" lead="Please wait while we confirm your new login email.">
-        <LoadingState label="Verifying…" />
+      <AuthLayout title={t("verifyPrimaryEmail.loadingTitle")} lead={t("verifyPrimaryEmail.loadingLead")}>
+        <LoadingState label={t("verifyEmail.verifying")} />
       </AuthLayout>
     );
   }
@@ -47,19 +49,19 @@ export default function VerifyPrimaryEmailScreen() {
   if (status === "verified") {
     return (
       <AuthLayout
-        title="Login email updated"
-        lead="Your CheckStation login email has been updated."
+        title={t("verifyPrimaryEmail.verifiedTitle")}
+        lead={t("verifyPrimaryEmail.verifiedLead")}
         footnote={
           <p>
-            Sign in with your new email address on any device.{" "}
-            <Link to="/login">Go to login</Link>
+            {t("verifyPrimaryEmail.signInHint")}{" "}
+            <Link to="/login">{t("verifyEmail.goToLogin")}</Link>
           </p>
         }
       >
         <div className="auth-status-panel">
           <SuccessBanner message={message} />
           <Link className="btn-primary btn-block" to="/login">
-            Continue to login
+            {t("continueToLogin")}
           </Link>
         </div>
       </AuthLayout>
@@ -68,16 +70,16 @@ export default function VerifyPrimaryEmailScreen() {
 
   const title =
     status === "expired"
-      ? "Link expired"
+      ? t("linkExpired")
       : status === "unavailable"
-        ? "Email unavailable"
-        : "Link invalid";
+        ? t("verifyPrimaryEmail.unavailableTitle")
+        : t("linkInvalid");
   const lead =
     status === "expired"
-      ? "This login email confirmation link has expired. Request a new one from your account page."
+      ? t("verifyPrimaryEmail.expiredLead")
       : status === "unavailable"
-        ? "This email address is no longer available for your account."
-        : "This login email confirmation link is invalid or has already been used.";
+        ? t("verifyPrimaryEmail.unavailableLead")
+        : t("verifyPrimaryEmail.invalidLead");
 
   return (
     <AuthLayout
@@ -85,9 +87,9 @@ export default function VerifyPrimaryEmailScreen() {
       lead={lead}
       footnote={
         <p>
-          <Link to="/account/security">Return to account</Link>
+          <Link to="/account/security">{t("verifyPrimaryEmail.returnToAccount")}</Link>
           {" · "}
-          <Link to="/login">Return to login</Link>
+          <Link to="/login">{t("verifyEmail.returnToLogin")}</Link>
         </p>
       }
     >

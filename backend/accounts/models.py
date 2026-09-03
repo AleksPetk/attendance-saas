@@ -2,7 +2,13 @@ from django.contrib.auth.models import AbstractUser
 from django.db import models
 from django.utils import timezone
 
+from accounts.language import DEFAULT_LANGUAGE
 from accounts.managers import UserManager
+
+
+class PreferredLanguage(models.TextChoices):
+    EN = "en", "English"
+    JA = "ja", "Japanese"
 
 
 class User(AbstractUser):
@@ -35,6 +41,15 @@ class User(AbstractUser):
     pending_primary_email = models.EmailField(null=True, blank=True)
     pending_primary_email_requested_at = models.DateTimeField(null=True, blank=True)
     primary_email_change_last_sent_at = models.DateTimeField(null=True, blank=True)
+    preferred_language = models.CharField(
+        max_length=8,
+        choices=PreferredLanguage.choices,
+        default=DEFAULT_LANGUAGE,
+        help_text=(
+            "Owner UI language (en or ja). Independent of billing market, "
+            "currency, and timezone."
+        ),
+    )
 
     objects = UserManager()
 

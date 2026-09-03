@@ -20,7 +20,7 @@ from accounts.owner_two_factor import (
     verify_totp_code,
 )
 from accounts.sign_in_methods import owner_linked_providers, owner_password_enabled
-from accounts.two_factor import decrypt_totp_secret
+from accounts.owner_two_factor import decrypt_owner_totp_secret
 
 OWNER_OAUTH_REAUTH_SESSION_KEY = "_owner_oauth_reauth"
 OWNER_OAUTH_REAUTH_TTL_SECONDS = 600
@@ -140,7 +140,7 @@ def _verify_owner_second_factor(user, *, code: str = "", recovery_code: str = ""
         register_success_on_device(device, timestep=None)
         return True, None
 
-    secret = decrypt_totp_secret(device.secret_encrypted)
+    secret = decrypt_owner_totp_secret(device.secret_encrypted)
     ok, timestep = verify_totp_code(secret, code, last_timestep=device.last_verified_timestep)
     if not ok:
         register_failure_on_device(device)

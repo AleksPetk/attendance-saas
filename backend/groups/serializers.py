@@ -734,7 +734,6 @@ class GroupMembershipSerializer(serializers.ModelSerializer):
         group = obj.group
         emails = participation_emails_for_membership(obj)
         email = primary_participation_email(emails)
-        pin = (obj.participation_pin or "").strip()
         missing = []
         if group.require_email and not email:
             missing.append("email")
@@ -743,7 +742,6 @@ class GroupMembershipSerializer(serializers.ModelSerializer):
         return {
             "email": email,
             "emails": emails,
-            "pin": pin or None,
             "has_pin": obj.has_participation_pin,
             "missing_required_fields": missing,
             "complete": not missing,
@@ -1050,7 +1048,6 @@ class GroupOnlyParticipantSerializer(serializers.ModelSerializer):
         group = obj.group
         emails = participation_emails_for_visitor(obj)
         email = primary_participation_email(emails)
-        pin = (obj.participation_pin or "").strip()
         missing = []
         if group.require_email and not email:
             missing.append("email")
@@ -1059,7 +1056,6 @@ class GroupOnlyParticipantSerializer(serializers.ModelSerializer):
         return {
             "email": email,
             "emails": emails,
-            "pin": pin or None,
             "has_pin": obj.has_pin,
             "missing_required_fields": missing,
             "complete": not missing,
@@ -1220,6 +1216,7 @@ class GroupSectionSerializer(serializers.ModelSerializer):
     member_count = serializers.IntegerField(read_only=True)
     group_only_participant_count = serializers.IntegerField(read_only=True)
     class_pin = serializers.CharField(
+        write_only=True,
         required=False,
         allow_blank=True,
         max_length=12,
@@ -1278,8 +1275,8 @@ class GroupSectionSerializer(serializers.ModelSerializer):
         data["group_id"] = instance.group_id
         data["group_name"] = instance.group.name
         data["has_class_pin"] = instance.has_class_pin
-        # Managers may view Class PIN (same low-security attendance PIN policy).
-        data["class_pin"] = instance.class_pin or ""
+        # Write-only class_pin must never be echoed after save.
+        data.pop("class_pin", None)
         return data
 
     def create(self, validated_data):
@@ -1303,7 +1300,7 @@ class GroupSectionSerializer(serializers.ModelSerializer):
             )
             if pin:
                 section.set_class_pin(pin)
-                section.save(update_fields=["class_pin", "updated_at"])
+                section.save(update_fields=["class_pin_hash", "updated_at"])
             return section
         except DjangoValidationError as exc:
             raise serializers.ValidationError(

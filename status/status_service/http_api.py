@@ -1,12 +1,21 @@
 """Public read-only JSON for current status, incidents, and maintenance."""
 
 from status_service.components import COMPONENT_BY_ID, COMPONENTS
+from status_service.i18n import (
+    auto_outage_summary,
+    auto_outage_title,
+    auto_recovery_message,
+    component_display_name,
+    incident_status_label,
+    localize_public_description,
+    public_component_label,
+)
+from status_service.locale import DEFAULT_LOCALE, normalize_locale
 from status_service.rollup import overall_status
 from status_service.states import (
     STATE_MAINTENANCE,
     STATE_MAJOR_OUTAGE,
     STATE_UNKNOWN,
-    public_component_label,
 )
 from status_service.store import parse_iso, to_iso, utc_now
 
@@ -47,8 +56,24 @@ def _active_maintenance_ids(windows, now):
     return active
 
 
-def build_current_payload(store, config, *, now=None):
+def _localize_auto_update_message(message, component_id, locale, *, resolved=False):
+    """Rewrite known English auto-incident messages for the requested locale."""
+    if not component_id or normalize_locale(locale) == DEFAULT_LOCALE:
+        return message
+    en_outage = auto_outage_summary(component_id, DEFAULT_LOCALE)
+    en_recovery = auto_recovery_message(component_id, DEFAULT_LOCALE)
+    text = str(message or "")
+    if text == en_outage or (not resolved and text == en_outage):
+        return auto_outage_summary(component_id, locale)
+    if text == en_recovery or resolved:
+        if text == en_recovery:
+            return auto_recovery_message(component_id, locale)
+    return message
+
+
+def build_current_payload(store, config, *, now=None, locale=DEFAULT_LOCALE):
     now = now or utc_now()
+    locale = normalize_locale(locale)
     stale_seconds = config["stale_threshold_seconds"]
     windows = store.list_maintenance()
     maintenance_ids = _active_maintenance_ids(windows, now)
@@ -64,7 +89,10 @@ def build_current_payload(store, config, *, now=None):
             and state != STATE_MAJOR_OUTAGE
         ):
             state = STATE_MAINTENANCE
-        description = row.get("public_description") or ""
+        description = localize_public_description(
+            row.get("public_description") or "",
+            locale,
+        )
         if state == STATE_UNKNOWN and not last_checked:
             description = description or ""
         if state == STATE_UNKNOWN and last_checked and _is_stale(
@@ -74,9 +102,9 @@ def build_current_payload(store, config, *, now=None):
         components.append(
             {
                 "id": catalog["id"],
-                "name": catalog["name"],
+                "name": component_display_name(catalog["id"], locale),
                 "state": state,
-                "label": public_component_label(state),
+                "label": public_component_label(state, locale),
                 "layer": catalog["layer"],
                 "last_checked_at": last_checked,
                 "description": description if state != "operational" else "",
@@ -86,8 +114,9 @@ def build_current_payload(store, config, *, now=None):
         if parsed is not None and (latest_check is None or parsed > latest_check):
             latest_check = parsed
 
-    overall_state, overall_label = overall_status(components)
+    overall_state, overall_label = overall_status(components, locale=locale)
     payload = {
+        "language": locale,
         "overall": {
             "state": overall_state,
             "label": overall_label,
@@ -100,17 +129,9 @@ def build_current_payload(store, config, *, now=None):
     return _strip_sensitive(payload)
 
 
-def _incident_status_label(value):
-    return {
-        "investigating": "Investigating",
-        "identified": "Identified",
-        "monitoring": "Monitoring",
-        "resolved": "Resolved",
-    }.get(value, value.replace("_", " ").title())
-
-
-def build_incidents_payload(store, *, now=None):
+def build_incidents_payload(store, *, now=None, locale=DEFAULT_LOCALE):
     now = now or utc_now()
+    locale = normalize_locale(locale)
     items = []
     for row in store.list_incidents(include_resolved=True, limit=50):
         component_ids = [
@@ -118,31 +139,61 @@ def build_incidents_payload(store, *, now=None):
             for component_id in (row.get("component_ids") or [])
             if component_id in COMPONENT_BY_ID
         ]
+        auto_id = row.get("auto_component_id") or None
+        title = row["public_title"]
+        summary = row["public_summary"]
+        updates = row.get("updates") or []
+        if auto_id:
+            title = auto_outage_title(auto_id, locale)
+            if row["status"] == "resolved":
+                summary = auto_recovery_message(auto_id, locale)
+            else:
+                summary = auto_outage_summary(auto_id, locale)
+            localized_updates = []
+            for update in updates:
+                message = update["public_message"]
+                # First update is usually the outage summary; final is recovery.
+                localized_updates.append(
+                    {
+                        "at": update["created_at"],
+                        "message": _localize_auto_update_message(
+                            message,
+                            auto_id,
+                            locale,
+                            resolved=message == auto_recovery_message(auto_id, DEFAULT_LOCALE),
+                        ),
+                    }
+                )
+            updates = localized_updates
+        else:
+            updates = [
+                {
+                    "at": update["created_at"],
+                    "message": update["public_message"],
+                }
+                for update in updates
+            ]
         items.append(
             {
                 "id": str(row["id"]),
-                "title": row["public_title"],
-                "summary": row["public_summary"],
+                "title": title,
+                "summary": summary,
                 "status": row["status"],
-                "status_label": _incident_status_label(row["status"]),
+                "status_label": incident_status_label(row["status"], locale),
                 "severity": row["severity"],
-                "severity_label": public_component_label(row["severity"]),
+                "severity_label": public_component_label(row["severity"], locale),
                 "started_at": row["started_at"],
                 "resolved_at": row.get("resolved_at"),
                 "components": component_ids,
-                "updates": [
-                    {
-                        "at": update["created_at"],
-                        "message": update["public_message"],
-                    }
-                    for update in row.get("updates") or []
-                ],
+                "auto_component_id": auto_id,
+                "updates": updates,
             }
         )
     active = [item for item in items if item["status"] != "resolved"]
     recent = [item for item in items if item["status"] == "resolved"][:10]
     return _strip_sensitive(
         {
+            "language": locale,
             "generated_at": to_iso(now),
             "active": active,
             "recent": recent,
@@ -150,8 +201,9 @@ def build_incidents_payload(store, *, now=None):
     )
 
 
-def build_maintenance_payload(store, *, now=None):
+def build_maintenance_payload(store, *, now=None, locale=DEFAULT_LOCALE):
     now = now or utc_now()
+    locale = normalize_locale(locale)
     windows = []
     for row in store.list_maintenance():
         start = parse_iso(row["starts_at"])
@@ -178,6 +230,7 @@ def build_maintenance_payload(store, *, now=None):
         )
     return _strip_sensitive(
         {
+            "language": locale,
             "generated_at": to_iso(now),
             "windows": windows,
         }

@@ -5,6 +5,7 @@ from rest_framework.views import APIView
 from billing.exceptions import StripeConfigurationError, StripeProviderError
 from billing.prices import stripe_secret_key
 from billing.provider import get_billing_provider
+from core.health_auth import enforce_provider_health_access
 from core.mail import (
     EmailConfigurationError,
     EmailHealthUnknown,
@@ -56,12 +57,17 @@ class KioskHealthCheckView(APIView):
 class EmailHealthCheckView(APIView):
     """
     Platform Resend reachability. Does not send mail. Unconfigured is not an error.
+
+    Requires X-Status-Probe-Token (or DEBUG without a configured token).
     """
 
     authentication_classes = []
     permission_classes = []
 
     def get(self, request):
+        denied = enforce_provider_health_access(request)
+        if denied is not None:
+            return denied
         try:
             result = get_email_provider().check_health()
         except EmailConfigurationError:
@@ -80,12 +86,17 @@ class EmailHealthCheckView(APIView):
 class StripeHealthCheckView(APIView):
     """
     Read-only Stripe connectivity via the billing provider. Unconfigured is not an error.
+
+    Requires X-Status-Probe-Token (or DEBUG without a configured token).
     """
 
     authentication_classes = []
     permission_classes = []
 
     def get(self, request):
+        denied = enforce_provider_health_access(request)
+        if denied is not None:
+            return denied
         if not stripe_secret_key():
             return Response(_public_health_payload("unconfigured"))
         try:

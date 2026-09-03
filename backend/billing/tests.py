@@ -4,7 +4,7 @@ from datetime import timedelta
 from decimal import Decimal
 
 from django.contrib.admin.sites import AdminSite
-from django.test import RequestFactory, TestCase
+from django.test import RequestFactory, TestCase, override_settings
 from django.utils import timezone
 
 from accounts.models import User
@@ -13,9 +13,14 @@ from billing.catalog import (
     PLAN_BUSINESS,
     PLAN_PLUS,
     PRICE_CENTS,
-    YEARLY_MONTHS_CHARGED,
     price_cents,
     price_decimal,
+)
+from billing.prices import (
+    configured_jp_price_ids,
+    plan_interval_for_price_id,
+    price_id_for,
+    price_mapping_for_id,
 )
 from billing.models import (
     BillingInterval,
@@ -55,17 +60,47 @@ def _create_workspace(email="billing-owner@example.com"):
 
 
 class BillingCatalogTests(TestCase):
-    def test_yearly_is_ten_times_monthly(self):
-        for plan in (PLAN_PLUS, PLAN_BUSINESS):
-            monthly = price_cents(plan, "monthly")
-            yearly = price_cents(plan, "yearly")
-            self.assertEqual(yearly, monthly * YEARLY_MONTHS_CHARGED)
+    def test_monthly_and_yearly_prices_are_explicit_catalog_amounts(self):
         self.assertEqual(PRICE_CENTS[PLAN_PLUS]["monthly"], 999)
-        self.assertEqual(PRICE_CENTS[PLAN_PLUS]["yearly"], 9990)
+        self.assertEqual(PRICE_CENTS[PLAN_PLUS]["yearly"], 9999)
         self.assertEqual(PRICE_CENTS[PLAN_BUSINESS]["monthly"], 1499)
-        self.assertEqual(PRICE_CENTS[PLAN_BUSINESS]["yearly"], 14990)
+        self.assertEqual(PRICE_CENTS[PLAN_BUSINESS]["yearly"], 14999)
         self.assertEqual(price_decimal(PLAN_PLUS, "monthly"), Decimal("9.99"))
+        self.assertEqual(price_decimal(PLAN_PLUS, "yearly"), Decimal("99.99"))
+        self.assertEqual(price_decimal(PLAN_BUSINESS, "yearly"), Decimal("149.99"))
         self.assertIsInstance(price_decimal(PLAN_BUSINESS, "yearly"), Decimal)
+
+    @override_settings(
+        STRIPE_PRICE_PLUS_MONTHLY="price_usd_plus_monthly",
+        STRIPE_PRICE_PLUS_YEARLY="price_usd_plus_yearly",
+        STRIPE_PRICE_BUSINESS_MONTHLY="price_usd_business_monthly",
+        STRIPE_PRICE_BUSINESS_YEARLY="price_usd_business_yearly",
+        STRIPE_PRICE_JP_PLUS_MONTHLY="price_jp_plus_monthly",
+        STRIPE_PRICE_JP_PLUS_YEARLY="price_jp_plus_yearly",
+        STRIPE_PRICE_JP_BUSINESS_MONTHLY="price_jp_business_monthly",
+        STRIPE_PRICE_JP_BUSINESS_YEARLY="price_jp_business_yearly",
+    )
+    def test_jp_price_configuration_is_market_aware_while_default_stays_global(self):
+        self.assertEqual(price_id_for("plus", "monthly"), "price_usd_plus_monthly")
+        self.assertEqual(price_id_for("business", "yearly"), "price_usd_business_yearly")
+        self.assertEqual(
+            configured_jp_price_ids(),
+            {
+                ("plus", "monthly"): "price_jp_plus_monthly",
+                ("plus", "yearly"): "price_jp_plus_yearly",
+                ("business", "monthly"): "price_jp_business_monthly",
+                ("business", "yearly"): "price_jp_business_yearly",
+            },
+        )
+        self.assertEqual(
+            price_id_for("plus", "monthly", market="jp"),
+            "price_jp_plus_monthly",
+        )
+        mapping = price_mapping_for_id("price_jp_plus_monthly")
+        self.assertEqual(
+            (mapping.market, mapping.plan_key, mapping.interval, mapping.currency),
+            ("jp", "plus", "monthly", "jpy"),
+        )
 
 
 class CanonicalPlanTransitionTests(TestCase):

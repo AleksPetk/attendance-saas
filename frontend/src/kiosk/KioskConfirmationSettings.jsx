@@ -1,15 +1,18 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
+import { Toggle } from "../components.jsx";
 import {
   CONFIRMATION_RETURN_OPTIONS,
+  confirmationMessageFieldLabel,
   visibleConfirmationMessageFields,
 } from "./kioskConfirmation.js";
 
-function messagesSummary(form, visibleFields) {
+function messagesSummary(t, form, visibleFields) {
   if (visibleFields.length === 0) {
-    return "No actions";
+    return t("confirmation.messages.noActions");
   }
   const hasCustom = visibleFields.some((item) => String(form[item.field] || "").trim());
-  return hasCustom ? "Configured" : "Defaults";
+  return hasCustom ? t("confirmation.messages.configured") : t("confirmation.messages.defaults");
 }
 
 function ConfirmationAccordionSection({
@@ -59,7 +62,7 @@ function ConfirmationAccordionSection({
 }
 
 /**
- * Confirmation Screen settings: Messages + Return time only.
+ * Confirmation Screen settings: Messages, Return time, and confirmation effects.
  * Visual template is controlled by the selected Card/Input template in the Kiosk Editor.
  */
 export default function KioskConfirmationSettings({
@@ -68,6 +71,7 @@ export default function KioskConfirmationSettings({
   defaults,
   onPatch,
 }) {
+  const { t } = useTranslation("kiosk");
   const [openSection, setOpenSection] = useState(null);
   const visibleFields = visibleConfirmationMessageFields(groupActions);
   const returnSeconds = Number(form.confirmation_return_seconds) || 3;
@@ -76,34 +80,38 @@ export default function KioskConfirmationSettings({
     setOpenSection((current) => (current === sectionId ? null : sectionId));
   }
 
+  const effectsSummary = `${form.confirmation_sound_enabled !== false ? t("confirmation.effects.soundOn") : t("confirmation.effects.soundOff")} · ${
+    form.confirmation_vibration_enabled ? t("confirmation.effects.vibrationOn") : t("confirmation.effects.vibrationOff")
+  }`;
+
   return (
     <div className="kc-accordion">
       <ConfirmationAccordionSection
         id="messages"
-        title="Messages"
-        summary={messagesSummary(form, visibleFields)}
+        title={t("confirmation.messages.title")}
+        summary={messagesSummary(t, form, visibleFields)}
         isOpen={openSection === "messages"}
         onToggle={() => toggleSection("messages")}
         tutorialTarget="kiosk-confirmation-messages"
       >
         <div className="kc-var-helper">
-          <span className="kc-var-helper-title">Available variables:</span>
-          <div className="kc-var-chips" aria-label="Supported message variables">
+          <span className="kc-var-helper-title">{t("confirmation.messages.variablesTitle")}</span>
+          <div className="kc-var-chips" aria-label={t("confirmation.messages.variablesAria")}>
             <code className="kc-var-chip">{"{name}"}</code>
             <code className="kc-var-chip">{"{time}"}</code>
             <code className="kc-var-chip">{"{group}"}</code>
           </div>
-          <p className="hint kc-var-helper-note">Time uses 24-hour format.</p>
+          <p className="hint kc-var-helper-note">{t("confirmation.messages.timeFormatNote")}</p>
         </div>
 
         {visibleFields.length === 0 ? (
-          <p className="hint">Enable actions in Group configuration to customize messages.</p>
+          <p className="hint">{t("confirmation.messages.enableActionsHint")}</p>
         ) : (
           <div className="kc-message-fields">
             {visibleFields.map((item) => (
               <div key={item.field} className="kc-message-field-block">
                 <label className="kc-message-field-label" htmlFor={`kc-msg-${item.field}`}>
-                  {item.label.replace(" message", "")}
+                  {confirmationMessageFieldLabel(item.action)}
                 </label>
                 <textarea
                   id={`kc-msg-${item.field}`}
@@ -122,16 +130,16 @@ export default function KioskConfirmationSettings({
 
       <ConfirmationAccordionSection
         id="return"
-        title="Return time"
-        summary={`${returnSeconds} sec`}
+        title={t("confirmation.return.title")}
+        summary={t("confirmation.return.seconds", { count: returnSeconds })}
         isOpen={openSection === "return"}
         onToggle={() => toggleSection("return")}
         tutorialTarget="kiosk-confirmation-return"
       >
         <p className="hint kiosk-settings-helper kc-return-helper">
-          How long the confirmation stays visible after success.
+          {t("confirmation.return.helper")}
         </p>
-        <div className="kc-return-picker" role="radiogroup" aria-label="Return delay">
+        <div className="kc-return-picker" role="radiogroup" aria-label={t("confirmation.return.ariaLabel")}>
           {CONFIRMATION_RETURN_OPTIONS.map((seconds) => (
             <label
               key={seconds}
@@ -145,10 +153,40 @@ export default function KioskConfirmationSettings({
                 checked={returnSeconds === seconds}
                 onChange={() => onPatch({ confirmation_return_seconds: seconds })}
               />
-              {seconds} sec
+              {t("confirmation.return.seconds", { count: seconds })}
             </label>
           ))}
         </div>
+      </ConfirmationAccordionSection>
+
+      <ConfirmationAccordionSection
+        id="effects"
+        title={t("confirmation.effects.title")}
+        summary={effectsSummary}
+        isOpen={openSection === "effects"}
+        onToggle={() => toggleSection("effects")}
+        tutorialTarget="kiosk-confirmation-effects"
+      >
+        <p className="hint kiosk-settings-helper">
+          {t("confirmation.effects.helper")}
+        </p>
+        <div className="kiosk-settings-toggle-stack">
+          <Toggle
+            label={t("confirmation.effects.sound")}
+            hint={t("confirmation.effects.soundHint")}
+            checked={form.confirmation_sound_enabled !== false}
+            onChange={(checked) => onPatch({ confirmation_sound_enabled: checked })}
+          />
+          <Toggle
+            label={t("confirmation.effects.vibration")}
+            hint={t("confirmation.effects.vibrationHint")}
+            checked={Boolean(form.confirmation_vibration_enabled)}
+            onChange={(checked) => onPatch({ confirmation_vibration_enabled: checked })}
+          />
+        </div>
+        <p className="hint kiosk-settings-helper">
+          {t("confirmation.effects.browserNote")}
+        </p>
       </ConfirmationAccordionSection>
     </div>
   );

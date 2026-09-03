@@ -35,6 +35,24 @@ test("workspace status uses the canonical public Status API endpoints", async ()
   assert.equal(statusApiUrl("current/"), calls[0][0]);
 });
 
+test("workspace status requests pass workspace lang to the Status API", async () => {
+  const calls = [];
+  const fetchImpl = async (url) => {
+    calls.push(url);
+    if (String(url).includes("/current/")) {
+      return response({ overall: { state: "all_operational", label: "すべてのシステムが正常です" } });
+    }
+    if (String(url).includes("/incidents/")) return response({ active: [], recent: [] });
+    return response({ windows: [] });
+  };
+  await fetchStatusSnapshot({ fetchImpl, lang: "ja" });
+  assert.ok(calls.every((url) => String(url).includes("lang=ja")));
+  assert.equal(
+    statusApiUrl("current/", { lang: "ja" }),
+    "http://localhost:8090/api/status/current/?lang=ja",
+  );
+});
+
 test("current status failure is surfaced while optional incident feeds degrade safely", async () => {
   await assert.rejects(
     fetchStatusSnapshot({ fetchImpl: async () => response({}, false, 503) }),

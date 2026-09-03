@@ -28,12 +28,12 @@ class MemberAdmin(admin.ModelAdmin):
     )
     autocomplete_fields = ("organization",)
     readonly_fields = (
-        "pin_hash",
         "check_in_identifier",
         "plan_unlocked",
         "created_at",
         "updated_at",
         "archived_at",
+        "pin_is_set",
     )
     ordering = ("organization", "name", "id")
     fields = (
@@ -46,13 +46,17 @@ class MemberAdmin(admin.ModelAdmin):
         "address",
         "notes",
         "check_in_identifier",
-        "pin_hash",
+        "pin_is_set",
         "status",
         "plan_unlocked",
         "created_at",
         "updated_at",
         "archived_at",
     )
+
+    @admin.display(boolean=True, description="PIN set")
+    def pin_is_set(self, obj):
+        return bool(obj.pin_hash)
 
     def get_readonly_fields(self, request, obj=None):
         readonly = list(self.readonly_fields)

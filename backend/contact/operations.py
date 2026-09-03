@@ -84,7 +84,9 @@ def generate_public_ref():
 
 
 def client_ip(request):
-    return (request.META.get("REMOTE_ADDR") or "0.0.0.0").split(",")[0].strip()
+    from core.client_ip import get_client_ip
+
+    return get_client_ip(request)
 
 
 def _rate_key(ip):

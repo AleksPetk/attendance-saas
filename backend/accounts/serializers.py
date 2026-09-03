@@ -2,6 +2,8 @@ from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 
+from accounts.language import normalize_language
+
 
 class VerifyEmailSerializer(serializers.Serializer):
     uid = serializers.CharField()
@@ -14,6 +16,11 @@ class ResendVerificationSerializer(serializers.Serializer):
 
 class ForgotPasswordSerializer(serializers.Serializer):
     email = serializers.EmailField()
+    locale = serializers.CharField(required=False, allow_blank=True, write_only=True)
+
+    def validate(self, attrs):
+        attrs["locale"] = normalize_language(attrs.get("locale"))
+        return attrs
 
 
 class ResetPasswordSerializer(serializers.Serializer):
@@ -62,6 +69,11 @@ class AccountSerializer(serializers.Serializer):
     two_factor_status = serializers.CharField()
     two_factor_label = serializers.CharField()
     sign_in_methods = serializers.DictField()
+    preferred_language = serializers.ChoiceField(choices=["en", "ja"])
+
+
+class PreferredLanguageUpdateSerializer(serializers.Serializer):
+    preferred_language = serializers.ChoiceField(choices=["en", "ja"])
 
 
 class EmailWithPasswordSerializer(serializers.Serializer):
@@ -74,8 +86,12 @@ class PasswordOnlySerializer(serializers.Serializer):
 
 
 class DeleteAccountSerializer(serializers.Serializer):
-    current_password = serializers.CharField(write_only=True)
+    current_password = serializers.CharField(
+        write_only=True, required=False, allow_blank=True, default=""
+    )
     confirmation = serializers.CharField()
+    code = serializers.CharField(required=False, allow_blank=True, default="")
+    recovery_code = serializers.CharField(required=False, allow_blank=True, default="")
 
     def validate_confirmation(self, value):
         if (value or "").strip() != "DELETE":

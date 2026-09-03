@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { tutorialSummaryCopy } from "./tutorialSummary.js";
 
 export function tutorialCardPosition(rect, viewport = {}) {
@@ -16,22 +17,22 @@ export function tutorialCardPosition(rect, viewport = {}) {
   return { left, top, width };
 }
 
-function TutorialActions({ index, total, automatic, busy, onBack, onNext, onSkip, onClose }) {
+function TutorialActions({ index, total, automatic, busy, onBack, onNext, onSkip, onClose, t, tCommon }) {
   return (
     <div className="tutorial-actions">
       <div>
         {index > 0 ? (
           <button type="button" className="btn-secondary btn-sm" onClick={onBack} disabled={busy}>
-            Back
+            {t("tutorialOverlay.back")}
           </button>
         ) : null}
       </div>
       <div className="tutorial-actions-primary">
         <button type="button" className="btn-link" onClick={automatic ? onSkip : onClose} disabled={busy}>
-          {automatic ? "Skip tutorial" : "Close"}
+          {automatic ? t("tutorialOverlay.skipTutorial") : t("tutorialOverlay.close")}
         </button>
         <button type="button" className="btn-primary btn-sm" onClick={onNext} disabled={busy}>
-          {index === total - 1 ? "Finish" : "Next"}
+          {index === total - 1 ? tCommon("finish") : tCommon("next")}
         </button>
       </div>
     </div>
@@ -53,6 +54,8 @@ export default function TutorialOverlay({
   onDashboard,
   onTutorialHub,
 }) {
+  const { t } = useTranslation("workspace");
+  const { t: tCommon } = useTranslation("common");
   const dialogRef = useRef(null);
   const previousFocus = useRef(null);
   const step = tour?.steps?.[tour.index] || null;
@@ -113,12 +116,14 @@ export default function TutorialOverlay({
           tabIndex={-1}
         >
           <span className="tutorial-complete-mark" aria-hidden="true">✓</span>
-          <p className="tutorial-eyebrow">{tour.terminalStatus === "skipped" ? "Tour skipped" : "Tour complete"}</p>
+          <p className="tutorial-eyebrow">
+            {tour.terminalStatus === "skipped" ? t("tutorialOverlay.tourSkipped") : t("tutorialOverlay.tourComplete")}
+          </p>
           <h2 id="tutorial-summary-title">{summary.title}</h2>
           <div className={`tutorial-summary-grid${tour.showTrialAnnouncement ? "" : " is-single"}`}>
             <div>
-              <strong>Tutorials are always here</strong>
-              <p>Reopen this tour or choose a focused guide anytime from Account → Tutorial.</p>
+              <strong>{t("tutorialOverlay.alwaysHereTitle")}</strong>
+              <p>{t("tutorialOverlay.alwaysHereBody")}</p>
             </div>
             {tour.showTrialAnnouncement ? (
               <div>
@@ -129,8 +134,8 @@ export default function TutorialOverlay({
           </div>
           {error ? <p className="tutorial-error" role="alert">{error}</p> : null}
           <div className="tutorial-summary-actions">
-            <button type="button" className="btn-secondary" onClick={onTutorialHub}>View tutorials</button>
-            <button type="button" className="btn-primary" onClick={onDashboard}>Go to Dashboard</button>
+            <button type="button" className="btn-secondary" onClick={onTutorialHub}>{t("tutorialOverlay.viewTutorials")}</button>
+            <button type="button" className="btn-primary" onClick={onDashboard}>{t("tutorialOverlay.goToDashboard")}</button>
           </div>
         </section>
       </div>
@@ -169,17 +174,17 @@ export default function TutorialOverlay({
       >
         <div className="tutorial-progress-row">
           <span>{tour.module.title}</span>
-          <span>{tour.index + 1} of {tour.steps.length}</span>
+          <span>{t("tutorialOverlay.progressOf", { current: tour.index + 1, total: tour.steps.length })}</span>
         </div>
         <div className="tutorial-progress-track" aria-hidden="true">
           <span style={{ width: `${((tour.index + 1) / tour.steps.length) * 100}%` }} />
         </div>
         <h2 id="tutorial-step-title">{step.title}</h2>
         <p id="tutorial-step-description">{step.description}</p>
-        {targetStatus === "waiting" ? <p className="tutorial-target-note">Preparing this area…</p> : null}
-        {targetStatus === "scrolling" ? <p className="tutorial-target-note">Bringing this area into view…</p> : null}
+        {targetStatus === "waiting" ? <p className="tutorial-target-note">{t("tutorialOverlay.preparingArea")}</p> : null}
+        {targetStatus === "scrolling" ? <p className="tutorial-target-note">{t("tutorialOverlay.scrollingArea")}</p> : null}
         {step.target && targetStatus === "missing" ? (
-          <p className="tutorial-target-note">This control is not visible in the current layout or data state, so you can continue with this explanation.</p>
+          <p className="tutorial-target-note">{t("tutorialOverlay.missingTarget")}</p>
         ) : null}
         {error ? <p className="tutorial-error" role="alert">{error}</p> : null}
         <TutorialActions
@@ -191,6 +196,8 @@ export default function TutorialOverlay({
           onNext={onNext}
           onSkip={onSkip}
           onClose={onClose}
+          t={t}
+          tCommon={tCommon}
         />
       </section>
     </div>

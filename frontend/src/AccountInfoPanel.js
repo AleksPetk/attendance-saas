@@ -1,7 +1,10 @@
 import { createElement, useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router-dom";
 import { api, errorMessage } from "./api.js";
 import { ContentMarkdown, stripLeadingDocumentTitle } from "./contentMarkdown.js";
+import { formatDate } from "./i18n/format.js";
+import { workspaceDocsHomeUrl } from "./publicFooterLinks.js";
 
 function InfoLoadingState({ label }) {
   return createElement(
@@ -27,25 +30,19 @@ export function updateInfoDocumentSearch(searchParams, slug) {
   return next;
 }
 
-function formatContentDate(value) {
+function formatContentDate(value, locale) {
   if (!value) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return String(value);
-  return new Intl.DateTimeFormat(undefined, {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  }).format(date);
+  return formatDate(value, locale, { year: "numeric", month: "long", day: "numeric" }) || String(value);
 }
 
-export function groupContentDocuments(documents) {
+export function groupContentDocuments(documents, fallbackGroupLabel = "Information") {
   const groups = new Map();
   for (const document of Array.isArray(documents) ? documents : []) {
     const id = document.nav_group || document.document_type || "information";
     if (!groups.has(id)) {
       groups.set(id, {
         id,
-        label: document.nav_group_label || "Information",
+        label: document.nav_group_label || fallbackGroupLabel,
         documents: [],
       });
     }
@@ -75,21 +72,27 @@ function infoNavigationClick(event, slug, onOpen) {
   onOpen(slug);
 }
 
-function documentMeta(document) {
+function documentMeta(document, locale, t) {
   const pieces = [];
-  if (document.effective_on) pieces.push(`Effective ${formatContentDate(document.effective_on)}`);
-  else if (document.updated_at) pieces.push(`Updated ${formatContentDate(document.updated_at)}`);
-  if (document.version) pieces.push(`Version ${document.version}`);
+  if (document.effective_on) {
+    pieces.push(t("account:info.metaEffective", { date: formatContentDate(document.effective_on, locale) }));
+  } else if (document.updated_at) {
+    pieces.push(t("account:info.metaUpdated", { date: formatContentDate(document.updated_at, locale) }));
+  }
+  if (document.version) {
+    pieces.push(t("account:info.metaVersion", { version: document.version }));
+  }
   return pieces;
 }
 
-export function InfoDocumentList({ documents, onOpen }) {
-  const groups = groupContentDocuments(documents);
+export function InfoDocumentList({ documents, onOpen, fallbackGroupLabel, locale = "en", t }) {
+  const translate = t || ((key, options) => key);
+  const groups = groupContentDocuments(documents, fallbackGroupLabel);
   if (!groups.length) {
     return createElement(
       "div",
       { className: "account-panel-empty" },
-      createElement("p", null, "No published information is available right now."),
+      createElement("p", null, translate("account:info.emptyList")),
     );
   }
 
@@ -105,7 +108,7 @@ export function InfoDocumentList({ documents, onOpen }) {
           "div",
           { className: "account-info-card-grid" },
           group.documents.map((document) => {
-            const meta = documentMeta(document);
+            const meta = documentMeta(document, locale, translate);
             return createElement(
               "a",
               {
@@ -138,7 +141,7 @@ export function InfoDocumentList({ documents, onOpen }) {
   );
 }
 
-function faqGroups(payload) {
+function faqGroups(payload, answersLabel) {
   const entries = Array.isArray(payload?.entries) ? payload.entries : [];
   const categories = Array.isArray(payload?.categories) ? payload.categories : [];
   const known = new Set(categories.map((category) => category.id));
@@ -151,22 +154,22 @@ function faqGroups(payload) {
     .filter((group) => group.entries.length);
   const uncategorized = entries.filter((entry) => !known.has(entry.category));
   if (uncategorized.length) {
-    groups.push({ id: "answers", label: "Answers", entries: uncategorized });
+    groups.push({ id: "answers", label: answersLabel, entries: uncategorized });
   }
   return groups;
 }
 
-export function InfoFaqList({ payload, onDocumentNavigate }) {
+export function InfoFaqList({ payload, onDocumentNavigate, title, emptyLabel, answersLabel }) {
   const [openSlug, setOpenSlug] = useState("");
-  const groups = faqGroups(payload);
+  const groups = faqGroups(payload, answersLabel);
   if (!groups.length) {
-    return createElement("p", { className: "account-info-faq-empty" }, "No FAQ answers are published right now.");
+    return createElement("p", { className: "account-info-faq-empty" }, emptyLabel);
   }
 
   return createElement(
     "section",
-    { className: "account-info-faq", "aria-label": "Frequently asked questions" },
-    createElement("h2", null, "Frequently asked questions"),
+    { className: "account-info-faq", "aria-label": title },
+    createElement("h2", null, title),
     groups.map((group) =>
       createElement(
         "section",
@@ -211,8 +214,15 @@ export function InfoFaqList({ payload, onDocumentNavigate }) {
   );
 }
 
-export function InfoDocumentViewer({ document, faqPayload, onBack, onDocumentNavigate }) {
-  const meta = documentMeta(document);
+export function InfoDocumentViewer({
+  document,
+  faqPayload,
+  onBack,
+  onDocumentNavigate,
+  locale,
+  labels,
+}) {
+  const meta = documentMeta(document, locale, (key, options) => labels.t(key, options));
   const body = stripLeadingDocumentTitle(document.body_markdown || "", document.title);
   return createElement(
     "article",
@@ -221,7 +231,7 @@ export function InfoDocumentViewer({ document, faqPayload, onBack, onDocumentNav
       "button",
       { type: "button", className: "account-info-back", onClick: onBack },
       createElement("span", { "aria-hidden": true }, "←"),
-      " Back to Info",
+      ` ${labels.backToInfo}`,
     ),
     createElement(
       "header",
@@ -229,7 +239,7 @@ export function InfoDocumentViewer({ document, faqPayload, onBack, onDocumentNav
       createElement(
         "span",
         { className: "account-info-document-type" },
-        document.nav_group_label || document.document_type || "Information",
+        document.nav_group_label || document.document_type || labels.fallbackGroup,
       ),
       createElement("h1", null, document.title),
       document.description ? createElement("p", null, document.description) : null,
@@ -243,12 +253,18 @@ export function InfoDocumentViewer({ document, faqPayload, onBack, onDocumentNav
     ),
     createElement(ContentMarkdown, { markdown: body, onDocumentNavigate }),
     document.slug === "faq"
-      ? createElement(InfoFaqList, { payload: faqPayload, onDocumentNavigate })
+      ? createElement(InfoFaqList, {
+          payload: faqPayload,
+          onDocumentNavigate,
+          title: labels.faqTitle,
+          emptyLabel: labels.faqEmpty,
+          answersLabel: labels.faqAnswers,
+        })
       : null,
   );
 }
 
-export function InfoLoadError({ message, onBack, onRetry }) {
+export function InfoLoadError({ message, onBack, onRetry, backLabel, retryLabel }) {
   return createElement(
     "div",
     { className: "account-info-error" },
@@ -257,16 +273,18 @@ export function InfoLoadError({ message, onBack, onRetry }) {
       "div",
       { className: "account-panel-actions" },
       onBack
-        ? createElement("button", { type: "button", className: "btn-secondary", onClick: onBack }, "Back to Info")
+        ? createElement("button", { type: "button", className: "btn-secondary", onClick: onBack }, backLabel)
         : null,
       onRetry
-        ? createElement("button", { type: "button", className: "btn-primary", onClick: onRetry }, "Try again")
+        ? createElement("button", { type: "button", className: "btn-primary", onClick: onRetry }, retryLabel)
         : null,
     ),
   );
 }
 
-export default function AccountInfoPanel() {
+export default function AccountInfoPanel({ contentLang = "en" }) {
+  const { t } = useTranslation(["account", "common"]);
+  const resolvedLang = contentLang === "ja" ? "ja" : "en";
   const [searchParams, setSearchParams] = useSearchParams();
   const selectedSlug = selectedInfoDocumentSlug(searchParams);
   const [documents, setDocuments] = useState([]);
@@ -279,16 +297,29 @@ export default function AccountInfoPanel() {
   const [documentError, setDocumentError] = useState("");
   const [documentReload, setDocumentReload] = useState(0);
 
+  const infoLabels = useMemo(
+    () => ({
+      t,
+      backToInfo: t("account:info.backToInfo"),
+      faqTitle: t("account:info.faqTitle"),
+      faqEmpty: t("account:info.faqEmpty"),
+      faqAnswers: t("account:info.faqAnswers"),
+      fallbackGroup: t("account:info.fallbackGroup"),
+    }),
+    [t],
+  );
+
   useEffect(() => {
     let cancelled = false;
     setListLoading(true);
     setListError("");
-    api.listContentDocuments()
+    api
+      .listContentDocuments({ lang: resolvedLang })
       .then((result) => {
         if (!cancelled) setDocuments(result.data?.documents || []);
       })
       .catch((error) => {
-        if (!cancelled) setListError(errorMessage(error) || "Information could not be loaded.");
+        if (!cancelled) setListError(errorMessage(error) || t("account:info.listError"));
       })
       .finally(() => {
         if (!cancelled) setListLoading(false);
@@ -296,7 +327,7 @@ export default function AccountInfoPanel() {
     return () => {
       cancelled = true;
     };
-  }, [listReload]);
+  }, [listReload, resolvedLang, t]);
 
   useEffect(() => {
     let cancelled = false;
@@ -314,8 +345,8 @@ export default function AccountInfoPanel() {
     setFaqPayload(null);
     setDocumentError("");
     setDocumentLoading(true);
-    const requests = [api.getContentDocument(selectedSlug)];
-    if (selectedSlug === "faq") requests.push(api.listContentFaq());
+    const requests = [api.getContentDocument(selectedSlug, { lang: resolvedLang })];
+    if (selectedSlug === "faq") requests.push(api.listContentFaq({ lang: resolvedLang }));
     Promise.all(requests)
       .then(([documentResult, faqResult]) => {
         if (cancelled) return;
@@ -326,8 +357,8 @@ export default function AccountInfoPanel() {
         if (cancelled) return;
         const message =
           error?.status === 404
-            ? "This document is not available or is no longer published."
-            : errorMessage(error) || "This document could not be loaded.";
+            ? t("account:info.documentUnavailable")
+            : errorMessage(error) || t("account:info.documentLoadError");
         setDocumentError(message);
       })
       .finally(() => {
@@ -336,7 +367,7 @@ export default function AccountInfoPanel() {
     return () => {
       cancelled = true;
     };
-  }, [selectedSlug, documentReload]);
+  }, [selectedSlug, documentReload, resolvedLang, t]);
 
   const updateSelectedDocument = useMemo(
     () => (slug) => {
@@ -347,16 +378,22 @@ export default function AccountInfoPanel() {
 
   if (selectedSlug) {
     if (documentLoading) {
-      return createElement("div", { className: "account-info-panel" }, createElement(InfoLoadingState, { label: "Loading document…" }));
+      return createElement(
+        "div",
+        { className: "account-info-panel" },
+        createElement(InfoLoadingState, { label: t("account:info.loadingDocument") }),
+      );
     }
     if (documentError || !document) {
       return createElement(
         "div",
         { className: "account-info-panel" },
         createElement(InfoLoadError, {
-          message: documentError || "This document is not available.",
+          message: documentError || t("account:info.documentUnavailable"),
           onBack: () => updateSelectedDocument(""),
           onRetry: () => setDocumentReload((value) => value + 1),
+          backLabel: t("account:info.backToInfo"),
+          retryLabel: t("account:info.tryAgain"),
         }),
       );
     }
@@ -366,6 +403,8 @@ export default function AccountInfoPanel() {
       createElement(InfoDocumentViewer, {
         document,
         faqPayload,
+        locale: resolvedLang,
+        labels: infoLabels,
         onBack: () => updateSelectedDocument(""),
         onDocumentNavigate: updateSelectedDocument,
       }),
@@ -374,26 +413,47 @@ export default function AccountInfoPanel() {
 
   return createElement(
     "section",
-    { className: "account-info-panel", "aria-label": "CheckStation information", "data-tutorial-target": "account-info" },
+    {
+      className: "account-info-panel",
+      "aria-label": t("account:info.panelAria"),
+      "data-tutorial-target": "account-info",
+    },
     createElement(
       "div",
       { className: "account-info-intro" },
-      createElement("h1", null, "Information and help"),
+      createElement("h1", null, t("account:info.title")),
+      createElement("p", null, t("account:info.description")),
       createElement(
         "p",
-        null,
-        "Browse the latest published CheckStation guides, help, and legal information without leaving your workspace.",
+        { className: "account-info-open-docs" },
+        createElement(
+          "a",
+          {
+            className: "btn-secondary btn-sm",
+            href: workspaceDocsHomeUrl(resolvedLang),
+            target: "_blank",
+            rel: "noopener noreferrer",
+          },
+          t("account:info.openDocs"),
+        ),
       ),
     ),
-    listLoading ? createElement(InfoLoadingState, { label: "Loading information…" }) : null,
+    listLoading ? createElement(InfoLoadingState, { label: t("account:info.loadingList") }) : null,
     listError
       ? createElement(InfoLoadError, {
           message: listError,
           onRetry: () => setListReload((value) => value + 1),
+          retryLabel: t("account:info.tryAgain"),
         })
       : null,
     !listLoading && !listError
-      ? createElement(InfoDocumentList, { documents, onOpen: updateSelectedDocument })
+      ? createElement(InfoDocumentList, {
+          documents,
+          onOpen: updateSelectedDocument,
+          fallbackGroupLabel: t("account:info.fallbackGroup"),
+          locale: resolvedLang,
+          t,
+        })
       : null,
   );
 }

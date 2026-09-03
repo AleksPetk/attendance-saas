@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { api, errorMessage } from "./api.js";
 import { AuthLayout, ErrorBanner, LoadingState, SuccessBanner } from "./components.jsx";
 
 export default function VerifyEmailScreen({ onSignedIn }) {
+  const { t } = useTranslation("auth");
   const { uid, token } = useParams();
   const navigate = useNavigate();
   const [status, setStatus] = useState("loading");
@@ -18,7 +20,7 @@ export default function VerifyEmailScreen({ onSignedIn }) {
         const result = await api.verifyEmail({ uid, token });
         if (cancelled) return;
         setStatus("verified");
-        setMessage(result.data.detail || "Email verified.");
+        setMessage(result.data.detail || t("verifyEmail.verifiedDefault"));
         try {
           const workspace = await api.loadWorkspace(null);
           if (cancelled) return;
@@ -44,15 +46,13 @@ export default function VerifyEmailScreen({ onSignedIn }) {
     return () => {
       cancelled = true;
     };
-    // Session callback is intentionally omitted so a parent re-render cannot
-    // replay a one-time verification token.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [uid, token]);
 
   if (status === "loading") {
     return (
-      <AuthLayout title="Verifying email" lead="Please wait while we confirm your CheckStation email.">
-        <LoadingState label="Verifying…" />
+      <AuthLayout title={t("verifyEmail.loadingTitle")} lead={t("verifyEmail.loadingLead")}>
+        <LoadingState label={t("verifyEmail.verifying")} />
       </AuthLayout>
     );
   }
@@ -60,11 +60,12 @@ export default function VerifyEmailScreen({ onSignedIn }) {
   if (status === "verified") {
     return (
       <AuthLayout
-        title="Email verified"
-        lead="Your CheckStation email is confirmed."
+        title={t("verifyEmail.verifiedTitle")}
+        lead={t("verifyEmail.verifiedLead")}
         footnote={
           <p>
-            Need to sign in on another device? <Link to="/login">Go to login</Link>
+            {t("verifyEmail.otherDevice")}{" "}
+            <Link to="/login">{t("verifyEmail.goToLogin")}</Link>
           </p>
         }
       >
@@ -72,11 +73,11 @@ export default function VerifyEmailScreen({ onSignedIn }) {
           <SuccessBanner message={message} />
           {sessionReady ? (
             <button type="button" className="btn-primary btn-block" onClick={() => navigate("/dashboard")}>
-              Continue to CheckStation
+              {t("continueToCheckStation")}
             </button>
           ) : (
             <Link className="btn-primary btn-block" to="/login?verified=1">
-              Continue to login
+              {t("continueToLogin")}
             </Link>
           )}
         </div>
@@ -86,17 +87,13 @@ export default function VerifyEmailScreen({ onSignedIn }) {
 
   return (
     <AuthLayout
-      title={status === "expired" ? "Link expired" : "Link invalid"}
-      lead={
-        status === "expired"
-          ? "This verification link has expired. Request a new one."
-          : "This verification link is invalid or has already been used."
-      }
+      title={status === "expired" ? t("verifyEmail.expiredTitle") : t("verifyEmail.invalidTitle")}
+      lead={status === "expired" ? t("verifyEmail.expiredLead") : t("verifyEmail.invalidLead")}
       footnote={
         <p>
-          <Link to="/check-email">Resend verification email</Link>
+          <Link to="/check-email">{t("verifyEmail.resendLink")}</Link>
           {" · "}
-          <Link to="/login">Return to login</Link>
+          <Link to="/login">{t("verifyEmail.returnToLogin")}</Link>
         </p>
       }
     >

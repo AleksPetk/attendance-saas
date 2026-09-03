@@ -188,7 +188,6 @@ class GroupMembershipAdmin(admin.ModelAdmin):
     )
     autocomplete_fields = ("organization", "group", "member")
     readonly_fields = (
-        "override_pin_hash",
         "created_at",
         "updated_at",
         "deactivated_at",
@@ -201,7 +200,6 @@ class GroupMembershipAdmin(admin.ModelAdmin):
         "override_email",
         "override_photo",
         "override_check_in_identifier",
-        "override_pin_hash",
         "status",
         "created_at",
         "updated_at",
@@ -243,7 +241,7 @@ class GroupOnlyParticipantAdmin(admin.ModelAdmin):
         "organization__workspace_id",
     )
     autocomplete_fields = ("organization", "group")
-    readonly_fields = ("pin_hash", "created_at", "updated_at", "archived_at")
+    readonly_fields = ("created_at", "updated_at", "archived_at")
     fields = (
         "organization",
         "group",
@@ -254,7 +252,6 @@ class GroupOnlyParticipantAdmin(admin.ModelAdmin):
         "phone",
         "check_in_identifier",
         "notes",
-        "pin_hash",
         "status",
         "created_at",
         "updated_at",

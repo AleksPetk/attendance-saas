@@ -318,8 +318,8 @@ class CouponPublicApiSafetyTests(TestCase):
         self.assertTrue(offer["checkout_applies_promotion"])
         self.assertIsNone(offer["provider_offer_ref"])
 
-    def test_ten_coupon_settings_defined(self):
-        self.assertEqual(len(ALL_COUPON_SETTING_NAMES), 10)
+    def test_all_global_and_jp_coupon_settings_defined(self):
+        self.assertEqual(len(ALL_COUPON_SETTING_NAMES), 21)
         self.assertNotIn(
             "STRIPE_COUPON_PLUS_MONTHLY_TO_BUSINESS_YEARLY",
             ALL_COUPON_SETTING_NAMES,

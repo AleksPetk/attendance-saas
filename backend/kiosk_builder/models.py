@@ -183,6 +183,8 @@ class KioskSettings(models.Model):
     confirmation_return_seconds = models.PositiveSmallIntegerField(
         default=CONFIRMATION_RETURN_SECONDS_DEFAULT,
     )
+    confirmation_sound_enabled = models.BooleanField(default=True)
+    confirmation_vibration_enabled = models.BooleanField(default=False)
     attendance_reset_mode = models.CharField(
         max_length=20,
         choices=AttendanceResetMode.choices,
@@ -292,6 +294,8 @@ def default_kiosk_settings_for_group(group):
         "confirmation_break_start_message": "",
         "confirmation_break_end_message": "",
         "confirmation_return_seconds": CONFIRMATION_RETURN_SECONDS_DEFAULT,
+        "confirmation_sound_enabled": True,
+        "confirmation_vibration_enabled": False,
         "attendance_reset_mode": ATTENDANCE_RESET_MODE_DEFAULT,
         "attendance_reset_daily_time": time.min,
         "attendance_reset_rolling_hours": ATTENDANCE_RESET_ROLLING_HOURS_DEFAULT,

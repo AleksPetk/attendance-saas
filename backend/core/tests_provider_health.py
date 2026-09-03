@@ -27,13 +27,23 @@ def _http_error(url, code, body):
     )
 
 
+TEST_STATUS_PROBE_TOKEN = "test-status-probe-token"
+
+
+@override_settings(STATUS_PROBE_TOKEN=TEST_STATUS_PROBE_TOKEN)
 class EmailHealthEndpointTests(TestCase):
     def setUp(self):
         self.client = APIClient()
 
+    def _probe_get(self, url):
+        return self.client.get(
+            url,
+            HTTP_X_STATUS_PROBE_TOKEN=TEST_STATUS_PROBE_TOKEN,
+        )
+
     @override_settings(RESEND_API_KEY="")
     def test_unconfigured_resend_is_unconfigured_not_operational(self):
-        response = self.client.get(reverse("health-email"))
+        response = self._probe_get(reverse("health-email"))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data, {"status": "unconfigured"})
 
@@ -55,7 +65,7 @@ class EmailHealthEndpointTests(TestCase):
 
         with patch("core.mail.urllib.request.urlopen", side_effect=fake_urlopen):
             with patch.object(ResendEmailProvider, "send") as send_mock:
-                response = self.client.get(reverse("health-email"))
+                response = self._probe_get(reverse("health-email"))
                 send_mock.assert_not_called()
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -90,7 +100,7 @@ class EmailHealthEndpointTests(TestCase):
 
         with patch("core.mail.urllib.request.urlopen", side_effect=fake_urlopen):
             with patch.object(ResendEmailProvider, "send") as send_mock:
-                response = self.client.get(reverse("health-email"))
+                response = self._probe_get(reverse("health-email"))
                 send_mock.assert_not_called()
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -115,7 +125,7 @@ class EmailHealthEndpointTests(TestCase):
             raise _http_error(RESEND_API_URL, 409, b'{"name":"application_error"}')
 
         with patch("core.mail.urllib.request.urlopen", side_effect=fake_urlopen):
-            response = self.client.get(reverse("health-email"))
+            response = self._probe_get(reverse("health-email"))
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data, {"status": "unknown"})
@@ -127,7 +137,7 @@ class EmailHealthEndpointTests(TestCase):
             raise URLError("raw-resend-timeout-secret")
 
         with patch("core.mail.urllib.request.urlopen", side_effect=fake_urlopen):
-            response = self.client.get(reverse("health-email"))
+            response = self._probe_get(reverse("health-email"))
 
         self.assertEqual(response.status_code, status.HTTP_503_SERVICE_UNAVAILABLE)
         self.assertEqual(response.data, {"status": "error"})
@@ -145,7 +155,7 @@ class EmailHealthEndpointTests(TestCase):
             )
 
         with patch("core.mail.urllib.request.urlopen", side_effect=fake_urlopen):
-            response = self.client.get(reverse("health-email"))
+            response = self._probe_get(reverse("health-email"))
 
         self.assertEqual(response.status_code, status.HTTP_503_SERVICE_UNAVAILABLE)
         self.assertEqual(response.data, {"status": "error"})
@@ -157,7 +167,7 @@ class EmailHealthEndpointTests(TestCase):
             raise _http_error(RESEND_DOMAINS_URL, 503, b'{"message":"upstream-secret"}')
 
         with patch("core.mail.urllib.request.urlopen", side_effect=fake_urlopen):
-            response = self.client.get(reverse("health-email"))
+            response = self._probe_get(reverse("health-email"))
 
         self.assertEqual(response.status_code, status.HTTP_503_SERVICE_UNAVAILABLE)
         self.assertEqual(response.data, {"status": "error"})
@@ -170,6 +180,7 @@ class EmailHealthEndpointTests(TestCase):
 
 
 @override_settings(
+    STATUS_PROBE_TOKEN=TEST_STATUS_PROBE_TOKEN,
     BILLING_PROVIDER="fake",
     STRIPE_SECRET_KEY="sk_test_fake",
     STRIPE_PRICE_PLUS_MONTHLY="price_plus_monthly",
@@ -182,9 +193,15 @@ class StripeHealthEndpointTests(TestCase):
         self.client = APIClient()
         get_fake_provider().reset()
 
+    def _probe_get(self, url):
+        return self.client.get(
+            url,
+            HTTP_X_STATUS_PROBE_TOKEN=TEST_STATUS_PROBE_TOKEN,
+        )
+
     @override_settings(STRIPE_SECRET_KEY="")
     def test_unconfigured_stripe_is_unconfigured(self):
-        response = self.client.get(reverse("health-stripe"))
+        response = self._probe_get(reverse("health-stripe"))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data, {"status": "unconfigured"})
 
@@ -194,7 +211,7 @@ class StripeHealthEndpointTests(TestCase):
         customers_before = len(provider.customers)
         invoices_before = sum(len(rows) for rows in provider.invoices.values())
 
-        response = self.client.get(reverse("health-stripe"))
+        response = self._probe_get(reverse("health-stripe"))
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data, {"status": "ok"})
@@ -210,7 +227,7 @@ class StripeHealthEndpointTests(TestCase):
     def test_stripe_provider_failure_is_generic(self):
         provider = get_fake_provider()
         provider.fail_next_health = True
-        response = self.client.get(reverse("health-stripe"))
+        response = self._probe_get(reverse("health-stripe"))
         self.assertEqual(response.status_code, status.HTTP_503_SERVICE_UNAVAILABLE)
         self.assertEqual(response.data, {"status": "error"})
         self.assertNotIn("Stripe", str(response.data))

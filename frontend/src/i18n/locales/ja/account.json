@@ -111,7 +111,12 @@
     "confirmPrompt": "確認のため DELETE と入力",
     "deleting": "削除中…",
     "permanentlyDelete": "アカウントを完全に削除",
-    "confirmDialog": "この操作は元に戻せません。CheckStation アカウントとワークスペースを完全に削除しますか？"
+    "confirmDialog": "この操作は元に戻せません。CheckStation アカウントとワークスペースを完全に削除しますか？",
+    "oauthReauthRequired": "アカウントを完全に削除する前に、連携済みのサインイン方法で本人確認を行ってください。",
+    "oauthReauthReady": "本人確認が完了しました。完全削除を続行できます。",
+    "activeSubscription": "このワークスペースには有効な有料サブスクリプションがあります。アカウントを完全に削除する前に、キャンセルして有料アクセスが終了するまで待ってください。",
+    "activeSubscriptionHint": "アカウント削除では Stripe 請求は自動キャンセルされません。先にサブスクリプション画面で有料アクセスを終了してください。",
+    "manageSubscription": "サブスクリプションへ"
   },
   "signInMethods": {
     "password": "パスワード",

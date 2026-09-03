@@ -1,42 +1,45 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { EmptyState as EmptyStateComponent, PhotoThumb, StatusBadge, Wordmark } from "./components.jsx";
 import {
   canManageOwnerAccount,
   canManageStaffAccounts,
   canViewGlobalMembers,
+  isWorkspaceOwner,
   workspaceTopbarNotice,
 } from "./workspaceSession.js";
 import { SidebarAccountChip } from "./workspaceSidebarAccount.js";
 import WorkspaceAnnouncementBell from "./WorkspaceAnnouncementBell.jsx";
+import { WorkspaceLanguageMenu } from "./i18n/LanguageSwitcher.jsx";
 import {
   canAccessStaffManagement,
   shouldShowLockedStaffNav,
 } from "./workspaceEntitlements.js";
 import workspaceHeaderIcon from "./assets/brand/workspace-header-icon.webp";
 
-const NAV_ITEMS = [
-  { name: "dashboard", label: "Dashboard", icon: "▦" },
-  { name: "members", label: "Members", icon: "◉", requiresGlobalMembers: true },
-  { name: "groups", label: "Groups", icon: "◈" },
-  { name: "history", label: "History", icon: "↻" },
-  { name: "staff", label: "Staff", icon: "🔑", requiresStaffManagement: true },
-  { name: "account", label: "Account", icon: "⚙", requiresOwnerAccount: true },
+const NAV_ITEM_KEYS = [
+  { name: "dashboard", labelKey: "nav.dashboard", icon: "▦" },
+  { name: "members", labelKey: "nav.members", icon: "◉", requiresGlobalMembers: true },
+  { name: "groups", labelKey: "nav.groups", icon: "◈" },
+  { name: "history", labelKey: "nav.history", icon: "↻" },
+  { name: "staff", labelKey: "nav.staff", icon: "🔑", requiresStaffManagement: true },
+  { name: "account", labelKey: "nav.account", icon: "⚙", requiresOwnerAccount: true },
 ];
 
-const PAGE_TITLES = {
-  dashboard: "Dashboard",
-  members: "Members",
-  "member-editor": "Members",
-  "member-create": "Members",
-  "member-profile": "Members",
-  groups: "Groups",
-  "group-editor": "Groups",
-  "group-detail": "Groups",
-  "kiosk-settings": "Kiosk Settings",
-  "kiosk-builder": "Kiosk Builder",
-  history: "History",
-  staff: "Staff management",
-  account: "Account",
+const PAGE_TITLE_KEYS = {
+  dashboard: "pageTitles.dashboard",
+  members: "pageTitles.members",
+  "member-editor": "pageTitles.members",
+  "member-create": "pageTitles.members",
+  "member-profile": "pageTitles.members",
+  groups: "pageTitles.groups",
+  "group-editor": "pageTitles.groups",
+  "group-detail": "pageTitles.groups",
+  "kiosk-settings": "pageTitles.kioskSettings",
+  "kiosk-builder": "pageTitles.kioskBuilder",
+  history: "pageTitles.history",
+  staff: "pageTitles.staff",
+  account: "pageTitles.account",
 };
 
 function isNavActive(routeName, itemName) {
@@ -55,20 +58,26 @@ function isNavActive(routeName, itemName) {
 }
 
 export default function WorkspaceLayout({ session, route, onNavigate, onSignOut, children }) {
+  const { t } = useTranslation(["workspace", "common"]);
   const topbarNotice = workspaceTopbarNotice(session);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const pageTitle = PAGE_TITLES[route.name] || "Workspace";
+  const pageTitleKey = PAGE_TITLE_KEYS[route.name] || "pageTitles.workspace";
+  const pageTitle = t(pageTitleKey);
 
   const roleCanManageStaff = canManageStaffAccounts(session);
   const staffUnlocked = canAccessStaffManagement(session, roleCanManageStaff);
   const staffLocked = shouldShowLockedStaffNav(session, roleCanManageStaff);
 
-  const visibleNavItems = NAV_ITEMS.filter((item) => {
-    if (item.requiresOwnerAccount) return canManageOwnerAccount(session);
-    if (item.requiresStaffManagement) return staffUnlocked || staffLocked;
-    if (item.requiresGlobalMembers) return canViewGlobalMembers(session);
-    return true;
-  });
+  const visibleNavItems = useMemo(
+    () =>
+      NAV_ITEM_KEYS.filter((item) => {
+        if (item.requiresOwnerAccount) return canManageOwnerAccount(session);
+        if (item.requiresStaffManagement) return staffUnlocked || staffLocked;
+        if (item.requiresGlobalMembers) return canViewGlobalMembers(session);
+        return true;
+      }),
+    [session, staffLocked, staffUnlocked],
+  );
 
   return (
     <div className="workspace-shell">
@@ -76,15 +85,15 @@ export default function WorkspaceLayout({ session, route, onNavigate, onSignOut,
         <button
           type="button"
           className="sidebar-overlay"
-          aria-label="Close navigation"
+          aria-label={t("common:closeNavigation")}
           onClick={() => setSidebarOpen(false)}
         />
       ) : null}
       <aside className={sidebarOpen ? "sidebar open" : "sidebar"}>
         <div className="brand">
-          <Wordmark name="CheckStation" subtitle="Workspace" />
+          <Wordmark name={t("common:productName")} subtitle={t("workspaceSubtitle")} />
         </div>
-        <nav className="sidebar-nav" aria-label="Workspace">
+        <nav className="sidebar-nav" aria-label={t("pageTitles.workspace")}>
           {visibleNavItems.map((item) => {
             const lockedStaff = item.name === "staff" && staffLocked && !staffUnlocked;
             return (
@@ -94,7 +103,7 @@ export default function WorkspaceLayout({ session, route, onNavigate, onSignOut,
                 className={`nav-link${isNavActive(route.name, item.name) ? " active" : ""}${
                   lockedStaff ? " is-plan-locked" : ""
                 }`}
-                title={lockedStaff ? "Staff management requires Plus or Business" : undefined}
+                title={lockedStaff ? t("staffNavLocked") : undefined}
                 data-tutorial-target={`sidebar-${item.name}`}
                 onClick={() => {
                   onNavigate({ name: item.name });
@@ -104,10 +113,10 @@ export default function WorkspaceLayout({ session, route, onNavigate, onSignOut,
                 <span className="nav-icon" aria-hidden="true">
                   {item.icon}
                 </span>
-                {item.label}
+                {t(item.labelKey)}
                 {lockedStaff ? (
-                  <span className="nav-lock-badge" aria-label="Upgrade required">
-                    Locked
+                  <span className="nav-lock-badge" aria-label={t("common:upgradeRequired")}>
+                    {t("common:locked")}
                   </span>
                 ) : null}
               </button>
@@ -117,7 +126,7 @@ export default function WorkspaceLayout({ session, route, onNavigate, onSignOut,
         <div className="sidebar-account">
           <SidebarAccountChip session={session} />
           <button type="button" className="btn-text" onClick={onSignOut}>
-            Sign out
+            {t("common:signOut")}
           </button>
         </div>
       </aside>
@@ -127,20 +136,21 @@ export default function WorkspaceLayout({ session, route, onNavigate, onSignOut,
             <button
               type="button"
               className="sidebar-toggle"
-              aria-label="Open navigation"
+              aria-label={t("common:openMenu")}
               onClick={() => setSidebarOpen(true)}
             >
               ☰
             </button>
             <div className="topbar-copy">
-              <p className="eyebrow">CheckStation</p>
+              <p className="eyebrow">{t("common:productName")}</p>
               <h1>{pageTitle}</h1>
             </div>
           </div>
-          {topbarNotice ? (
+          {isWorkspaceOwner(session) && topbarNotice ? (
             <p className="notice">{topbarNotice}</p>
           ) : null}
           <div className="workspace-topbar-actions">
+            <WorkspaceLanguageMenu />
             <WorkspaceAnnouncementBell session={session} onNavigate={onNavigate} />
             <img
               className="workspace-header-icon"
@@ -174,6 +184,7 @@ export function PersonRow({
   inactive = false,
   planLocked = false,
 }) {
+  const { t } = useTranslation("common");
   const identity = (
     <>
       <PhotoThumb url={person.photo_url} name={person.name} />
@@ -198,7 +209,7 @@ export function PersonRow({
       )}
       <div className="person-meta">
         {status ? <StatusBadge status={status} /> : null}
-        {planLocked ? <span className="plan-locked-badge">Plan locked</span> : null}
+        {planLocked ? <span className="plan-locked-badge">{t("planLocked")}</span> : null}
         {actions}
       </div>
     </article>

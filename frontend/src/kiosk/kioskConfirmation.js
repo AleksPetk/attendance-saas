@@ -1,3 +1,4 @@
+import i18n from "../i18n/index.js";
 import { CARD_TEMPLATE_IDS, isCardTemplateId } from "./cardTemplates.js";
 import { INPUT_TEMPLATE_IDS, isInputTemplateId } from "./inputTemplates.js";
 import { flowTemplateAccent, resolveFlowTemplate } from "./flowTemplate.js";
@@ -33,6 +34,18 @@ export const CONFIRMATION_TEMPLATES = [
 ];
 
 export const CONFIRMATION_RETURN_OPTIONS = [1, 3, 5];
+
+const MESSAGE_FIELD_LABEL_KEYS = {
+  check_in: "confirmation.messages.checkIn",
+  check_out: "confirmation.messages.checkOut",
+  break_start: "confirmation.messages.breakStart",
+  break_end: "confirmation.messages.breakEnd",
+};
+
+export function confirmationMessageFieldLabel(action) {
+  const key = MESSAGE_FIELD_LABEL_KEYS[action];
+  return key ? i18n.t(`kiosk:${key}`) : action;
+}
 
 export const CONFIRMATION_MESSAGE_FIELDS = [
   {

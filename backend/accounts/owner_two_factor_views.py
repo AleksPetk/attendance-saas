@@ -28,8 +28,8 @@ from accounts.owner_two_factor import (
     clear_pending_owner_2fa,
     confirm_device,
     consume_recovery_code,
-    decrypt_totp_secret,
-    encrypt_totp_secret,
+    decrypt_owner_totp_secret,
+    encrypt_owner_totp_secret,
     get_or_create_unconfirmed_device,
     get_unconfirmed_device,
     has_confirmed_owner_totp,
@@ -143,7 +143,7 @@ class OwnerTOTPSetupVerifyView(APIView):
                 status=429,
             )
 
-        secret = decrypt_totp_secret(device.secret_encrypted)
+        secret = decrypt_owner_totp_secret(device.secret_encrypted)
         ok, timestep = verify_totp_code(
             secret, code, last_timestep=device.last_verified_timestep
         )
@@ -218,7 +218,7 @@ class OwnerTOTPLoginChallengeView(APIView):
 
             register_success_on_device(device, timestep=None)
         else:
-            secret = decrypt_totp_secret(device.secret_encrypted)
+            secret = decrypt_owner_totp_secret(device.secret_encrypted)
             ok, timestep = verify_totp_code(
                 secret, totp_code, last_timestep=device.last_verified_timestep
             )
@@ -280,7 +280,7 @@ class OwnerTOTPRecoveryCodesRegenerateView(APIView):
                 # Consumed a recovery code; regenerate invalidates all codes anyway.
                 register_success_on_device(device)
         else:
-            secret = decrypt_totp_secret(device.secret_encrypted)
+            secret = decrypt_owner_totp_secret(device.secret_encrypted)
             ok, timestep = verify_totp_code(
                 secret, totp_code, last_timestep=device.last_verified_timestep
             )
@@ -343,7 +343,7 @@ class OwnerTOTPDisableView(APIView):
             if submitted and consume_recovery_code(actor, submitted):
                 second_factor_ok = True
         else:
-            secret = decrypt_totp_secret(device.secret_encrypted)
+            secret = decrypt_owner_totp_secret(device.secret_encrypted)
             ok, _timestep = verify_totp_code(
                 secret, totp_code, last_timestep=device.last_verified_timestep
             )

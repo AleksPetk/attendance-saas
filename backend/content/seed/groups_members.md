@@ -151,11 +151,11 @@ If requirements are on but some people are missing email or PIN, the Group is **
 
 **Group Participant Code** is assigned by CheckStation and is unique inside that Group. Use it on the kiosk when you identify by code.
 
-**Group PIN** is a 4–12 character alphanumeric attendance code for that Group. It is a low-security check-in code, not a login password. Workspace managers can view assigned PINs. The live kiosk list does not expose PINs.
+**Group PIN** is a 4–12 character alphanumeric attendance code for that Group. It is a low-security check-in code, not a login password. Managers can set, change, or reset a Group PIN, but the product does not show an existing PIN after it is saved. The live kiosk list does not expose PINs.
 
 Member-profile PIN/identifier fields are leftover compatibility fields. Do not treat them as the current way to identify people. Use Group participation PIN and Group Participant Code.
 
-For Structured Groups, a **Class PIN** is separate from the participant PIN. It is used when **Require PIN for classes** is on.
+For Structured Groups, a **Class PIN** is separate from the participant PIN. It is used when **Require PIN for classes** is on. Managers can set, change, or reset a Class PIN, but cannot view the saved value afterward. A correct Class PIN unlocks the Structured Class kiosk step only; it does not grant a Staff account access to Groups they are not assigned to.
 
 ## 17. Email requirements
 
@@ -282,8 +282,10 @@ Kiosk Card and Input templates are **not** plan-gated. Structured Groups, Classe
 Staff may, in assigned Groups:
 
 - work with participants
-- launch and exit the kiosk
+- launch and exit the kiosk for those Groups
 - view and export History / Attendance Reports for those Groups (export still requires a plan that includes exports)
+
+Entering a correct Class PIN on a Structured kiosk does not bypass Staff Group assignment. Staff still cannot open unassigned Groups.
 
 Staff cannot:
 

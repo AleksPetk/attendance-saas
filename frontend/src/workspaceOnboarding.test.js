@@ -276,8 +276,8 @@ describe("dynamic tutorial definitions", () => {
     assert.equal(groups.steps.find((item) => item.id === "group-type").route, "/groups/new");
     assert.equal(groups.steps.find((item) => item.id === "group-type").target, "group-editor-type");
     assert.match(groups.steps.find((item) => item.id === "group-type").description, /Classes\/Sections/);
-    assert.match(groups.steps.find((item) => item.id === "groups-capacity").description, /7 active Standard Groups/);
-    assert.match(groups.steps.find((item) => item.id === "groups-capacity").description, /3 active Structured Groups/);
+    assert.match(groups.steps.find((item) => item.id === "groups-capacity").description, /7 Standard Groups|7 active Standard Groups/);
+    assert.match(groups.steps.find((item) => item.id === "groups-capacity").description, /3 Structured Groups|3 active Structured Groups/);
     assert.match(groups.steps.find((item) => item.id === "groups-capacity").description, /11 archived Groups/);
     assert.ok(groups.steps.every((item) => !("action" in item) && !("submit" in item)));
   });

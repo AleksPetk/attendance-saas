@@ -14,9 +14,13 @@ import section3IpadJa from "./assets/how-it-works/section3-ipad-ja-960.webp";
 import section3Iphone from "./assets/how-it-works/section3-iphone-675.webp";
 import section3IphoneJa from "./assets/how-it-works/section3-iphone-ja-675.webp";
 import section4Admin from "./assets/how-it-works/section4-admin-1200.webp";
+import section4AdminJa from "./assets/how-it-works/section4-admin-ja-1200.webp";
 import section4Teacher from "./assets/how-it-works/section4-teacher-1200.webp";
+import section4TeacherJa from "./assets/how-it-works/section4-teacher-ja-1200.webp";
 import section4Manager from "./assets/how-it-works/section4-manager-1200.webp";
+import section4ManagerJa from "./assets/how-it-works/section4-manager-ja-1200.webp";
 import section4Reception from "./assets/how-it-works/section4-reception-1200.webp";
+import section4ReceptionJa from "./assets/how-it-works/section4-reception-ja-1200.webp";
 import section5EverythingConnects from "./assets/how-it-works/section5-everything-connects-1200.webp";
 import {
   HOW_IT_WORKS_SLIDESHOW_INTERVAL_MS,
@@ -87,6 +91,13 @@ const SECTION_FOUR_SRCS = [
   section4Reception,
 ];
 
+const SECTION_FOUR_JA_SRCS = [
+  section4AdminJa,
+  section4TeacherJa,
+  section4ManagerJa,
+  section4ReceptionJa,
+];
+
 const SECTION_FIVE_ARTWORK = {
   width: 1200,
   height: 900,
@@ -116,9 +127,10 @@ function StaffWorkspaceSlideshow() {
   );
   const isJa = locale === "ja";
   const staffSlides = t("howItWorks.staffSlides");
+  const slideSources = isJa ? SECTION_FOUR_JA_SRCS : SECTION_FOUR_SRCS;
   const slides = (Array.isArray(staffSlides) ? staffSlides : []).map((slide, index) => ({
     ...slide,
-    src: SECTION_FOUR_SRCS[index],
+    src: slideSources[index],
   }));
 
   useEffect(() => {
@@ -150,7 +162,6 @@ function StaffWorkspaceSlideshow() {
   }, []);
 
   useEffect(() => {
-    if (isJa) return undefined;
     if (!shouldRunSlideshow({ inViewport, interacting, reducedMotion, pageVisible })) {
       return undefined;
     }
@@ -163,7 +174,6 @@ function StaffWorkspaceSlideshow() {
     activeSlide,
     inViewport,
     interacting,
-    isJa,
     pageVisible,
     reducedMotion,
     slides.length,
@@ -198,70 +208,52 @@ function StaffWorkspaceSlideshow() {
     >
       <div className="how-staff-slideshow-frame">
         <div className="how-staff-slides">
-          {isJa ? (
-            <figure className="how-staff-slide is-active">
-              <LocalizedPromoImage
-                as="div"
-                aspectRatio="16 / 9"
-                width={1200}
-                height={675}
-                alt={t("imagePlaceholder")}
+          {slides.map((slide, index) => (
+            <figure
+              key={slide.role}
+              className={`how-staff-slide${index === activeSlide ? " is-active" : ""}`}
+              aria-hidden={index !== activeSlide}
+            >
+              <img
+                src={slide.src}
+                alt={index === activeSlide ? slide.alt : ""}
+                width="1200"
+                height="675"
+                loading={index === 0 ? "eager" : "lazy"}
+                fetchPriority={index === 0 ? "high" : "auto"}
               />
             </figure>
-          ) : (
-            slides.map((slide, index) => (
-              <figure
-                key={slide.role}
-                className={`how-staff-slide${index === activeSlide ? " is-active" : ""}`}
-                aria-hidden={index !== activeSlide}
-              >
-                <img
-                  src={slide.src}
-                  alt={index === activeSlide ? slide.alt : ""}
-                  width="1200"
-                  height="675"
-                  loading={index === 0 ? "eager" : "lazy"}
-                  fetchPriority={index === 0 ? "high" : "auto"}
-                />
-              </figure>
-            ))
-          )}
-        </div>
-        {!isJa ? (
-          <>
-            <button
-              type="button"
-              className="how-staff-slide-arrow is-previous"
-              onClick={() => navigate(-1)}
-              aria-label={t("howItWorks.staffPrevAria")}
-            >
-              ‹
-            </button>
-            <button
-              type="button"
-              className="how-staff-slide-arrow is-next"
-              onClick={() => navigate(1)}
-              aria-label={t("howItWorks.staffNextAria")}
-            >
-              ›
-            </button>
-          </>
-        ) : null}
-      </div>
-      {!isJa ? (
-        <div className="how-staff-slide-dots" role="group" aria-label={t("howItWorks.staffDotsAria")}>
-          {slides.map((slide, index) => (
-            <button
-              key={slide.role}
-              type="button"
-              className={index === activeSlide ? "is-active" : ""}
-              onClick={() => selectSlide(index)}
-              aria-label={t("howItWorks.staffShowViewAria", { role: slide.role })}
-              aria-current={index === activeSlide ? "true" : undefined}
-            />
           ))}
         </div>
-      ) : null}
+        <button
+          type="button"
+          className="how-staff-slide-arrow is-previous"
+          onClick={() => navigate(-1)}
+          aria-label={t("howItWorks.staffPrevAria")}
+        >
+          ‹
+        </button>
+        <button
+          type="button"
+          className="how-staff-slide-arrow is-next"
+          onClick={() => navigate(1)}
+          aria-label={t("howItWorks.staffNextAria")}
+        >
+          ›
+        </button>
+      </div>
+      <div className="how-staff-slide-dots" role="group" aria-label={t("howItWorks.staffDotsAria")}>
+        {slides.map((slide, index) => (
+          <button
+            key={slide.role}
+            type="button"
+            className={index === activeSlide ? "is-active" : ""}
+            onClick={() => selectSlide(index)}
+            aria-label={t("howItWorks.staffShowViewAria", { role: slide.role })}
+            aria-current={index === activeSlide ? "true" : undefined}
+          />
+        ))}
+      </div>
     </div>
   );
 }

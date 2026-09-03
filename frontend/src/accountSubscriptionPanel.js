@@ -8,6 +8,9 @@ import {
   scheduledChangeSummary,
   statusLabelForBilling,
 } from "./accountPanels.js";
+import { formatDate, formatDateTime } from "./i18n/format.js";
+import i18n from "./i18n/index.js";
+import { translatePlanName } from "./i18n/plans.js";
 import {
   catalogPromotion,
   promotionCheckoutWarning,
@@ -34,30 +37,27 @@ function actionErrorMessage(error) {
   if (!error) return "";
   if (typeof error === "string") return error;
   const data = error.data;
-  if (!data) return error.message || "Something went wrong.";
+  if (!data) return error.message || i18n.t("errors:generic");
   if (typeof data.detail === "string") return data.detail;
-  return "Something went wrong.";
+  return i18n.t("errors:generic");
 }
 
 function formatWhen(iso) {
   if (!iso) return null;
-  try {
-    return new Date(iso).toLocaleString(undefined, {
-      dateStyle: "medium",
-      timeStyle: "short",
-    });
-  } catch {
-    return iso;
-  }
+  return formatDateTime(iso, i18n.language) || iso;
 }
 
 function formatWhenDate(iso) {
   if (!iso) return null;
-  try {
-    return new Date(iso).toLocaleDateString(undefined, { dateStyle: "medium" });
-  } catch {
-    return iso;
-  }
+  return formatDate(iso, i18n.language) || iso;
+}
+
+function translatePlan(billing, planKey, fallback = "") {
+  const catalogFallback =
+    planKey === "basic"
+      ? billing?.catalog?.basic?.display_name
+      : billing?.catalog?.plans?.[planKey]?.display_name;
+  return translatePlanName((key, opts) => i18n.t(key, opts), planKey, fallback || catalogFallback || planKey);
 }
 
 function PanelBlock({ title, description, children }) {
@@ -113,12 +113,12 @@ function PlanOptionCard({
       { className: "account-plan-option-header" },
       createElement("h4", null, title),
       isCurrent
-        ? createElement("span", { className: "account-plan-option-badge" }, "Current plan")
+        ? createElement("span", { className: "account-plan-option-badge" }, i18n.t("billing:currentPlan.badge"))
         : isScheduled
           ? createElement(
               "span",
               { className: "account-plan-option-badge account-plan-option-badge-scheduled" },
-              scheduledLabel || "Scheduled",
+              scheduledLabel || i18n.t("billing:currentPlan.scheduled"),
             )
           : recommended
             ? createElement(
@@ -127,7 +127,7 @@ function PlanOptionCard({
                   className:
                     "account-plan-option-badge account-plan-option-badge-recommended",
                 },
-                "Recommended",
+                i18n.t("billing:currentPlan.recommended"),
               )
             : null,
     ),
@@ -141,7 +141,7 @@ function PlanOptionCard({
       ? createElement(
           "p",
           { className: "account-plan-option-list-price" },
-          `Normally ${listPriceLabel}`,
+          i18n.t("billing:currentPlan.normally", { price: listPriceLabel }),
         )
       : null,
     priceNote
@@ -190,10 +190,11 @@ export function AccountSubscriptionPanel({
   const entitlements = entitlementsFromSession(session);
   const sessionPlanKey = entitlements?.plan?.key || null;
   const planKey = effectivePlanKey(billing, sessionPlanKey);
-  const planName =
-    entitlements?.plan?.display_name ||
-    billing?.effective_plan?.display_name ||
-    planDisplayName(billing, planKey);
+  const planName = translatePlan(
+    billing,
+    planKey,
+    entitlements?.plan?.display_name || billing?.effective_plan?.display_name,
+  );
   const currentInterval = effectiveBillingInterval(billing);
   const usageRows = subscriptionUsageRows(entitlements);
   const actions = billing?.actions || {};
@@ -329,7 +330,7 @@ export function AccountSubscriptionPanel({
         id: "account-schedule-change-confirmation",
         className: "account-schedule-change-preview",
         role: "region",
-        "aria-label": "Plan change confirmation",
+        "aria-label": i18n.t("billing:scheduledChange.scheduleAria"),
       },
       createElement("h4", { className: "account-schedule-change-title" }, copy.title),
       createElement("p", { className: "account-panel-note" }, copy.lead),
@@ -349,7 +350,7 @@ export function AccountSubscriptionPanel({
             disabled: Boolean(busyAction),
             onClick: () => setConfirmScheduleChange(null),
           },
-          "Cancel",
+          i18n.t("common:cancel"),
         ),
         createElement(
           "button",
@@ -370,7 +371,9 @@ export function AccountSubscriptionPanel({
               }
             },
           },
-          busyAction === "schedule-change" ? "Scheduling…" : "Confirm change",
+          busyAction === "schedule-change"
+            ? i18n.t("billing:upgrade.scheduling")
+            : i18n.t("billing:upgrade.confirmChange"),
         ),
       ),
     );
@@ -391,9 +394,9 @@ export function AccountSubscriptionPanel({
           className: "account-upgrade-preview",
           role: "status",
           "aria-live": "polite",
-          "aria-label": "Upgrade confirmation",
+          "aria-label": i18n.t("billing:scheduledChange.upgradeAria"),
         },
-        createElement("p", { className: "account-panel-note" }, "Loading upgrade preview…"),
+        createElement("p", { className: "account-panel-note" }, i18n.t("billing:upgrade.previewLoading")),
       );
     }
     if (upgradeError && !upgradePreview) {
@@ -404,7 +407,7 @@ export function AccountSubscriptionPanel({
           id: "account-upgrade-confirmation",
           className: "account-upgrade-preview",
           role: "alert",
-          "aria-label": "Upgrade confirmation",
+          "aria-label": i18n.t("billing:scheduledChange.upgradeAria"),
         },
         createElement(
           "p",
@@ -421,23 +424,26 @@ export function AccountSubscriptionPanel({
         id: "account-upgrade-confirmation",
         className: "account-upgrade-preview",
         role: "region",
-        "aria-label": "Upgrade confirmation",
+        "aria-label": i18n.t("billing:scheduledChange.upgradeAria"),
       },
       createElement(
         "p",
         null,
-        `Upgrade to Business today for ${upgradePreview.amount_due_formatted}.`,
+        i18n.t("billing:upgrade.upgradeToday", { amount: upgradePreview.amount_due_formatted }),
       ),
       createElement(
         "p",
         { className: "account-panel-note" },
-        `Business renews at ${upgradePreview.recurring_formatted}/${
-          upgradePreview.recurring_interval === "yearly" ? "year" : "month"
-        }${
-          upgradePreview.next_renewal_at
-            ? ` on ${formatWhen(upgradePreview.next_renewal_at)}`
-            : ""
-        }.`,
+        i18n.t("billing:upgrade.renewsAt", {
+          amount: upgradePreview.recurring_formatted,
+          unit:
+            upgradePreview.recurring_interval === "yearly"
+              ? i18n.t("billing:interval.year")
+              : i18n.t("billing:interval.month"),
+          date: upgradePreview.next_renewal_at
+            ? i18n.t("billing:upgrade.onDate", { date: formatWhen(upgradePreview.next_renewal_at) })
+            : "",
+        }),
       ),
       upgradeError
         ? createElement(
@@ -460,7 +466,7 @@ export function AccountSubscriptionPanel({
               setUpgradeError("");
             },
           },
-          "Cancel",
+          i18n.t("common:cancel"),
         ),
         createElement(
           "button",
@@ -470,7 +476,9 @@ export function AccountSubscriptionPanel({
             disabled: Boolean(busyAction),
             onClick: handleConfirmUpgrade,
           },
-          busyAction === "upgrade" ? "Confirming…" : "Confirm upgrade",
+          busyAction === "upgrade"
+            ? i18n.t("billing:upgrade.confirming")
+            : i18n.t("billing:upgrade.confirmUpgrade"),
         ),
       ),
     );
@@ -495,20 +503,22 @@ export function AccountSubscriptionPanel({
         priceLabel: pricing.firstPeriodFormatted || pricing.listWithInterval,
         pricePeriodLabel: pricing.promotional
           ? option.interval === "yearly"
-            ? "first year"
-            : "first month"
-          : `per ${unit}`,
+            ? i18n.t("billing:currentPlan.firstYear")
+            : i18n.t("billing:currentPlan.firstMonth")
+          : option.interval === "yearly"
+            ? i18n.t("billing:currentPlan.perYear")
+            : i18n.t("billing:currentPlan.perMonth"),
         listPriceLabel: pricing.promotional ? pricing.listWithInterval : null,
         priceNote: pricing.label,
         renewsLabel:
           pricing.promotional && pricing.renewsAtWithInterval
-            ? `Then ${pricing.renewsAtWithInterval}`
+            ? i18n.t("billing:currentPlan.thenRenews", { price: pricing.renewsAtWithInterval })
             : null,
         isCurrent,
         isScheduled,
         scheduledLabel: scheduledSummary?.effectiveAt
-          ? `Changes on ${scheduledSummary.effectiveAt}`
-          : "Scheduled",
+          ? i18n.t("billing:scheduledChange.changesOn", { date: scheduledSummary.effectiveAt })
+          : i18n.t("billing:currentPlan.scheduled"),
         recommended: option.recommended && !isCurrent && !isScheduled,
         templateClass,
       },
@@ -602,7 +612,7 @@ export function AccountSubscriptionPanel({
           className: "account-upgrade-preview",
           role: "status",
         },
-        createElement("p", { className: "account-panel-note" }, "Scheduling downgrade…"),
+        createElement("p", { className: "account-panel-note" }, i18n.t("billing:downgrade.scheduling")),
       );
     }
     if (downgradeError && !confirmDowngrade) {
@@ -645,7 +655,7 @@ export function AccountSubscriptionPanel({
       createElement(
         "p",
         { className: "account-panel-note" },
-        "Records above Plus limits become plan-locked when Plus begins. Data is not deleted.",
+        i18n.t("billing:downgrade.lockNote"),
       ),
     );
   }
@@ -660,11 +670,11 @@ export function AccountSubscriptionPanel({
             className: "account-billing-banner account-billing-banner-confirming",
             role: "status",
           },
-          createElement("strong", null, "Confirming subscription…"),
+          createElement("strong", null, i18n.t("billing:confirmingCheckout.title")),
           createElement(
             "p",
             null,
-            "Checkout return is only a status check. Paid access appears after Stripe confirms the subscription.",
+            i18n.t("billing:confirmingCheckout.body"),
           ),
         )
       : null,
@@ -682,15 +692,15 @@ export function AccountSubscriptionPanel({
             className: "account-billing-banner",
             role: "status",
           },
-          createElement("strong", null, "7-day Business trial included"),
+          createElement("strong", null, i18n.t("billing:builtinTrial.title")),
           createElement(
             "p",
             null,
             billing.builtin_trial.ends_at
-              ? `This workspace already has Business until ${formatWhen(
-                  billing.builtin_trial.ends_at,
-                )}. No card is required for the trial. If you choose Plus or Business now, paid billing starts after that date.`
-              : "This workspace already has Business for 7 days. No card is required for the trial.",
+              ? i18n.t("billing:builtinTrial.withDate", {
+                  date: formatWhen(billing.builtin_trial.ends_at),
+                })
+              : i18n.t("billing:builtinTrial.generic"),
           ),
         )
       : null,
@@ -701,18 +711,20 @@ export function AccountSubscriptionPanel({
             className: "account-billing-banner account-billing-banner-warning",
             role: "alert",
           },
-          createElement("strong", null, "Payment problem"),
+          createElement("strong", null, i18n.t("billing:paymentIssue.title")),
           createElement(
             "p",
             null,
-            `Your current plan stays active until ${
-              formatWhen(billing.payment_issue.grace_deadline) || "the grace deadline"
-            }. Update your payment method in Billing to keep access.`,
+            i18n.t("billing:paymentIssue.graceSubscription", {
+              deadline:
+                formatWhen(billing.payment_issue.grace_deadline) ||
+                i18n.t("billing:paymentIssue.pending"),
+            }),
           ),
           createElement(
             NavLink,
             { to: "/account/billing", className: "btn-secondary btn-sm" },
-            "Open Billing",
+            i18n.t("billing:paymentIssue.openBilling"),
           ),
         )
       : null,
@@ -731,13 +743,13 @@ export function AccountSubscriptionPanel({
     createElement(
       PanelBlock,
       {
-        title: "Current plan",
-        description: "The subscription that is effective right now.",
+        title: i18n.t("billing:currentPlan.title"),
+        description: i18n.t("billing:currentPlan.description"),
       },
       createElement(
         "div",
         { className: "account-panel-stat" },
-        createElement("span", { className: "account-panel-stat-label" }, "Effective plan"),
+        createElement("span", { className: "account-panel-stat-label" }, i18n.t("billing:currentPlan.effectivePlan")),
         createElement(
           "strong",
           {
@@ -745,41 +757,43 @@ export function AccountSubscriptionPanel({
               ? "account-panel-stat-value"
               : "account-panel-stat-value account-panel-stat-muted",
           },
-          planName || "Unavailable",
+          planName || i18n.t("billing:currentPlan.unavailable"),
         ),
         createElement(
           "p",
           { className: "account-panel-note" },
           billingLoading
-            ? "Loading subscription state…"
+            ? i18n.t("billing:currentPlan.loading")
             : isApple
-              ? "This workspace is billed through Apple. Manage renewals in Apple subscriptions."
+              ? i18n.t("billing:currentPlan.appleNote")
               : billing?.builtin_trial?.active
-                ? "Business is included free until the trial ends. Choosing Plus or Business does not shorten that week."
-                : "Entitlements come from the workspace plan. Checkout changes apply after Stripe confirms.",
+                ? i18n.t("billing:currentPlan.trialNote")
+                : i18n.t("billing:currentPlan.stripeNote"),
         ),
       ),
       billing && !billingLoading
         ? MetaPairs([
-            ["Billing status", statusLabelForBilling(billing)],
+            [i18n.t("billing:currentPlan.billingStatus"), statusLabelForBilling(billing)],
             [
-              "Included Business trial ends",
+              i18n.t("billing:currentPlan.trialEnds"),
               billing.builtin_trial?.active && billing.builtin_trial?.ends_at
                 ? formatWhen(billing.builtin_trial.ends_at)
                 : null,
             ],
             [
-              "Interval",
+              i18n.t("billing:currentPlan.interval"),
               currentInterval
                 ? currentInterval === "yearly"
-                  ? "Yearly"
-                  : "Monthly"
+                  ? i18n.t("billing:interval.yearly")
+                  : i18n.t("billing:interval.monthly")
                 : null,
             ],
-            ["Price", recurringPrice],
-            ["Paid plan starts", billing.trial_ends_at ? formatWhen(billing.trial_ends_at) : null],
+            [i18n.t("billing:currentPlan.price"), recurringPrice],
+            [i18n.t("billing:currentPlan.paidPlanStarts"), billing.trial_ends_at ? formatWhen(billing.trial_ends_at) : null],
             [
-              billing.cancel_at_period_end ? "Ends" : "Renews",
+              billing.cancel_at_period_end
+                ? i18n.t("billing:currentPlan.ends")
+                : i18n.t("billing:currentPlan.renews"),
               billing.current_period_end && !billing.trial_ends_at
                 ? formatWhen(billing.current_period_end)
                 : null,
@@ -799,35 +813,37 @@ export function AccountSubscriptionPanel({
               null,
               billing?.scheduled_change?.kind === "downgrade" ||
                 billing?.pending_plan === "plus"
-                ? "Downgrade scheduled"
-                : "Scheduled change",
+                ? i18n.t("billing:scheduledChange.downgradeScheduled")
+                : i18n.t("billing:scheduledChange.title"),
             ),
             createElement(
               "p",
               { className: "account-scheduled-change-target" },
-              `${planDisplayName(
+              `${translatePlan(
                 billing,
                 billing.pending_plan || billing.subscribed_plan?.key,
               )} ${
                 (billing.pending_interval || billing.interval) === "yearly"
-                  ? "Yearly"
-                  : "Monthly"
+                  ? i18n.t("billing:interval.yearly")
+                  : i18n.t("billing:interval.monthly")
               }`,
             ),
             createElement(
               "p",
               null,
               scheduledSummary?.effectiveAt || scheduledDowngradeAt
-                ? `Begins ${scheduledSummary?.effectiveAt || scheduledDowngradeAt}`
-                : "Begins at period end",
+                ? i18n.t("billing:scheduledChange.begins", {
+                    date: scheduledSummary?.effectiveAt || scheduledDowngradeAt,
+                  })
+                : i18n.t("billing:scheduledChange.beginsPeriodEnd"),
             ),
             createElement(
               "p",
               { className: "account-panel-note" },
               scheduledSummary?.pendingLabel ||
                 (billing.pending_plan === "plus" && scheduledDowngradeAt
-                  ? `Business remains active until ${scheduledDowngradeAt}. Plus begins on ${scheduledDowngradeAt}.`
-                  : "Your current plan remains active until then."),
+                  ? i18n.t("billing:scheduledChange.plusDowngrade", { date: scheduledDowngradeAt })
+                  : i18n.t("billing:scheduledChange.currentRemains")),
             ),
             actions.can_cancel_scheduled_change
               ? createElement(
@@ -839,8 +855,8 @@ export function AccountSubscriptionPanel({
                     onClick: () => onCancelScheduledChange?.(),
                   },
                   busyAction === "cancel-schedule"
-                    ? "Canceling…"
-                    : "Cancel scheduled change",
+                    ? i18n.t("billing:scheduledChange.canceling")
+                    : i18n.t("billing:scheduledChange.cancelChange"),
                 )
               : actions.can_cancel_scheduled_downgrade
                 ? createElement(
@@ -852,8 +868,8 @@ export function AccountSubscriptionPanel({
                       onClick: () => onCancelScheduledDowngrade?.(),
                     },
                     busyAction === "cancel-downgrade"
-                      ? "Canceling…"
-                      : "Cancel downgrade",
+                      ? i18n.t("billing:scheduledChange.canceling")
+                      : i18n.t("billing:scheduledChange.cancelDowngrade"),
                   )
                 : null,
           )
@@ -862,13 +878,13 @@ export function AccountSubscriptionPanel({
         ? createElement(
             "div",
             { className: "account-scheduled-action", role: "status" },
-            createElement("strong", null, "Cancellation scheduled"),
+            createElement("strong", null, i18n.t("billing:cancellation.scheduled")),
             createElement(
               "p",
               null,
               scheduledCancelAt
-                ? `Your current plan remains active until ${scheduledCancelAt}. Basic begins after that date. Data is preserved.`
-                : "Your current plan remains active until the scheduled end date.",
+                ? i18n.t("billing:cancellation.activeUntilDate", { date: scheduledCancelAt })
+                : i18n.t("billing:cancellation.activeUntilGeneric"),
             ),
             actions.can_resume_subscription
               ? createElement(
@@ -879,7 +895,9 @@ export function AccountSubscriptionPanel({
                     disabled: Boolean(busyAction),
                     onClick: handleResume,
                   },
-                  busyAction === "resume" ? "Resuming…" : "Resume subscription",
+                  busyAction === "resume"
+                    ? i18n.t("billing:cancellation.resuming")
+                    : i18n.t("billing:cancellation.resume"),
                 )
               : null,
           )
@@ -890,30 +908,30 @@ export function AccountSubscriptionPanel({
     createElement(
       PanelBlock,
       {
-        title: highestPlan ? "Billing interval" : "Upgrade plan",
+        title: highestPlan ? i18n.t("billing:upgrade.billingIntervalTitle") : i18n.t("billing:upgrade.title"),
         description: highestPlan
-          ? "You're on our highest plan. Switch billing interval if you need to."
-          : "Upgrades, recommended offers, and billing interval changes.",
+          ? i18n.t("billing:upgrade.billingIntervalDescription")
+          : i18n.t("billing:upgrade.description"),
       },
       highestPlan
         ? createElement(
             "p",
             { className: "account-highest-plan-note", role: "status" },
-            "You're on our highest plan.",
+            i18n.t("billing:upgrade.highestPlan"),
           )
         : null,
       !stripeConfigured && !isApple
         ? createElement(
             "p",
             { className: "account-panel-note" },
-            "Stripe test billing is not configured yet. Plan prices stay visible; checkout stays unavailable until TEST credentials are supplied.",
+            i18n.t("billing:upgrade.stripeNotConfigured"),
           )
         : null,
       isApple
         ? createElement(
             "p",
             { className: "account-panel-note" },
-            "Apple-managed billing cannot use Stripe Checkout from these options.",
+            i18n.t("billing:upgrade.appleNote"),
           )
         : null,
       pricingCatalogResolved
@@ -946,7 +964,9 @@ export function AccountSubscriptionPanel({
             "div",
             {
               className: "account-plan-options account-plan-options-upgrade",
-              "aria-label": highestPlan ? "Billing interval options" : "Upgrade options",
+              "aria-label": highestPlan
+                ? i18n.t("billing:upgrade.billingIntervalAria")
+                : i18n.t("billing:upgrade.optionsAria"),
             },
             upgradeOptions.map((option) => renderUpgradeCard(option)),
           )
@@ -954,7 +974,7 @@ export function AccountSubscriptionPanel({
           ? createElement(
               "p",
               { className: "account-panel-note" },
-              "No upgrade options are available for this subscription right now.",
+              i18n.t("billing:upgrade.noOptions"),
             )
           : null,
       renderScheduleConfirmationArea(),
@@ -965,8 +985,8 @@ export function AccountSubscriptionPanel({
     createElement(
       PanelBlock,
       {
-        title: "Usage & limits",
-        description: "Capacity for your current effective plan.",
+        title: i18n.t("billing:usage.title"),
+        description: i18n.t("billing:usage.description"),
       },
       usageRows.length
         ? createElement(
@@ -1002,7 +1022,7 @@ export function AccountSubscriptionPanel({
         : createElement(
             "div",
             { className: "account-panel-empty" },
-            createElement("p", null, "Usage data is unavailable."),
+            createElement("p", null, i18n.t("billing:usage.unavailable")),
           ),
     ),
 
@@ -1011,8 +1031,8 @@ export function AccountSubscriptionPanel({
       ? createElement(
           PanelBlock,
           {
-            title: "Downgrade plan",
-            description: "Choose a lower plan if needed.",
+            title: i18n.t("billing:downgrade.title"),
+            description: i18n.t("billing:downgrade.description"),
           },
           createElement(
             "button",
@@ -1023,7 +1043,9 @@ export function AccountSubscriptionPanel({
               "aria-controls": "account-downgrade-options",
               onClick: () => setDowngradeExpanded((open) => !open),
             },
-            downgradeExpanded ? "Hide downgrade options ▴" : "Show downgrade options ▾",
+            downgradeExpanded
+              ? i18n.t("billing:downgrade.hideOptions")
+              : i18n.t("billing:downgrade.showOptions"),
           ),
           downgradeExpanded ||
           confirmDowngrade ||
@@ -1052,7 +1074,7 @@ export function AccountSubscriptionPanel({
                       key: option.id,
                       planKey: option.plan,
                       title: option.title,
-                      priceLabel: option.pricing?.firstPeriodWithInterval || "Free",
+                      priceLabel: option.pricing?.firstPeriodWithInterval || i18n.t("billing:downgrade.free"),
                       isCurrent: false,
                       recommended: false,
                       templateClass,
@@ -1093,8 +1115,8 @@ export function AccountSubscriptionPanel({
       ? createElement(
           PanelBlock,
           {
-            title: "Plan actions",
-            description: "Manage your subscription.",
+            title: i18n.t("billing:planActions.title"),
+            description: i18n.t("billing:planActions.description"),
           },
           actions.can_cancel && !billing?.cancel_at_period_end
             ? createElement(
@@ -1104,7 +1126,7 @@ export function AccountSubscriptionPanel({
                   ? createElement(
                       "p",
                       { className: "account-panel-note" },
-                      "Confirm moving to Basic in Downgrade plan above.",
+                      i18n.t("billing:downgrade.confirmInSection"),
                     )
                   : !confirmCancel
                     ? createElement(
@@ -1118,7 +1140,7 @@ export function AccountSubscriptionPanel({
                             setConfirmCancel(true);
                           },
                         },
-                        "Cancel subscription",
+                        i18n.t("billing:planActions.cancelSubscription"),
                       )
                     : createElement(CancellationConfirmPanel, {
                         billing,

@@ -1,13 +1,19 @@
 import { useState } from "react";
-import { api, errorMessage } from "./api.js";
+import { useTranslation } from "react-i18next";
+import { api } from "./api.js";
 import { EditableProfilePhoto, ErrorBanner, Field, PageHeader } from "./components.jsx";
+import { localizedErrorMessage } from "./i18n/errorMessages.js";
+import { usePageTitle } from "./i18n/usePageTitle.js";
 import { buildMemberFormData, emptyMemberValues } from "./memberForm.js";
 
 export default function MemberCreateScreen({ session, onNavigate }) {
+  const { t } = useTranslation(["members", "common", "errors"]);
   const [values, setValues] = useState(emptyMemberValues);
   const [photoPreview, setPhotoPreview] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+
+  usePageTitle("pageTitles.members", { ns: "workspace" });
 
   function update(field, value) {
     setValues((current) => ({ ...current, [field]: value }));
@@ -37,7 +43,7 @@ export default function MemberCreateScreen({ session, onNavigate }) {
       const result = await api.createMember(session, buildMemberFormData(values));
       onNavigate({ name: "member-profile", memberId: result.data.id });
     } catch (saveError) {
-      setError(errorMessage(saveError));
+      setError(localizedErrorMessage(saveError, t));
     } finally {
       setSaving(false);
     }
@@ -46,11 +52,11 @@ export default function MemberCreateScreen({ session, onNavigate }) {
   return (
     <div className="page member-create-page">
       <PageHeader
-        title="Add Member"
-        description="Only name is required. A Member with just a name is valid."
+        title={t("create.title")}
+        description={t("create.description")}
         actions={
           <button type="button" className="btn-secondary" onClick={() => onNavigate({ name: "members" })}>
-            Cancel
+            {t("common:cancel")}
           </button>
         }
       />
@@ -72,7 +78,7 @@ export default function MemberCreateScreen({ session, onNavigate }) {
         </div>
 
         <div className="form-grid">
-          <Field label="Name" hint="Required">
+          <Field label={t("fields.name")} hint={t("fields.required")}>
             <input
               value={values.name}
               onChange={(event) => update("name", event.target.value)}
@@ -80,34 +86,34 @@ export default function MemberCreateScreen({ session, onNavigate }) {
               autoFocus
             />
           </Field>
-          <Field label="Email">
+          <Field label={t("fields.email")}>
             <input
               type="email"
               value={values.email}
               onChange={(event) => update("email", event.target.value)}
             />
           </Field>
-          <Field label="Date of birth">
+          <Field label={t("fields.dateOfBirth")}>
             <input
               type="date"
               value={values.date_of_birth}
               onChange={(event) => update("date_of_birth", event.target.value)}
             />
           </Field>
-          <Field label="Phone">
+          <Field label={t("fields.phone")}>
             <input
               value={values.phone}
               onChange={(event) => update("phone", event.target.value)}
             />
           </Field>
-          <Field label="Address" className="member-span-2">
+          <Field label={t("fields.address")} className="member-span-2">
             <input
               value={values.address}
               onChange={(event) => update("address", event.target.value)}
               maxLength={500}
             />
           </Field>
-          <Field label="Notes" className="member-span-2">
+          <Field label={t("fields.notes")} className="member-span-2">
             <textarea
               rows="3"
               value={values.notes}
@@ -120,7 +126,7 @@ export default function MemberCreateScreen({ session, onNavigate }) {
 
         <div className="form-actions">
           <button type="submit" className="btn-primary" disabled={saving}>
-            {saving ? "Creating…" : "Create Member"}
+            {saving ? t("create.creating") : t("create.submit")}
           </button>
         </div>
       </form>

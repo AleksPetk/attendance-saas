@@ -15,7 +15,8 @@ from accounts.customer_two_factor_models import OwnerTOTPDevice
 from accounts.google_oauth import GoogleOAuthResultCode
 from accounts.google_oauth_state import OWNER_GOOGLE_OAUTH_SESSION_KEY, load_google_oauth_state
 from accounts.owner_auth_provider_models import OwnerAuthProvider, OwnerAuthProviderLink
-from accounts.two_factor import TOTP_INTERVAL, decrypt_totp_secret
+from accounts.owner_two_factor import decrypt_owner_totp_secret
+from accounts.two_factor import TOTP_INTERVAL
 from billing.models import WorkspaceBuiltinTrial
 from organizations.models import Organization
 
@@ -184,7 +185,7 @@ class GoogleOAuthLoginFlowTests(TestCase):
         self.assertNotEqual(self.client.get("/api/workspace/").status_code, 200)
 
         device = OwnerTOTPDevice.objects.get(user=owner)
-        totp_secret = decrypt_totp_secret(device.secret_encrypted)
+        totp_secret = decrypt_owner_totp_secret(device.secret_encrypted)
         from accounts.two_factor import current_timestep
 
         step = current_timestep()

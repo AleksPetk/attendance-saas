@@ -72,22 +72,25 @@ class StandardGroupImportTests(TestCase):
             group=self.source,
             member=self.member_aleks,
             participation_email="aleks-fit@example.com",
-            participation_pin="1111",
         )
+        self.membership_aleks.set_participation_pin("1111")
+        self.membership_aleks.save(update_fields=["participation_pin_hash"])
         self.membership_nami = GroupMembership.objects.create(
             organization=self.organization,
             group=self.source,
             member=self.member_nami,
             participation_email="nami-fit@example.com",
-            participation_pin="2222",
         )
+        self.membership_nami.set_participation_pin("2222")
+        self.membership_nami.save(update_fields=["participation_pin_hash"])
         self.visitor = GroupOnlyParticipant.objects.create(
             organization=self.organization,
             group=self.source,
             name="Jimi",
             email="jimi@example.com",
-            participation_pin="3333",
         )
+        self.visitor.set_participation_pin("3333")
+        self.visitor.save(update_fields=["pin_hash"])
         ActionRecord.objects.create(
             organization=self.organization,
             group=self.source,
@@ -187,13 +190,17 @@ class StandardGroupImportTests(TestCase):
         self.assertNotEqual(dest_aleks.group_participant_code, source_code)
         self.assertTrue(dest_aleks.group_participant_code.startswith(f"G{self.destination.pk}-"))
         self.assertEqual(dest_aleks.participation_email, "aleks-fit@example.com")
-        self.assertEqual(dest_aleks.participation_pin, "1111")
+        self.assertTrue(dest_aleks.check_effective_pin("1111"))
+        self.assertTrue(dest_aleks.has_participation_pin)
+        self.assertNotEqual(dest_aleks.participation_pin_hash, "1111")
         self.assertNotEqual(dest_aleks.pk, self.membership_aleks.pk)
 
         visitor = GroupOnlyParticipant.objects.get(group=self.destination, section=section)
         self.assertEqual(visitor.name, "Jimi")
         self.assertEqual(visitor.email, "jimi@example.com")
-        self.assertEqual(visitor.participation_pin, "3333")
+        self.assertTrue(visitor.check_pin("3333"))
+        self.assertTrue(visitor.has_pin)
+        self.assertNotEqual(visitor.pin_hash, "3333")
         self.assertNotEqual(visitor.pk, self.visitor.pk)
         self.assertNotEqual(visitor.group_participant_code, self.visitor.group_participant_code)
 
@@ -232,12 +239,13 @@ class StandardGroupImportTests(TestCase):
             name="Clara",
             email="clara@import.example",
         )
-        GroupMembership.objects.create(
+        clara_membership = GroupMembership.objects.create(
             organization=self.organization,
             group=self.source,
             member=clara,
-            participation_pin="4444",
         )
+        clara_membership.set_participation_pin("4444")
+        clara_membership.save(update_fields=["participation_pin_hash"])
         self.assertFalse(
             GroupMembership.objects.filter(
                 group=self.destination,
@@ -250,10 +258,11 @@ class StandardGroupImportTests(TestCase):
             member=self.member_aleks,
             section_id=section_id,
         )
-        dest_aleks.participation_pin = "9999"
-        dest_aleks.save()
+        dest_aleks.set_participation_pin("9999")
+        dest_aleks.save(update_fields=["participation_pin_hash"])
         self.membership_aleks.refresh_from_db()
-        self.assertEqual(self.membership_aleks.participation_pin, "1111")
+        self.assertTrue(self.membership_aleks.check_effective_pin("1111"))
+        self.assertFalse(self.membership_aleks.check_effective_pin("9999"))
 
         self.source.name = "Fitness Renamed"
         self.source.save()
@@ -266,19 +275,21 @@ class StandardGroupImportTests(TestCase):
             name="Old",
             email="old@import.example",
         )
-        GroupMembership.objects.create(
+        archived_membership = GroupMembership.objects.create(
             organization=self.organization,
             group=self.source,
             member=archived_member,
-            participation_pin="5555",
         )
+        archived_membership.set_participation_pin("5555")
+        archived_membership.save(update_fields=["participation_pin_hash"])
         archived_member.archive()
         inactive_visitor = GroupOnlyParticipant.objects.create(
             organization=self.organization,
             group=self.source,
             name="Gone",
-            participation_pin="6666",
         )
+        inactive_visitor.set_participation_pin("6666")
+        inactive_visitor.save(update_fields=["pin_hash"])
         inactive_visitor.archive()
 
         response = self.client.post(
@@ -356,13 +367,14 @@ class StandardGroupImportTests(TestCase):
             group=self.destination,
             name="Already Here",
         )
-        GroupMembership.objects.create(
+        existing = GroupMembership.objects.create(
             organization=self.organization,
             group=self.destination,
             member=self.member_aleks,
             section=class_a,
-            participation_pin="1111",
         )
+        existing.set_participation_pin("1111")
+        existing.save(update_fields=["participation_pin_hash"])
         response = self.client.post(
             self._import_url(),
             {"source_group_id": self.source.pk, "name": "Fitness Copy"},

@@ -4,6 +4,7 @@ from django.conf import settings
 from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_encode
 
+from accounts.language import normalize_language
 from accounts.tokens import (
     backup_email_verification_token_generator,
     email_verification_token_generator,
@@ -23,6 +24,11 @@ def _uid(user):
     return urlsafe_base64_encode(force_bytes(user.pk))
 
 
+def _email_language(user, language=None):
+    value = language if language is not None else getattr(user, "preferred_language", None)
+    return normalize_language(value)
+
+
 def verification_url(user):
     token = email_verification_token_generator.make_token(user)
     return frontend_url("verify-email", _uid(user), token)
@@ -33,50 +39,102 @@ def password_reset_url(user):
     return frontend_url("reset-password", _uid(user), token)
 
 
-def send_verification_email(user):
+def send_verification_email(user, *, language=None):
     name = product_name()
     url = verification_url(user)
-    html_body, text_body = render_branded_email(
-        heading=f"Verify your {name} email",
-        intro=(
+    resolved_language = _email_language(user, language)
+    expiry_hours = _hours(getattr(settings, "EMAIL_VERIFICATION_TIMEOUT", 86400))
+
+    if resolved_language == "ja":
+        subject = "メールアドレスを確認してください"
+        heading = subject
+        intro = (
+            f"{name}へのご登録ありがとうございます。"
+            "以下のボタンからメールアドレスを確認すると、"
+            "ワークスペースをご利用いただけます。"
+        )
+        action_label = "メールアドレスを確認"
+        security_note = "このメールに心当たりがない場合は、そのまま破棄してください。"
+        expiry_text = f"このリンクの有効期限は{expiry_hours}時間です。"
+        action_help_text = (
+            "ボタンが機能しない場合は、以下のURLをブラウザに貼り付けてください。"
+        )
+    else:
+        subject = f"Verify your {name} email"
+        heading = subject
+        intro = (
             f"Thanks for creating a {name} account. Confirm this email "
             "address so you can sign in and use your workspace."
-        ),
-        action_label="Verify email",
+        )
+        action_label = "Verify email"
+        security_note = f"If you did not create a {name} account, you can ignore this email."
+        expiry_text = ""
+        action_help_text = ""
+
+    html_body, text_body = render_branded_email(
+        heading=heading,
+        intro=intro,
+        action_label=action_label,
         action_url=url,
-        security_note=(
-            f"If you did not create a {name} account, you can ignore this email."
-        ),
-        expiry_hours=_hours(getattr(settings, "EMAIL_VERIFICATION_TIMEOUT", 86400)),
+        security_note=security_note,
+        expiry_hours=expiry_hours,
+        language=resolved_language,
+        expiry_text=expiry_text,
+        action_help_text=action_help_text,
     )
     send_transactional_email(
         to_email=user.email,
-        subject=f"Verify your {name} email",
+        subject=subject,
         html_body=html_body,
         text_body=text_body,
     )
 
 
-def send_password_reset_email(user):
+def send_password_reset_email(user, *, language=None):
     name = product_name()
     url = password_reset_url(user)
-    html_body, text_body = render_branded_email(
-        heading=f"Reset your {name} password",
-        intro=(
+    resolved_language = _email_language(user, language)
+    expiry_hours = _hours(getattr(settings, "PASSWORD_RESET_TIMEOUT", 86400))
+
+    if resolved_language == "ja":
+        subject = "パスワードを再設定"
+        heading = subject
+        intro = f"{name}アカウントのパスワード再設定リクエストを受け付けました。"
+        action_label = "パスワードを再設定"
+        security_note = "この操作に心当たりがない場合は、このメールを無視してください。"
+        expiry_text = "このリンクには有効期限があります。"
+        action_help_text = (
+            "ボタンが機能しない場合は、以下のURLをブラウザに貼り付けてください。"
+        )
+    else:
+        subject = f"Reset your {name} password"
+        heading = subject
+        intro = (
             f"We received a request to reset the password for this {name} "
             "account. Choose a new password using the button below."
-        ),
-        action_label="Reset password",
-        action_url=url,
-        security_note=(
+        )
+        action_label = "Reset password"
+        security_note = (
             "If you did not request a password reset, you can ignore this email. "
             "Your password will stay the same."
-        ),
-        expiry_hours=_hours(getattr(settings, "PASSWORD_RESET_TIMEOUT", 86400)),
+        )
+        expiry_text = ""
+        action_help_text = ""
+
+    html_body, text_body = render_branded_email(
+        heading=heading,
+        intro=intro,
+        action_label=action_label,
+        action_url=url,
+        security_note=security_note,
+        expiry_hours=expiry_hours,
+        language=resolved_language,
+        expiry_text=expiry_text,
+        action_help_text=action_help_text,
     )
     send_transactional_email(
         to_email=user.email,
-        subject=f"Reset your {name} password",
+        subject=subject,
         html_body=html_body,
         text_body=text_body,
     )
@@ -92,79 +150,153 @@ def primary_email_change_url(user):
     return frontend_url("verify-primary-email", _uid(user), token)
 
 
-def send_backup_email_verification(user):
+def send_backup_email_verification(user, *, language=None):
     pending = user.pending_backup_email
     if not pending:
         raise ValueError("No pending backup email to verify.")
     name = product_name()
     url = backup_email_verification_url(user)
-    html_body, text_body = render_branded_email(
-        heading=f"Verify your {name} backup email",
-        intro=(
+    resolved_language = _email_language(user, language)
+    expiry_hours = _hours(getattr(settings, "EMAIL_VERIFICATION_TIMEOUT", 86400))
+
+    if resolved_language == "ja":
+        subject = f"{name} バックアップメールを確認"
+        heading = subject
+        intro = (
+            f"{name} オーナーアカウントのバックアップメールを追加または更新する"
+            "リクエストを受け付けました。以下のボタンでこのアドレスを確認してください。"
+        )
+        action_label = "バックアップメールを確認"
+        security_note = "このバックアップメール変更に心当たりがない場合は、このメールを無視してください。"
+        expiry_text = f"このリンクの有効期限は{expiry_hours}時間です。"
+        action_help_text = "ボタンが機能しない場合は、以下のURLをブラウザに貼り付けてください。"
+    else:
+        subject = f"Verify your {name} backup email"
+        heading = subject
+        intro = (
             f"You asked to add or update the backup email for your {name} "
             "owner account. Confirm this address using the button below."
-        ),
-        action_label="Verify backup email",
-        action_url=url,
-        security_note=(
+        )
+        action_label = "Verify backup email"
+        security_note = (
             "If you did not request this backup email change, you can ignore this email."
-        ),
-        expiry_hours=_hours(getattr(settings, "EMAIL_VERIFICATION_TIMEOUT", 86400)),
+        )
+        expiry_text = ""
+        action_help_text = ""
+
+    html_body, text_body = render_branded_email(
+        heading=heading,
+        intro=intro,
+        action_label=action_label,
+        action_url=url,
+        security_note=security_note,
+        expiry_hours=expiry_hours,
+        language=resolved_language,
+        expiry_text=expiry_text,
+        action_help_text=action_help_text,
     )
     send_transactional_email(
         to_email=pending,
-        subject=f"Verify your {name} backup email",
+        subject=subject,
         html_body=html_body,
         text_body=text_body,
     )
 
 
-def send_primary_email_change_verification(user):
+def send_primary_email_change_verification(user, *, language=None):
     pending = user.pending_primary_email
     if not pending:
         raise ValueError("No pending primary email change.")
     name = product_name()
     url = primary_email_change_url(user)
-    html_body, text_body = render_branded_email(
-        heading=f"Confirm your new {name} login email",
-        intro=(
+    resolved_language = _email_language(user, language)
+    expiry_hours = _hours(getattr(settings, "EMAIL_VERIFICATION_TIMEOUT", 86400))
+
+    if resolved_language == "ja":
+        subject = f"新しい {name} ログインメールを確認"
+        heading = subject
+        intro = (
+            "このメールアドレスを "
+            f"{name} オーナーアカウントのログインメールとして使用するリクエストを"
+            "受け付けました。以下のボタンで変更を確認してください。"
+        )
+        action_label = "ログインメールを確認"
+        security_note = "このログインメール変更に心当たりがない場合は、このメールを無視してください。"
+        expiry_text = f"このリンクの有効期限は{expiry_hours}時間です。"
+        action_help_text = "ボタンが機能しない場合は、以下のURLをブラウザに貼り付けてください。"
+    else:
+        subject = f"Confirm your new {name} login email"
+        heading = subject
+        intro = (
             "You requested to use this email address as the login email for your "
             f"{name} owner account. Confirm the change using the button below."
-        ),
-        action_label="Confirm login email",
-        action_url=url,
-        security_note=(
+        )
+        action_label = "Confirm login email"
+        security_note = (
             "If you did not request this login email change, you can ignore this email."
-        ),
-        expiry_hours=_hours(getattr(settings, "EMAIL_VERIFICATION_TIMEOUT", 86400)),
+        )
+        expiry_text = ""
+        action_help_text = ""
+
+    html_body, text_body = render_branded_email(
+        heading=heading,
+        intro=intro,
+        action_label=action_label,
+        action_url=url,
+        security_note=security_note,
+        expiry_hours=expiry_hours,
+        language=resolved_language,
+        expiry_text=expiry_text,
+        action_help_text=action_help_text,
     )
     send_transactional_email(
         to_email=pending,
-        subject=f"Confirm your new {name} login email",
+        subject=subject,
         html_body=html_body,
         text_body=text_body,
     )
 
 
-def send_primary_email_changed_notice(*, old_email):
+def send_primary_email_changed_notice(*, old_email, language=None):
     if not old_email:
         return
     name = product_name()
-    html_body, text_body = render_branded_email(
-        heading=f"Your {name} login email was changed",
-        intro=(
+    resolved_language = normalize_language(language)
+
+    if resolved_language == "ja":
+        subject = f"{name} のログインメールが変更されました"
+        heading = subject
+        intro = (
+            f"{name} オーナーアカウントのログインメールが変更されました。"
+            "ご自身による変更であれば、追加の操作は不要です。"
+        )
+        action_label = f"{name} にサインイン"
+        security_note = (
+            f"ログインメールを変更していない場合は、すぐに {name} サポートに連絡してください。"
+        )
+    else:
+        subject = f"Your {name} login email was changed"
+        heading = subject
+        intro = (
             f"The login email for your {name} owner account was changed. "
             "If you made this change, no further action is needed."
-        ),
-        action_label=f"Sign in to {name}",
-        action_url=frontend_url("login"),
-        security_note=(
+        )
+        action_label = f"Sign in to {name}"
+        security_note = (
             f"If you did not change your login email, contact {name} support immediately."
-        ),
+        )
+
+    html_body, text_body = render_branded_email(
+        heading=heading,
+        intro=intro,
+        action_label=action_label,
+        action_url=frontend_url("login"),
+        security_note=security_note,
+        language=resolved_language,
     )
     send_transactional_email(
         to_email=old_email,
-        subject=f"Your {name} login email was changed",
+        subject=subject,
         html_body=html_body,
         text_body=text_body,
     )

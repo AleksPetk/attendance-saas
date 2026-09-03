@@ -1,4 +1,32 @@
-const API_BASE_URL = import.meta.env?.VITE_API_BASE_URL || "http://localhost:8000";
+function resolveApiBaseUrl() {
+  const configured = import.meta.env?.VITE_API_BASE_URL;
+  const isProd = Boolean(import.meta.env?.PROD);
+  if (isProd) {
+    // Production: prefer same-origin relative "/api" when unset/empty.
+    // Explicit https://workspace.checkstation.app is also allowed (combined
+    // SPA on checkstation.app + workspace). Localhost is never allowed.
+    if (configured == null || String(configured).trim() === "" || String(configured).trim() === "/") {
+      return "";
+    }
+    const normalized = String(configured).trim().replace(/\/$/, "");
+    if (/^https?:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/i.test(normalized)) {
+      throw new Error(
+        "Production build refused VITE_API_BASE_URL pointing at localhost. "
+          + "Use an empty value for same-origin /api, or https://workspace.checkstation.app."
+      );
+    }
+    if (normalized === "same-origin") {
+      return "";
+    }
+    return normalized;
+  }
+  if (configured == null || String(configured).trim() === "") {
+    return "http://localhost:8000";
+  }
+  return String(configured).trim().replace(/\/$/, "");
+}
+
+const API_BASE_URL = resolveApiBaseUrl();
 
 function getCookie(name) {
   if (typeof document === "undefined") return "";
@@ -26,9 +54,10 @@ function shouldAttachCsrf(method) {
   return !["GET", "HEAD", "OPTIONS"].includes(m);
 }
 
-async function request(path, { method = "GET", json, formData, cache } = {}) {
+async function request(path, { method = "GET", json, formData, cache, credentials = "include" } = {}) {
   const headers = {};
   const m = method.toUpperCase();
+  const credentialMode = credentials === "omit" ? "omit" : "include";
 
   let body;
   if (formData) {
@@ -38,7 +67,8 @@ async function request(path, { method = "GET", json, formData, cache } = {}) {
     body = JSON.stringify(json);
   }
 
-  if (shouldAttachCsrf(m)) {
+  // Cookie CSRF only applies to credentialed same-site/workspace calls.
+  if (credentialMode === "include" && shouldAttachCsrf(m)) {
     const csrf = getCookie("checkstation_csrftoken");
     if (csrf) {
       headers["X-CSRFToken"] = csrf;
@@ -49,7 +79,7 @@ async function request(path, { method = "GET", json, formData, cache } = {}) {
     method: m,
     headers,
     body,
-    credentials: "include",
+    credentials: credentialMode,
     ...(cache ? { cache } : {}),
   });
   if (response.status === 204) {
@@ -118,6 +148,8 @@ export const api = {
   unlinkGoogle: (payload) => request("/api/auth/google/unlink/", { method: "POST", json: payload }),
   unlinkApple: (payload) => request("/api/auth/apple/unlink/", { method: "POST", json: payload }),
   account: () => request("/api/auth/account/"),
+  updatePreferredLanguage: (preferred_language) =>
+    request("/api/auth/account/", { method: "PATCH", json: { preferred_language } }),
   deleteAccount: (payload) => request("/api/auth/account/delete/", { method: "POST", json: payload }),
   requestBackupEmail: (payload) =>
     request("/api/auth/account/backup-email/", { method: "POST", json: payload }),
@@ -282,14 +314,8 @@ export const api = {
       method: "POST",
     }),
   getGroupKioskStart: (_auth, groupId) => request(`/api/groups/${groupId}/kiosk/`),
-  getGroupKioskClassPeople: (_auth, groupId, classId, params = {}) => {
-    const query = new URLSearchParams();
-    if (params.pin) {
-      query.set("pin", params.pin);
-    }
-    const suffix = query.toString() ? `?${query.toString()}` : "";
-    return request(`/api/groups/${groupId}/kiosk/classes/${classId}/people/${suffix}`);
-  },
+  getGroupKioskClassPeople: (_auth, groupId, classId) =>
+    request(`/api/groups/${groupId}/kiosk/classes/${classId}/people/`),
   verifyGroupKioskClassPin: (_auth, groupId, classId, json) =>
     request(`/api/groups/${groupId}/kiosk/classes/${classId}/verify-pin/`, {
       method: "POST",
@@ -321,24 +347,34 @@ export const api = {
 
   /* Owner billing (Stripe Checkout / portal). Secrets never leave the server. */
   getBilling: () => request("/api/billing/"),
-  getBillingCatalog: () => request("/api/billing/catalog/"),
-  getContactCategories: () => request("/api/contact/categories/"),
+  getBillingCatalog: () => request("/api/billing/catalog/", { credentials: "omit" }),
+  getContactCategories: () => request("/api/contact/categories/", { credentials: "omit" }),
   getContactSuggestions: (category, subcategory) =>
     request(
       `/api/contact/suggestions/?category=${encodeURIComponent(category)}&subcategory=${encodeURIComponent(subcategory)}`,
+      { credentials: "omit" },
     ),
-  submitContact: (payload) => request("/api/contact/", { method: "POST", json: payload }),
+  submitContact: (payload) =>
+    request("/api/contact/", { method: "POST", json: payload, credentials: "omit" }),
 
-  /* Canonical published documentation/help content. */
-  listContentDocuments: () => request("/api/content/documents/"),
-  getContentDocument: (slug) =>
-    request(`/api/content/documents/${encodeURIComponent(slug)}/`),
-  listContentFaq: ({ category = "", q = "" } = {}) => {
+  /* Canonical published documentation/help content (public / anonymous). */
+  listContentDocuments: ({ lang } = {}) => {
+    const suffix = lang ? `?lang=${encodeURIComponent(lang)}` : "";
+    return request(`/api/content/documents/${suffix}`, { credentials: "omit" });
+  },
+  getContentDocument: (slug, { lang } = {}) => {
+    const suffix = lang ? `?lang=${encodeURIComponent(lang)}` : "";
+    return request(`/api/content/documents/${encodeURIComponent(slug)}/${suffix}`, {
+      credentials: "omit",
+    });
+  },
+  listContentFaq: ({ category = "", q = "", lang } = {}) => {
     const query = new URLSearchParams();
     if (category) query.set("category", category);
     if (q) query.set("q", q);
+    if (lang) query.set("lang", lang);
     const suffix = query.toString() ? `?${query.toString()}` : "";
-    return request(`/api/content/faq/${suffix}`);
+    return request(`/api/content/faq/${suffix}`, { credentials: "omit" });
   },
 
   startBillingCheckout: (json) =>

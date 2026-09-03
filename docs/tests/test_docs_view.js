@@ -4,31 +4,50 @@ import { test } from "node:test";
 import {
   groupDocuments,
   hrefForDocument,
+  localeFromPath,
   slugFromPath,
 } from "../static/docs-view.js";
 
 test("home paths map to the documentation document", () => {
   assert.equal(slugFromPath("/"), "documentation");
   assert.equal(slugFromPath("/documentation"), "documentation");
+  assert.equal(slugFromPath("/en/"), "documentation");
+  assert.equal(slugFromPath("/ja/"), "documentation");
+  assert.equal(slugFromPath("/en/documentation"), "documentation");
   assert.equal(slugFromPath("/privacy-policy"), "privacy-policy");
-  assert.equal(slugFromPath("/terms-of-use"), "terms-of-use");
-  assert.equal(slugFromPath("/getting-started"), "getting-started");
-  assert.equal(slugFromPath("/groups-members"), "groups-members");
-  assert.equal(slugFromPath("/kiosk-setup"), "kiosk-setup");
-  assert.equal(slugFromPath("/billing-plans"), "billing-plans");
-  assert.equal(slugFromPath("/faq"), "faq");
-  assert.equal(slugFromPath("/support"), "support");
+  assert.equal(slugFromPath("/en/privacy-policy"), "privacy-policy");
+  assert.equal(slugFromPath("/ja/terms-of-use"), "terms-of-use");
+  assert.equal(slugFromPath("/en/getting-started"), "getting-started");
+  assert.equal(slugFromPath("/ja/groups-members"), "groups-members");
+  assert.equal(slugFromPath("/en/kiosk-setup"), "kiosk-setup");
+  assert.equal(slugFromPath("/ja/billing-plans"), "billing-plans");
+  assert.equal(slugFromPath("/en/faq"), "faq");
+  assert.equal(slugFromPath("/ja/support"), "support");
 });
 
-test("home document links to Docs root, not an article path", () => {
-  assert.equal(hrefForDocument({ slug: "documentation", nav_group: "home" }), "/");
-  assert.equal(hrefForDocument({ slug: "getting-started" }), "/getting-started");
-  assert.equal(hrefForDocument({ slug: "groups-members" }), "/groups-members");
-  assert.equal(hrefForDocument({ slug: "kiosk-setup" }), "/kiosk-setup");
-  assert.equal(hrefForDocument({ slug: "billing-plans" }), "/billing-plans");
-  assert.equal(hrefForDocument({ slug: "faq" }), "/faq");
-  assert.equal(hrefForDocument({ slug: "support" }), "/support");
-  assert.equal(hrefForDocument({ slug: "privacy-policy" }), "/privacy-policy");
+test("localeFromPath reads locale prefixes", () => {
+  assert.equal(localeFromPath("/en/"), "en");
+  assert.equal(localeFromPath("/ja/getting-started"), "ja");
+  assert.equal(localeFromPath("/getting-started"), null);
+  assert.equal(localeFromPath("/"), null);
+});
+
+test("home document links include locale prefix", () => {
+  assert.equal(
+    hrefForDocument({ slug: "documentation", nav_group: "home" }, "en"),
+    "/en/",
+  );
+  assert.equal(
+    hrefForDocument({ slug: "documentation", nav_group: "home" }, "ja"),
+    "/ja/",
+  );
+  assert.equal(hrefForDocument({ slug: "getting-started" }, "en"), "/en/getting-started");
+  assert.equal(hrefForDocument({ slug: "groups-members" }, "ja"), "/ja/groups-members");
+  assert.equal(hrefForDocument({ slug: "kiosk-setup" }, "en"), "/en/kiosk-setup");
+  assert.equal(hrefForDocument({ slug: "billing-plans" }, "ja"), "/ja/billing-plans");
+  assert.equal(hrefForDocument({ slug: "faq" }, "en"), "/en/faq");
+  assert.equal(hrefForDocument({ slug: "support" }, "ja"), "/ja/support");
+  assert.equal(hrefForDocument({ slug: "privacy-policy" }, "en"), "/en/privacy-policy");
 });
 
 test("nav groups omit empty future sections", () => {

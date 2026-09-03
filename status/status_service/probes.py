@@ -20,14 +20,17 @@ class ProbeResult:
         self.description = description
 
 
-def _request(url, timeout, method="GET"):
+def _request(url, timeout, method="GET", headers=None):
+    request_headers = {
+        "Accept": "application/json, text/html;q=0.9,*/*;q=0.8",
+        "User-Agent": USER_AGENT,
+    }
+    if headers:
+        request_headers.update(headers)
     request = urllib.request.Request(
         url,
         method=method,
-        headers={
-            "Accept": "application/json, text/html;q=0.9,*/*;q=0.8",
-            "User-Agent": USER_AGENT,
-        },
+        headers=request_headers,
     )
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:
@@ -50,10 +53,10 @@ def _json_status(raw):
     return str(data.get("status") or "").strip().lower() or None
 
 
-def probe_django_health(url, timeout):
+def probe_django_health(url, timeout, headers=None):
     if not url:
         return ProbeResult(RESULT_UNCONFIGURED, "Not configured")
-    code, raw = _request(url, timeout)
+    code, raw = _request(url, timeout, headers=headers)
     if code is None:
         return ProbeResult(RESULT_FAILURE)
     payload_status = _json_status(raw)
@@ -123,10 +126,19 @@ class ProbeRunner:
         workspace = self.config["workspace_url"]
         docs = self.config["docs_url"]
 
+        probe_headers = {}
+        token = (self.config.get("status_probe_token") or "").strip()
+        if token:
+            probe_headers["X-Status-Probe-Token"] = token
+
         api_health = probe_django_health(f"{api}/api/health/", timeout)
         kiosk = probe_django_health(f"{api}/api/health/kiosk/", timeout)
-        email = probe_django_health(f"{api}/api/health/email/", timeout)
-        stripe = probe_django_health(f"{api}/api/health/stripe/", timeout)
+        email = probe_django_health(
+            f"{api}/api/health/email/", timeout, headers=probe_headers
+        )
+        stripe = probe_django_health(
+            f"{api}/api/health/stripe/", timeout, headers=probe_headers
+        )
         csrf = probe_csrf(f"{api}/api/auth/csrf/", timeout)
         auth = combine_auth_results(csrf, api_health)
 

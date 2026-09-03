@@ -86,6 +86,7 @@ class SmtpErrorClassificationTests(SimpleTestCase):
 
 
 @override_settings(
+    DEBUG=True,
     APP_SECRETS_ENCRYPTION_KEY="",
     SECRET_KEY="test-secret-key-for-smtp-modes",
 )
@@ -202,6 +203,7 @@ class CustomSMTPConnectionModeTests(TestCase):
 
 
 @override_settings(
+    DEBUG=True,
     APP_SECRETS_ENCRYPTION_KEY="",
     SECRET_KEY="test-secret-key-for-smtp-batch",
 )

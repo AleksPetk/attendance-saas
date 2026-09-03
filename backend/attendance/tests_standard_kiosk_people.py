@@ -60,14 +60,16 @@ class StandardKioskPeopleRegressionTests(TestCase):
             organization=self.organization,
             group=self.group,
             member=self.member_a,
-            participation_pin="1111",
         )
+        self.membership_a.set_participation_pin("1111")
+        self.membership_a.save(update_fields=["participation_pin_hash"])
         self.membership_b = GroupMembership.objects.create(
             organization=self.organization,
             group=self.group,
             member=self.member_b,
-            participation_pin="2222",
         )
+        self.membership_b.set_participation_pin("2222")
+        self.membership_b.save(update_fields=["participation_pin_hash"])
 
     def test_a_standard_group_with_two_members_returns_two_people(self):
         response = self.client.get(
@@ -136,13 +138,14 @@ class StandardKioskPeopleRegressionTests(TestCase):
     def test_i_visitor_photo_url_is_null(self):
         from groups.models import GroupOnlyParticipant
 
-        GroupOnlyParticipant.objects.create(
+        visitor = GroupOnlyParticipant.objects.create(
             organization=self.organization,
             group=self.group,
             name="Guest Visitor",
             email="guest@example.com",
-            participation_pin="3333",
         )
+        visitor.set_participation_pin("3333")
+        visitor.save(update_fields=["pin_hash"])
         response = self.client.get(
             reverse("group-kiosk-start", kwargs={"group_pk": self.group.pk})
         )

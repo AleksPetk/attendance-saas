@@ -1,6 +1,7 @@
 /**
  * Run: node --test src/workspaceEntitlements.test.js
  */
+import "./i18n/index.js";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
@@ -119,7 +120,7 @@ test("subscription usage rows show zero-capacity locked resources", () => {
   assert.equal(byKey.active_structured_groups.limitNote, "Limit: 0");
   assert.equal(byKey.workspace_admins.display, "1 record · 0 available · 1 plan locked");
   assert.equal(byKey.workspace_admins.limitNote, "Limit: 0");
-  assert.equal(byKey.members.display, "7 / 10");
+  assert.equal(byKey.members.display, "7 of 10");
   assert.equal(byKey.members.limitNote, null);
 });
 
@@ -153,7 +154,7 @@ test("downgrade selection helpers expose totals and lock state", () => {
   );
   assert.equal(
     groupsCapacityCaption(session, "active_standard_groups", "active records"),
-    "6 active records · 1 of 2 available",
+    "6 records · 1 of 2 available",
   );
 });
 
@@ -170,7 +171,7 @@ test("capacity caption before resolution shows zero available", () => {
   };
   assert.equal(
     groupsCapacityCaption(session, "active_standard_groups", "active records"),
-    "4 active records · 0 of 2 available",
+    "4 records · 0 of 2 available",
   );
 });
 

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{ language|default:'en' }}">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -60,7 +60,7 @@
                 {% endif %}
                 {% if action_url %}
                 <p style="margin:0 0 12px;font-size:13px;line-height:1.6;color:#94a3b8;">
-                  {% if show_expiry %}This link expires in {{ expiry_hours }} hours. {% endif %}{% if action_label %}If the button does not work, copy and paste this URL into your browser:{% endif %}
+                  {% if expiry_text %}{{ expiry_text }} {% elif show_expiry %}This link expires in {{ expiry_hours }} hours. {% endif %}{% if action_help_text %}{{ action_help_text }}{% elif action_label %}If the button does not work, copy and paste this URL into your browser:{% endif %}
                 </p>
                 <p style="margin:0 0 20px;font-size:13px;line-height:1.5;color:#38bdf8;word-break:break-all;">
                   {{ action_url }}

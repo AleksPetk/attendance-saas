@@ -9,7 +9,7 @@ from billing.catalog import (
     format_usd_cents,
     price_cents,
 )
-from billing.builtin_trial import BUILTIN_TRIAL_DAYS
+from billing.builtin_trial import BUILTIN_TRIAL_DAYS, BUILTIN_TRIAL_OFFERED
 from organizations.entitlements.catalog import PLAN_KEYS, get_plan_definition
 
 
@@ -76,13 +76,14 @@ def public_catalog_payload():
     # Docs catalog uses public/Group 1 promotion context only.
     promotion = promotion_payload_for_audience(AUDIENCE_PUBLIC)
     days = int(BUILTIN_TRIAL_DAYS)
+    offered = bool(BUILTIN_TRIAL_OFFERED)
     return {
         "currency": "usd",
         "grace_days": PAYMENT_GRACE_DAYS,
         "trial_days": days,
-        "trial_offered": True,
+        "trial_offered": offered,
         "builtin_trial_days": days,
-        "builtin_trial_offered": True,
+        "builtin_trial_offered": offered,
         "promotion": promotion,
         "prices": {
             PLAN_PLUS: {

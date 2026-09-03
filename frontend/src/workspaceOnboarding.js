@@ -15,6 +15,30 @@ import {
   planLimitValue,
   workspacePlanDisplayName,
 } from "./workspaceEntitlements.js";
+import i18n from "./i18n/index.js";
+
+function isJapaneseTutorialLanguage() {
+  const language = String(i18n.resolvedLanguage || i18n.language || "en").toLowerCase();
+  return language === "ja" || language.startsWith("ja-");
+}
+
+function tTutorial(key, options = {}) {
+  if (isJapaneseTutorialLanguage()) {
+    const { defaultValue: _englishDefault, ...localizedOptions } = options;
+    const lookupOptions = { ns: "workspace", lng: "ja", fallbackLng: false, ...localizedOptions };
+    return i18n.exists(key, lookupOptions) ? i18n.t(key, lookupOptions) : "";
+  }
+  return i18n.t(key, { ns: "workspace", ...options });
+}
+
+function tutorialStepText(id, field, fallback) {
+  const key = `tutorial.steps.${id}.${field}`;
+  if (isJapaneseTutorialLanguage()
+      && !i18n.exists(key, { ns: "workspace", lng: "ja", fallbackLng: false })) {
+    return fallback;
+  }
+  return tTutorial(key, { defaultValue: fallback });
+}
 
 export const INTRO_TUTORIAL_ID = "workspace-introduction";
 export const INTRO_TUTORIAL_VERSION = 1;
@@ -39,47 +63,58 @@ export function automaticTutorialEligible(session, tutorialState = session?.work
   return tutorialState.status === "not_started" || tutorialState.status === "in_progress";
 }
 
-function step(id, route, target, title, description, extra = {}) {
-  return { id, route, target, title, description, ...extra };
+function step(id, route, target, fallbackTitle, fallbackDescription, extra = {}) {
+  return {
+    id,
+    route,
+    target,
+    title: tutorialStepText(id, "title", fallbackTitle),
+    description: tutorialStepText(id, "description", fallbackDescription),
+    ...extra,
+  };
 }
 
-function limitLabel(value, singular, plural) {
+function limitLabel(value, singularKey, pluralKey) {
   if (typeof value !== "number") return "";
-  return `${value} ${value === 1 ? singular : plural}`;
+  const label = value === 1 ? tTutorial(singularKey) : tTutorial(pluralKey);
+  return isJapaneseTutorialLanguage() ? `${label} ${value}件` : `${value} ${label}`;
 }
 
 export function groupsCapacityTutorialDescription(session) {
   const activeLimits = [
     limitLabel(
       planLimitValue(session, "active_standard_groups"),
-      "active Standard Group",
-      "active Standard Groups",
+      "tutorial.descriptions.activeStandardGroup",
+      "tutorial.descriptions.activeStandardGroups",
     ),
     canCreateStructuredGroups(session)
       ? limitLabel(
           planLimitValue(session, "active_structured_groups"),
-          "active Structured Group",
-          "active Structured Groups",
+          "tutorial.descriptions.activeStructuredGroup",
+          "tutorial.descriptions.activeStructuredGroups",
         )
       : "",
   ].filter(Boolean);
   const archivedLimit = limitLabel(
     planLimitValue(session, "archived_groups"),
-    "archived Group",
-    "archived Groups",
+    "tutorial.descriptions.archivedGroup",
+    "tutorial.descriptions.archivedGroups",
   );
   const liveLimits = [...activeLimits, archivedLimit].filter(Boolean);
-  const limitIntro = liveLimits.length
-    ? `Your ${workspacePlanDisplayName(session)} plan currently allows ${liveLimits.join(", ")}. `
-    : "Your current plan’s live limits are shown on this page. ";
-  return `${limitIntro}Archived Groups are retained separately from active capacity. Archive an inactive Group to free its active slot; if archived capacity is full, permanently delete an older archived Group before retaining another.`;
+  if (liveLimits.length) {
+    return tTutorial("tutorial.descriptions.groupsCapacityWithLimits", {
+      planName: workspacePlanDisplayName(session),
+      limits: liveLimits.join(isJapaneseTutorialLanguage() ? "、" : ", "),
+    });
+  }
+  return tTutorial("tutorial.descriptions.groupsCapacityGeneric");
 }
 
 export function groupTypeTutorialDescription(session) {
   if (canCreateStructuredGroups(session)) {
-    return "Choose Standard when participants belong directly to the Group, or Structured to organize them inside Classes/Sections.";
+    return tTutorial("tutorial.descriptions.groupTypeStructured");
   }
-  return "Standard Groups hold participants directly. Structured Groups organize participants inside Classes/Sections, but that option is locked because it is not included in your current plan.";
+  return tTutorial("tutorial.descriptions.groupTypeStandardOnly");
 }
 
 export function attendanceExportTutorialDescription(session) {
@@ -89,16 +124,18 @@ export function attendanceExportTutorialDescription(session) {
     canExportReportFormat(session, "csv") ? "CSV" : "",
   ].filter(Boolean);
   if (!labels.length) {
-    return "Export follows the current Member or Group filters and date range. Report export is available when your plan includes it.";
+    return tTutorial("tutorial.descriptions.attendanceExportNone");
   }
-  return `Export downloads exactly the current Member or Group report filters and date range. Your plan includes ${labels.join(", ")}.`;
+  return tTutorial("tutorial.descriptions.attendanceExportWithFormats", {
+    formats: labels.join(", "),
+  });
 }
 
 export function groupForwardingTutorialDescription(session) {
   if (canUseGroupForwardEmails(session)) {
-    return "Forward emails sends a copy of this Group’s after-action emails to up to three additional addresses.";
+    return tTutorial("tutorial.descriptions.groupForwardingEnabled");
   }
-  return "Forward emails can copy this Group’s after-action emails to additional addresses. This control requires Plus or Business on the current plan.";
+  return tTutorial("tutorial.descriptions.groupForwardingLocked");
 }
 
 export function kioskOverviewTutorialSteps(session, groupId) {
@@ -237,13 +274,13 @@ export function coreWorkspaceTutorialSteps(session, { groupId = null } = {}) {
     );
   }
   steps.push(
-    step("overview-groups", "/groups", "groups-list", "Groups define attendance operations", canCreateStructuredGroups(session) ? "Groups bring participants, Actions, participation rules, after-action behavior, and kiosks together. Standard Groups hold people directly; Structured Groups organize them into Classes or Sections." : "Groups bring participants, Actions, participation rules, after-action behavior, and kiosks together. Structured Groups add Classes or Sections when the current plan includes them."),
+    step("overview-groups", "/groups", "groups-list", "Groups define attendance operations", canCreateStructuredGroups(session) ? tTutorial("tutorial.descriptions.overviewGroupsStructured") : tTutorial("tutorial.descriptions.overviewGroupsStandardOnly")),
     step("overview-group-capacity", "/groups", "groups-status-filter", "Keep active work clear", groupsCapacityTutorialDescription(session)),
   );
   if (canConfigure) {
     steps.push(
       step("overview-group-create", "/groups", "groups-create", "Create each attendance flow here", "Open Create Group to define a new operational setup. The tour can show the form safely, but it never submits it."),
-      step("overview-group-configuration", "/groups/new", "group-editor-form", "Shape the Group at a high level", `${groupTypeTutorialDescription(session)} Name the Group, choose its Actions and participation requirements, then decide after-action behavior.`),
+      step("overview-group-configuration", "/groups/new", "group-editor-form", "Shape the Group at a high level", `${groupTypeTutorialDescription(session)}${tTutorial("tutorial.descriptions.overviewGroupConfigSuffix")}`),
       step("overview-group-advanced", "/groups/new", "group-email-settings", "Advanced communication is still Group-specific", "Advanced is where the Group’s outgoing email configuration begins. Sender setup, after-action email, and forwarding remain separate from simply enabling an Action."),
     );
   }
@@ -287,7 +324,7 @@ export function coreWorkspaceTutorialSteps(session, { groupId = null } = {}) {
   }
   steps.push(
     step("overview-account-security", "/account/security", "account-security", "Owner Account and security", "Security contains login email, password, two-factor authentication, backup email, and ownership-sensitive controls."),
-    step("overview-account-sections", "/account/security", "account-navigation", "Plans, help, tutorials, and service health", billingAllowed ? "Subscription shows current access; Billing covers payments and invoices. Info contains canonical documentation, Tutorial reopens every guide, and Status shows service health, incidents, and maintenance." : "Info contains canonical documentation, Tutorial reopens every guide, and Status shows service health, incidents, and maintenance."),
+    step("overview-account-sections", "/account/security", "account-navigation", "Plans, help, tutorials, and service health", billingAllowed ? tTutorial("tutorial.descriptions.overviewAccountSectionsBilling") : tTutorial("tutorial.descriptions.overviewAccountSectionsNoBilling")),
     step("overview-notifications", "/dashboard", "workspace-notifications", "Platform announcements stay close", "The notification bell shows CheckStation announcements. An unread badge means something is new; opening the panel marks visible announcements read for this account across devices."),
     step("overview-plan", "/dashboard", "workspace-plan-badge", "Your effective access at a glance", "The sidebar badge shows the Workspace’s current effective Basic, Plus, or Business access. An active Business trial is shown as Business."),
   );
@@ -298,19 +335,19 @@ export function availableTutorialModules(session, { groupId = null } = {}) {
   const canConfigure = canManageGroupConfiguration(session);
   const modules = [{
     id: "workspace-overview",
-    title: "Workspace Overview",
-    description: "A complete guided introduction to how the Workspace fits together.",
-    duration: "About 8 minutes",
+    title: tTutorial("tutorial.modules.workspace-overview.title"),
+    description: tTutorial("tutorial.modules.workspace-overview.description"),
+    duration: tTutorial("tutorial.modules.workspace-overview.duration"),
     steps: coreWorkspaceTutorialSteps(session, { groupId }),
   }];
   if (canViewGlobalMembers(session)) {
-    modules.push({ id: "members", title: "Members", description: "See where reusable people are added and managed.", duration: "About 1 minute", steps: [
+    modules.push({ id: "members", title: tTutorial("tutorial.modules.members.title"), description: tTutorial("tutorial.modules.members.description"), duration: tTutorial("tutorial.modules.members.duration"), steps: [
       step("members-list", "/members", "members-list", "Your reusable people", "Members can be attached to more than one Group without being recreated."),
       step("members-add", "/members", "members-add", "Add people when you’re ready", "Start with a name, then add more participant details as your workflow needs them."),
       step("member-create", "/members/new", "member-create-form", "Create a Member", "Only the name is required, so you can create a Member quickly and add more details later. A photo helps with recognition, and an email makes the Member easier to reuse across Groups."),
     ] });
   }
-  modules.push({ id: "groups", title: "Groups", description: "Follow the complete setup flow for Standard and Structured attendance Groups.", duration: "About 4 minutes", steps: [
+  modules.push({ id: "groups", title: tTutorial("tutorial.modules.groups.title"), description: tTutorial("tutorial.modules.groups.description"), duration: tTutorial("tutorial.modules.groups.duration"), steps: [
     step("groups-overview", "/groups", "groups-list", "Everything the flow needs", "A Group keeps participants, Actions, participation rules, operational settings, and after-action behavior together."),
     step("groups-capacity", "/groups", "groups-status-filter", "Active and archived Groups", groupsCapacityTutorialDescription(session)),
     ...(canConfigure ? [
@@ -324,17 +361,17 @@ export function availableTutorialModules(session, { groupId = null } = {}) {
       step("group-next", "/groups/new", null, "Ready for people and attendance", "After creation, attach reusable Members or manage Group-specific participants. This setup becomes the basis for the Group’s kiosk and attendance flow."),
     ] : []),
   ] });
-  modules.push({ id: "kiosks", title: "Kiosks Overview", description: "Find the Group-specific controls for kiosk behavior, design, and live launch.", duration: "About 2 minutes", steps: kioskOverviewTutorialSteps(session, groupId) });
+  modules.push({ id: "kiosks", title: tTutorial("tutorial.modules.kiosks.title"), description: tTutorial("tutorial.modules.kiosks.description"), duration: tTutorial("tutorial.modules.kiosks.duration"), steps: kioskOverviewTutorialSteps(session, groupId) });
   if (groupId && canConfigure) {
     modules.push(
-      { id: "kiosk-settings", title: "Kiosk Settings", description: "Learn identification, exit protection, attendance reset, and confirmation behavior.", duration: "About 5 minutes", steps: kioskSettingsTutorialSteps(groupId) },
-      { id: "kiosk-design", title: "Kiosk Design", description: "Learn the visual editor, responsive preview, templates, and safe editing controls.", duration: "About 4 minutes", steps: kioskDesignTutorialSteps(groupId) },
+      { id: "kiosk-settings", title: tTutorial("tutorial.modules.kiosk-settings.title"), description: tTutorial("tutorial.modules.kiosk-settings.description"), duration: tTutorial("tutorial.modules.kiosk-settings.duration"), steps: kioskSettingsTutorialSteps(groupId) },
+      { id: "kiosk-design", title: tTutorial("tutorial.modules.kiosk-design.title"), description: tTutorial("tutorial.modules.kiosk-design.description"), duration: tTutorial("tutorial.modules.kiosk-design.duration"), steps: kioskDesignTutorialSteps(groupId) },
     );
   }
   if (groupId && canLaunchKiosk(session)) {
-    modules.push({ id: "launch-kiosk", title: "Launch Kiosk", description: "Understand readiness, live kiosk mode, browser locking, and secure exit.", duration: "About 2 minutes", steps: kioskLaunchTutorialSteps(groupId) });
+    modules.push({ id: "launch-kiosk", title: tTutorial("tutorial.modules.launch-kiosk.title"), description: tTutorial("tutorial.modules.launch-kiosk.description"), duration: tTutorial("tutorial.modules.launch-kiosk.duration"), steps: kioskLaunchTutorialSteps(groupId) });
   }
-  modules.push({ id: "attendance-history", title: "Attendance & History", description: "Review check-ins, check-outs, breaks, and attendance records.", duration: "About 2 minutes", steps: [
+  modules.push({ id: "attendance-history", title: tTutorial("tutorial.modules.attendance-history.title"), description: tTutorial("tutorial.modules.attendance-history.description"), duration: tTutorial("tutorial.modules.attendance-history.duration"), steps: [
     step("history-tabs", "/history", "history-tabs", "Activity Log or Attendance Report", "Activity Log shows individual check-ins, check-outs, and breaks. Attendance Report summarizes attendance for one Group and date range."),
     step("activity-log-filters", "/history", "activity-log-filters", "Find the actions you need", "Filter Activity Log by Group, Action, participant search, or Day to focus the timeline."),
     step("attendance-report", "/history?view=report", "attendance-report-filters", "Build an Attendance Report", "Report by reusable Member across their Groups, or by Group with an optional participant. Then choose Today, This week, This month, or a custom range."),
@@ -342,18 +379,18 @@ export function availableTutorialModules(session, { groupId = null } = {}) {
   ] });
   if (canConfigure) {
     const emailRoute = groupId ? `/groups/${groupId}/edit` : "";
-    modules.push({ id: "email-notifications", title: "Email & Notifications", description: "See where each Group controls its sender and notification rules.", duration: "About 2 minutes", steps: groupId ? [
+    modules.push({ id: "email-notifications", title: tTutorial("tutorial.modules.email-notifications.title"), description: tTutorial("tutorial.modules.email-notifications.description"), duration: tTutorial("tutorial.modules.email-notifications.duration"), steps: groupId ? [
       step("group-email-overview", emailRoute, "group-email-settings", "Communication belongs to this Group", "Each Group independently controls its outgoing sender, participant emails, and forwarding behavior."),
       step("group-email-advanced", `${emailRoute}?tutorial=email-advanced`, "group-email-advanced-toggle", "Open Advanced", "Advanced keeps this Group’s sender and forwarding configuration together. The tutorial opens it without changing or saving settings."),
       step("group-email-sender", `${emailRoute}?tutorial=email-sender`, "group-email-sender", "Choose the outgoing sender", "Use Custom SMTP, Gmail, Outlook / Microsoft 365, or Yahoo Mail. This determines the account this Group uses for outgoing email; credentials remain private."),
       step("group-email-after-action", `${emailRoute}?tutorial=email-sender`, "group-editor-after-action", "Actions and emails stay separate", "A Group can allow Check-in, Check-out, or Breaks without emailing every time. Once the sender is verified, choose participant email separately for each enabled action—for example, email after Check-out only."),
       step("group-email-forwarding", `${emailRoute}?tutorial=email-forward`, "group-forward-emails", "Copy the right people", groupForwardingTutorialDescription(session)),
     ] : [
-      step("group-email-fallback", "/groups", null, "Communication is configured per Group", canUseGroupForwardEmails(session) ? "Create a Group, then edit it to configure its sender, notification actions, and forwarding recipients." : "Create a Group, then edit it to configure its sender and participant notification actions."),
+      step("group-email-fallback", "/groups", null, "Communication is configured per Group", canUseGroupForwardEmails(session) ? tTutorial("tutorial.descriptions.groupEmailFallbackWithForward") : tTutorial("tutorial.descriptions.groupEmailFallbackNoForward")),
     ] });
   }
   if (canAccessStaffManagement(session, canManageStaffAccounts(session))) {
-    modules.push({ id: "staff-permissions", title: "Staff & Permissions", description: "Create operational accounts with the access their work requires.", duration: "About 3 minutes", steps: [
+    modules.push({ id: "staff-permissions", title: tTutorial("tutorial.modules.staff-permissions.title"), description: tTutorial("tutorial.modules.staff-permissions.description"), duration: tTutorial("tutorial.modules.staff-permissions.duration"), steps: [
       step("staff-login", "/staff", "staff-workspace-id", "One ID identifies the Workspace", "Admins and Staff sign in with this Workspace ID plus their own username and password. It connects their credentials to the correct CheckStation Workspace."),
       step("staff-create", "/staff", "staff-create-account", "Create an operational account", "Choose a username, password, and role. Admin accounts require an email; Staff email is optional. This tutorial never submits the form."),
       step("staff-admin-role", "/staff", "staff-role-selection", "Admin: workspace-wide operations", "Admins can manage Members, Groups, participants, Group and kiosk configuration, attendance, and Staff accounts. They cannot access owner security, subscription or billing, and cannot create or manage other Admin accounts."),
@@ -365,9 +402,11 @@ export function availableTutorialModules(session, { groupId = null } = {}) {
   const accountBillingAllowed = canViewBilling(session) && canManageSubscription(session);
   modules.push({
     id: "account-security",
-    title: "Account & Security",
-    description: "Tour Security, Subscription, Billing, Info, Tutorial, and Status across Account.",
-    duration: accountBillingAllowed ? "About 3 minutes" : "About 2 minutes",
+    title: tTutorial("tutorial.modules.account-security.title"),
+    description: tTutorial("tutorial.modules.account-security.description"),
+    duration: accountBillingAllowed
+      ? tTutorial("tutorial.modules.account-security.duration")
+      : tTutorial("tutorial.modules.account-security.durationShort"),
     steps: accountSecurityTutorialSteps(session),
   });
   return modules.filter((module) => module.steps.length > 0);

@@ -1,9 +1,9 @@
 import { escapeHtml } from "./markdown.js";
 import { hrefForDocument } from "./docs-view.js";
+import { formatMatchingAnswersCount } from "./locale.js";
 
-export function faqCountLabel(count) {
-  const n = Number(count) || 0;
-  return `${n} matching ${n === 1 ? "answer" : "answers"}`;
+export function faqCountLabel(count, locale = "en") {
+  return formatMatchingAnswersCount(count, locale);
 }
 
 export function nextExclusiveOpenId(currentOpenId, clickedId) {
@@ -22,12 +22,12 @@ export function applyExclusiveOpen(items, clickedId) {
   }));
 }
 
-export function relatedGuideMeta(slug, documents) {
+export function relatedGuideMeta(slug, documents, locale = "en") {
   const key = String(slug || "").trim().replace(/^\/+|\/+$/g, "");
   if (!key) return null;
   const doc = (documents || []).find((item) => item.slug === key);
   return {
-    href: hrefForDocument(doc || { slug: key }),
+    href: hrefForDocument(doc || { slug: key }, locale),
     label: (doc && doc.title) || key,
   };
 }

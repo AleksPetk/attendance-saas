@@ -13,6 +13,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from accounts.exceptions import EmailCooldown, EmailNotVerified
+from accounts.language import normalize_language
 from accounts.services import (
     send_verification_email_for_user,
     verification_cooldown_remaining,
@@ -41,8 +42,17 @@ from organizations.serializers import (
     WorkspaceTutorialStateUpdateSerializer,
 )
 from organizations.account_mode import account_mode_key
+from organizations.authentication import WORKSPACE_STAFF_SESSION_AUTH_BACKEND
 from attendance.kiosk_lock import attach_kiosk_status
 from organizations.entitlements.advertising import attach_workspace_advertising
+from core.auth_rate_limits import (
+    check_owner_login_allowed,
+    check_staff_login_allowed,
+    clear_owner_login_failures,
+    clear_staff_login_failures,
+    record_owner_login_failure,
+    record_staff_login_failure,
+)
 from billing.builtin_trial import attach_builtin_trial
 from organizations.entitlements import (
     FEATURE_STAFF_MANAGEMENT,
@@ -152,6 +162,9 @@ class CurrentWorkspaceView(APIView):
                 "workspace_status": organization.status,
                 "capabilities": workspace_capabilities(actor),
                 "entitlements": build_entitlement_payload(organization),
+                "preferred_language": normalize_language(
+                    getattr(actor, "preferred_language", None)
+                ),
             }
             attach_workspace_advertising(payload, organization)
             attach_builtin_trial(payload, organization)
@@ -226,12 +239,14 @@ class OwnerRegistrationView(APIView):
         password = ser.validated_data["password"]
         first_name = ser.validated_data.get("first_name") or ""
         last_name = ser.validated_data.get("last_name") or ""
+        preferred_language = ser.validated_data["locale"]
 
         user = self._prepare_pending_user(
             email=email,
             password=password,
             first_name=first_name,
             last_name=last_name,
+            preferred_language=preferred_language,
         )
         # Multiple AUTHENTICATION_BACKENDS are configured, so login() requires
         # an explicit backend for a newly created or restarted pending User.
@@ -281,6 +296,7 @@ class OwnerRegistrationView(APIView):
         password,
         first_name,
         last_name,
+        preferred_language,
     ):
         if (
             user.email_verified
@@ -297,7 +313,10 @@ class OwnerRegistrationView(APIView):
         user.set_password(password)
         user.first_name = first_name
         user.last_name = last_name
-        user.save(update_fields=["password", "first_name", "last_name"])
+        user.preferred_language = preferred_language
+        user.save(
+            update_fields=["password", "first_name", "last_name", "preferred_language"]
+        )
         invalidate_owner_sessions(user)
         return user
 
@@ -309,6 +328,7 @@ class OwnerRegistrationView(APIView):
         password,
         first_name,
         last_name,
+        preferred_language,
     ):
         User = get_user_model()
         try:
@@ -324,12 +344,14 @@ class OwnerRegistrationView(APIView):
                         password=password,
                         first_name=first_name,
                         last_name=last_name,
+                        preferred_language=preferred_language,
                     )
                 return User.objects.create_user(
                     email=email,
                     password=password,
                     first_name=first_name,
                     last_name=last_name,
+                    preferred_language=preferred_language,
                     is_staff=False,
                     is_superuser=False,
                     email_verified=False,
@@ -344,6 +366,7 @@ class OwnerRegistrationView(APIView):
                     password=password,
                     first_name=first_name,
                     last_name=last_name,
+                    preferred_language=preferred_language,
                 )
 
 
@@ -356,10 +379,16 @@ class OwnerLoginView(APIView):
         email = ser.validated_data["email"]
         password = ser.validated_data["password"]
 
+        blocked = check_owner_login_allowed(request, email)
+        if blocked is not None:
+            return blocked
+
         user = authenticate(request, email=email, password=password)
         if user is None or not getattr(user, "is_active", False):
+            record_owner_login_failure(request, email)
             return Response({"detail": "Invalid email or password."}, status=401)
 
+        clear_owner_login_failures(email)
         return complete_owner_authentication(request, user)
 
 
@@ -373,6 +402,10 @@ class StaffLoginView(APIView):
         username = ser.validated_data["username"]
         password = ser.validated_data["password"]
 
+        blocked = check_staff_login_allowed(request, workspace_id, username)
+        if blocked is not None:
+            return blocked
+
         staff = authenticate(
             request,
             workspace_id=workspace_id,
@@ -381,9 +414,11 @@ class StaffLoginView(APIView):
         )
         # `authenticate()` returns None when the custom backend does not match.
         if staff is None or not isinstance(staff, WorkspaceStaffAccount):
+            record_staff_login_failure(request, workspace_id, username)
             return Response({"detail": "Invalid workspace staff credentials."}, status=401)
 
         if staff.status != WorkspaceStaffStatus.ACTIVE:
+            record_staff_login_failure(request, workspace_id, username)
             return Response({"detail": "Invalid workspace staff credentials."}, status=401)
         if not is_staff_account_plan_unlocked(staff):
             return Response(
@@ -397,13 +432,15 @@ class StaffLoginView(APIView):
                 status=403,
             )
 
+        clear_staff_login_failures(workspace_id, username)
+
         # Ensure we're not leaving an owner session around.
         try:
             logout(request)
         except Exception:
             pass
 
-        login(request, staff)
+        login(request, staff, backend=WORKSPACE_STAFF_SESSION_AUTH_BACKEND)
 
         payload = {
             "account_kind": "workspace_staff",

@@ -1,3 +1,9 @@
+import i18n from "./i18n/index.js";
+
+function t(key, options) {
+  return i18n.t(key, { ns: "workspace", ...options });
+}
+
 function formatTrialEnd(value) {
   if (!value) return "";
   try {
@@ -14,7 +20,7 @@ function formatTrialEnd(value) {
 export function tutorialSummaryCopy(trial, { showTrialAnnouncement = true } = {}) {
   if (!showTrialAnnouncement) {
     return {
-      title: "Workspace Overview complete",
+      title: t("tutorialSummary.overviewComplete"),
       trialTitle: "",
       trialBody: "",
     };
@@ -22,16 +28,16 @@ export function tutorialSummaryCopy(trial, { showTrialAnnouncement = true } = {}
   if (trial?.active) {
     const end = formatTrialEnd(trial.ends_at);
     return {
-      title: "Your Workspace is ready",
-      trialTitle: "Your 7-day Business trial is active.",
+      title: t("tutorialSummary.workspaceReady"),
+      trialTitle: t("tutorialSummary.trialActiveTitle"),
       trialBody: end
-        ? `Business access is currently available through ${end}.`
-        : "Business access is currently available in this Workspace.",
+        ? t("tutorialSummary.trialActiveBody", { date: end })
+        : t("tutorialSummary.trialActiveBodyOpen"),
     };
   }
   return {
-    title: "Your Workspace is ready",
-    trialTitle: "Your current plan is ready to use.",
-    trialBody: "Tutorials never create or change your plan. You can review current access in Account → Subscription.",
+    title: t("tutorialSummary.workspaceReady"),
+    trialTitle: t("tutorialSummary.planReadyTitle"),
+    trialBody: t("tutorialSummary.planReadyBody"),
   };
 }

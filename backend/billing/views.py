@@ -13,6 +13,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from billing.catalog import catalog_public_payload
+from billing.markets import resolve_billing_market
 from billing.exceptions import (
     BillingStateError,
     StripeConfigurationError,
@@ -51,18 +52,19 @@ def _error_response(exc, status=400):
 
 
 class BillingCatalogView(APIView):
-    """Public V1 prices. No Stripe secrets or Price IDs."""
+    """Public GLOBAL prices, or the effective market for an authenticated owner."""
 
-    authentication_classes = []
     permission_classes = [AllowAny]
 
     def get(self, request):
-        payload = catalog_public_payload()
-        from billing.builtin_trial import BUILTIN_TRIAL_DAYS
+        organization = get_owned_organization(request.user)
+        market = resolve_billing_market(organization)
+        payload = catalog_public_payload(organization=organization, market=market)
+        from billing.builtin_trial import BUILTIN_TRIAL_DAYS, BUILTIN_TRIAL_OFFERED
 
         payload["builtin_trial_days"] = BUILTIN_TRIAL_DAYS
-        payload["builtin_trial_offered"] = True
-        payload["stripe_configured"] = stripe_api_configured()
+        payload["builtin_trial_offered"] = BUILTIN_TRIAL_OFFERED
+        payload["stripe_configured"] = stripe_api_configured(market=market)
         return Response(payload)
 
 
@@ -102,15 +104,17 @@ class BillingUpgradePreviewView(APIView):
             preview = preview_upgrade_to_business(organization)
         except (BillingStateError, StripeConfigurationError, StripeProviderError) as exc:
             return _error_response(exc)
-        from billing.catalog import format_usd_cents
+        from billing.catalog import format_currency_minor
 
         return Response(
             {
                 "amount_due_cents": preview.amount_due_cents,
-                "amount_due_formatted": format_usd_cents(preview.amount_due_cents),
+                "amount_due_minor": preview.amount_due_cents,
+                "amount_due_formatted": format_currency_minor(preview.amount_due_cents, preview.currency),
                 "currency": preview.currency,
                 "recurring_cents": preview.recurring_cents,
-                "recurring_formatted": format_usd_cents(preview.recurring_cents),
+                "recurring_amount_minor": preview.recurring_cents,
+                "recurring_formatted": format_currency_minor(preview.recurring_cents, preview.currency),
                 "recurring_interval": preview.recurring_interval,
                 "target_plan": preview.target_plan,
                 "next_renewal_at": (

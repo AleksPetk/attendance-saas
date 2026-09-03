@@ -18,14 +18,14 @@ const catalog = {
       display_name: "Plus",
       intervals: {
         monthly: { formatted: "$9.99" },
-        yearly: { formatted: "$99.90" },
+        yearly: { formatted: "$99.99" },
       },
     },
     business: {
       display_name: "Business",
       intervals: {
         monthly: { formatted: "$14.99" },
-        yearly: { formatted: "$149.90" },
+        yearly: { formatted: "$149.99" },
       },
     },
   },
@@ -38,8 +38,8 @@ const catalog = {
         target_plan: "plus",
         target_interval: "yearly",
         discount_percent: 30,
-        promotional_formatted: "$69.90",
-        renews_at_formatted: "$99.90",
+        promotional_formatted: "$69.99",
+        renews_at_formatted: "$99.99",
         label: "30% off first Plus Yearly payment",
         checkout_applies_promotion: true,
       },
@@ -48,8 +48,8 @@ const catalog = {
         target_plan: "business",
         target_interval: "yearly",
         discount_percent: 30,
-        promotional_formatted: "$104.90",
-        renews_at_formatted: "$149.90",
+        promotional_formatted: "$104.99",
+        renews_at_formatted: "$149.99",
         label: "30% off first Business Yearly payment",
         checkout_applies_promotion: true,
       },
@@ -106,12 +106,12 @@ describe("buildUpgradePlanOptions Plus Monthly", () => {
     assert.ok(ids.includes("business-monthly-upgrade"));
     assert.equal(
       options.find((o) => o.id === "plus_monthly_to_plus_yearly").pricing.firstPeriodFormatted,
-      "$69.90",
+      "$69.99",
     );
     assert.equal(
       options.find((o) => o.id === "plus_monthly_to_business_yearly").pricing
         .firstPeriodFormatted,
-      "$104.90",
+      "$104.99",
     );
     assert.equal(options.some((o) => o.plan === "basic"), false);
     assert.equal(
@@ -139,8 +139,8 @@ describe("Business highest plan", () => {
               id: "business_monthly_to_business_yearly",
               target_plan: "business",
               target_interval: "yearly",
-              promotional_formatted: "$104.90",
-              renews_at_formatted: "$149.90",
+              promotional_formatted: "$104.99",
+              renews_at_formatted: "$149.99",
               label: "30% off first Business Yearly payment",
               discount_percent: 30,
               checkout_applies_promotion: true,
@@ -161,7 +161,7 @@ describe("Business highest plan", () => {
     assert.equal(upgrades[0].plan, "business");
     assert.equal(upgrades[0].interval, "yearly");
     assert.equal(upgrades[0].actionLabel, "Switch to Business Yearly");
-    assert.equal(upgrades[0].pricing.firstPeriodFormatted, "$104.90");
+    assert.equal(upgrades[0].pricing.firstPeriodFormatted, "$104.99");
     const downs = buildDowngradePlanOptions(billing);
     assert.ok(downs.some((o) => o.plan === "plus"));
     assert.ok(downs.some((o) => o.plan === "basic"));
@@ -171,8 +171,40 @@ describe("Business highest plan", () => {
 describe("targetOfferPricing", () => {
   it("reads exact backend promo amounts without percentage math", () => {
     const pricing = targetOfferPricing(plusMonthlyBilling(), "business", "yearly");
-    assert.equal(pricing.firstPeriodFormatted, "$104.90");
+    assert.equal(pricing.firstPeriodFormatted, "$104.99");
     assert.notEqual(pricing.firstPeriodFormatted, "$74.95");
-    assert.equal(pricing.renewsAtFormatted, "$149.90");
+    assert.equal(pricing.renewsAtFormatted, "$149.99");
+  });
+
+  it("renders JPY catalog values without deriving currency from UI language", () => {
+    const billing = {
+      catalog: {
+        market: "jp",
+        currency: "jpy",
+        plans: {
+          plus: {
+            intervals: {
+              yearly: {
+                amount_minor: 9800,
+                formatted: "¥9,800",
+                promotion: {
+                  active: true,
+                  first_period_amount_minor: 6900,
+                  first_period_formatted: "¥6,900",
+                  renews_at_formatted: "¥9,800",
+                  applies_to: "first_year",
+                  discount_percent: 30,
+                  checkout_applies_promotion: true,
+                },
+              },
+            },
+          },
+        },
+        promotion: { offers: [] },
+      },
+    };
+    const pricing = targetOfferPricing(billing, "plus", "yearly");
+    assert.equal(pricing.firstPeriodFormatted, "¥6,900");
+    assert.equal(pricing.renewsAtFormatted, "¥9,800");
   });
 });

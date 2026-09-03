@@ -10,5 +10,6 @@
   "appleBilling": "Apple-managed subscriptions cannot use Stripe Checkout.",
   "billingGeneric": "Billing could not be completed.",
   "stripeNotConfigured": "Paid checkout is not configured in this environment.",
-  "invalidLanguage": "Preferred language must be English or Japanese."
+  "invalidLanguage": "Preferred language must be English or Japanese.",
+  "rateLimited": "Too many attempts. Please try again later."
 }

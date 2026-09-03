@@ -15,12 +15,15 @@ import {
   promotionPriceLabel,
   promotionPriceNote,
 } from "./promotionCatalog.js";
+import { builtinTrialOfferFromCatalog } from "./builtinTrialOffer.js";
 import { usePromoLocale } from "./promo/PromoLocaleContext.jsx";
 import { applyPromoSeo } from "./promo/seo.js";
 
 const FALLBACK_CATALOG = {
   market: "global",
   currency: "usd",
+  builtin_trial_days: 7,
+  builtin_trial_offered: true,
   basic: { key: "basic", display_name: "Basic", formatted: "Free" },
   plans: {
     plus: {
@@ -220,9 +223,9 @@ export default function PublicPricingScreen({ session = null }) {
   const checkoutWarning = promotionCheckoutWarning(catalog);
   const yearlySavings = yearlySavingsLabel(catalog, t);
   const templateClass = catalogLoading ? null : pricingTemplateClass(catalog);
-  const trialDays = Number(catalog?.builtin_trial_days);
-  const businessTrialAvailable =
-    Boolean(catalog?.builtin_trial_offered) && Number.isFinite(trialDays) && trialDays > 0;
+  const trialOffer = builtinTrialOfferFromCatalog(catalog);
+  const trialDays = trialOffer.days;
+  const businessTrialAvailable = trialOffer.offered;
   const paymentReassurance = catalog?.stripe_configured
     ? t("pricing.secureStripe")
     : t("pricing.paidPlansInWorkspace");

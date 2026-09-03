@@ -35,13 +35,19 @@ from groups.email_sender_models import (
     GroupEmailDeliveryStatus,
     GroupEmailSender,
 )
-from groups.email_sender_testing import save_verified_email_sender
+from groups.email_sender_testing import (
+    batch_recipients,
+    mock_batch_send_fail_for,
+    mock_batch_send_success,
+    save_verified_email_sender,
+)
 from groups.models import Group, GroupMembership
 from members.models import Member
 from organizations.models import Organization
 
 
 @override_settings(
+    DEBUG=True,
     SECRET_KEY="test-secret-key-for-group-microsoft-sender-suite",
     APP_SECRETS_ENCRYPTION_KEY="",
 )
@@ -340,7 +346,8 @@ class GroupMicrosoftEmailSenderTests(TestCase):
             participation_email="participation@example.com",
         )
         with patch(
-            "groups.email_providers.microsoft.MicrosoftProvider.send_message"
+            "groups.email_providers.microsoft.MicrosoftProvider.send_messages_batch",
+            side_effect=mock_batch_send_success,
         ) as mock_send:
             ar = perform_action_record_from_kiosk(
                 group=self.group,
@@ -350,8 +357,8 @@ class GroupMicrosoftEmailSenderTests(TestCase):
             )
             mock_send.assert_called_once()
             self.assertEqual(
-                mock_send.call_args.kwargs["to_email"],
-                "participation@example.com",
+                batch_recipients(mock_send),
+                ["participation@example.com"],
             )
         self.assertTrue(ActionRecord.objects.filter(pk=ar.pk).exists())
 
@@ -370,8 +377,11 @@ class GroupMicrosoftEmailSenderTests(TestCase):
             participation_email="fail@example.com",
         )
         with patch(
-            "groups.email_providers.microsoft.MicrosoftProvider.send_message",
-            side_effect=EmailSenderProviderError("Could not send the email"),
+            "groups.email_providers.microsoft.MicrosoftProvider.send_messages_batch",
+            side_effect=mock_batch_send_fail_for(
+                "fail@example.com",
+                error_message="Could not send the email",
+            ),
         ):
             ar = perform_action_record_from_kiosk(
                 group=self.group,

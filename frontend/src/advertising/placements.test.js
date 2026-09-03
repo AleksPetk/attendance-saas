@@ -123,7 +123,7 @@ test("Dashboard banner is the only dashboard placement", () => {
 test("Groups banner sits above the card grid and not in PlanLockSelectionPanel", () => {
   const groupsSrc = readSrc("GroupsScreen.jsx");
   assert.match(groupsSrc, /PLACEMENT_GROUPS_BANNER/);
-  assert.match(groupsSrc, /plan-usage-hint[\s\S]*AdBanner session=\{session\} placement=\{PLACEMENT_GROUPS_BANNER\}/);
+  assert.match(groupsSrc, /groups-usage[\s\S]*AdBanner session=\{session\} placement=\{PLACEMENT_GROUPS_BANNER\}/);
   const selectionBlock = groupsSrc.slice(
     groupsSrc.indexOf("if (selectionOpen && mustSelect)"),
     groupsSrc.indexOf("return (", groupsSrc.indexOf("if (selectionOpen && mustSelect)") + 1),

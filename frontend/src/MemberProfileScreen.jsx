@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { api, errorMessage } from "./api.js";
+import { useTranslation } from "react-i18next";
+import { api } from "./api.js";
 import {
   EditableProfilePhoto,
   ErrorBanner,
@@ -8,6 +9,8 @@ import {
   PhotoThumb,
   StatusBadge,
 } from "./components.jsx";
+import { localizedErrorMessage } from "./i18n/errorMessages.js";
+import { usePageTitle } from "./i18n/usePageTitle.js";
 import {
   buildMemberFormData,
   displayText,
@@ -27,6 +30,7 @@ function InfoItem({ label, value, empty = false }) {
 }
 
 export default function MemberProfileScreen({ session, memberId, onNavigate }) {
+  const { t } = useTranslation(["members", "common", "errors"]);
   const [member, setMember] = useState(null);
   const [values, setValues] = useState(emptyMemberValues());
   const [editing, setEditing] = useState(false);
@@ -34,6 +38,8 @@ export default function MemberProfileScreen({ session, memberId, onNavigate }) {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+
+  usePageTitle("pageTitles.members", { ns: "workspace" });
 
   async function load() {
     setLoading(true);
@@ -46,14 +52,14 @@ export default function MemberProfileScreen({ session, memberId, onNavigate }) {
       }
       if (result.data.is_plan_locked || result.data.plan_unlocked === false) {
         setMember(result.data);
-        setError("This Member is locked by the current plan.");
+        setError(t("profile.lockedMessage"));
         setLoading(false);
         return;
       }
       setMember(result.data);
       setValues(valuesFromMember(result.data));
     } catch (loadError) {
-      const message = errorMessage(loadError);
+      const message = localizedErrorMessage(loadError, t);
       setError(message);
       setMember(null);
       setLoading(false);
@@ -129,25 +135,21 @@ export default function MemberProfileScreen({ session, memberId, onNavigate }) {
       setPhotoPreview("");
       setEditing(false);
     } catch (saveError) {
-      setError(errorMessage(saveError));
+      setError(localizedErrorMessage(saveError, t));
     } finally {
       setSaving(false);
     }
   }
 
   async function archiveMember() {
-    if (
-      !window.confirm(
-        `Archive ${member.name}? They will be hidden from Groups and kiosks until restored.`
-      )
-    ) {
+    if (!window.confirm(t("confirmArchive", { name: member.name }))) {
       return;
     }
     try {
       await api.archiveMember(session, member.id);
       onNavigate({ name: "members", status: "archived", replace: true });
     } catch (archiveError) {
-      setError(errorMessage(archiveError));
+      setError(localizedErrorMessage(archiveError, t));
     }
   }
 
@@ -157,20 +159,27 @@ export default function MemberProfileScreen({ session, memberId, onNavigate }) {
   return (
     <div className="page member-profile-page">
       <div className="member-profile-nav">
-        <button type="button" className="btn-text" onClick={() => onNavigate({ name: "members" })}>
-          ← Members
+        <button type="button" className="btn-secondary" onClick={() => onNavigate({ name: "members" })}>
+          {t("profile.back")}
+        </button>
+        <button
+          type="button"
+          className="btn-primary"
+          onClick={() => onNavigate({ name: "member-create" })}
+        >
+          {t("profile.addNewMember")}
         </button>
       </div>
 
-      {loading ? <LoadingState label="Loading Member…" /> : null}
+      {loading ? <LoadingState label={t("loadingOne")} /> : null}
       <ErrorBanner message={error} />
 
       {!loading && error && !member ? (
         <div className="plan-locked-banner" role="status">
-          <strong>Member profile unavailable</strong>
+          <strong>{t("profile.unavailable")}</strong>
           <p>{error}</p>
           <button type="button" className="btn-secondary" onClick={() => onNavigate({ name: "members" })}>
-            Back to Members
+            {t("profile.backToList")}
           </button>
         </div>
       ) : null}
@@ -193,7 +202,7 @@ export default function MemberProfileScreen({ session, memberId, onNavigate }) {
             <div className="member-profile-identity">
               {editing ? (
                 <>
-                  <Field label="Name" hint="Required">
+                  <Field label={t("fields.name")} hint={t("fields.required")}>
                     <input
                       value={values.name}
                       onChange={(event) => update("name", event.target.value)}
@@ -214,20 +223,20 @@ export default function MemberProfileScreen({ session, memberId, onNavigate }) {
               {editing ? (
                 <>
                   <button type="button" className="btn-secondary" onClick={cancelEdit} disabled={saving}>
-                    Cancel
+                    {t("common:cancel")}
                   </button>
                   <button type="submit" className="btn-primary" disabled={saving}>
-                    {saving ? "Saving…" : "Save"}
+                    {saving ? t("profile.saving") : t("common:save")}
                   </button>
                 </>
               ) : (
                 <>
                   <button type="button" className="btn-primary" onClick={startEdit}>
-                    Edit
+                    {t("common:edit")}
                   </button>
                   {member.status === "active" ? (
                     <button type="button" className="btn-ghost btn-sm" onClick={archiveMember}>
-                      Archive
+                      {t("archive")}
                     </button>
                   ) : null}
                 </>
@@ -237,23 +246,23 @@ export default function MemberProfileScreen({ session, memberId, onNavigate }) {
 
           <div className="member-profile-grid">
             <section className="card-surface member-info-card">
-              <h3>Contact</h3>
+              <h3>{t("profile.sections.contact")}</h3>
               {editing ? (
                 <div className="member-edit-fields">
-                  <Field label="Email">
+                  <Field label={t("fields.email")}>
                     <input
                       type="email"
                       value={values.email}
                       onChange={(event) => update("email", event.target.value)}
                     />
                   </Field>
-                  <Field label="Phone">
+                  <Field label={t("fields.phone")}>
                     <input
                       value={values.phone}
                       onChange={(event) => update("phone", event.target.value)}
                     />
                   </Field>
-                  <Field label="Address">
+                  <Field label={t("fields.address")}>
                     <input
                       value={values.address}
                       onChange={(event) => update("address", event.target.value)}
@@ -263,18 +272,18 @@ export default function MemberProfileScreen({ session, memberId, onNavigate }) {
                 </div>
               ) : (
                 <dl className="member-info-list">
-                  <InfoItem label="Email" value={displayText(member.email)} empty={!member.email} />
-                  <InfoItem label="Phone" value={displayText(member.phone)} empty={!member.phone} />
-                  <InfoItem label="Address" value={displayText(member.address)} empty={!member.address} />
+                  <InfoItem label={t("fields.email")} value={displayText(member.email)} empty={!member.email} />
+                  <InfoItem label={t("fields.phone")} value={displayText(member.phone)} empty={!member.phone} />
+                  <InfoItem label={t("fields.address")} value={displayText(member.address)} empty={!member.address} />
                 </dl>
               )}
             </section>
 
             <section className="card-surface member-info-card">
-              <h3>Personal</h3>
+              <h3>{t("profile.sections.personal")}</h3>
               {editing ? (
                 <div className="member-edit-fields">
-                  <Field label="Date of birth">
+                  <Field label={t("fields.dateOfBirth")}>
                     <input
                       type="date"
                       value={values.date_of_birth}
@@ -285,7 +294,7 @@ export default function MemberProfileScreen({ session, memberId, onNavigate }) {
               ) : (
                 <dl className="member-info-list">
                   <InfoItem
-                    label="Date of birth"
+                    label={t("fields.dateOfBirth")}
                     value={formatMemberDate(member.date_of_birth)}
                     empty={!member.date_of_birth}
                   />
@@ -295,9 +304,9 @@ export default function MemberProfileScreen({ session, memberId, onNavigate }) {
           </div>
 
           <section className="card-surface member-info-card member-notes-card">
-            <h3>Notes</h3>
+            <h3>{t("profile.sections.notes")}</h3>
             {editing ? (
-              <Field label="Notes">
+              <Field label={t("fields.notes")}>
                 <textarea
                   rows="3"
                   value={values.notes}
@@ -307,7 +316,7 @@ export default function MemberProfileScreen({ session, memberId, onNavigate }) {
             ) : member.notes ? (
               <p className="member-info-notes">{member.notes}</p>
             ) : (
-              <p className="member-info-empty">No notes</p>
+              <p className="member-info-empty">{t("profile.noNotes")}</p>
             )}
           </section>
         </form>

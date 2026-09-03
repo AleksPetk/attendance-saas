@@ -286,7 +286,7 @@ class PrimaryEmailChangeTests(OwnerEmailManagementTestCase):
                 format="json",
             )
         self.assertEqual(response.status_code, 200)
-        notice.assert_called_once_with(old_email="owner@example.com")
+        notice.assert_called_once_with(old_email="owner@example.com", language="en")
         self.owner.refresh_from_db()
         self.assertEqual(self.owner.email, "newowner@example.com")
         self.assertTrue(self.owner.email_verified)

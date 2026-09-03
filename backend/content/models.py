@@ -6,6 +6,13 @@ from django.db import models
 from django.db.models import Q
 from django.utils import timezone
 
+from content.locale import DEFAULT_CONTENT_LOCALE, SUPPORTED_CONTENT_LOCALES, normalize_content_locale
+
+
+class ContentLanguage(models.TextChoices):
+    ENGLISH = "en", "English"
+    JAPANESE = "ja", "Japanese"
+
 
 class DocumentType(models.TextChoices):
     DOCUMENTATION = "documentation", "Documentation"
@@ -49,8 +56,13 @@ class FaqEntry(models.Model):
 
     slug = models.SlugField(
         max_length=80,
-        unique=True,
         help_text="Stable public identifier, for example what-is-a-member.",
+    )
+    language = models.CharField(
+        max_length=5,
+        choices=ContentLanguage.choices,
+        default=DEFAULT_CONTENT_LOCALE,
+        db_index=True,
     )
     question = models.CharField(max_length=240)
     answer_markdown = models.TextField(
@@ -99,11 +111,15 @@ class FaqEntry(models.Model):
         ordering = ("category", "sort_order", "question")
         verbose_name = "FAQ entry"
         verbose_name_plural = "FAQ entries"
+        constraints = [
+            models.UniqueConstraint(fields=("slug", "language"), name="faqentry_slug_language_uniq"),
+        ]
 
     def __str__(self):
         return self.question
 
     def save(self, *args, **kwargs):
+        self.language = normalize_content_locale(self.language)
         if self.status == PublicationStatus.PUBLISHED and self.published_at is None:
             self.published_at = timezone.now()
         super().save(*args, **kwargs)
@@ -126,8 +142,13 @@ class Document(models.Model):
 
     slug = models.SlugField(
         max_length=80,
-        unique=True,
         help_text="Stable public identifier, for example privacy-policy.",
+    )
+    language = models.CharField(
+        max_length=5,
+        choices=ContentLanguage.choices,
+        default=DEFAULT_CONTENT_LOCALE,
+        db_index=True,
     )
     title = models.CharField(max_length=200)
     document_type = models.CharField(
@@ -175,11 +196,15 @@ class Document(models.Model):
 
     class Meta:
         ordering = ("nav_group", "sort_order", "title")
+        constraints = [
+            models.UniqueConstraint(fields=("slug", "language"), name="document_slug_language_uniq"),
+        ]
 
     def __str__(self):
         return f"{self.title} ({self.slug})"
 
     def save(self, *args, **kwargs):
+        self.language = normalize_content_locale(self.language)
         if self.status == PublicationStatus.PUBLISHED and self.published_at is None:
             self.published_at = timezone.now()
         super().save(*args, **kwargs)
@@ -197,12 +222,19 @@ class AnnouncementAudience(models.TextChoices):
     WORKSPACES = "workspaces", "Specific Workspaces"
 
 
+class AnnouncementMarket(models.TextChoices):
+    ALL = "all", "All Markets"
+    GLOBAL = "global", "Global"
+    JP = "jp", "Japan"
+
+
 class Announcement(models.Model):
     """
     Platform-published Workspace announcement.
 
     Eligibility is evaluated server-side from publication state, expiry,
-    and audience targeting (all / effective plan / specific Organizations).
+    audience targeting (all / effective plan / specific Organizations), and
+    the independent effective billing-market filter.
     """
 
     title = models.CharField(max_length=160)
@@ -224,6 +256,22 @@ class Announcement(models.Model):
         choices=AnnouncementAudience.choices,
         default=AnnouncementAudience.ALL,
         db_index=True,
+    )
+    market = models.CharField(
+        "Market",
+        max_length=10,
+        choices=AnnouncementMarket.choices,
+        default=AnnouncementMarket.ALL,
+        db_index=True,
+        help_text="Additional billing-market filter applied after audience targeting.",
+    )
+    language = models.CharField(
+        "Language",
+        max_length=5,
+        choices=ContentLanguage.choices,
+        default=ContentLanguage.ENGLISH,
+        db_index=True,
+        help_text="Admin metadata only. Language does not affect delivery eligibility.",
     )
     target_plans = models.JSONField(
         default=list,

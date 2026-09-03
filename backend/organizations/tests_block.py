@@ -21,6 +21,7 @@ from groups.models import Group, GroupMembership
 from kiosk_builder.testing import configure_group_kiosk_for_launch
 from members.models import Member
 from organizations.entitlements.transitions import apply_effective_plan
+from organizations.authentication import WORKSPACE_STAFF_SESSION_AUTH_BACKEND
 from organizations.lifecycle import (
     block_organization,
     turn_checkstation_account_on,
@@ -201,8 +202,11 @@ class BlockAccessTests(TestCase):
         remaining = 0
         for session in Session.objects.all():
             data = session.get_decoded()
-            if str(data.get("_auth_user_id") or "") in staff_ids:
-                remaining += 1
+            if str(data.get("_auth_user_id") or "") not in staff_ids:
+                continue
+            if data.get("_auth_user_backend") != WORKSPACE_STAFF_SESSION_AUTH_BACKEND:
+                continue
+            remaining += 1
         self.assertEqual(remaining, 0)
 
     def test_checkstation_block_does_not_call_provider(self):

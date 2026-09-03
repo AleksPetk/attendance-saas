@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { api } from "./api.js";
 import { AuthLayout, ErrorBanner, LoadingState } from "./components.jsx";
 import {
@@ -10,6 +11,7 @@ import {
 } from "./ownerOAuthPublicUi.js";
 
 export default function OwnerOAuthResultScreen({ provider, onSignedIn }) {
+  const { t } = useTranslation("auth");
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const resultCode = (searchParams.get("code") || "").trim();
@@ -18,7 +20,7 @@ export default function OwnerOAuthResultScreen({ provider, onSignedIn }) {
 
   useEffect(() => {
     if (!resultCode) {
-      setError("Sign-in could not be completed. Try again.");
+      setError(t("oauth.incomplete"));
       return undefined;
     }
 
@@ -43,7 +45,7 @@ export default function OwnerOAuthResultScreen({ provider, onSignedIn }) {
         navigate("/dashboard", { replace: true });
       } catch {
         if (cancelled) return;
-        setError("Your session could not be loaded. Try signing in again.");
+        setError(t("oauth.sessionLoadFailed"));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -52,12 +54,12 @@ export default function OwnerOAuthResultScreen({ provider, onSignedIn }) {
     return () => {
       cancelled = true;
     };
-  }, [resultCode, navigate, onSignedIn]);
+  }, [resultCode, navigate, onSignedIn, t]);
 
   if (loading) {
     return (
       <div className="page">
-        <LoadingState label="Signing you in…" />
+        <LoadingState label={t("oauth.signingIn")} />
       </div>
     );
   }
@@ -69,11 +71,11 @@ export default function OwnerOAuthResultScreen({ provider, onSignedIn }) {
   ) {
     if (error) {
       return (
-        <AuthLayout title="Sign-in" lead="We could not finish signing you in.">
+        <AuthLayout title={t("oauth.signInTitle")} lead={t("oauth.signInFailedLead")}>
           <ErrorBanner message={error} />
           <div className="auth-provider-buttons auth-provider-buttons-single">
             <Link to="/login" className="btn-primary btn-block">
-              Back to sign in
+              {t("backToSignIn")}
             </Link>
           </div>
         </AuthLayout>
@@ -81,45 +83,45 @@ export default function OwnerOAuthResultScreen({ provider, onSignedIn }) {
     }
     return (
       <div className="page">
-        <LoadingState label="Signing you in…" />
+        <LoadingState label={t("oauth.signingIn")} />
       </div>
     );
   }
 
-  const message = oauthPublicResultMessage(provider, resultCode);
+  const message = oauthPublicResultMessage(t, provider, resultCode);
   const providerName = provider === "apple" ? "Apple" : "Google";
 
   return (
     <AuthLayout
-      title={`${providerName} sign-in`}
-      lead="We could not complete sign-in with your provider."
+      title={t("oauth.providerTitle", { provider: providerName })}
+      lead={t("oauth.providerFailedLead")}
       footnote={
         <p>
-          <Link to="/login">Back to sign in</Link>
+          <Link to="/login">{t("backToSignIn")}</Link>
           {" · "}
-          <Link to="/register">Create account</Link>
+          <Link to="/register">{t("oauth.createAccount")}</Link>
         </p>
       }
     >
-      <ErrorBanner message={message || error || "Sign-in could not be completed. Try again."} />
+      <ErrorBanner message={message || error || t("oauth.incomplete")} />
       <div className="auth-provider-buttons auth-provider-buttons-single">
         {action === OAUTH_PUBLIC_RESULT_ACTION.SHOW_ERROR_WITH_REGISTER ? (
           <Link to="/register" className="btn-primary btn-block">
-            Create account
+            {t("oauth.createAccount")}
           </Link>
         ) : null}
         {action === OAUTH_PUBLIC_RESULT_ACTION.SHOW_ERROR_WITH_LOGIN ? (
           <Link to="/login" className="btn-primary btn-block">
-            Sign in
+            {t("signIn")}
           </Link>
         ) : null}
         {action === OAUTH_PUBLIC_RESULT_ACTION.SHOW_ERROR ? (
           <>
             <Link to="/login" className="btn-primary btn-block">
-              Try again
+              {t("tryAgain")}
             </Link>
             <p className="hint" style={{ textAlign: "center" }}>
-              You can also use {providerButtonLabel(provider).toLowerCase()} from the sign-in page.
+              {t("oauth.useProviderHint", { provider: providerButtonLabel(t, provider).toLowerCase() })}
             </p>
           </>
         ) : null}

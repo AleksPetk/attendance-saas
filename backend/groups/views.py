@@ -72,6 +72,27 @@ from organizations.permissions import (
     scope_groups_queryset,
 )
 
+
+def annotate_group_section_counts(queryset):
+    return queryset.annotate(
+        member_count=Count(
+            "memberships",
+            filter=Q(
+                memberships__status=GroupMembershipStatus.ACTIVE,
+                memberships__member__status=MemberStatus.ACTIVE,
+            ),
+            distinct=True,
+        ),
+        group_only_participant_count=Count(
+            "group_only_participants",
+            filter=Q(
+                group_only_participants__status=GroupOnlyParticipantStatus.ACTIVE
+            ),
+            distinct=True,
+        ),
+    )
+
+
 class OwnedWorkspaceMixin:
     def initial(self, request, *args, **kwargs):
         super().initial(request, *args, **kwargs)
@@ -485,25 +506,11 @@ class GroupSectionListCreateView(GroupScopedMixin, ListCreateAPIView):
     def get_queryset(self):
         if self.group.group_type != GroupType.STRUCTURED:
             return GroupSection.objects.none()
-        queryset = GroupSection.objects.filter(
+        queryset = annotate_group_section_counts(
+            GroupSection.objects.filter(
             organization=self.organization,
             group=self.group,
-        ).annotate(
-            member_count=Count(
-                "memberships",
-                filter=Q(
-                    memberships__status=GroupMembershipStatus.ACTIVE,
-                    memberships__member__status=MemberStatus.ACTIVE,
-                ),
-                distinct=True,
-            ),
-            group_only_participant_count=Count(
-                "group_only_participants",
-                filter=Q(
-                    group_only_participants__status=GroupOnlyParticipantStatus.ACTIVE
-                ),
-                distinct=True,
-            ),
+            )
         )
         status_filter = (self.request.query_params.get("status") or "active").strip()
         if status_filter != "all":
@@ -645,25 +652,11 @@ class GroupSectionDetailView(GroupScopedMixin, RetrieveUpdateDestroyAPIView):
         return [CanManageWorkspace()]
 
     def get_queryset(self):
-        return GroupSection.objects.filter(
+        return annotate_group_section_counts(
+            GroupSection.objects.filter(
             organization=self.organization,
             group=self.group,
-        ).annotate(
-            member_count=Count(
-                "memberships",
-                filter=Q(
-                    memberships__status=GroupMembershipStatus.ACTIVE,
-                    memberships__member__status=MemberStatus.ACTIVE,
-                ),
-                distinct=True,
-            ),
-            group_only_participant_count=Count(
-                "group_only_participants",
-                filter=Q(
-                    group_only_participants__status=GroupOnlyParticipantStatus.ACTIVE
-                ),
-                distinct=True,
-            ),
+            )
         )
 
     def update(self, request, *args, **kwargs):
@@ -716,6 +709,9 @@ class GroupSectionArchiveView(GroupScopedMixin, APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
         section.archive()
+        section = annotate_group_section_counts(
+            GroupSection.objects.filter(pk=section.pk)
+        ).select_related("group").first()
         serializer = GroupSectionSerializer(section, context=self.get_serializer_context())
         return Response(serializer.data)
 
@@ -750,6 +746,9 @@ class GroupSectionRestoreView(GroupScopedMixin, APIView):
                 },
                 status=status.HTTP_409_CONFLICT,
             )
+        section = annotate_group_section_counts(
+            GroupSection.objects.filter(pk=section.pk)
+        ).select_related("group").first()
         serializer = GroupSectionSerializer(section, context=self.get_serializer_context())
         return Response(serializer.data)
 
