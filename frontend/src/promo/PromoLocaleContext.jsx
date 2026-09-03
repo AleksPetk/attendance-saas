@@ -12,6 +12,7 @@ import {
   savePromoLocalePreference,
 } from "./locale.js";
 import { promoCatalog, promoTranslate } from "./t.js";
+import { resolveAuthHandoffUrl } from "../siteOrigins.js";
 
 const PromoLocaleContext = createContext(null);
 
@@ -51,7 +52,11 @@ export function PromoLocaleProvider({ children, locale: localeProp }) {
     [location.hash, location.pathname, location.search, navigate],
   );
 
-  /** Bridge promo locale into main app i18n when entering auth from promo. */
+  /**
+   * Bridge promo locale into main app i18n when entering auth from promo.
+   * Hard-navigate to the workspace origin when configured so credentialed
+   * login is same-origin (promo must not use credentialed workspace CORS).
+   */
   const handoffToAuth = useCallback(
     (authPath) => {
       const normalized = normalizeLocale(locale);
@@ -60,6 +65,14 @@ export function PromoLocaleProvider({ children, locale: localeProp }) {
       void i18n.changeLanguage(normalized);
       if (typeof document !== "undefined") {
         document.documentElement.lang = normalized === "ja" ? "ja" : "en";
+      }
+      const target = resolveAuthHandoffUrl(
+        authPath,
+        typeof window !== "undefined" ? window.location.origin : "",
+      );
+      if (/^https?:\/\//i.test(target)) {
+        window.location.assign(target);
+        return;
       }
       navigate(authPath);
     },

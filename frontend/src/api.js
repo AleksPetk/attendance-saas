@@ -1,29 +1,48 @@
 function resolveApiBaseUrl() {
   const configured = import.meta.env?.VITE_API_BASE_URL;
   const isProd = Boolean(import.meta.env?.PROD);
+  let normalized = "";
   if (isProd) {
     // Production: prefer same-origin relative "/api" when unset/empty.
-    // Explicit https://workspace.checkstation.app is also allowed (combined
-    // SPA on checkstation.app + workspace). Localhost is never allowed.
+    // Explicit https://workspace.checkstation.app is allowed so the promo
+    // host can call anonymous APIs (Contact). Localhost is never allowed.
     if (configured == null || String(configured).trim() === "" || String(configured).trim() === "/") {
-      return "";
+      normalized = "";
+    } else {
+      normalized = String(configured).trim().replace(/\/$/, "");
+      if (/^https?:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/i.test(normalized)) {
+        throw new Error(
+          "Production build refused VITE_API_BASE_URL pointing at localhost. "
+            + "Use an empty value for same-origin /api, or https://workspace.checkstation.app."
+        );
+      }
+      if (normalized === "same-origin") {
+        normalized = "";
+      }
     }
-    const normalized = String(configured).trim().replace(/\/$/, "");
-    if (/^https?:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/i.test(normalized)) {
-      throw new Error(
-        "Production build refused VITE_API_BASE_URL pointing at localhost. "
-          + "Use an empty value for same-origin /api, or https://workspace.checkstation.app."
-      );
-    }
-    if (normalized === "same-origin") {
-      return "";
-    }
-    return normalized;
+  } else if (configured == null || String(configured).trim() === "") {
+    normalized = "http://localhost:8000";
+  } else {
+    normalized = String(configured).trim().replace(/\/$/, "");
   }
-  if (configured == null || String(configured).trim() === "") {
-    return "http://localhost:8000";
+
+  // When the SPA is already on the configured workspace host, use relative
+  // /api so credentialed login is same-origin (avoids Safari CORS "Load failed"
+  // if the page were ever cross-origin to an absolute API base).
+  if (
+    normalized
+    && typeof window !== "undefined"
+    && window.location?.origin
+  ) {
+    try {
+      if (window.location.origin === new URL(normalized).origin) {
+        return "";
+      }
+    } catch {
+      /* keep configured base */
+    }
   }
-  return String(configured).trim().replace(/\/$/, "");
+  return normalized;
 }
 
 const API_BASE_URL = resolveApiBaseUrl();

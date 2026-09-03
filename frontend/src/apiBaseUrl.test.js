@@ -18,6 +18,10 @@ test("api.js has production-safe API base resolver", () => {
   assert.doesNotMatch(prodBranch, /return "http:\/\/localhost:8000"/);
 });
 
+test("api.js prefers same-origin API when already on workspace host", () => {
+  assert.match(apiSource, /window\.location\.origin === new URL\(normalized\)\.origin/);
+});
+
 test("vite production build refuses localhost API URL", () => {
   assert.match(viteSource, /assertProductionEnv/);
   assert.match(viteSource, /Production Vite build refused VITE_API_BASE_URL pointing at localhost/);

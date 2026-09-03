@@ -53,6 +53,7 @@ import {
   promoPathFor,
   resolveInitialPromoLocale,
 } from "./promo/locale.js";
+import { promoAuthRedirectUrl } from "./siteOrigins.js";
 import {
   canLaunchKiosk,
   canManageGroupConfiguration,
@@ -252,6 +253,26 @@ function isPublicAuthPath(pathname) {
     pathname.startsWith("/auth/google/result") ||
     pathname.startsWith("/auth/apple/result")
   );
+}
+
+/**
+ * Credentialed auth must not run on the promo host (no Allow-Credentials CORS).
+ * Deep links like https://checkstation.app/login hard-redirect to workspace.
+ */
+function PromoAuthHostRedirect() {
+  const location = useLocation();
+  useEffect(() => {
+    const target = promoAuthRedirectUrl(
+      location.pathname,
+      location.search,
+      location.hash,
+      window.location.origin,
+    );
+    if (target) {
+      window.location.replace(target);
+    }
+  }, [location.hash, location.pathname, location.search]);
+  return null;
 }
 
 function RedirectIfSignedIn({ session, children }) {
@@ -662,6 +683,7 @@ export default function App() {
 
   return (
     <BrowserRouter>
+      <PromoAuthHostRedirect />
       <LanguageProvider
         session={session}
         updatePreferredLanguage={async (preferred_language) => {
