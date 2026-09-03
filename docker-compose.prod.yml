@@ -1,75 +1,145 @@
 # =============================================================================
-# PRODUCTION SKELETON — no secrets, no live credentials, not wired to deploy.
+# CheckStation production Compose
 #
-# Reverse proxy (not defined here) terminates TLS and routes:
+# Host nginx (not defined here) terminates TLS and will later route:
 #   checkstation.app              → frontend static (promo)
 #   workspace.checkstation.app    → frontend static + /api/* → gunicorn
-#   docs.checkstation.app         → docs service (internal bind)
-#   status.checkstation.app       → status service (internal bind)
-#   manager.checkstation.app      → Django /admin/ (same gunicorn process for now)
+#   docs.checkstation.app         → docs service
+#   status.checkstation.app       → status service
+#   manager.checkstation.app      → Django /admin/
 #
-# Public API origin: https://workspace.checkstation.app/api/...
+# Public API: https://workspace.checkstation.app/api/...
 # There is NO api.checkstation.app.
 #
-# This file is illustrative only (profile: prod-skeleton). Do not treat it as
-# a complete production topology.
+# Infra (db, redis) starts without a profile.
+# Application services remain behind profile "app" until deliberately enabled.
+# PostgreSQL and Redis are Docker-network-only — never publish host ports.
 # =============================================================================
 
+name: checkstation
+
 services:
+  db:
+    image: postgres:16-alpine
+    env_file:
+      - .env
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      LANG: en_US.utf8
+      LC_ALL: en_US.utf8
+    volumes:
+      - checkstation_postgres_data:/var/lib/postgresql/data
+    networks:
+      - checkstation
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\"",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+    restart: unless-stopped
+    # Intentionally no "ports:" — not reachable from the host or public internet.
+
   redis:
     image: redis:7-alpine
-    expose:
-      - "6379"
-    profiles: ["prod-skeleton"]
+    # Cache / rate-limit state only — no AOF/RDB persistence required.
+    command: ["redis-server", "--appendonly", "no", "--save", ""]
+    networks:
+      - checkstation
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
+    restart: unless-stopped
+    # Intentionally no "ports:" — Docker-network-only (redis:6379).
 
   backend:
     build:
       context: ./backend
-    command: >
-      sh -c "python manage.py migrate --noinput &&
-             python manage.py collectstatic --noinput &&
-             gunicorn config.wsgi:application -c gunicorn.conf.py"
+    env_file:
+      - .env
     environment:
       DJANGO_SETTINGS_MODULE: config.settings_production
       DEBUG: "False"
       GUNICORN_BIND: 0.0.0.0:8000
-      # Supply real values via a production secrets mechanism — never commit them.
-      # SECRET_KEY, DATABASE_URL, REDIS_URL, APP_SECRETS_ENCRYPTION_KEY,
-      # PLATFORM_2FA_ENCRYPTION_KEY, STATUS_PROBE_TOKEN, ALLOWED_HOSTS, …
-      # REDIS_URL=redis://redis:6379/0
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      STATUS_PROBE_TOKEN: ${STATUS_PROBE_TOKEN}
+    command: >
+      sh -c "python manage.py migrate --noinput &&
+             python manage.py collectstatic --noinput &&
+             gunicorn config.wsgi:application -c gunicorn.conf.py"
     depends_on:
-      - redis
-    # No host port publish — reverse proxy reaches this service on the private network.
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - checkstation
     expose:
       - "8000"
-    profiles: ["prod-skeleton"]
+    restart: unless-stopped
+    profiles: ["app"]
 
   docs:
     build:
       context: ./docs
+    env_file:
+      - .env
     environment:
       DOCS_HOST: 0.0.0.0
       DOCS_PORT: 8091
-      DOCS_API_BASE_URL: https://workspace.checkstation.app
-      DOCS_PUBLIC_URL: https://docs.checkstation.app
-      DOCS_MAIN_SITE_URL: https://checkstation.app
-      STATUS_PUBLIC_URL: https://status.checkstation.app
+      DOCS_API_BASE_URL: ${DOCS_API_BASE_URL}
+      DOCS_INTERNAL_API_URL: ${DOCS_INTERNAL_API_URL}
+      DOCS_PUBLIC_URL: ${DOCS_PUBLIC_URL}
+      DOCS_MAIN_SITE_URL: ${DOCS_MAIN_SITE_URL}
+      STATUS_PUBLIC_URL: ${STATUS_PUBLIC_URL}
+    networks:
+      - checkstation
     expose:
       - "8091"
-    profiles: ["prod-skeleton"]
+    restart: unless-stopped
+    profiles: ["app"]
 
   status:
     build:
       context: ./status
+    env_file:
+      - .env
     environment:
       STATUS_HOST: 0.0.0.0
       STATUS_PORT: 8090
-      STATUS_API_URL: http://backend:8000
-      STATUS_WEBSITE_URL: https://checkstation.app
-      STATUS_WORKSPACE_URL: https://workspace.checkstation.app
-      STATUS_DOCS_URL: https://docs.checkstation.app
-      STATUS_PUBLIC_URL: https://status.checkstation.app
-      # STATUS_PROBE_TOKEN must match Django.
+      STATUS_API_URL: ${STATUS_API_URL}
+      STATUS_WEBSITE_URL: ${STATUS_WEBSITE_URL}
+      STATUS_WORKSPACE_URL: ${STATUS_WORKSPACE_URL}
+      STATUS_DOCS_URL: ${STATUS_DOCS_URL}
+      STATUS_PUBLIC_URL: ${STATUS_PUBLIC_URL}
+      STATUS_PROBE_TOKEN: ${STATUS_PROBE_TOKEN}
+      STATUS_DATA_DIR: /data
+    volumes:
+      - checkstation_status_data:/data
+    networks:
+      - checkstation
     expose:
       - "8090"
-    profiles: ["prod-skeleton"]
+    restart: unless-stopped
+    profiles: ["app"]
+
+networks:
+  checkstation:
+    name: checkstation_internal
+    driver: bridge
+
+volumes:
+  checkstation_postgres_data:
+    name: checkstation_postgres_data
+  checkstation_status_data:
+    name: checkstation_status_data
