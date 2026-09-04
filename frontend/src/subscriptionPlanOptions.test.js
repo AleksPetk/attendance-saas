@@ -260,98 +260,92 @@ describe("commercial plan selection matrix", () => {
     assert.equal(downs.some((o) => o.plan === "basic"), false);
   });
 
-  it("7. Trial + Plus Monthly uses commercial Plus options", () => {
-    const billing = plusMonthlyBilling({
+  it("7. Trial + Plus Monthly still shows four future-paid checkout choices", () => {
+    const billing = {
       effective_plan: { key: "business" },
-      builtin_trial: { active: true },
+      subscribed_plan: { key: null },
+      future_paid_plan: { key: "plus", interval: "monthly" },
+      interval: null,
       status: "trialing",
-    });
+      builtin_trial: { active: true },
+      catalog,
+      actions: checkoutActions,
+    };
     const options = buildUpgradePlanOptions(billing);
-    assert.ok(options.some((o) => o.plan === "plus" && o.interval === "yearly"));
-    assert.ok(options.some((o) => o.plan === "business"));
-    assert.equal(options.every((o) => o.kind !== "checkout"), true);
+    assert.equal(options.length, 4);
+    assert.equal(options.every((o) => o.kind === "checkout"), true);
+    assert.equal(commercialPlanKey(billing), null);
+    assert.equal(isHighestPaidPlan(billing), false);
+    const selected = options.find((o) => o.plan === "plus" && o.interval === "monthly");
+    assert.equal(selected?.selectedFuture, true);
+  });
+
+  it("8. Trial + Plus Yearly future selection still shows four choices", () => {
+    const billing = {
+      effective_plan: { key: "business" },
+      subscribed_plan: { key: null },
+      future_paid_plan: { key: "plus", interval: "yearly" },
+      interval: null,
+      status: "trialing",
+      builtin_trial: { active: true },
+      catalog: { ...catalog, promotion: { offers: [] } },
+      actions: checkoutActions,
+    };
+    const options = buildUpgradePlanOptions(billing);
+    assert.equal(options.length, 4);
+    assert.equal(options.every((o) => o.kind === "checkout"), true);
     assert.equal(isHighestPaidPlan(billing), false);
   });
 
-  it("8. Trial + Plus Yearly shows Plus Monthly + Business options", () => {
+  it("9. Trial + Business Monthly future selection still shows four choices", () => {
     const billing = {
       effective_plan: { key: "business" },
-      subscribed_plan: { key: "plus" },
-      interval: "yearly",
+      subscribed_plan: { key: null },
+      future_paid_plan: { key: "business", interval: "monthly" },
+      interval: null,
       status: "trialing",
       builtin_trial: { active: true },
       catalog: { ...catalog, promotion: { offers: [] } },
-      actions: {
-        can_upgrade_to_business: true,
-        can_schedule_billing_change: true,
-        can_change_interval: true,
-        can_cancel: true,
-      },
+      actions: checkoutActions,
     };
-    const options = buildUpgradePlanOptions(billing);
-    assert.ok(options.some((o) => o.plan === "plus" && o.interval === "monthly"));
-    assert.ok(options.some((o) => o.plan === "business"));
+    assert.equal(buildUpgradePlanOptions(billing).length, 4);
+    assert.equal(buildDowngradePlanOptions(billing).length, 0);
     assert.equal(isHighestPaidPlan(billing), false);
   });
 
-  it("9. Trial + Business Monthly shows yearly + Plus downgrade", () => {
+  it("10. Trial + Business Yearly future selection still shows four choices", () => {
     const billing = {
       effective_plan: { key: "business" },
-      subscribed_plan: { key: "business" },
-      interval: "monthly",
+      subscribed_plan: { key: null },
+      future_paid_plan: { key: "business", interval: "yearly" },
+      interval: null,
       status: "trialing",
       builtin_trial: { active: true },
       catalog: { ...catalog, promotion: { offers: [] } },
-      actions: {
-        can_schedule_billing_change: true,
-        can_change_interval: true,
-        can_schedule_downgrade_to_plus: true,
-        can_cancel: true,
-      },
+      actions: checkoutActions,
     };
-    assert.equal(buildUpgradePlanOptions(billing)[0]?.interval, "yearly");
-    assert.ok(buildDowngradePlanOptions(billing).some((o) => o.plan === "plus"));
-    assert.equal(isHighestPaidPlan(billing), true);
+    assert.equal(buildUpgradePlanOptions(billing).length, 4);
+    assert.equal(buildDowngradePlanOptions(billing).length, 0);
   });
 
-  it("10. Trial + Business Yearly shows monthly + Plus downgrade", () => {
+  it("11–12. Trial + no future plan → four paid choices again", () => {
     const billing = {
       effective_plan: { key: "business" },
-      subscribed_plan: { key: "business" },
-      interval: "yearly",
-      status: "trialing",
+      subscribed_plan: { key: null },
+      future_paid_plan: null,
+      interval: null,
+      status: "none",
+      cancel_at_period_end: false,
       builtin_trial: { active: true },
-      catalog: { ...catalog, promotion: { offers: [] } },
-      actions: {
-        can_schedule_billing_change: true,
-        can_change_interval: true,
-        can_schedule_downgrade_to_plus: true,
-        can_cancel: true,
-      },
+      catalog,
+      actions: checkoutActions,
     };
-    assert.equal(buildUpgradePlanOptions(billing)[0]?.interval, "monthly");
-    assert.ok(buildDowngradePlanOptions(billing).some((o) => o.plan === "plus"));
-  });
-
-  it("11–12. Trial + cancelled paid → four paid choices again", () => {
-    for (const subscribed of ["plus", "business"]) {
-      const billing = {
-        effective_plan: { key: "business" },
-        subscribed_plan: { key: subscribed },
-        interval: "monthly",
-        status: "trialing",
-        cancel_at_period_end: true,
-        builtin_trial: { active: true },
-        catalog,
-        actions: checkoutActions,
-      };
-      const options = buildUpgradePlanOptions(billing);
-      assert.equal(options.length, 4, subscribed);
-      assert.equal(options.every((o) => o.kind === "checkout"), true, subscribed);
-      assert.equal(commercialPlanKey(billing), null);
-      assert.equal(isHighestPaidPlan(billing), false);
-      assert.equal(buildDowngradePlanOptions(billing).length, 0);
-    }
+    const options = buildUpgradePlanOptions(billing);
+    assert.equal(options.length, 4);
+    assert.equal(options.every((o) => o.kind === "checkout"), true);
+    assert.equal(commercialPlanKey(billing), null);
+    assert.equal(isHighestPaidPlan(billing), false);
+    assert.equal(buildDowngradePlanOptions(billing).length, 0);
   });
 });
 

@@ -332,8 +332,58 @@ export function subscriptionAccessEndLabel(billing) {
   return formatWhen(billing?.trial_ends_at || billing?.current_period_end);
 }
 
-export function CancellationConfirmPanel({ billing, busyAction, onConfirm, onKeep }) {
+export function CancellationConfirmPanel({
+  billing,
+  busyAction,
+  onConfirm,
+  onKeep,
+  confirmLabel,
+  body,
+  title,
+}) {
   const accessEnd = subscriptionAccessEndLabel(billing);
+  if (body) {
+    return createElement(
+      "div",
+      {
+        className: "account-cancel-confirm",
+        role: "group",
+        "aria-labelledby": "account-cancel-confirm-title",
+      },
+      createElement(
+        "h4",
+        { id: "account-cancel-confirm-title", className: "account-cancel-confirm-title" },
+        title || i18n.t("billing:trialSelection.cancelSelected"),
+      ),
+      createElement("p", { className: "account-cancel-confirm-lead" }, body),
+      createElement(
+        "div",
+        { className: "account-cancel-confirm-actions" },
+        createElement(
+          "button",
+          {
+            type: "button",
+            className: "btn-secondary btn-sm",
+            disabled: Boolean(busyAction),
+            onClick: onKeep,
+          },
+          i18n.t("billing:cancellation.keep"),
+        ),
+        createElement(
+          "button",
+          {
+            type: "button",
+            className: "btn-danger btn-sm",
+            disabled: Boolean(busyAction),
+            onClick: onConfirm,
+          },
+          busyAction === "cancel"
+            ? i18n.t("billing:cancellation.canceling")
+            : confirmLabel || i18n.t("billing:cancellation.confirm"),
+        ),
+      ),
+    );
+  }
   return createElement(
     "div",
     {
@@ -392,7 +442,7 @@ export function CancellationConfirmPanel({ billing, busyAction, onConfirm, onKee
         },
         busyAction === "cancel"
           ? i18n.t("billing:cancellation.canceling")
-          : i18n.t("billing:cancellation.confirm"),
+          : confirmLabel || i18n.t("billing:cancellation.confirm"),
       ),
     ),
   );

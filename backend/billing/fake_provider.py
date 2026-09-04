@@ -218,6 +218,58 @@ class FakeStripeProvider:
         self.subscriptions[subscription_id] = updated
         return updated
 
+    def retarget_deferred_subscription(
+        self,
+        *,
+        subscription_id,
+        target_plan,
+        target_interval,
+        market="global",
+        trial_end,
+    ):
+        current = self.subscriptions[subscription_id]
+        if current.status != "trialing":
+            from billing.exceptions import StripeProviderError
+
+            raise StripeProviderError(
+                "Deferred retarget left the subscription outside trialing.",
+                code="deferred_retarget_not_trialing",
+            )
+        if trial_end is None:
+            from billing.exceptions import StripeProviderError
+
+            raise StripeProviderError("Deferred retarget requires a trial_end.")
+        # Preserve the caller's trial_end exactly (do not shorten).
+        preserved_end = trial_end
+        updated = SubscriptionSnapshot(
+            subscription_id=current.subscription_id,
+            customer_id=current.customer_id,
+            status="trialing",
+            price_id=price_id_for(target_plan, target_interval, market=market),
+            cancel_at_period_end=False,
+            current_period_start=current.current_period_start,
+            current_period_end=preserved_end,
+            trial_start=current.trial_start,
+            trial_end=preserved_end,
+            metadata=current.metadata,
+        )
+        self.subscriptions[subscription_id] = updated
+        self.schedule_change_calls.append(
+            {
+                "kind": "deferred_retarget",
+                "subscription_id": subscription_id,
+                "target_plan": target_plan,
+                "target_interval": target_interval,
+                "trial_end": preserved_end,
+                "market": market,
+            }
+        )
+        return updated
+
+    def cancel_subscription_immediately(self, *, subscription_id):
+        self.cancel_calls.append(("immediate", subscription_id))
+        return self.mark_deleted(subscription_id)
+
     def schedule_downgrade(
         self,
         *,

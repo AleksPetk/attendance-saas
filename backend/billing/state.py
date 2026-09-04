@@ -10,12 +10,12 @@ from billing.markets import (
 )
 from billing.services import get_workspace_billing, scheduled_change_pending
 from billing.builtin_trial import (
+    builtin_trial_is_active,
     builtin_trial_public_payload,
     commercial_access_active,
     expire_due_builtin_trial,
 )
 from organizations.entitlements.catalog import PLAN_DISPLAY_NAMES
-from organizations.models import OrganizationPlan
 
 
 def _iso(value):
@@ -28,6 +28,28 @@ def _plan_label(key):
     if not key:
         return None
     return PLAN_DISPLAY_NAMES.get(key, key)
+
+
+def _future_paid_plan_payload(billing):
+    """Deferred paid choice during built-in trial (commercially still Basic)."""
+    if not billing:
+        return None
+    if billing.cancel_at_period_end:
+        return None
+    if billing.status != BillingStatus.TRIALING:
+        return None
+    plan = billing.subscribed_plan
+    interval = billing.billing_interval
+    if plan not in {PLAN_PLUS, PLAN_BUSINESS}:
+        return None
+    if interval not in {"monthly", "yearly"}:
+        return None
+    return {
+        "key": plan,
+        "display_name": _plan_label(plan),
+        "interval": interval,
+        "starts_at": _iso(billing.trial_ends_at),
+    }
 
 
 def build_billing_state(organization):
@@ -58,6 +80,7 @@ def build_billing_state(organization):
                 "display_name": _plan_label(effective),
             },
             "subscribed_plan": {"key": None, "display_name": None},
+            "future_paid_plan": None,
             "purchase_source": PurchaseSource.NONE,
             "status": BillingStatus.NONE,
             "interval": None,
@@ -90,6 +113,7 @@ def build_billing_state(organization):
     is_stripe = source == PurchaseSource.STRIPE
     is_apple = source == PurchaseSource.APPLE
     access_active = commercial_access_active(billing)
+    builtin_active = builtin_trial_is_active(organization)
     payment_issue = None
     if billing and status == BillingStatus.PAST_DUE:
         payment_issue = {
@@ -100,6 +124,67 @@ def build_billing_state(organization):
 
     cancel_scheduled = bool(billing and billing.cancel_at_period_end)
     change_scheduled = scheduled_change_pending(billing)
+    future_paid = _future_paid_plan_payload(billing) if builtin_active else None
+
+    # During built-in trial the customer is commercially Basic. Plan cards are
+    # always the four future-paid choices; cancel clears the deferred selection.
+    if builtin_active:
+        actions = {
+            "can_checkout_plus": bool(stripe_ok and not is_apple),
+            "can_checkout_business": bool(stripe_ok and not is_apple),
+            "can_schedule_downgrade_to_plus": False,
+            "can_cancel_scheduled_downgrade": False,
+            "can_cancel_scheduled_change": False,
+            "can_schedule_billing_change": False,
+            "can_cancel": bool(
+                is_stripe
+                and stripe_ok
+                and future_paid is not None
+            ),
+            "can_resume_subscription": False,
+            "can_upgrade_to_business": False,
+            "can_open_portal": bool(
+                is_stripe and billing and billing.external_customer_id
+            ),
+            "can_change_interval": False,
+        }
+        return {
+            "managed_by_platform": False,
+            "commercial_billing_available": True,
+            "effective_plan": {
+                "key": effective,
+                "display_name": _plan_label(effective),
+            },
+            # Commercially Basic during built-in trial — do not surface Stripe
+            # deferred selection as the current subscribed commercial plan.
+            "subscribed_plan": {"key": None, "display_name": None},
+            "future_paid_plan": future_paid,
+            "purchase_source": source,
+            "status": status,
+            "interval": None,
+            "currency": currency_for_market(market),
+            "billing_market": market,
+            "current_period_start": None,
+            "current_period_end": None,
+            "trial_started_at": _iso(billing.trial_started_at) if billing else None,
+            "trial_ends_at": (
+                future_paid.get("starts_at")
+                if future_paid
+                else (_iso(billing.trial_ends_at) if billing else None)
+            ),
+            # Never expose cancel-at-period-end / Resume during built-in trial.
+            "cancel_at_period_end": False,
+            "pending_plan": None,
+            "pending_interval": None,
+            "pending_change_effective_at": None,
+            "scheduled_change": {"active": False, "kind": None},
+            "payment_issue": payment_issue,
+            "catalog": catalog_public_payload(organization=organization, market=market),
+            "builtin_trial": builtin_trial_public_payload(organization),
+            "stripe_configured": stripe_ok,
+            "actions": actions,
+        }
+
     # Pending cancel during provider trialing (deferred paid start) is treated as
     # commercially Basic for plan reselection — not as a live paid commitment.
     reselect_after_trial_cancel = bool(
@@ -195,6 +280,7 @@ def build_billing_state(organization):
             "key": subscribed or None,
             "display_name": _plan_label(subscribed) if subscribed else None,
         },
+        "future_paid_plan": None,
         "purchase_source": source,
         "status": status,
         "interval": interval if interval != "none" else None,

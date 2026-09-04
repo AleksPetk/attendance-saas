@@ -333,8 +333,7 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
         window.location.assign(url);
         return;
       }
-      // Cancel-during-trial reselection may resume/schedule/upgrade in place
-      // without opening a second Stripe Checkout Session.
+      // Deferred retarget / resume / schedule may return billing without a Checkout URL.
       if (result.data?.billing) {
         setBilling(result.data.billing);
         await refreshWorkspaceSession();

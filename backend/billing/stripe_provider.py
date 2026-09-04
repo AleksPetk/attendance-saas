@@ -259,6 +259,72 @@ class StripeProvider:
             raise StripeProviderError("Stripe could not apply the upgrade.") from exc
         return self.retrieve_subscription(subscription_id)
 
+    def retarget_deferred_subscription(
+        self,
+        *,
+        subscription_id,
+        target_plan,
+        target_interval,
+        market="global",
+        trial_end,
+    ):
+        """Change future paid price while preserving Stripe trial_end.
+
+        Used only during the built-in CheckStation Business trial. Must never
+        prorate, never move billing_cycle_anchor, never shorten trial_end.
+        """
+        stripe = self._client()
+        target_price = price_id_for(target_plan, target_interval, market=market)
+        item_id = self._item_id(subscription_id)
+        if trial_end is None:
+            raise StripeProviderError("Deferred retarget requires a trial_end.")
+        from django.utils import timezone as dj_timezone
+
+        end = trial_end
+        if dj_timezone.is_naive(end):
+            end = dj_timezone.make_aware(end, dj_timezone.utc)
+        trial_end_ts = int(end.timestamp())
+        now_ts = int(time.time())
+        if trial_end_ts <= now_ts:
+            raise StripeProviderError(
+                "Deferred retarget cannot use a trial_end in the past."
+            )
+        try:
+            stripe.Subscription.modify(
+                subscription_id,
+                items=[{"id": item_id, "price": target_price}],
+                proration_behavior="none",
+                trial_end=trial_end_ts,
+                cancel_at_period_end=False,
+            )
+        except Exception as exc:
+            raise StripeProviderError(
+                "Stripe could not retarget the deferred subscription."
+            ) from exc
+        snapshot = self.retrieve_subscription(subscription_id)
+        if snapshot.status != "trialing":
+            raise StripeProviderError(
+                "Deferred retarget left the subscription outside trialing.",
+                code="deferred_retarget_not_trialing",
+            )
+        if snapshot.trial_end is None or int(snapshot.trial_end.timestamp()) != trial_end_ts:
+            raise StripeProviderError(
+                "Deferred retarget changed Stripe trial_end.",
+                code="deferred_retarget_trial_end_changed",
+            )
+        return snapshot
+
+    def cancel_subscription_immediately(self, *, subscription_id):
+        """End a deferred/paid subscription now (no cancel-at-period-end)."""
+        stripe = self._client()
+        try:
+            stripe.Subscription.cancel(subscription_id)
+        except Exception as exc:
+            raise StripeProviderError(
+                "Stripe could not cancel the subscription immediately."
+            ) from exc
+        return self.retrieve_subscription(subscription_id)
+
     def schedule_downgrade(
         self,
         *,

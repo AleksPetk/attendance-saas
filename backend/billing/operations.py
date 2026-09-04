@@ -59,9 +59,19 @@ def start_paid_checkout(organization, owner, *, plan_key, interval):
             "Apple-managed subscriptions cannot use Stripe Checkout.",
             code="purchase_source_apple",
         )
-    # Cancelled during Stripe provider delay (trialing): commercially Basic for
-    # selection. Resume/retarget the existing subscription — never open a second
-    # Checkout that would create a duplicate commercial subscription.
+    from billing.builtin_trial import builtin_trial_is_active
+
+    # Built-in Business trial: selection is always a deferred future paid plan.
+    if builtin_trial_is_active(organization):
+        return _start_or_retarget_deferred_trial_selection(
+            organization,
+            owner,
+            plan=plan,
+            interval=interval_key,
+            market=market,
+        )
+    # After builtin trial: cancelled during Stripe provider delay (trialing) is
+    # commercially Basic for reselection. Resume/retarget the same subscription.
     if (
         billing
         and billing.purchase_source == PurchaseSource.STRIPE
@@ -105,7 +115,11 @@ def start_paid_checkout(organization, owner, *, plan_key, interval):
 
 
 def _retarget_cancelled_trialing_subscription(organization, *, plan, interval):
-    """Resume cancel-at-period-end, then match/upgrade/schedule on the same sub."""
+    """Resume cancel-at-period-end, then match/upgrade/schedule on the same sub.
+
+    Not used during the built-in Business trial (that path clears the deferred
+    selection entirely instead of resume/cancel-at-period-end).
+    """
     from billing.snapshots import CheckoutSessionResult
 
     billing = request_resume_subscription(organization)
@@ -113,7 +127,6 @@ def _retarget_cancelled_trialing_subscription(organization, *, plan, interval):
     current_interval = billing.billing_interval
     if current_plan == plan and current_interval == interval:
         return CheckoutSessionResult(mode="resumed")
-    # Preserve existing Plus → Business same-interval immediate upgrade semantics.
     if (
         current_plan == PLAN_PLUS
         and plan == PLAN_BUSINESS
@@ -125,8 +138,154 @@ def _retarget_cancelled_trialing_subscription(organization, *, plan, interval):
     return CheckoutSessionResult(mode="scheduled")
 
 
-def preview_upgrade_to_business(organization):
+def _deferred_selection_active(billing) -> bool:
+    return bool(
+        billing
+        and billing.purchase_source == PurchaseSource.STRIPE
+        and billing.status == BillingStatus.TRIALING
+        and billing.external_subscription_id
+        and billing.subscribed_plan in {PLAN_PLUS, PLAN_BUSINESS}
+        and billing.billing_interval in PAID_INTERVALS
+        and not billing.cancel_at_period_end
+    )
+
+
+def _start_or_retarget_deferred_trial_selection(
+    organization, owner, *, plan, interval, market
+):
+    """Select/replace future paid plan while builtin trial remains commercially Basic."""
+    from billing.builtin_trial import billing_start_at_for_checkout
+    from billing.coupons import resolve_checkout_coupon
+    from billing.snapshots import CheckoutSessionResult
+
+    trial_end = billing_start_at_for_checkout(organization)
+    if trial_end is None:
+        raise BillingStateError("Built-in trial end is required for deferred selection.")
+
+    billing = get_workspace_billing(organization)
+    # Legacy cancel-at-period-end during builtin trial: clear fully, then checkout.
+    if (
+        billing
+        and billing.purchase_source == PurchaseSource.STRIPE
+        and billing.status == BillingStatus.TRIALING
+        and billing.cancel_at_period_end
+        and billing.external_subscription_id
+    ):
+        clear_deferred_trial_selection(organization)
+        billing = get_workspace_billing(organization)
+
+    if _deferred_selection_active(billing):
+        if billing.subscribed_plan == plan and billing.billing_interval == interval:
+            return CheckoutSessionResult(mode="deferred_unchanged")
+        return _retarget_deferred_trial_selection(
+            organization,
+            plan=plan,
+            interval=interval,
+            market=market,
+            trial_end=trial_end,
+        )
+
+    if billing and billing.status in {
+        BillingStatus.TRIALING,
+        BillingStatus.ACTIVE,
+        BillingStatus.PAST_DUE,
+    }:
+        raise BillingStateError("This workspace already has an active subscription.")
+
+    coupon_id, coupon_slot = resolve_checkout_coupon(
+        organization=organization,
+        plan_key=plan,
+        interval=interval,
+        market=market,
+    )
+    success_url, cancel_url, _portal = _return_urls()
+    provider = get_billing_provider()
+    return provider.create_checkout_session(
+        organization=organization,
+        owner=owner,
+        plan_key=plan,
+        interval=interval,
+        market=market,
+        success_url=success_url,
+        cancel_url=cancel_url,
+        billing_start_at=trial_end,
+        coupon_id=coupon_id,
+        coupon_slot=coupon_slot,
+    )
+
+
+def _retarget_deferred_trial_selection(
+    organization, *, plan, interval, market, trial_end
+):
+    from billing.snapshots import CheckoutSessionResult
+
+    billing = get_workspace_billing(organization)
+    _require_stripe_source(billing)
+    if not billing.external_subscription_id:
+        raise BillingStateError("No Stripe subscription is on file.")
+    # Release any leftover schedule before retargeting.
+    provider = get_billing_provider()
+    try:
+        provider.cancel_scheduled_downgrade(
+            subscription_id=billing.external_subscription_id
+        )
+        clear_pending_scheduled_change(organization)
+    except Exception:
+        pass
+    snapshot = provider.retarget_deferred_subscription(
+        subscription_id=billing.external_subscription_id,
+        target_plan=plan,
+        target_interval=interval,
+        market=market,
+        trial_end=trial_end,
+    )
+    reconcile_subscription_snapshot(organization, snapshot)
+    return CheckoutSessionResult(mode="deferred_retargeted")
+
+
+def clear_deferred_trial_selection(organization):
+    """Cancel the future paid choice immediately during built-in trial.
+
+    Does not use cancel-at-period-end / resume. Keeps builtin Business entitlement.
+    """
+    from billing.builtin_trial import builtin_trial_is_active
+    from billing.services import finalize_subscription_end
+
     _deny_checkstation_billing(organization)
+    if not builtin_trial_is_active(organization):
+        raise BillingStateError(
+            "Clearing a deferred selection is only valid during the built-in trial.",
+            code="builtin_trial_required",
+        )
+    require_stripe_api()
+    billing = get_workspace_billing(organization)
+    _require_stripe_source(billing)
+    if not billing.external_subscription_id:
+        raise BillingStateError("No Stripe subscription is on file.")
+    provider = get_billing_provider()
+    # Drop any attached schedule first so cancel is clean.
+    try:
+        provider.cancel_scheduled_downgrade(
+            subscription_id=billing.external_subscription_id
+        )
+    except Exception:
+        pass
+    snapshot = provider.cancel_subscription_immediately(
+        subscription_id=billing.external_subscription_id
+    )
+    reconcile_subscription_snapshot(organization, snapshot)
+    return finalize_subscription_end(organization)
+
+
+def preview_upgrade_to_business(organization):
+    from billing.builtin_trial import builtin_trial_is_active
+
+    _deny_checkstation_billing(organization)
+    if builtin_trial_is_active(organization):
+        raise BillingStateError(
+            "Immediate upgrades are not available during the built-in Business trial.",
+            code="builtin_trial_deferred_only",
+        )
     billing = get_workspace_billing(organization)
     market = market_for_existing_subscription(billing, workspace=organization)
     require_stripe_api(market=market)
@@ -144,7 +303,14 @@ def preview_upgrade_to_business(organization):
 
 
 def apply_upgrade_to_business(organization):
+    from billing.builtin_trial import builtin_trial_is_active
+
     _deny_checkstation_billing(organization)
+    if builtin_trial_is_active(organization):
+        raise BillingStateError(
+            "Immediate upgrades are not available during the built-in Business trial.",
+            code="builtin_trial_deferred_only",
+        )
     billing = get_workspace_billing(organization)
     market = market_for_existing_subscription(billing, workspace=organization)
     require_stripe_api(market=market)
@@ -166,7 +332,14 @@ def apply_upgrade_to_business(organization):
 
 
 def request_downgrade_to_plus(organization, *, interval=None):
+    from billing.builtin_trial import builtin_trial_is_active
+
     _deny_checkstation_billing(organization)
+    if builtin_trial_is_active(organization):
+        raise BillingStateError(
+            "Downgrades are not available during the built-in Business trial.",
+            code="builtin_trial_deferred_only",
+        )
     billing = get_workspace_billing(organization)
     market = market_for_existing_subscription(billing, workspace=organization)
     require_stripe_api(market=market)
@@ -202,7 +375,12 @@ def request_downgrade_to_plus(organization, *, interval=None):
 
 
 def request_cancellation(organization):
+    from billing.builtin_trial import builtin_trial_is_active
+
     _deny_checkstation_billing(organization)
+    # During built-in trial, "cancel" clears the future paid choice entirely.
+    if builtin_trial_is_active(organization):
+        return clear_deferred_trial_selection(organization)
     require_stripe_api()
     billing = get_workspace_billing(organization)
     _require_stripe_source(billing)
@@ -212,13 +390,24 @@ def request_cancellation(organization):
     snapshot = provider.cancel_at_period_end(
         subscription_id=billing.external_subscription_id
     )
-    effective = snapshot.trial_end if billing.status == BillingStatus.TRIALING else snapshot.current_period_end
+    effective = (
+        snapshot.trial_end
+        if billing.status == BillingStatus.TRIALING
+        else snapshot.current_period_end
+    )
     return schedule_cancellation(organization, effective_at=effective)
 
 
 def request_resume_subscription(organization):
     """Remove cancel-at-period-end on the existing Stripe subscription."""
+    from billing.builtin_trial import builtin_trial_is_active
+
     _deny_checkstation_billing(organization)
+    if builtin_trial_is_active(organization):
+        raise BillingStateError(
+            "Resume is not used during the built-in Business trial.",
+            code="builtin_trial_no_resume",
+        )
     require_stripe_api()
     billing = get_workspace_billing(organization)
     _require_stripe_source(billing)
@@ -264,7 +453,14 @@ def request_cancel_scheduled_downgrade(organization):
 
 
 def request_schedule_billing_change(organization, *, plan, interval):
+    from billing.builtin_trial import builtin_trial_is_active
+
     _deny_checkstation_billing(organization)
+    if builtin_trial_is_active(organization):
+        raise BillingStateError(
+            "Use plan selection checkout to change the future paid plan during the built-in trial.",
+            code="builtin_trial_deferred_only",
+        )
     billing = get_workspace_billing(organization)
     market = market_for_existing_subscription(billing, workspace=organization)
     require_stripe_api(market=market)

@@ -25,6 +25,8 @@ import {
   buildUpgradePlanOptions,
   effectiveBillingInterval,
   effectivePlanKey,
+  futurePaidPlanSelection,
+  isBuiltinTrialSelectionMode,
   isEffectiveCurrentPlanOption,
   isHighestPaidPlan,
   planDisplayName,
@@ -98,13 +100,14 @@ function PlanOptionCard({
   isCurrent,
   isScheduled,
   scheduledLabel,
+  isSelectedFuture = false,
   recommended,
   templateClass,
   children,
 }) {
   const classes = ["account-plan-option"];
   classes.push(templateClass || "pricing-template-normal");
-  if (isCurrent) classes.push("is-current");
+  if (isCurrent || isSelectedFuture) classes.push("is-current");
   if (recommended) classes.push("is-recommended");
   if (isScheduled) classes.push("is-scheduled");
   return createElement(
@@ -114,7 +117,13 @@ function PlanOptionCard({
       "header",
       { className: "account-plan-option-header" },
       createElement("h4", null, title),
-      isCurrent
+      isSelectedFuture
+        ? createElement(
+            "span",
+            { className: "account-plan-option-badge" },
+            i18n.t("billing:trialSelection.selectedBadge"),
+          )
+        : isCurrent
         ? createElement("span", { className: "account-plan-option-badge" }, i18n.t("billing:currentPlan.badge"))
         : isScheduled
           ? createElement(
@@ -255,7 +264,9 @@ export function AccountSubscriptionPanel({
   const checkoutPromoWarning = promotionCheckoutWarning(billing?.catalog);
   const upgradeOptions = buildUpgradePlanOptions(billing, sessionPlanKey);
   const downgradeOptions = buildDowngradePlanOptions(billing, sessionPlanKey);
-  const highestPlan = isHighestPaidPlan(billing, sessionPlanKey);
+  const trialSelectionMode = isBuiltinTrialSelectionMode(billing);
+  const futureSelection = futurePaidPlanSelection(billing);
+  const highestPlan = !trialSelectionMode && isHighestPaidPlan(billing, sessionPlanKey);
   const scheduledCancelAt = formatWhenDate(
     billing?.pending_change_effective_at ||
       billing?.current_period_end ||
@@ -263,6 +274,13 @@ export function AccountSubscriptionPanel({
   );
   const scheduledDowngradeAt = formatWhenDate(billing?.pending_change_effective_at);
   const hasPlanActionBlock = Boolean(actions.can_cancel || actions.can_resume_subscription);
+  const futurePlanLabel = futureSelection
+    ? `${planDisplayName(billing, futureSelection.plan)} ${
+        futureSelection.interval === "yearly"
+          ? i18n.t("billing:interval.yearly")
+          : i18n.t("billing:interval.monthly")
+      }`
+    : null;
 
   const pendingMatches = (plan, interval) =>
     Boolean(
@@ -490,7 +508,7 @@ export function AccountSubscriptionPanel({
 
   function renderUpgradeCard(option) {
     const pricing = option.pricing || targetOfferPricing(billing, option.plan, option.interval);
-    const isCurrent = isEffectiveCurrentPlanOption(
+    const isCurrent = !trialSelectionMode && isEffectiveCurrentPlanOption(
       billing,
       option.plan,
       option.interval,
@@ -520,10 +538,11 @@ export function AccountSubscriptionPanel({
             : null,
         isCurrent,
         isScheduled,
+        isSelectedFuture: Boolean(option.selectedFuture),
         scheduledLabel: scheduledSummary?.effectiveAt
           ? i18n.t("billing:scheduledChange.changesOn", { date: scheduledSummary.effectiveAt })
           : i18n.t("billing:currentPlan.scheduled"),
-        recommended: option.recommended && !isCurrent && !isScheduled,
+        recommended: option.recommended && !isCurrent && !isScheduled && !option.selectedFuture,
         templateClass,
       },
       option.kind === "checkout"
@@ -531,11 +550,11 @@ export function AccountSubscriptionPanel({
             "button",
             {
               type: "button",
-              className: "btn-primary btn-sm",
-              disabled: Boolean(busyAction) || !option.enabled,
+              className: option.selectedFuture ? "btn-secondary btn-sm" : "btn-primary btn-sm",
+              disabled: Boolean(busyAction) || !option.enabled || Boolean(option.selectedFuture),
               "aria-label": option.actionLabel,
               onClick: () => {
-                if (!option.enabled) return;
+                if (!option.enabled || option.selectedFuture) return;
                 onStartCheckout?.(option.plan, option.interval);
               },
             },
@@ -785,27 +804,39 @@ export function AccountSubscriptionPanel({
                 : null,
             ],
             [
+              i18n.t("billing:trialSelection.selectedPlan"),
+              trialSelectionMode ? futurePlanLabel || i18n.t("billing:trialSelection.noneSelected") : null,
+            ],
+            [
               i18n.t("billing:currentPlan.interval"),
-              currentInterval
+              !trialSelectionMode && currentInterval
                 ? currentInterval === "yearly"
                   ? i18n.t("billing:interval.yearly")
                   : i18n.t("billing:interval.monthly")
                 : null,
             ],
-            [i18n.t("billing:currentPlan.price"), recurringPrice],
-            [i18n.t("billing:currentPlan.paidPlanStarts"), billing.trial_ends_at ? formatWhen(billing.trial_ends_at) : null],
+            [i18n.t("billing:currentPlan.price"), trialSelectionMode ? null : recurringPrice],
+            [
+              i18n.t("billing:currentPlan.paidPlanStarts"),
+              trialSelectionMode && futureSelection && billing.trial_ends_at
+                ? formatWhen(billing.trial_ends_at)
+                : !trialSelectionMode && billing.trial_ends_at
+                  ? formatWhen(billing.trial_ends_at)
+                  : null,
+            ],
             [
               billing.cancel_at_period_end
                 ? i18n.t("billing:currentPlan.ends")
                 : i18n.t("billing:currentPlan.renews"),
-              billing.current_period_end && !billing.trial_ends_at
+              !trialSelectionMode && billing.current_period_end && !billing.trial_ends_at
                 ? formatWhen(billing.current_period_end)
                 : null,
             ],
           ])
         : null,
-      billing?.scheduled_change?.active ||
-      (billing?.pending_plan && !billing?.cancel_at_period_end)
+      !trialSelectionMode &&
+      (billing?.scheduled_change?.active ||
+        (billing?.pending_plan && !billing?.cancel_at_period_end))
         ? createElement(
             "div",
             {
@@ -878,7 +909,7 @@ export function AccountSubscriptionPanel({
                 : null,
           )
         : null,
-      billing?.cancel_at_period_end
+      !trialSelectionMode && billing?.cancel_at_period_end
         ? createElement(
             "div",
             { className: "account-scheduled-action", role: "status" },
@@ -908,16 +939,22 @@ export function AccountSubscriptionPanel({
         : null,
     ),
 
-    // 2. Upgrade Plan
+    // 2. Plan selection (trial) or Upgrade Plan (paid)
     createElement(
       PanelBlock,
       {
-        title: highestPlan ? i18n.t("billing:upgrade.billingIntervalTitle") : i18n.t("billing:upgrade.title"),
-        description: highestPlan
-          ? i18n.t("billing:upgrade.billingIntervalDescription")
-          : i18n.t("billing:upgrade.description"),
+        title: trialSelectionMode
+          ? i18n.t("billing:trialSelection.title")
+          : highestPlan
+            ? i18n.t("billing:upgrade.billingIntervalTitle")
+            : i18n.t("billing:upgrade.title"),
+        description: trialSelectionMode
+          ? i18n.t("billing:trialSelection.description")
+          : highestPlan
+            ? i18n.t("billing:upgrade.billingIntervalDescription")
+            : i18n.t("billing:upgrade.description"),
       },
-      highestPlan
+      !trialSelectionMode && highestPlan
         ? createElement(
             "p",
             { className: "account-highest-plan-note", role: "status" },
@@ -968,13 +1005,15 @@ export function AccountSubscriptionPanel({
             "div",
             {
               className: "account-plan-options account-plan-options-upgrade",
-              "aria-label": highestPlan
+              "aria-label": trialSelectionMode
+                ? i18n.t("billing:trialSelection.optionsAria")
+                : highestPlan
                 ? i18n.t("billing:upgrade.billingIntervalAria")
                 : i18n.t("billing:upgrade.optionsAria"),
             },
             upgradeOptions.map((option) => renderUpgradeCard(option)),
           )
-        : !highestPlan
+        : !highestPlan && !trialSelectionMode
           ? createElement(
               "p",
               { className: "account-panel-note" },
@@ -1030,8 +1069,8 @@ export function AccountSubscriptionPanel({
           ),
     ),
 
-    // 4. Downgrade Plan
-    downgradeOptions.length
+    // 4. Downgrade Plan (paid commercial only — never during built-in trial)
+    !trialSelectionMode && downgradeOptions.length
       ? createElement(
           PanelBlock,
           {
@@ -1114,13 +1153,17 @@ export function AccountSubscriptionPanel({
         )
       : null,
 
-    // 5. Plan actions — cancellation only
+    // 5. Plan actions — cancel selected future plan (trial) or cancel subscription
     hasPlanActionBlock
       ? createElement(
           PanelBlock,
           {
-            title: i18n.t("billing:planActions.title"),
-            description: i18n.t("billing:planActions.description"),
+            title: trialSelectionMode
+              ? i18n.t("billing:trialSelection.actionsTitle")
+              : i18n.t("billing:planActions.title"),
+            description: trialSelectionMode
+              ? i18n.t("billing:trialSelection.actionsDescription")
+              : i18n.t("billing:planActions.description"),
           },
           actions.can_cancel && !billing?.cancel_at_period_end
             ? createElement(
@@ -1144,11 +1187,19 @@ export function AccountSubscriptionPanel({
                             setConfirmCancel(true);
                           },
                         },
-                        i18n.t("billing:planActions.cancelSubscription"),
+                        trialSelectionMode
+                          ? i18n.t("billing:trialSelection.cancelSelected")
+                          : i18n.t("billing:planActions.cancelSubscription"),
                       )
                     : createElement(CancellationConfirmPanel, {
                         billing,
                         busyAction,
+                        confirmLabel: trialSelectionMode
+                          ? i18n.t("billing:trialSelection.confirmCancelSelected")
+                          : undefined,
+                        body: trialSelectionMode
+                          ? i18n.t("billing:trialSelection.cancelSelectedBody")
+                          : undefined,
                         onKeep: () => setConfirmCancel(false),
                         onConfirm: async () => {
                           setLocalError("");

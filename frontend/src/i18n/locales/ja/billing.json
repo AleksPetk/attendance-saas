@@ -74,6 +74,22 @@
     "confirmChange": "変更を確認",
     "scheduling": "スケジュール中…"
   },
+  "trialSelection": {
+    "title": "有料プランを選択",
+    "description": "Business 試用期間の終了後に始まる有料プランを選びます。試用中はいつでも変更・解除できます。",
+    "optionsAria": "将来の有料プランの選択肢",
+    "choosePlus": "Plus {{interval}} を選択",
+    "chooseBusiness": "Business {{interval}} を選択",
+    "selected": "試用終了後に選択済み",
+    "selectedBadge": "選択中の有料プラン",
+    "selectedPlan": "選択中の有料プラン",
+    "noneSelected": "未選択 — 下から選んでください",
+    "actionsTitle": "選択中の有料プラン",
+    "actionsDescription": "Business 試用は続けたまま、将来の有料プランの選択だけを解除します。",
+    "cancelSelected": "選択したプランをキャンセル",
+    "confirmCancelSelected": "選択を解除する",
+    "cancelSelectedBody": "将来の有料プランの選択を解除します。含まれている Business 試用は続きます。4つのプランから改めて選べます。"
+  },
   "downgrade": {
     "title": "プランをダウングレード",
     "description": "必要に応じて下位プランを選択してください。",

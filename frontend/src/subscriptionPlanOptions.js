@@ -24,17 +24,37 @@ export function effectivePlanKey(billing, sessionPlanKey = null) {
 }
 
 /**
- * Commercial subscribed plan for option cards. Built-in Business trial does not
- * count. Cancel-at-period-end during Stripe trialing is commercially Basic
- * (reselection), matching confirmed product rules.
+ * Commercial subscribed plan for option cards.
+ * Built-in Business trial: always commercially Basic (ignore subscribed_plan /
+ * future_paid_plan for upgrade/downgrade classification).
+ * Cancel-at-period-end during Stripe trialing is commercially Basic (reselection).
  */
 export function commercialPlanKey(billing) {
+  if (billing?.builtin_trial?.active) {
+    return null;
+  }
   if (billing?.cancel_at_period_end && billing?.status === "trialing") {
     return null;
   }
   const key = billing?.subscribed_plan?.key;
   if (key === "plus" || key === "business") return key;
   return null;
+}
+
+/** Future paid plan chosen during the built-in trial (not commercial yet). */
+export function futurePaidPlanSelection(billing) {
+  if (!billing?.builtin_trial?.active) return null;
+  const future = billing?.future_paid_plan;
+  if (future?.key === "plus" || future?.key === "business") {
+    if (future.interval === "monthly" || future.interval === "yearly") {
+      return { plan: future.key, interval: future.interval };
+    }
+  }
+  return null;
+}
+
+export function isBuiltinTrialSelectionMode(billing) {
+  return Boolean(billing?.builtin_trial?.active);
 }
 
 export function effectiveBillingInterval(billing) {
@@ -246,6 +266,7 @@ function pushCheckoutPair(options, billing, actions, pushOption) {
 /**
  * Build ordered Upgrade Plan cards from commercial subscribed state + actions.
  * Does not include Basic (cancel is the only path to Basic).
+ * During built-in trial: always four future-paid checkout choices.
  */
 export function buildUpgradePlanOptions(billing, sessionPlanKey = null) {
   void sessionPlanKey;
@@ -253,26 +274,42 @@ export function buildUpgradePlanOptions(billing, sessionPlanKey = null) {
   const plan = commercialPlanKey(billing);
   const interval = commercialBillingInterval(billing);
   const options = [];
+  const futureSelection = futurePaidPlanSelection(billing);
+  const trialSelection = isBuiltinTrialSelectionMode(billing);
 
   function pushOption(partial) {
     const pricing = targetOfferPricing(billing, partial.plan, partial.interval);
+    const isSelectedFuture =
+      trialSelection &&
+      futureSelection &&
+      futureSelection.plan === partial.plan &&
+      futureSelection.interval === partial.interval;
     options.push({
       ...partial,
       pricing,
       recommended: Boolean(partial.recommended || pricing.promotional),
+      selectedFuture: Boolean(isSelectedFuture),
       title: `${planDisplayName(billing, partial.plan)} ${intervalNoun(partial.interval)}`,
-      actionLabel:
-        partial.actionLabel ||
-        upgradeActionLabel({
-          currentPlan: plan,
-          targetPlan: partial.plan,
-          targetInterval: partial.interval,
-        }),
+      actionLabel: isSelectedFuture
+        ? i18n.t("billing:trialSelection.selected")
+        : trialSelection
+          ? i18n.t(
+              partial.plan === "business"
+                ? "billing:trialSelection.chooseBusiness"
+                : "billing:trialSelection.choosePlus",
+              { interval: intervalNoun(partial.interval) },
+            )
+          : partial.actionLabel ||
+            upgradeActionLabel({
+              currentPlan: plan,
+              targetPlan: partial.plan,
+              targetInterval: partial.interval,
+            }),
     });
   }
 
-  // Commercially Basic: unpaid, no subscribed plan, or cancel-during-trialing.
-  if (!plan) {
+  // Built-in trial or commercially Basic: four paid checkout choices.
+  if (trialSelection || !plan) {
     pushCheckoutPair(options, billing, actions, pushOption);
     return sortUpgradeOptions(options);
   }

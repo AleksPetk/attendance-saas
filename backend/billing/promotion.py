@@ -195,7 +195,8 @@ def resolve_audience(*, organization=None, billing=None) -> str:
 
     Anonymous / no organization → public.
     CheckStation-managed workspaces receive no promotions.
-    No paid access → basic (even if Organization.plan was left stale).
+    Built-in Business trial (entitlement only) → basic/new regardless of any
+    deferred future paid selection on Stripe.
     Cancel-at-period-end while still provider-trialing (paid period has not
     started) → basic again for promotion eligibility.
     Paid/trialing/past_due with a live commercial commitment → plan+interval.
@@ -205,6 +206,12 @@ def resolve_audience(*, organization=None, billing=None) -> str:
 
     if organization is None and billing is None:
         return AUDIENCE_PUBLIC
+
+    if organization is not None:
+        from billing.builtin_trial import builtin_trial_is_active
+
+        if builtin_trial_is_active(organization):
+            return AUDIENCE_BASIC
 
     if billing is None and organization is not None:
         from billing.services import get_workspace_billing

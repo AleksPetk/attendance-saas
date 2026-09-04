@@ -74,6 +74,22 @@
     "confirmChange": "Confirm change",
     "scheduling": "Scheduling…"
   },
+  "trialSelection": {
+    "title": "Choose your paid plan",
+    "description": "Pick the paid plan that will start when your included Business trial ends. You can change or clear this choice anytime during the trial.",
+    "optionsAria": "Future paid plan options",
+    "choosePlus": "Select Plus {{interval}}",
+    "chooseBusiness": "Select Business {{interval}}",
+    "selected": "Selected for after trial",
+    "selectedBadge": "Selected paid plan",
+    "selectedPlan": "Selected paid plan",
+    "noneSelected": "None — choose below",
+    "actionsTitle": "Selected paid plan",
+    "actionsDescription": "Clear your future paid choice without ending the included Business trial.",
+    "cancelSelected": "Cancel selected plan",
+    "confirmCancelSelected": "Clear selected plan",
+    "cancelSelectedBody": "This removes your future paid plan choice. Your included Business trial continues. You can pick any of the four plans again."
+  },
   "downgrade": {
     "title": "Downgrade plan",
     "description": "Choose a lower plan if needed.",

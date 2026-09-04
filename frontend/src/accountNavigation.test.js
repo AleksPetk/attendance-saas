@@ -737,7 +737,8 @@ test("subscription panel shows scheduled cancellation and trial without invented
   assert.match(html, /Paid plan starts/);
   assert.match(html, /Resume subscription/);
   assert.doesNotMatch(html, /Schedule downgrade to Plus/);
-  assert.doesNotMatch(html, /Choose Plus/);
+  // Cancel-during-trialing is commercially Basic: four paid choices may appear.
+  assert.match(html, /Choose Plus|Select Plus/);
   assert.doesNotMatch(html, /\b7[- ]day\b/i);
   assert.doesNotMatch(html, /\b14[- ]day\b/i);
 });
