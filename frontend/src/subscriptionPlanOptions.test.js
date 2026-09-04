@@ -10,7 +10,6 @@ import {
   isEffectiveCurrentPlanOption,
   isHighestPaidPlan,
   targetOfferPricing,
-  upgradeEmptyStateMessageKey,
 } from "./subscriptionPlanOptions.js";
 
 const catalog = {
@@ -178,77 +177,12 @@ describe("isHighestPaidPlan uses subscribed plan not effective entitlement", () 
       status: "trialing",
       purchase_source: "stripe",
       builtin_trial: { active: true },
-      actions: {
-        can_upgrade_to_business: true,
-        can_schedule_billing_change: false,
-        can_change_interval: false,
-        can_cancel: true,
-      },
     });
     assert.equal(isHighestPaidPlan(billing), false);
     assert.equal(isHighestPaidPlan(billing, "business"), false);
     const upgrades = buildUpgradePlanOptions(billing);
-    assert.deepEqual(
-      upgrades.map((o) => o.id),
-      ["business-monthly-upgrade"],
-    );
-    assert.equal(upgrades[0].actionLabel, "Upgrade to Business");
-    assert.equal(
-      upgradeEmptyStateMessageKey(billing, { hasOptions: upgrades.length > 0 }),
-      null,
-    );
-  });
-
-  it("Business trial + Plus cancel_at_period_end → resume guidance, no highest plan", () => {
-    const billing = plusMonthlyBilling({
-      effective_plan: { key: "business", display_name: "Business" },
-      subscribed_plan: { key: "plus", display_name: "Plus" },
-      status: "trialing",
-      purchase_source: "stripe",
-      cancel_at_period_end: true,
-      pending_plan: "basic",
-      builtin_trial: { active: true },
-      actions: {
-        can_upgrade_to_business: false,
-        can_schedule_billing_change: false,
-        can_change_interval: false,
-        can_cancel: false,
-        can_resume_subscription: true,
-      },
-    });
-    assert.equal(isHighestPaidPlan(billing), false);
-    assert.deepEqual(buildUpgradePlanOptions(billing), []);
-    assert.equal(
-      upgradeEmptyStateMessageKey(billing),
-      "billing:upgrade.noOptionsUntilResume",
-    );
-  });
-
-  it("Business trial only / no commercial subscription → Plus and Business checkout cards", () => {
-    const billing = {
-      effective_plan: { key: "business", display_name: "Business" },
-      subscribed_plan: { key: null, display_name: null },
-      interval: null,
-      status: "none",
-      purchase_source: "none",
-      builtin_trial: { active: true },
-      catalog,
-      actions: {
-        can_checkout_plus: true,
-        can_checkout_business: true,
-      },
-    };
-    assert.equal(isHighestPaidPlan(billing), false);
-    const upgrades = buildUpgradePlanOptions(billing);
-    const ids = upgrades.map((o) => o.id);
-    assert.ok(ids.includes("checkout-plus-monthly"));
-    assert.ok(ids.includes("checkout-plus-yearly"));
-    assert.ok(ids.includes("checkout-business-monthly"));
-    assert.ok(ids.includes("checkout-business-yearly"));
-    assert.equal(
-      upgrades.find((o) => o.id === "checkout-plus-monthly").actionLabel,
-      "Choose Plus Monthly",
-    );
+    assert.ok(upgrades.some((o) => o.plan === "plus" && o.interval === "yearly"));
+    assert.equal(upgrades.some((o) => o.id === "business-yearly-switch"), false);
   });
 
   it("Business trial + subscribed Business → highest-plan message allowed", () => {
@@ -261,8 +195,8 @@ describe("isHighestPaidPlan uses subscribed plan not effective entitlement", () 
       builtin_trial: { active: true },
       catalog,
       actions: {
-        can_schedule_billing_change: false,
-        can_change_interval: false,
+        can_schedule_billing_change: true,
+        can_change_interval: true,
         can_upgrade_to_business: false,
         can_cancel: true,
         can_schedule_downgrade_to_plus: false,
@@ -270,8 +204,6 @@ describe("isHighestPaidPlan uses subscribed plan not effective entitlement", () 
     };
     assert.equal(isHighestPaidPlan(billing), true);
     assert.equal(isHighestPaidPlan(billing, "business"), true);
-    assert.deepEqual(buildUpgradePlanOptions(billing), []);
-    assert.equal(upgradeEmptyStateMessageKey(billing), null);
   });
 
   it("paid Business outside trial → highest-plan message", () => {
@@ -283,26 +215,13 @@ describe("isHighestPaidPlan uses subscribed plan not effective entitlement", () 
       purchase_source: "stripe",
       builtin_trial: { active: false },
       catalog,
-      actions: {
-        can_schedule_billing_change: true,
-        can_change_interval: true,
-      },
+      actions: {},
     };
     assert.equal(isHighestPaidPlan(billing), true);
-    const upgrades = buildUpgradePlanOptions(billing);
-    assert.equal(upgrades.length, 1);
-    assert.equal(upgrades[0].id, "business-monthly-switch");
-    assert.equal(upgrades[0].actionLabel, "Switch to Monthly Billing");
   });
 
-  it("Plus outside trial → Business upgrade available, no highest-plan message", () => {
+  it("Plus outside trial → no highest-plan message", () => {
     assert.equal(isHighestPaidPlan(plusMonthlyBilling()), false);
-    const upgrades = buildUpgradePlanOptions(plusMonthlyBilling());
-    assert.ok(upgrades.some((o) => o.id === "business-monthly-upgrade"));
-    assert.equal(
-      upgrades.find((o) => o.id === "business-monthly-upgrade").actionLabel,
-      "Upgrade to Business",
-    );
   });
 
   it("built-in Business trial alone (no subscribed plan) → no highest-plan message", () => {

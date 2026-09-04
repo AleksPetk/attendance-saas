@@ -163,13 +163,11 @@ def build_billing_state(organization):
             and access_active
             and cancel_scheduled
         ),
-        # Commercial upgrade uses subscribed_plan, not effective entitlement.
-        # Built-in Business trial keeps effective=Business while Plus is deferred
-        # (status=trialing); immediate upgrade is still allowed by operations.
         "can_upgrade_to_business": (
             is_stripe
-            and access_active
+            and paid_active
             and subscribed == PLAN_PLUS
+            and effective == OrganizationPlan.PLUS
             and not cancel_scheduled
             and not change_scheduled
         ),
