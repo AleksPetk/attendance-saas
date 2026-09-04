@@ -95,3 +95,8 @@ test("registration submits the current allowlisted UI locale", () => {
   assert.match(registerSource, /const \{ locale \} = useLanguage\(\)/);
   assert.match(registerSource, /api\.registerOwner\(\{[\s\S]*legal_acknowledgement:[\s\S]*locale,/);
 });
+
+test("registration sign-in footnote imports react-router Link", () => {
+  assert.match(registerSource, /import \{ Link, useNavigate \} from "react-router-dom"/);
+  assert.match(registerSource, /<Link to="\/login">\{t\("signIn"\)\}<\/Link>/);
+});
