@@ -353,8 +353,8 @@ class OwnerRegistrationView(APIView):
                     .first()
                 )
                 if existing is not None:
-                    # Another account may already own this address as backup /
-                    # pending change even while a stale provisional primary exists.
+                    # Another account may already own this address as a verified
+                    # primary/backup even while a stale provisional primary exists.
                     if email_address_claimed(email, exclude_user=existing):
                         cls._pending_user_unavailable()
                     return cls._restart_pending_user_locked(

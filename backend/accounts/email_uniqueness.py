@@ -13,11 +13,14 @@ def normalize_owner_email(email):
 
 def email_address_claimed(email, *, exclude_user=None):
     """
-    Return True if `email` is already used as another account's primary login,
-    verified backup, or pending backup/primary change address.
+    Return True if `email` is already bound as another account's primary login
+    or verified backup.
 
     Includes unverified provisional password signups so concurrent password
     registration still collapses onto one pending User row.
+
+    Does **not** treat unverified pending_backup_email / pending_primary_email
+    as durable claims — those must not squat on another person's address.
     """
     normalized = normalize_owner_email(email)
     if not normalized:
@@ -31,21 +34,20 @@ def email_address_claimed(email, *, exclude_user=None):
         return True
     if qs.filter(backup_email=normalized).exists():
         return True
-    if qs.filter(pending_backup_email=normalized).exists():
-        return True
-    if qs.filter(pending_primary_email=normalized).exists():
-        return True
     return False
 
 
 def email_ownership_established(email, *, exclude_user=None) -> bool:
     """
-    Return True when ownership of `email` is established (not merely reserved).
+    Return True when ownership of `email` is established (verified), not merely
+    requested.
 
     Established ownership includes:
     - a verified primary login address
-    - platform operator accounts using the address
-    - verified backup / pending backup / pending primary-change addresses
+    - platform operator accounts using the address as primary
+    - a verified backup address
+
+    Pending backup / pending primary-change targets are not ownership.
     """
     normalized = normalize_owner_email(email)
     if not normalized:
@@ -63,11 +65,28 @@ def email_ownership_established(email, *, exclude_user=None) -> bool:
         return True
     if qs.filter(backup_email=normalized).exists():
         return True
-    if qs.filter(pending_backup_email=normalized).exists():
-        return True
-    if qs.filter(pending_primary_email=normalized).exists():
-        return True
     return False
+
+
+def lock_users_touching_email(email, *, exclude_user=None):
+    """
+    Row-lock every User that currently references `email` on primary, backup,
+    or pending fields. Call inside an open transaction before verification
+    commits that would establish ownership.
+    """
+    normalized = normalize_owner_email(email)
+    if not normalized:
+        return []
+
+    qs = User.objects.select_for_update().filter(
+        Q(email=normalized)
+        | Q(backup_email=normalized)
+        | Q(pending_backup_email=normalized)
+        | Q(pending_primary_email=normalized)
+    )
+    if exclude_user is not None:
+        qs = qs.exclude(pk=exclude_user.pk)
+    return list(qs)
 
 
 def get_provisional_unverified_owner(email):

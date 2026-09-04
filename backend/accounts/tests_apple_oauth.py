@@ -380,6 +380,25 @@ class AppleOAuthRegisterFlowTests(TestCase):
             AppleOAuthResultCode.NO_ACCOUNT,
         )
 
+    def test_unverified_pending_backup_does_not_block_apple_register(self):
+        holder, _organization = create_owner(email="holder@example.com")
+        holder.pending_backup_email = "free-to-claim@example.com"
+        holder.save(update_fields=["pending_backup_email"])
+        pending = self._start_register()
+        response = self._callback(
+            pending,
+            sub="free-apple-sub",
+            email="free-to-claim@example.com",
+            verified=True,
+        )
+        self.assertEqual(
+            result_code_from_redirect(response["Location"]),
+            AppleOAuthResultCode.SUCCESS,
+        )
+        owner = User.objects.get(email="free-to-claim@example.com")
+        self.assertTrue(owner.email_verified)
+        self.assertEqual(Organization.objects.filter(owner=owner).count(), 1)
+
 
 @override_settings(**APPLE_TEST_SETTINGS)
 class AppleOAuthSecurityTests(TestCase):

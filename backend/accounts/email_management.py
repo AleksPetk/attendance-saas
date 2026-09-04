@@ -10,6 +10,7 @@ from django.utils import timezone
 
 from accounts.email_uniqueness import (
     email_address_claimed,
+    lock_users_touching_email,
     validate_backup_email_for_user,
     validate_primary_email_for_user,
 )
@@ -172,17 +173,25 @@ def verify_backup_email_uid_token(uid, token):
     if status != "valid":
         return status, None
 
-    pending = user.pending_backup_email
-    if email_address_claimed(pending, exclude_user=user):
-        return "email_unavailable", None
-
-    now = timezone.now()
     with transaction.atomic():
-        user.backup_email = pending
-        user.backup_email_verified_at = now
-        user.pending_backup_email = None
-        user.backup_email_verification_last_sent_at = None
-        user.save(
+        locked = User.objects.select_for_update().get(pk=user.pk)
+        if not locked.is_active or not locked.pending_backup_email:
+            return "invalid", None
+        status = backup_email_verification_token_generator.inspect(locked, token)
+        if status != "valid":
+            return status, None
+
+        pending = locked.pending_backup_email
+        lock_users_touching_email(pending, exclude_user=locked)
+        if email_address_claimed(pending, exclude_user=locked):
+            return "email_unavailable", None
+
+        now = timezone.now()
+        locked.backup_email = pending
+        locked.backup_email_verified_at = now
+        locked.pending_backup_email = None
+        locked.backup_email_verification_last_sent_at = None
+        locked.save(
             update_fields=[
                 "backup_email",
                 "backup_email_verified_at",
@@ -190,7 +199,7 @@ def verify_backup_email_uid_token(uid, token):
                 "backup_email_verification_last_sent_at",
             ]
         )
-    return "verified", user
+    return "verified", locked
 
 
 def request_primary_email_change(user, email, password):
@@ -257,20 +266,28 @@ def verify_primary_email_uid_token(uid, token):
     if status != "valid":
         return status, None
 
-    new_email = user.pending_primary_email
-    if email_address_claimed(new_email, exclude_user=user):
-        return "email_unavailable", None
-
-    old_email = user.email
-    now = timezone.now()
     with transaction.atomic():
-        user.email = new_email
-        user.email_verified = True
-        user.email_verified_at = now
-        user.pending_primary_email = None
-        user.pending_primary_email_requested_at = None
-        user.primary_email_change_last_sent_at = None
-        user.save(
+        locked = User.objects.select_for_update().get(pk=user.pk)
+        if not locked.is_active or not locked.pending_primary_email:
+            return "invalid", None
+        status = primary_email_change_token_generator.inspect(locked, token)
+        if status != "valid":
+            return status, None
+
+        new_email = locked.pending_primary_email
+        lock_users_touching_email(new_email, exclude_user=locked)
+        if email_address_claimed(new_email, exclude_user=locked):
+            return "email_unavailable", None
+
+        old_email = locked.email
+        now = timezone.now()
+        locked.email = new_email
+        locked.email_verified = True
+        locked.email_verified_at = now
+        locked.pending_primary_email = None
+        locked.pending_primary_email_requested_at = None
+        locked.primary_email_change_last_sent_at = None
+        locked.save(
             update_fields=[
                 "email",
                 "email_verified",
@@ -284,14 +301,14 @@ def verify_primary_email_uid_token(uid, token):
     try:
         send_primary_email_changed_notice(
             old_email=old_email,
-            language=getattr(user, "preferred_language", None),
+            language=getattr(locked, "preferred_language", None),
         )
     except (EmailConfigurationError, EmailSendError) as exc:
         logger.error(
             "Primary email change notice failed for user_id=%s old_email=%s: %s",
-            user.pk,
+            locked.pk,
             old_email,
             exc,
         )
 
-    return "verified", user
+    return "verified", locked

@@ -490,6 +490,29 @@ class GoogleOAuthRegisterFlowTests(TestCase):
             ).exists()
         )
 
+    def test_unverified_pending_backup_does_not_block_google_register(self):
+        holder, _organization = create_owner(email="holder@gmail.com")
+        holder.pending_backup_email = "free-to-claim@gmail.com"
+        holder.save(update_fields=["pending_backup_email"])
+
+        pending = self._start_register()
+        response = self._callback(
+            pending,
+            sub="free-google-sub",
+            email="free-to-claim@gmail.com",
+            verified=True,
+        )
+        self.assertEqual(
+            result_code_from_redirect(response["Location"]),
+            GoogleOAuthResultCode.SUCCESS,
+        )
+        owner = User.objects.get(email="free-to-claim@gmail.com")
+        self.assertTrue(owner.email_verified)
+        self.assertEqual(Organization.objects.filter(owner=owner).count(), 1)
+        holder.refresh_from_db()
+        self.assertEqual(holder.pending_backup_email, "free-to-claim@gmail.com")
+        self.assertIsNone(holder.backup_email)
+
 
 @override_settings(**GOOGLE_TEST_SETTINGS)
 class GoogleOAuthSecurityTests(TestCase):

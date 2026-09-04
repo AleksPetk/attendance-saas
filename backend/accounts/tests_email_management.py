@@ -539,3 +539,101 @@ class EmailDeliveryTests(OwnerEmailManagementTestCase):
         )
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.data["code"], "token_invalid")
+
+
+class PendingEmailOwnershipSemanticsTests(TestCase):
+    def test_unverified_pending_backup_does_not_establish_ownership(self):
+        from accounts.email_uniqueness import (
+            email_address_claimed,
+            email_ownership_established,
+        )
+
+        holder = User.objects.create_user(
+            email="holder@example.com", password="secure-password"
+        )
+        holder.mark_email_verified()
+        Organization.objects.create_with_owner(owner=holder)
+        holder.pending_backup_email = "victim@example.com"
+        holder.save(update_fields=["pending_backup_email"])
+
+        self.assertFalse(email_address_claimed("victim@example.com"))
+        self.assertFalse(email_ownership_established("victim@example.com"))
+
+    def test_backup_verify_fails_after_other_account_registers_and_verifies(self):
+        holder = User.objects.create_user(
+            email="holder@example.com", password="secure-password"
+        )
+        holder.mark_email_verified()
+        Organization.objects.create_with_owner(owner=holder)
+        holder.pending_backup_email = "victim@example.com"
+        holder.save(update_fields=["pending_backup_email"])
+        stale_token = backup_email_verification_token_generator.make_token(holder)
+
+        real_owner = User.objects.create_user(
+            email="victim@example.com",
+            password="real-owner-password",
+            email_verified=False,
+        )
+        real_owner.mark_email_verified()
+        Organization.objects.create_with_owner(owner=real_owner)
+
+        response = APIClient().post(
+            "/api/auth/verify-backup-email/",
+            {"uid": uid_for(holder), "token": stale_token},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data["code"], "email_unavailable")
+        holder.refresh_from_db()
+        self.assertEqual(holder.pending_backup_email, "victim@example.com")
+        self.assertIsNone(holder.backup_email)
+        self.assertEqual(User.objects.filter(email="victim@example.com").count(), 1)
+        self.assertEqual(Organization.objects.filter(owner=real_owner).count(), 1)
+
+    def test_primary_change_verify_fails_after_other_account_owns_email(self):
+        holder = User.objects.create_user(
+            email="holder@example.com", password="secure-password"
+        )
+        holder.mark_email_verified()
+        Organization.objects.create_with_owner(owner=holder)
+        holder.pending_primary_email = "victim-primary@example.com"
+        holder.save(update_fields=["pending_primary_email"])
+        stale_token = primary_email_change_token_generator.make_token(holder)
+
+        real_owner = User.objects.create_user(
+            email="victim-primary@example.com",
+            password="real-owner-password",
+        )
+        real_owner.mark_email_verified()
+        Organization.objects.create_with_owner(owner=real_owner)
+
+        with patch("accounts.email_management.send_primary_email_changed_notice") as notice:
+            response = APIClient().post(
+                "/api/auth/verify-primary-email/",
+                {"uid": uid_for(holder), "token": stale_token},
+                format="json",
+            )
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data["code"], "email_unavailable")
+        notice.assert_not_called()
+        holder.refresh_from_db()
+        self.assertEqual(holder.email, "holder@example.com")
+        self.assertEqual(holder.pending_primary_email, "victim-primary@example.com")
+
+    def test_verified_backup_still_blocks_claimed_and_ownership(self):
+        from accounts.email_uniqueness import (
+            email_address_claimed,
+            email_ownership_established,
+        )
+
+        holder = User.objects.create_user(
+            email="holder@example.com", password="secure-password"
+        )
+        holder.mark_email_verified()
+        Organization.objects.create_with_owner(owner=holder)
+        holder.backup_email = "owned-backup@example.com"
+        holder.backup_email_verified_at = timezone.now()
+        holder.save(update_fields=["backup_email", "backup_email_verified_at"])
+
+        self.assertTrue(email_address_claimed("owned-backup@example.com"))
+        self.assertTrue(email_ownership_established("owned-backup@example.com"))
