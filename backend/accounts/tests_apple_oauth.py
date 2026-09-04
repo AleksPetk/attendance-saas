@@ -311,6 +311,75 @@ class AppleOAuthRegisterFlowTests(TestCase):
             AppleOAuthResultCode.EXISTING_ACCOUNT_CONNECT_REQUIRED,
         )
 
+    def test_verified_apple_register_claims_unverified_password_signup(self):
+        attacker = User.objects.create_user(
+            email="victim@example.com",
+            password="attacker-password-12",
+            email_verified=False,
+        )
+        pending = self._start_register()
+        response = self._callback(
+            pending,
+            sub="victim-apple-sub",
+            email="victim@example.com",
+            verified=True,
+        )
+        self.assertEqual(
+            result_code_from_redirect(response["Location"]),
+            AppleOAuthResultCode.SUCCESS,
+        )
+        self.assertEqual(User.objects.filter(email="victim@example.com").count(), 1)
+        owner = User.objects.get(email="victim@example.com")
+        self.assertEqual(owner.pk, attacker.pk)
+        self.assertTrue(owner.email_verified)
+        self.assertFalse(owner.has_usable_password())
+        self.assertFalse(owner.check_password("attacker-password-12"))
+        self.assertEqual(Organization.objects.filter(owner=owner).count(), 1)
+        self.assertEqual(
+            OwnerAuthProviderLink.objects.filter(
+                user=owner,
+                provider=OwnerAuthProvider.APPLE,
+                provider_subject="victim-apple-sub",
+            ).count(),
+            1,
+        )
+        login_response = APIClient().post(
+            "/api/auth/login/",
+            {"email": "victim@example.com", "password": "attacker-password-12"},
+            format="json",
+        )
+        self.assertEqual(login_response.status_code, 401)
+
+    def test_login_with_provisional_unverified_email_returns_no_account(self):
+        User.objects.create_user(
+            email="pending-only@example.com",
+            password="attacker-password-12",
+            email_verified=False,
+        )
+        response = self.client.get("/api/auth/apple/start/?intent=login")
+        pending = load_apple_oauth_state(response.wsgi_request)
+        claims = apple_claims(
+            sub="pending-apple-sub",
+            email="pending-only@example.com",
+            email_verified=True,
+            nonce=pending.nonce,
+        )
+        with patch(
+            "accounts.apple_oauth.exchange_authorization_code",
+            return_value={"id_token": "fake-id-token"},
+        ), patch(
+            "accounts.apple_oauth.verify_apple_id_token",
+            return_value=claims,
+        ):
+            callback = self.client.post(
+                "/api/auth/apple/callback/",
+                {"code": "auth-code", "state": pending.state},
+            )
+        self.assertEqual(
+            result_code_from_redirect(callback["Location"]),
+            AppleOAuthResultCode.NO_ACCOUNT,
+        )
+
 
 @override_settings(**APPLE_TEST_SETTINGS)
 class AppleOAuthSecurityTests(TestCase):

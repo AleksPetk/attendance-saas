@@ -325,6 +325,145 @@ class GoogleOAuthRegisterFlowTests(TestCase):
         )
         self.assertEqual(User.objects.filter(email="existing@gmail.com").count(), 1)
 
+    def test_verified_google_register_claims_unverified_password_signup(self):
+        from accounts.tokens import (
+            email_verification_token_generator,
+            password_reset_token_generator,
+        )
+        from django.contrib.sessions.backends.db import SessionStore
+
+        attacker = User.objects.create_user(
+            email="victim@gmail.com",
+            password="attacker-password-12",
+            email_verified=False,
+        )
+        stale_verify_token = email_verification_token_generator.make_token(attacker)
+        stale_reset_token = password_reset_token_generator.make_token(attacker)
+        session = SessionStore()
+        session["_auth_user_id"] = str(attacker.pk)
+        session["_auth_user_backend"] = "django.contrib.auth.backends.ModelBackend"
+        session.save()
+        stale_session_key = session.session_key
+
+        pending = self._start_register()
+        response = self._callback(
+            pending,
+            sub="victim-google-sub",
+            email="victim@gmail.com",
+            verified=True,
+        )
+        self.assertEqual(
+            result_code_from_redirect(response["Location"]),
+            GoogleOAuthResultCode.SUCCESS,
+        )
+
+        self.assertEqual(User.objects.filter(email="victim@gmail.com").count(), 1)
+        owner = User.objects.get(email="victim@gmail.com")
+        self.assertEqual(owner.pk, attacker.pk)
+        self.assertTrue(owner.email_verified)
+        self.assertFalse(owner.has_usable_password())
+        self.assertFalse(owner.check_password("attacker-password-12"))
+        self.assertEqual(Organization.objects.filter(owner=owner).count(), 1)
+        self.assertEqual(
+            OwnerAuthProviderLink.objects.filter(
+                user=owner,
+                provider=OwnerAuthProvider.GOOGLE,
+                provider_subject="victim-google-sub",
+            ).count(),
+            1,
+        )
+        self.assertEqual(
+            email_verification_token_generator.inspect(owner, stale_verify_token),
+            "invalid",
+        )
+        self.assertFalse(
+            password_reset_token_generator.check_token(owner, stale_reset_token)
+        )
+        self.assertFalse(SessionStore(session_key=stale_session_key).exists(stale_session_key))
+
+        login_response = APIClient().post(
+            "/api/auth/login/",
+            {"email": "victim@gmail.com", "password": "attacker-password-12"},
+            format="json",
+        )
+        self.assertEqual(login_response.status_code, 401)
+
+    def test_verified_google_register_claims_provisional_and_locks_jp_market(self):
+        from core.geo import TRUSTED_COUNTRY_HEADER
+        from organizations.models import BillingMarketOverride
+
+        User.objects.create_user(
+            email="jp-victim@gmail.com",
+            password="attacker-password-12",
+            email_verified=False,
+        )
+        response = self.client.get(
+            "/api/auth/google/start/?intent=register&legal_acknowledgement=true",
+            **{TRUSTED_COUNTRY_HEADER: "JP"},
+        )
+        pending = load_google_oauth_state(response.wsgi_request)
+        claims = google_claims(
+            sub="jp-google-sub",
+            email="jp-victim@gmail.com",
+            email_verified=True,
+            nonce=pending.nonce,
+        )
+        with patch(
+            "accounts.google_oauth.exchange_authorization_code",
+            return_value={"id_token": "fake-id-token"},
+        ), patch(
+            "accounts.google_oauth.verify_google_id_token",
+            return_value=claims,
+        ):
+            callback = self.client.get(
+                "/api/auth/google/callback/",
+                {"code": "auth-code", "state": pending.state},
+                **{TRUSTED_COUNTRY_HEADER: "JP"},
+            )
+        self.assertEqual(
+            result_code_from_redirect(callback["Location"]),
+            GoogleOAuthResultCode.SUCCESS,
+        )
+        owner = User.objects.get(email="jp-victim@gmail.com")
+        org = Organization.objects.get(owner=owner)
+        self.assertEqual(org.billing_market_override, BillingMarketOverride.JP)
+        self.assertEqual(Organization.objects.filter(owner=owner).count(), 1)
+
+    def test_login_with_provisional_unverified_email_returns_no_account(self):
+        User.objects.create_user(
+            email="pending-only@gmail.com",
+            password="attacker-password-12",
+            email_verified=False,
+        )
+        response = self.client.get("/api/auth/google/start/?intent=login")
+        pending = load_google_oauth_state(response.wsgi_request)
+        claims = google_claims(
+            sub="pending-google-sub",
+            email="pending-only@gmail.com",
+            email_verified=True,
+            nonce=pending.nonce,
+        )
+        with patch(
+            "accounts.google_oauth.exchange_authorization_code",
+            return_value={"id_token": "fake-id-token"},
+        ), patch(
+            "accounts.google_oauth.verify_google_id_token",
+            return_value=claims,
+        ):
+            callback = self.client.get(
+                "/api/auth/google/callback/",
+                {"code": "auth-code", "state": pending.state},
+            )
+        self.assertEqual(
+            result_code_from_redirect(callback["Location"]),
+            GoogleOAuthResultCode.NO_ACCOUNT,
+        )
+        self.assertFalse(
+            OwnerAuthProviderLink.objects.filter(
+                provider_subject="pending-google-sub"
+            ).exists()
+        )
+
 
 @override_settings(**GOOGLE_TEST_SETTINGS)
 class GoogleOAuthSecurityTests(TestCase):

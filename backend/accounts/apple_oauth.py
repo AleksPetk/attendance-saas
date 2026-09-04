@@ -28,10 +28,18 @@ from accounts.apple_oauth_state import (
     AppleOAuthStateError,
     consume_apple_oauth_state,
 )
-from accounts.email_uniqueness import email_address_claimed, normalize_owner_email
+from accounts.email_uniqueness import (
+    email_ownership_established,
+    get_provisional_unverified_owner,
+    normalize_owner_email,
+)
 from accounts.owner_auth_provider_models import OwnerAuthProvider, OwnerAuthProviderLink
 from accounts.owner_authentication import complete_owner_authentication
 from accounts.owner_sensitive_auth import record_owner_oauth_reauth
+from accounts.provisional_ownership import (
+    ProvisionalClaimError,
+    claim_provisional_owner_with_oauth,
+)
 from accounts.services import provision_verified_owner
 
 logger = logging.getLogger("accounts.apple_oauth")
@@ -181,11 +189,26 @@ def handle_apple_oauth_login(request, identity: AppleIdentity) -> HttpResponseRe
     if link is not None:
         return _login_existing_apple_link(request, link, identity)
 
-    if identity.email and email_address_claimed(identity.email):
+    if identity.email and email_ownership_established(identity.email):
         return redirect_apple_oauth_result(
             AppleOAuthResultCode.EXISTING_ACCOUNT_CONNECT_REQUIRED
         )
     return redirect_apple_oauth_result(AppleOAuthResultCode.NO_ACCOUNT)
+
+
+def _claim_or_register_apple_owner(identity: AppleIdentity, *, billing_market: str):
+    provisional = get_provisional_unverified_owner(identity.email)
+    if provisional is not None:
+        return claim_provisional_owner_with_oauth(
+            provisional,
+            identity_email=identity.email,
+            billing_market=billing_market,
+            create_provider_link=create_apple_provider_link,
+            identity=identity,
+        )
+    if email_ownership_established(identity.email):
+        raise ProvisionalClaimError("ownership_established")
+    return _register_new_apple_owner(identity, billing_market=billing_market)
 
 
 def handle_apple_oauth_register(
@@ -206,7 +229,7 @@ def handle_apple_oauth_register(
     if get_apple_provider_link(subject=identity.subject) is not None:
         return redirect_apple_oauth_result(AppleOAuthResultCode.APPLE_ALREADY_LINKED)
 
-    if email_address_claimed(identity.email):
+    if email_ownership_established(identity.email):
         return redirect_apple_oauth_result(
             AppleOAuthResultCode.EXISTING_ACCOUNT_CONNECT_REQUIRED
         )
@@ -216,20 +239,40 @@ def handle_apple_oauth_register(
     billing_market = lock_market_for_new_registration(request)
 
     try:
-        user = _register_new_apple_owner(identity, billing_market=billing_market)
+        user = _claim_or_register_apple_owner(
+            identity, billing_market=billing_market
+        )
+    except ProvisionalClaimError:
+        if email_ownership_established(identity.email):
+            return redirect_apple_oauth_result(
+                AppleOAuthResultCode.EXISTING_ACCOUNT_CONNECT_REQUIRED
+            )
+        return redirect_apple_oauth_result(AppleOAuthResultCode.AUTHENTICATION_FAILED)
     except IntegrityError:
         logger.warning("Apple registration race for subject=%s", identity.subject)
         link = get_apple_provider_link(subject=identity.subject)
         if link is not None:
             return _login_existing_apple_link(request, link, identity)
-        if email_address_claimed(identity.email):
+        provisional = get_provisional_unverified_owner(identity.email)
+        if provisional is not None:
+            try:
+                user = claim_provisional_owner_with_oauth(
+                    provisional,
+                    identity_email=identity.email,
+                    billing_market=billing_market,
+                    create_provider_link=create_apple_provider_link,
+                    identity=identity,
+                )
+                return _finalize_owner_login(request, user)
+            except ProvisionalClaimError:
+                pass
+        if email_ownership_established(identity.email):
             return redirect_apple_oauth_result(
                 AppleOAuthResultCode.EXISTING_ACCOUNT_CONNECT_REQUIRED
             )
         return redirect_apple_oauth_result(AppleOAuthResultCode.AUTHENTICATION_FAILED)
 
     return _finalize_owner_login(request, user)
-
 
 def handle_apple_oauth_link(
     request,
