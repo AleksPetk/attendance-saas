@@ -178,18 +178,9 @@ function sortUpgradeOptions(options) {
  * Build ordered Upgrade Plan cards from billing actions + catalog offers.
  * Does not include downgrades or Basic for paid workspaces.
  */
-/**
- * Commercial plan used for upgrade/downgrade controls.
- * Prefer subscribed_plan so a built-in Business trial entitlement does not
- * look like a paid Business subscription in plan-change UI.
- */
-export function commercialPlanKey(billing, sessionPlanKey = null) {
-  return billing?.subscribed_plan?.key || effectivePlanKey(billing, sessionPlanKey);
-}
-
 export function buildUpgradePlanOptions(billing, sessionPlanKey = null) {
   const actions = billing?.actions || {};
-  const plan = commercialPlanKey(billing, sessionPlanKey);
+  const plan = effectivePlanKey(billing, sessionPlanKey);
   const interval = effectiveBillingInterval(billing);
   const options = [];
 
@@ -359,7 +350,7 @@ export function buildUpgradePlanOptions(billing, sessionPlanKey = null) {
 
 export function buildDowngradePlanOptions(billing, sessionPlanKey = null) {
   const actions = billing?.actions || {};
-  const plan = commercialPlanKey(billing, sessionPlanKey);
+  const plan = effectivePlanKey(billing, sessionPlanKey);
   const interval = effectiveBillingInterval(billing) || "monthly";
   const options = [];
 
@@ -414,8 +405,6 @@ export function buildDowngradePlanOptions(billing, sessionPlanKey = null) {
   return options;
 }
 
-export function isHighestPaidPlan(billing, _sessionPlanKey = null) {
-  // Highest-plan copy is about the paid subscription, not effective entitlement
-  // (built-in Business trial must not trigger "You're on our highest plan").
-  return billing?.subscribed_plan?.key === "business";
+export function isHighestPaidPlan(billing, sessionPlanKey = null) {
+  return effectivePlanKey(billing, sessionPlanKey) === "business";
 }
