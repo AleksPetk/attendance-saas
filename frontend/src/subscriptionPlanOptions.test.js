@@ -8,6 +8,7 @@ import {
   buildDowngradePlanOptions,
   buildUpgradePlanOptions,
   isEffectiveCurrentPlanOption,
+  isHighestPaidPlan,
   targetOfferPricing,
 } from "./subscriptionPlanOptions.js";
 
@@ -165,6 +166,80 @@ describe("Business highest plan", () => {
     const downs = buildDowngradePlanOptions(billing);
     assert.ok(downs.some((o) => o.plan === "plus"));
     assert.ok(downs.some((o) => o.plan === "basic"));
+  });
+});
+
+describe("isHighestPaidPlan uses subscribed plan not effective entitlement", () => {
+  it("Business trial + subscribed Plus → no highest-plan message", () => {
+    const billing = plusMonthlyBilling({
+      effective_plan: { key: "business", display_name: "Business" },
+      subscribed_plan: { key: "plus", display_name: "Plus" },
+      status: "trialing",
+      purchase_source: "stripe",
+      builtin_trial: { active: true },
+    });
+    assert.equal(isHighestPaidPlan(billing), false);
+    assert.equal(isHighestPaidPlan(billing, "business"), false);
+    const upgrades = buildUpgradePlanOptions(billing);
+    assert.ok(upgrades.some((o) => o.plan === "plus" && o.interval === "yearly"));
+    assert.equal(upgrades.some((o) => o.id === "business-yearly-switch"), false);
+  });
+
+  it("Business trial + subscribed Business → highest-plan message allowed", () => {
+    const billing = {
+      effective_plan: { key: "business", display_name: "Business" },
+      subscribed_plan: { key: "business", display_name: "Business" },
+      interval: "monthly",
+      status: "trialing",
+      purchase_source: "stripe",
+      builtin_trial: { active: true },
+      catalog,
+      actions: {
+        can_schedule_billing_change: true,
+        can_change_interval: true,
+        can_upgrade_to_business: false,
+        can_cancel: true,
+        can_schedule_downgrade_to_plus: false,
+      },
+    };
+    assert.equal(isHighestPaidPlan(billing), true);
+    assert.equal(isHighestPaidPlan(billing, "business"), true);
+  });
+
+  it("paid Business outside trial → highest-plan message", () => {
+    const billing = {
+      effective_plan: { key: "business", display_name: "Business" },
+      subscribed_plan: { key: "business", display_name: "Business" },
+      interval: "yearly",
+      status: "active",
+      purchase_source: "stripe",
+      builtin_trial: { active: false },
+      catalog,
+      actions: {},
+    };
+    assert.equal(isHighestPaidPlan(billing), true);
+  });
+
+  it("Plus outside trial → no highest-plan message", () => {
+    assert.equal(isHighestPaidPlan(plusMonthlyBilling()), false);
+  });
+
+  it("built-in Business trial alone (no subscribed plan) → no highest-plan message", () => {
+    const billing = {
+      effective_plan: { key: "business", display_name: "Business" },
+      subscribed_plan: { key: null, display_name: null },
+      interval: null,
+      status: "none",
+      purchase_source: "none",
+      builtin_trial: { active: true },
+      catalog,
+      actions: {
+        can_checkout_plus: true,
+        can_checkout_business: true,
+      },
+    };
+    assert.equal(isHighestPaidPlan(billing), false);
+    assert.equal(isHighestPaidPlan(billing, "business"), false);
   });
 });
 
