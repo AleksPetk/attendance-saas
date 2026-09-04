@@ -81,6 +81,7 @@ const SESSION_EXPIRY_EXEMPT_PREFIXES = [
   "/api/auth/csrf/",
   "/api/auth/forgot-password/",
   "/api/auth/reset-password/",
+  "/api/auth/recover-account/",
   "/api/auth/verify-email/",
   "/api/auth/verify-backup-email/",
   "/api/auth/verify-primary-email/",
@@ -208,6 +209,17 @@ export const api = {
     request("/api/auth/resend-verification/", { method: "POST", json: payload }),
   forgotPassword: (payload) => request("/api/auth/forgot-password/", { method: "POST", json: payload }),
   resetPassword: (payload) => request("/api/auth/reset-password/", { method: "POST", json: payload }),
+  recoverAccountStart: (payload) =>
+    request("/api/auth/recover-account/", { method: "POST", json: payload }),
+  recoverAccountConfirm: (payload) =>
+    request("/api/auth/recover-account/confirm/", { method: "POST", json: payload }),
+  recoverAccountStatus: () => request("/api/auth/recover-account/status/"),
+  recoverAccountTwoFactor: (payload) =>
+    request("/api/auth/recover-account/2fa/", { method: "POST", json: payload }),
+  recoverAccountComplete: (payload) =>
+    request("/api/auth/recover-account/complete/", { method: "POST", json: payload }),
+  recoverAccountVerifyPrimary: (payload) =>
+    request("/api/auth/recover-account/verify-primary/", { method: "POST", json: payload }),
   changePassword: (payload) => request("/api/auth/change-password/", { method: "POST", json: payload }),
   setPassword: (payload) => request("/api/auth/set-password/", { method: "POST", json: payload }),
   unlinkGoogle: (payload) => request("/api/auth/google/unlink/", { method: "POST", json: payload }),

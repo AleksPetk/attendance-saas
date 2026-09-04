@@ -32,6 +32,7 @@ export const VerifyBackupEmailScreen = lazyScreen(() => import("./VerifyBackupEm
 export const VerifyPrimaryEmailScreen = lazyScreen(() => import("./VerifyPrimaryEmailScreen.jsx"));
 export const ForgotPasswordScreen = lazyScreen(() => import("./ForgotPasswordScreen.jsx"));
 export const ResetPasswordScreen = lazyScreen(() => import("./ResetPasswordScreen.jsx"));
+export const RecoverAccountScreen = lazyScreen(() => import("./RecoverAccountScreen.jsx"));
 export const OwnerOAuthResultScreen = lazyScreen(() => import("./OwnerOAuthResultScreen.jsx"));
 
 // Workspace

@@ -154,6 +154,8 @@ export default function OwnerLoginScreen({ onSignedIn }) {
           </button>
           <p className="hint" style={{ textAlign: "center" }}>
             <Link to="/forgot-password">{t("ownerLogin.forgotPassword")}</Link>
+            <br />
+            <Link to="/recover-account">{t("ownerLogin.recoverAccount")}</Link>
           </p>
           <AuthMethodDivider />
           <AuthProviderButtons intent="login" />

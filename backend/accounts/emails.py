@@ -300,3 +300,156 @@ def send_primary_email_changed_notice(*, old_email, language=None):
         html_body=html_body,
         text_body=text_body,
     )
+
+
+def send_account_recovery_email(user, *, uid, token, language=None):
+    name = product_name()
+    url = frontend_url("recover-account", uid, token)
+    resolved_language = _email_language(user, language)
+    expiry_hours = _hours(getattr(settings, "ACCOUNT_RECOVERY_TIMEOUT", 3600))
+    backup = getattr(user, "backup_email", "") or ""
+
+    if resolved_language == "ja":
+        subject = f"{name} アカウント復旧"
+        heading = subject
+        intro = (
+            f"{name} オーナーアカウントの復旧リクエストを受け付けました。"
+            "ログインメールにアクセスできない場合は、以下のボタンから復旧を続行してください。"
+        )
+        action_label = "アカウントを復旧"
+        security_note = (
+            "このメールに心当たりがない場合は無視してください。"
+            "バックアップメールは通常のログインには使えません。"
+        )
+        expiry_text = f"このリンクの有効期限は{expiry_hours}時間です。"
+        action_help_text = "ボタンが機能しない場合は、以下のURLをブラウザに貼り付けてください。"
+    else:
+        subject = f"Recover your {name} account"
+        heading = subject
+        intro = (
+            f"We received a request to recover a {name} owner account using this "
+            "verified backup email. If you lost access to your login email, continue below."
+        )
+        action_label = "Continue account recovery"
+        security_note = (
+            f"If you did not request this, you can ignore this email. "
+            f"Backup email cannot be used for normal {name} Customer Login."
+        )
+        expiry_text = ""
+        action_help_text = ""
+
+    html_body, text_body = render_branded_email(
+        heading=heading,
+        intro=intro,
+        action_label=action_label,
+        action_url=url,
+        security_note=security_note,
+        expiry_hours=expiry_hours,
+        language=resolved_language,
+        expiry_text=expiry_text,
+        action_help_text=action_help_text,
+    )
+    send_transactional_email(
+        to_email=backup,
+        subject=subject,
+        html_body=html_body,
+        text_body=text_body,
+    )
+
+
+def send_account_recovery_primary_verification_email(
+    user, *, uid, token, new_email, language=None
+):
+    name = product_name()
+    url = frontend_url("recover-account/verify-primary", uid, token)
+    resolved_language = _email_language(user, language)
+    expiry_hours = _hours(getattr(settings, "ACCOUNT_RECOVERY_TIMEOUT", 3600))
+
+    if resolved_language == "ja":
+        subject = f"{name} 新しいログインメールを確認"
+        heading = subject
+        intro = (
+            f"アカウント復旧のため、このアドレスを新しい {name} ログインメールとして確認してください。"
+        )
+        action_label = "ログインメールを確認"
+        security_note = "心当たりがない場合は、このメールを無視してください。"
+        expiry_text = f"このリンクの有効期限は{expiry_hours}時間です。"
+        action_help_text = "ボタンが機能しない場合は、以下のURLをブラウザに貼り付けてください。"
+    else:
+        subject = f"Confirm your new {name} login email"
+        heading = subject
+        intro = (
+            f"To finish recovering your {name} owner account, confirm this address "
+            "as your new login email."
+        )
+        action_label = "Confirm login email"
+        security_note = (
+            f"If you did not start account recovery, you can ignore this email."
+        )
+        expiry_text = ""
+        action_help_text = ""
+
+    html_body, text_body = render_branded_email(
+        heading=heading,
+        intro=intro,
+        action_label=action_label,
+        action_url=url,
+        security_note=security_note,
+        expiry_hours=expiry_hours,
+        language=resolved_language,
+        expiry_text=expiry_text,
+        action_help_text=action_help_text,
+    )
+    send_transactional_email(
+        to_email=new_email,
+        subject=subject,
+        html_body=html_body,
+        text_body=text_body,
+    )
+
+
+def send_account_recovery_completed_notice(*, to_email, language=None):
+    if not to_email:
+        return
+    name = product_name()
+    resolved_language = normalize_language(language)
+    login_url = frontend_url("login")
+
+    if resolved_language == "ja":
+        subject = f"{name} アカウント復旧が完了しました"
+        heading = subject
+        intro = (
+            f"{name} オーナーアカウントの復旧が完了し、ログインメールとパスワードが更新されました。"
+            "通常のサインイン画面から新しいログインメールでサインインしてください。"
+        )
+        action_label = "サインイン"
+        security_note = (
+            f"ご自身で復旧していない場合は、すぐに {name} サポートへ連絡してください。"
+        )
+    else:
+        subject = f"Your {name} account was recovered"
+        heading = subject
+        intro = (
+            f"Account recovery finished for a {name} owner account. The login email "
+            "and password were updated. Sign in from the normal login screen with the "
+            "new login email."
+        )
+        action_label = "Sign in"
+        security_note = (
+            f"If you did not recover this account, contact {name} support immediately."
+        )
+
+    html_body, text_body = render_branded_email(
+        heading=heading,
+        intro=intro,
+        action_label=action_label,
+        action_url=login_url,
+        security_note=security_note,
+        language=resolved_language,
+    )
+    send_transactional_email(
+        to_email=to_email,
+        subject=subject,
+        html_body=html_body,
+        text_body=text_body,
+    )

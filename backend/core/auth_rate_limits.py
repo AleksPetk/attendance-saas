@@ -204,6 +204,51 @@ def record_password_reset_attempt(request, email: str) -> None:
     )
 
 
+# --- Account recovery (verified backup email) ---
+
+
+def account_recovery_limits():
+    return {
+        "ip_limit": int(getattr(settings, "ACCOUNT_RECOVERY_IP_LIMIT", 5)),
+        "ip_window": int(getattr(settings, "ACCOUNT_RECOVERY_IP_WINDOW", 3600)),
+        "email_limit": int(getattr(settings, "ACCOUNT_RECOVERY_EMAIL_LIMIT", 3)),
+        "email_window": int(getattr(settings, "ACCOUNT_RECOVERY_EMAIL_WINDOW", 3600)),
+    }
+
+
+def check_account_recovery_allowed(request, email: str) -> bool:
+    limits = account_recovery_limits()
+    ip = get_client_ip(request)
+    normalized = _normalize_email(email)
+    blocked = check_any_throttled(
+        [
+            ("account_recovery", "ip", ip, limits["ip_limit"]),
+            ("account_recovery", "email", normalized, limits["email_limit"]),
+        ]
+    )
+    return blocked.allowed
+
+
+def record_account_recovery_attempt(request, email: str) -> None:
+    limits = account_recovery_limits()
+    ip = get_client_ip(request)
+    normalized = _normalize_email(email)
+    record_failure(
+        "account_recovery",
+        "ip",
+        ip,
+        limit=limits["ip_limit"],
+        window_seconds=limits["ip_window"],
+    )
+    record_failure(
+        "account_recovery",
+        "email",
+        normalized,
+        limit=limits["email_limit"],
+        window_seconds=limits["email_window"],
+    )
+
+
 # --- Public verification resend ---
 
 

@@ -37,6 +37,39 @@ class ResetPasswordSerializer(serializers.Serializer):
         return attrs
 
 
+class RecoverAccountTwoFactorSerializer(serializers.Serializer):
+    code = serializers.CharField(required=False, allow_blank=True)
+    recovery_code = serializers.CharField(required=False, allow_blank=True)
+
+    def validate(self, attrs):
+        code = (attrs.get("code") or "").strip()
+        recovery_code = (attrs.get("recovery_code") or "").strip()
+        if not code and not recovery_code:
+            raise serializers.ValidationError(
+                {"code": "Enter an authenticator code or a recovery code."}
+            )
+        if code and recovery_code:
+            raise serializers.ValidationError(
+                {"code": "Submit either an authenticator code or a recovery code."}
+            )
+        attrs["code"] = code
+        attrs["recovery_code"] = recovery_code
+        return attrs
+
+
+class RecoverAccountCompleteSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    password = serializers.CharField(write_only=True)
+    password_confirm = serializers.CharField(write_only=True)
+
+    def validate(self, attrs):
+        if attrs.get("password") != attrs.get("password_confirm"):
+            raise serializers.ValidationError(
+                {"password_confirm": "Passwords do not match."}
+            )
+        return attrs
+
+
 class ChangePasswordSerializer(serializers.Serializer):
     current_password = serializers.CharField(write_only=True)
     new_password = serializers.CharField(write_only=True)

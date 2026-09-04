@@ -76,6 +76,8 @@ export function isWorkspaceAuthPath(pathname) {
     path === "/staff-login" ||
     path === "/check-email" ||
     path === "/forgot-password"
+    || path === "/recover-account"
+    || path.startsWith("/recover-account/")
   ) {
     return true;
   }

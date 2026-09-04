@@ -63,13 +63,14 @@ function sensitiveActionErrorMessage(error) {
   return passwordNotAvailableGuidance(error) || errorMessage(error);
 }
 
-function EmailActionRow({ label, email, status, statusVariant, children }) {
+function EmailActionRow({ label, email, status, statusVariant, hint, children }) {
   return (
     <div className="account-email-block">
       <div className="account-email-row">
         <div>
           <p className="account-email-label">{label}</p>
           {email ? <strong>{email}</strong> : <span className="hint">{i18n.t("account:notAdded")}</span>}
+          {hint ? <p className="hint">{hint}</p> : null}
         </div>
         {status ? <Badge variant={statusVariant}>{status}</Badge> : null}
       </div>
@@ -896,6 +897,7 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
                     : null
               }
               statusVariant={backupStatus === "verified" ? "live" : undefined}
+              hint={t("account:email.backupEmailHint")}
             >
               {backupStatus === "none" && !backupOpen ? (
                 <button type="button" className="btn-secondary btn-sm" onClick={() => setBackupOpen(true)}>

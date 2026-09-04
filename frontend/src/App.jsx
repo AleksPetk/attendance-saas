@@ -36,6 +36,7 @@ import {
   PublicHomeScreen,
   PublicHowItWorksScreen,
   PublicPricingScreen,
+  RecoverAccountScreen,
   RegisterScreen,
   ResetPasswordScreen,
   StaffLoginScreen,
@@ -276,6 +277,7 @@ function isPublicAuthPath(pathname) {
     pathname.startsWith("/verify-backup-email") ||
     pathname.startsWith("/verify-primary-email") ||
     pathname.startsWith("/forgot-password") ||
+    pathname.startsWith("/recover-account") ||
     pathname.startsWith("/reset-password") ||
     pathname.startsWith("/auth/google/result") ||
     pathname.startsWith("/auth/apple/result")
@@ -851,6 +853,38 @@ export default function App() {
             element={(
               <RouteSuspense>
                 <ForgotPasswordScreen />
+              </RouteSuspense>
+            )}
+          />
+          <Route
+            path="/recover-account"
+            element={(
+              <RouteSuspense>
+                <RecoverAccountScreen mode="start" />
+              </RouteSuspense>
+            )}
+          />
+          <Route
+            path="/recover-account/continue"
+            element={(
+              <RouteSuspense>
+                <RecoverAccountScreen mode="continue" />
+              </RouteSuspense>
+            )}
+          />
+          <Route
+            path="/recover-account/verify-primary/:uid/:token"
+            element={(
+              <RouteSuspense>
+                <RecoverAccountScreen mode="verify-primary" />
+              </RouteSuspense>
+            )}
+          />
+          <Route
+            path="/recover-account/:uid/:token"
+            element={(
+              <RouteSuspense>
+                <RecoverAccountScreen mode="confirm" />
               </RouteSuspense>
             )}
           />

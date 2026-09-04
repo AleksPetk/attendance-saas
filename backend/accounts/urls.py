@@ -1,5 +1,13 @@
 from django.urls import path
 
+from accounts.account_recovery_views import (
+    RecoverAccountCompleteView,
+    RecoverAccountConfirmView,
+    RecoverAccountStartView,
+    RecoverAccountStatusView,
+    RecoverAccountTwoFactorView,
+    RecoverAccountVerifyPrimaryView,
+)
 from accounts.apple_oauth_views import AppleOAuthCallbackView, AppleOAuthStartView
 from accounts.google_oauth_views import GoogleOAuthCallbackView, GoogleOAuthStartView
 from accounts.owner_sign_in_method_views import (
@@ -52,6 +60,36 @@ urlpatterns = [
     ),
     path("auth/forgot-password/", ForgotPasswordView.as_view(), name="forgot-password"),
     path("auth/reset-password/", ResetPasswordView.as_view(), name="reset-password"),
+    path(
+        "auth/recover-account/",
+        RecoverAccountStartView.as_view(),
+        name="recover-account-start",
+    ),
+    path(
+        "auth/recover-account/confirm/",
+        RecoverAccountConfirmView.as_view(),
+        name="recover-account-confirm",
+    ),
+    path(
+        "auth/recover-account/status/",
+        RecoverAccountStatusView.as_view(),
+        name="recover-account-status",
+    ),
+    path(
+        "auth/recover-account/2fa/",
+        RecoverAccountTwoFactorView.as_view(),
+        name="recover-account-2fa",
+    ),
+    path(
+        "auth/recover-account/complete/",
+        RecoverAccountCompleteView.as_view(),
+        name="recover-account-complete",
+    ),
+    path(
+        "auth/recover-account/verify-primary/",
+        RecoverAccountVerifyPrimaryView.as_view(),
+        name="recover-account-verify-primary",
+    ),
     path("auth/change-password/", ChangePasswordView.as_view(), name="change-password"),
     path("auth/set-password/", SetPasswordView.as_view(), name="set-password"),
     path("auth/google/unlink/", GoogleUnlinkView.as_view(), name="google-unlink"),

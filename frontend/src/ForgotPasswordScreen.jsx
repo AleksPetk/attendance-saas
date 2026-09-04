@@ -42,6 +42,8 @@ export default function ForgotPasswordScreen() {
         <p>
           {t("forgotPassword.remembered")}{" "}
           <Link to="/login">{t("forgotPassword.backToLogin")}</Link>
+          <br />
+          <Link to="/recover-account">{t("forgotPassword.recoverAccount")}</Link>
         </p>
       }
     >

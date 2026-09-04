@@ -39,6 +39,7 @@
   "email": {
     "loginEmail": "Login email",
     "backupEmail": "Backup email",
+    "backupEmailHint": "Used for account recovery if you lose access to your login email. Cannot be used for normal Customer Login.",
     "pendingChange": "Pending change",
     "newLoginEmail": "New login email",
     "currentPassword": "Current password",

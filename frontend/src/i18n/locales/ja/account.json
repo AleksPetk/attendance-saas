@@ -39,6 +39,7 @@
   "email": {
     "loginEmail": "ログインメール",
     "backupEmail": "バックアップメール",
+    "backupEmailHint": "ログイン用メールにアクセスできなくなった場合のアカウント復旧に使用します。通常のお客様ログインには使えません。",
     "pendingChange": "変更保留中",
     "newLoginEmail": "新しいログインメール",
     "currentPassword": "現在のパスワード",
