@@ -391,17 +391,7 @@ export function buildUpgradePlanOptions(billing, sessionPlanKey = null) {
         actionLabel: i18n.t("billing:upgrade.upgradeBusiness"),
       });
     }
-    if (actions.can_schedule_billing_change) {
-      pushOption({
-        id: "business-monthly-schedule",
-        plan: "business",
-        interval: "monthly",
-        kind: "schedule",
-        recommended: false,
-        enabled: true,
-        actionLabel: i18n.t("billing:upgrade.upgradeBusinessMonthly"),
-      });
-    }
+    // Approved matrix: Plus Yearly does not offer Business Monthly.
     return sortUpgradeOptions(options);
   }
 

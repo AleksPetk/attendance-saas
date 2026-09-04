@@ -846,67 +846,93 @@ export function AccountSubscriptionPanel({
             createElement(
               "strong",
               null,
-              billing?.scheduled_change?.kind === "downgrade" ||
-                billing?.pending_plan === "plus"
-                ? i18n.t("billing:scheduledChange.downgradeScheduled")
-                : i18n.t("billing:scheduledChange.title"),
-            ),
-            createElement(
-              "p",
-              { className: "account-scheduled-change-target" },
-              `${translatePlan(
-                billing,
-                billing.pending_plan || billing.subscribed_plan?.key,
-              )} ${
-                (billing.pending_interval || billing.interval) === "yearly"
-                  ? i18n.t("billing:interval.yearly")
-                  : i18n.t("billing:interval.monthly")
-              }`,
-            ),
-            createElement(
-              "p",
-              null,
-              scheduledSummary?.effectiveAt || scheduledDowngradeAt
-                ? i18n.t("billing:scheduledChange.begins", {
-                    date: scheduledSummary?.effectiveAt || scheduledDowngradeAt,
-                  })
-                : i18n.t("billing:scheduledChange.beginsPeriodEnd"),
+              (() => {
+                const targetPlanName = translatePlan(
+                  billing,
+                  billing.pending_plan || billing.subscribed_plan?.key,
+                );
+                const targetIv =
+                  (billing.pending_interval || billing.interval) === "yearly"
+                    ? i18n.t("billing:interval.yearly")
+                    : i18n.t("billing:interval.monthly");
+                const when =
+                  scheduledSummary?.effectiveAt || scheduledDowngradeAt;
+                if (when && targetPlanName) {
+                  return i18n.t("billing:scheduledChange.planStartsOn", {
+                    plan: targetPlanName,
+                    interval: targetIv,
+                    date: when,
+                  });
+                }
+                return billing?.scheduled_change?.kind === "downgrade" ||
+                  billing?.pending_plan === "plus"
+                  ? i18n.t("billing:scheduledChange.downgradeScheduled")
+                  : i18n.t("billing:scheduledChange.title");
+              })(),
             ),
             createElement(
               "p",
               { className: "account-panel-note" },
-              scheduledSummary?.pendingLabel ||
-                (billing.pending_plan === "plus" && scheduledDowngradeAt
-                  ? i18n.t("billing:scheduledChange.plusDowngrade", { date: scheduledDowngradeAt })
-                  : i18n.t("billing:scheduledChange.currentRemains")),
+              (() => {
+                const currentPlanName = translatePlan(
+                  billing,
+                  billing.subscribed_plan?.key,
+                );
+                const currentIv =
+                  billing.interval === "yearly"
+                    ? i18n.t("billing:interval.yearly")
+                    : i18n.t("billing:interval.monthly");
+                const when =
+                  scheduledSummary?.effectiveAt || scheduledDowngradeAt;
+                if (currentPlanName && when) {
+                  return i18n.t("billing:scheduledChange.keepUntilThen", {
+                    plan: currentPlanName,
+                    interval: currentIv,
+                    date: when,
+                  });
+                }
+                return (
+                  scheduledSummary?.pendingLabel ||
+                  i18n.t("billing:scheduledChange.currentRemains")
+                );
+              })(),
             ),
-            actions.can_cancel_scheduled_change
+            actions.can_cancel_scheduled_change ||
+            actions.can_cancel_scheduled_downgrade
               ? createElement(
                   "button",
                   {
                     type: "button",
                     className: "btn-secondary btn-sm",
                     disabled: Boolean(busyAction),
-                    onClick: () => onCancelScheduledChange?.(),
+                    "aria-label": i18n.t("billing:scheduledChange.cancelChange"),
+                    onClick: () =>
+                      actions.can_cancel_scheduled_change
+                        ? onCancelScheduledChange?.()
+                        : onCancelScheduledDowngrade?.(),
                   },
-                  busyAction === "cancel-schedule"
-                    ? i18n.t("billing:scheduledChange.canceling")
-                    : i18n.t("billing:scheduledChange.cancelChange"),
-                )
-              : actions.can_cancel_scheduled_downgrade
-                ? createElement(
-                    "button",
-                    {
-                      type: "button",
-                      className: "btn-secondary btn-sm",
-                      disabled: Boolean(busyAction),
-                      onClick: () => onCancelScheduledDowngrade?.(),
-                    },
+                  busyAction === "cancel-schedule" ||
                     busyAction === "cancel-downgrade"
-                      ? i18n.t("billing:scheduledChange.canceling")
-                      : i18n.t("billing:scheduledChange.cancelDowngrade"),
-                  )
-                : null,
+                    ? i18n.t("billing:scheduledChange.canceling")
+                    : (() => {
+                        const currentPlanName = translatePlan(
+                          billing,
+                          billing.subscribed_plan?.key,
+                        );
+                        const currentIv =
+                          billing.interval === "yearly"
+                            ? i18n.t("billing:interval.yearly")
+                            : i18n.t("billing:interval.monthly");
+                        if (currentPlanName && billing.interval) {
+                          return i18n.t("billing:scheduledChange.keepCurrent", {
+                            plan: currentPlanName,
+                            interval: currentIv,
+                          });
+                        }
+                        return i18n.t("billing:scheduledChange.cancelChange");
+                      })(),
+                )
+              : null,
           )
         : null,
       !trialSelectionMode && billing?.cancel_at_period_end

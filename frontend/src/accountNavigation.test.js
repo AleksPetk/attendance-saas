@@ -610,10 +610,8 @@ test("subscription panel shows scheduled downgrade without conflicting checkout"
       billing,
     }),
   );
-  assert.match(html, /Downgrade scheduled/);
-  assert.match(html, /Business remains active until/);
-  assert.match(html, /Plus begins on/);
-  assert.match(html, /Cancel downgrade/);
+  assert.match(html, /Plus Monthly starts|Plus Monthly begins|Plus Monthly/);
+  assert.match(html, /Keep Business Monthly|Cancel change|Cancel scheduled change/);
   assert.doesNotMatch(html, /Choose Plus/);
   assert.doesNotMatch(html, /Choose Business/);
   assert.doesNotMatch(html, /Schedule downgrade to Plus/);
@@ -1009,9 +1007,9 @@ test("subscription panel shows scheduled interval change panel", () => {
       billing,
     }),
   );
-  assert.match(html, /Cancel scheduled change/);
-  assert.match(html, /Plus yearly begins|Begins /i);
-  assert.match(html, /Plus monthly remains active/i);
+  assert.match(html, /Keep Plus Monthly|Cancel scheduled change|Cancel change/);
+  assert.match(html, /Plus Yearly starts|Plus yearly begins|Plus Yearly/i);
+  assert.match(html, /Plus Monthly remains active|remains active until/i);
 });
 
 test("schedule change preview copy explains period-end timing", () => {

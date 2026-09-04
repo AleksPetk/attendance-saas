@@ -168,7 +168,7 @@ describe("commercial plan selection matrix", () => {
     assert.equal(billing.actions.can_cancel, true);
   });
 
-  it("4. Plus Yearly → Plus Monthly + Business Monthly/Yearly; no Basic card", () => {
+  it("4. Plus Yearly → Business Yearly immediate + Plus Monthly scheduled; no Business Monthly", () => {
     const billing = {
       effective_plan: { key: "plus" },
       subscribed_plan: { key: "plus" },
@@ -186,14 +186,18 @@ describe("commercial plan selection matrix", () => {
       },
     };
     const options = buildUpgradePlanOptions(billing);
-    assert.ok(options.some((o) => o.plan === "plus" && o.interval === "monthly"));
-    assert.ok(options.some((o) => o.plan === "business" && o.interval === "yearly"));
-    assert.ok(options.some((o) => o.plan === "business" && o.interval === "monthly"));
+    assert.ok(options.some((o) => o.plan === "plus" && o.interval === "monthly" && o.kind === "schedule"));
+    assert.ok(
+      options.some(
+        (o) => o.plan === "business" && o.interval === "yearly" && o.kind === "immediate_upgrade",
+      ),
+    );
+    assert.equal(options.some((o) => o.plan === "business" && o.interval === "monthly"), false);
     assert.equal(options.some((o) => o.plan === "plus" && o.interval === "yearly"), false);
     assertNoBasicCard([...options, ...buildDowngradePlanOptions(billing)]);
   });
 
-  it("5. Business Monthly → Business Yearly + Plus downgrade; no Basic card", () => {
+  it("5. Business Monthly → Business Yearly + Plus Monthly downgrade; no Plus Yearly", () => {
     const billing = {
       effective_plan: { key: "business" },
       subscribed_plan: { key: "business" },
@@ -232,12 +236,13 @@ describe("commercial plan selection matrix", () => {
     assert.equal(upgrades[0].plan, "business");
     assert.equal(upgrades[0].interval, "yearly");
     const downs = buildDowngradePlanOptions(billing);
-    assert.ok(downs.some((o) => o.plan === "plus"));
+    assert.ok(downs.some((o) => o.plan === "plus" && o.interval === "monthly"));
+    assert.equal(downs.some((o) => o.plan === "plus" && o.interval === "yearly"), false);
     assert.equal(downs.some((o) => o.plan === "basic"), false);
     assert.equal(isHighestPaidPlan(billing), true);
   });
 
-  it("6. Business Yearly → Business Monthly + Plus downgrade; no Basic card", () => {
+  it("6. Business Yearly → Business Monthly + Plus Yearly downgrade; no Plus Monthly", () => {
     const billing = {
       effective_plan: { key: "business" },
       subscribed_plan: { key: "business" },
@@ -256,7 +261,8 @@ describe("commercial plan selection matrix", () => {
     assert.equal(upgrades.length, 1);
     assert.equal(upgrades[0].interval, "monthly");
     const downs = buildDowngradePlanOptions(billing);
-    assert.ok(downs.some((o) => o.plan === "plus" && o.kind === "downgrade_plus"));
+    assert.ok(downs.some((o) => o.plan === "plus" && o.interval === "yearly" && o.kind === "downgrade_plus"));
+    assert.equal(downs.some((o) => o.plan === "plus" && o.interval === "monthly"), false);
     assert.equal(downs.some((o) => o.plan === "basic"), false);
   });
 
