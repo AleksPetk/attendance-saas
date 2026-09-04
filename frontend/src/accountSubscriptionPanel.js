@@ -27,6 +27,7 @@ import {
   isHighestPaidPlan,
   planDisplayName,
   targetOfferPricing,
+  upgradeEmptyStateMessageKey,
 } from "./subscriptionPlanOptions.js";
 import {
   entitlementsFromSession,
@@ -252,6 +253,9 @@ export function AccountSubscriptionPanel({
   const upgradeOptions = buildUpgradePlanOptions(billing, sessionPlanKey);
   const downgradeOptions = buildDowngradePlanOptions(billing, sessionPlanKey);
   const highestPlan = isHighestPaidPlan(billing, sessionPlanKey);
+  const upgradeEmptyMessageKey = upgradeEmptyStateMessageKey(billing, {
+    hasOptions: upgradeOptions.length > 0,
+  });
   const scheduledCancelAt = formatWhenDate(
     billing?.pending_change_effective_at ||
       billing?.current_period_end ||
@@ -970,11 +974,11 @@ export function AccountSubscriptionPanel({
             },
             upgradeOptions.map((option) => renderUpgradeCard(option)),
           )
-        : !highestPlan
+        : upgradeEmptyMessageKey
           ? createElement(
               "p",
               { className: "account-panel-note" },
-              i18n.t("billing:upgrade.noOptions"),
+              i18n.t(upgradeEmptyMessageKey),
             )
           : null,
       renderScheduleConfirmationArea(),

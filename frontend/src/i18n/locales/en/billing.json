@@ -53,6 +53,8 @@
     "stripeNotConfigured": "Stripe test billing is not configured yet. Plan prices stay visible; checkout stays unavailable until TEST credentials are supplied.",
     "appleNote": "Apple-managed billing cannot use Stripe Checkout from these options.",
     "noOptions": "No upgrade options are available for this subscription right now.",
+    "noOptionsUntilResume": "Resume your subscription to change plans or billing interval.",
+    "noOptionsUntilPaidPeriod": "Billing interval changes unlock when the paid period starts.",
     "optionsAria": "Upgrade options",
     "billingIntervalAria": "Billing interval options",
     "switchYearly": "Switch to Yearly Billing",

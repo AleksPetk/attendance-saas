@@ -29,6 +29,7 @@ from billing.services import (
     record_deferred_paid_start,
     schedule_cancellation,
 )
+from billing.state import build_billing_state
 from billing.signals import grant_builtin_trial_on_organization_create
 from billing.testing import simulate_migrated_existing_workspace
 from core.models import PlatformPromotionSettings
@@ -318,6 +319,33 @@ class BuiltinTrialDeferredPaidTests(TestCase):
         self.assertEqual(billing.status, BillingStatus.TRIALING)
         org.refresh_from_db()
         self.assertEqual(org.plan, OrganizationPlan.BUSINESS)
+
+    @override_settings(**STRIPE_TEST_SETTINGS)
+    def test_deferred_plus_during_builtin_trial_exposes_business_upgrade(self):
+        """Production-shaped: effective Business trial + subscribed Plus trialing."""
+        org = _new_workspace("trial-plus-upgrade-action@example.com")
+        trial = org.builtin_trial
+        record_deferred_paid_start(
+            org,
+            subscribed_plan=PLAN_PLUS,
+            billing_interval="monthly",
+            purchase_source=PurchaseSource.STRIPE,
+            trial_started_at=trial.started_at,
+            trial_ends_at=trial.ends_at,
+            external_customer_id="cus_test_plus_deferred",
+            external_subscription_id="sub_test_plus_deferred",
+        )
+        org.refresh_from_db()
+        state = build_billing_state(org)
+        self.assertEqual(state["effective_plan"]["key"], "business")
+        self.assertEqual(state["subscribed_plan"]["key"], "plus")
+        self.assertEqual(state["status"], BillingStatus.TRIALING)
+        self.assertTrue(state["builtin_trial"]["active"])
+        self.assertTrue(state["actions"]["can_upgrade_to_business"])
+        self.assertFalse(state["actions"]["can_schedule_billing_change"])
+        self.assertFalse(state["actions"]["can_change_interval"])
+        self.assertTrue(state["actions"]["can_cancel"])
+        self.assertFalse(state["actions"]["can_resume_subscription"])
 
 
 class BuiltinTrialIndependenceTests(TestCase):

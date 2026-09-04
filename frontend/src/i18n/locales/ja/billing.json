@@ -53,6 +53,8 @@
     "stripeNotConfigured": "Stripe テスト請求はまだ設定されていません。プラン価格は表示されますが、TEST 認証情報が設定されるまでチェックアウトは利用できません。",
     "appleNote": "Apple 管理の請求では、これらのオプションから Stripe Checkout は利用できません。",
     "noOptions": "現在、このサブスクリプションで利用できるアップグレードオプションはありません。",
+    "noOptionsUntilResume": "プランや請求間隔を変更するには、先にサブスクリプションを再開してください。",
+    "noOptionsUntilPaidPeriod": "請求間隔の変更は、有料期間の開始後に利用できます。",
     "optionsAria": "アップグレードオプション",
     "billingIntervalAria": "請求間隔オプション",
     "switchYearly": "年払いに切り替え",

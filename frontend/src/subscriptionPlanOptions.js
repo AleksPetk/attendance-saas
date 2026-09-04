@@ -247,13 +247,16 @@ export function buildUpgradePlanOptions(billing, sessionPlanKey = null) {
     for (const offer of offers) {
       if (offer.target_interval !== "yearly") continue;
       if (!["plus", "business"].includes(offer.target_plan)) continue;
+      // Do not invent disabled schedule cards when the backend forbids scheduling
+      // (e.g. provider trialing delay, or cancel_at_period_end).
+      if (!actions.can_schedule_billing_change) continue;
       pushOption({
         id: offer.id,
         plan: offer.target_plan,
         interval: "yearly",
         kind: "schedule",
         recommended: true,
-        enabled: Boolean(actions.can_schedule_billing_change),
+        enabled: true,
       });
     }
     if (!options.some((o) => o.plan === "plus" && o.interval === "yearly")) {
@@ -418,4 +421,23 @@ export function isHighestPaidPlan(billing, _sessionPlanKey = null) {
   // Highest-plan copy is about the paid subscription, not effective entitlement
   // (built-in Business trial must not trigger "You're on our highest plan").
   return billing?.subscribed_plan?.key === "business";
+}
+
+/**
+ * i18n key for the Upgrade panel empty state, or null when no note is needed.
+ * Prefer specific guidance over the generic "no options" copy.
+ */
+export function upgradeEmptyStateMessageKey(billing, { hasOptions = false } = {}) {
+  if (hasOptions || isHighestPaidPlan(billing)) return null;
+  if (billing?.cancel_at_period_end) {
+    return "billing:upgrade.noOptionsUntilResume";
+  }
+  if (
+    billing?.status === "trialing" &&
+    (billing?.subscribed_plan?.key === "plus" ||
+      billing?.subscribed_plan?.key === "business")
+  ) {
+    return "billing:upgrade.noOptionsUntilPaidPeriod";
+  }
+  return "billing:upgrade.noOptions";
 }
