@@ -13,6 +13,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from accounts.exceptions import EmailCooldown, EmailNotVerified
+from accounts.email_uniqueness import email_address_claimed
 from accounts.language import normalize_language
 from accounts.services import (
     send_verification_email_for_user,
@@ -352,6 +353,10 @@ class OwnerRegistrationView(APIView):
                     .first()
                 )
                 if existing is not None:
+                    # Another account may already own this address as backup /
+                    # pending change even while a stale provisional primary exists.
+                    if email_address_claimed(email, exclude_user=existing):
+                        cls._pending_user_unavailable()
                     return cls._restart_pending_user_locked(
                         existing,
                         password=password,
@@ -360,6 +365,8 @@ class OwnerRegistrationView(APIView):
                         preferred_language=preferred_language,
                         signup_billing_market=signup_billing_market,
                     )
+                if email_address_claimed(email):
+                    cls._pending_user_unavailable()
                 return User.objects.create_user(
                     email=email,
                     password=password,
@@ -376,6 +383,8 @@ class OwnerRegistrationView(APIView):
             # our lookup. Resolve it through the same locked restart path.
             with transaction.atomic():
                 existing = User.objects.select_for_update().get(email__iexact=email)
+                if email_address_claimed(email, exclude_user=existing):
+                    cls._pending_user_unavailable()
                 return cls._restart_pending_user_locked(
                     existing,
                     password=password,

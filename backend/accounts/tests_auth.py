@@ -323,6 +323,79 @@ class OwnerAuthEmailTests(TestCase):
         self.assertEqual(User.objects.filter(email=user.email).count(), 1)
         self.assertEqual(Organization.objects.filter(owner=user).count(), 1)
 
+    def test_password_registration_rejects_email_owned_as_verified_backup(self):
+        owner = User.objects.create_user(
+            email="holder@example.com",
+            password="secure-password",
+        )
+        owner.mark_email_verified()
+        Organization.objects.create_with_owner(owner=owner)
+        owner.backup_email = "victim@example.com"
+        owner.backup_email_verified_at = timezone.now()
+        owner.save(update_fields=["backup_email", "backup_email_verified_at"])
+
+        before_count = User.objects.count()
+        response = self._register(email="victim@example.com", password="attacker-password")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("email", response.data)
+        self.assertEqual(User.objects.count(), before_count)
+        self.assertFalse(User.objects.filter(email="victim@example.com").exists())
+        self.assertEqual(Organization.objects.filter(owner=owner).count(), 1)
+
+    def test_password_registration_rejects_email_owned_as_pending_primary_change(self):
+        owner = User.objects.create_user(
+            email="holder@example.com",
+            password="secure-password",
+        )
+        owner.mark_email_verified()
+        Organization.objects.create_with_owner(owner=owner)
+        owner.pending_primary_email = "victim-pending@example.com"
+        owner.save(update_fields=["pending_primary_email"])
+
+        before_count = User.objects.count()
+        response = self._register(
+            email="victim-pending@example.com",
+            password="attacker-password",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("email", response.data)
+        self.assertEqual(User.objects.count(), before_count)
+        self.assertFalse(User.objects.filter(email="victim-pending@example.com").exists())
+
+    def test_provisional_restart_blocked_when_email_owned_elsewhere_as_backup(self):
+        holder = User.objects.create_user(
+            email="holder@example.com",
+            password="secure-password",
+        )
+        holder.mark_email_verified()
+        Organization.objects.create_with_owner(owner=holder)
+        holder.backup_email = "shared@example.com"
+        holder.backup_email_verified_at = timezone.now()
+        holder.save(update_fields=["backup_email", "backup_email_verified_at"])
+
+        # Legacy buggy state: provisional primary exists alongside a verified backup.
+        provisional = User.objects.create_user(
+            email="shared@example.com",
+            password="first-secure-password",
+            email_verified=False,
+        )
+
+        response = self._register(
+            email="shared@example.com",
+            password="replacement-secure-password",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("email", response.data)
+        provisional.refresh_from_db()
+        self.assertTrue(provisional.check_password("first-secure-password"))
+        self.assertFalse(provisional.email_verified)
+        self.assertEqual(User.objects.filter(email="shared@example.com").count(), 1)
+        self.assertEqual(Organization.objects.filter(owner=holder).count(), 1)
+        self.assertFalse(Organization.objects.filter(owner=provisional).exists())
+
     def test_unverified_email_can_restart_registration_without_duplicates(self):
         self._register(password="first-secure-password")
         original = User.objects.get(email="newowner@example.com")
