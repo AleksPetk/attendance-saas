@@ -6,8 +6,11 @@ from datetime import datetime
 
 @dataclass(frozen=True)
 class CheckoutSessionResult:
-    checkout_url: str
-    session_id: str
+    checkout_url: str = ""
+    session_id: str = ""
+    # checkout = new Stripe Checkout Session; other modes reuse the existing
+    # subscription after cancel-during-trial reselection (no second sub).
+    mode: str = "checkout"
 
 
 @dataclass(frozen=True)

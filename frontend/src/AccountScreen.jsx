@@ -329,8 +329,19 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
       await api.csrf();
       const result = await api.startBillingCheckout({ plan, interval });
       const url = result.data?.checkout_url;
-      if (!url) throw { data: { detail: t("account:checkout.urlMissing") } };
-      window.location.assign(url);
+      if (url) {
+        window.location.assign(url);
+        return;
+      }
+      // Cancel-during-trial reselection may resume/schedule/upgrade in place
+      // without opening a second Stripe Checkout Session.
+      if (result.data?.billing) {
+        setBilling(result.data.billing);
+        await refreshWorkspaceSession();
+        setBillingBusy("");
+        return;
+      }
+      throw { data: { detail: t("account:checkout.urlMissing") } };
     } catch (err) {
       setBillingError(errorMessage(err));
       setBillingBusy("");

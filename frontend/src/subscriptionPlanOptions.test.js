@@ -7,7 +7,9 @@ import { describe, it } from "node:test";
 import {
   buildDowngradePlanOptions,
   buildUpgradePlanOptions,
+  commercialPlanKey,
   isEffectiveCurrentPlanOption,
+  isHighestPaidPlan,
   targetOfferPricing,
 } from "./subscriptionPlanOptions.js";
 
@@ -57,12 +59,23 @@ const catalog = {
   },
 };
 
+const checkoutActions = {
+  can_checkout_plus: true,
+  can_checkout_business: true,
+  can_upgrade_to_business: false,
+  can_schedule_billing_change: false,
+  can_change_interval: false,
+  can_cancel: false,
+  can_schedule_downgrade_to_plus: false,
+};
+
 function plusMonthlyBilling(overrides = {}) {
   return {
     effective_plan: { key: "plus", display_name: "Plus" },
     subscribed_plan: { key: "plus", display_name: "Plus" },
     interval: "monthly",
     status: "active",
+    cancel_at_period_end: false,
     catalog,
     actions: {
       can_upgrade_to_business: true,
@@ -75,6 +88,14 @@ function plusMonthlyBilling(overrides = {}) {
     },
     ...overrides,
   };
+}
+
+function optionIds(options) {
+  return options.map((o) => `${o.plan}:${o.interval}:${o.kind}`);
+}
+
+function assertNoBasicCard(options) {
+  assert.equal(options.some((o) => o.plan === "basic"), false);
 }
 
 describe("isEffectiveCurrentPlanOption", () => {
@@ -97,35 +118,85 @@ describe("isEffectiveCurrentPlanOption", () => {
   });
 });
 
-describe("buildUpgradePlanOptions Plus Monthly", () => {
-  it("shows promo yearly offers and Business Monthly upgrade without Basic", () => {
-    const options = buildUpgradePlanOptions(plusMonthlyBilling());
+describe("commercial plan selection matrix", () => {
+  it("1. Basic → four paid checkout options", () => {
+    const billing = {
+      effective_plan: { key: "basic" },
+      subscribed_plan: { key: null },
+      status: "none",
+      interval: null,
+      catalog,
+      actions: checkoutActions,
+    };
+    const options = buildUpgradePlanOptions(billing);
+    assert.deepEqual(optionIds(options).sort(), [
+      "business:monthly:checkout",
+      "business:yearly:checkout",
+      "plus:monthly:checkout",
+      "plus:yearly:checkout",
+    ].sort());
+    assert.equal(buildDowngradePlanOptions(billing).length, 0);
+    assert.equal(isHighestPaidPlan(billing), false);
+  });
+
+  it("2. Basic + built-in Business trial → same four paid options", () => {
+    const billing = {
+      effective_plan: { key: "business" },
+      subscribed_plan: { key: null },
+      status: "none",
+      interval: null,
+      builtin_trial: { active: true },
+      catalog,
+      actions: checkoutActions,
+    };
+    const options = buildUpgradePlanOptions(billing);
+    assert.equal(options.length, 4);
+    assert.equal(options.every((o) => o.kind === "checkout"), true);
+    assert.equal(commercialPlanKey(billing), null);
+    assert.equal(isHighestPaidPlan(billing), false);
+  });
+
+  it("3. Plus Monthly → Plus Yearly + Business Monthly/Yearly; cancel; no Basic card", () => {
+    const billing = plusMonthlyBilling();
+    const options = buildUpgradePlanOptions(billing);
     const ids = options.map((o) => o.id);
     assert.ok(ids.includes("plus_monthly_to_plus_yearly"));
     assert.ok(ids.includes("plus_monthly_to_business_yearly"));
     assert.ok(ids.includes("business-monthly-upgrade"));
-    assert.equal(
-      options.find((o) => o.id === "plus_monthly_to_plus_yearly").pricing.firstPeriodFormatted,
-      "$69.99",
-    );
-    assert.equal(
-      options.find((o) => o.id === "plus_monthly_to_business_yearly").pricing
-        .firstPeriodFormatted,
-      "$104.99",
-    );
-    assert.equal(options.some((o) => o.plan === "basic"), false);
-    assert.equal(
-      options.some((o) => o.plan === "plus" && o.interval === "monthly"),
-      false,
-    );
+    assert.equal(options.some((o) => o.plan === "plus" && o.interval === "monthly"), false);
+    assertNoBasicCard([...options, ...buildDowngradePlanOptions(billing)]);
+    assert.equal(billing.actions.can_cancel, true);
   });
-});
 
-describe("Business highest plan", () => {
-  it("shows yearly switch for Business Monthly", () => {
+  it("4. Plus Yearly → Plus Monthly + Business Monthly/Yearly; no Basic card", () => {
     const billing = {
-      effective_plan: { key: "business", display_name: "Business" },
-      subscribed_plan: { key: "business", display_name: "Business" },
+      effective_plan: { key: "plus" },
+      subscribed_plan: { key: "plus" },
+      interval: "yearly",
+      status: "active",
+      catalog: { ...catalog, promotion: { offers: [] } },
+      actions: {
+        can_upgrade_to_business: true,
+        can_schedule_billing_change: true,
+        can_change_interval: true,
+        can_cancel: true,
+        can_schedule_downgrade_to_plus: false,
+        can_checkout_plus: false,
+        can_checkout_business: false,
+      },
+    };
+    const options = buildUpgradePlanOptions(billing);
+    assert.ok(options.some((o) => o.plan === "plus" && o.interval === "monthly"));
+    assert.ok(options.some((o) => o.plan === "business" && o.interval === "yearly"));
+    assert.ok(options.some((o) => o.plan === "business" && o.interval === "monthly"));
+    assert.equal(options.some((o) => o.plan === "plus" && o.interval === "yearly"), false);
+    assertNoBasicCard([...options, ...buildDowngradePlanOptions(billing)]);
+  });
+
+  it("5. Business Monthly → Business Yearly + Plus downgrade; no Basic card", () => {
+    const billing = {
+      effective_plan: { key: "business" },
+      subscribed_plan: { key: "business" },
       interval: "monthly",
       status: "active",
       purchase_source: "stripe",
@@ -160,11 +231,151 @@ describe("Business highest plan", () => {
     assert.equal(upgrades.length, 1);
     assert.equal(upgrades[0].plan, "business");
     assert.equal(upgrades[0].interval, "yearly");
-    assert.equal(upgrades[0].actionLabel, "Switch to Business Yearly");
-    assert.equal(upgrades[0].pricing.firstPeriodFormatted, "$104.99");
     const downs = buildDowngradePlanOptions(billing);
     assert.ok(downs.some((o) => o.plan === "plus"));
-    assert.ok(downs.some((o) => o.plan === "basic"));
+    assert.equal(downs.some((o) => o.plan === "basic"), false);
+    assert.equal(isHighestPaidPlan(billing), true);
+  });
+
+  it("6. Business Yearly → Business Monthly + Plus downgrade; no Basic card", () => {
+    const billing = {
+      effective_plan: { key: "business" },
+      subscribed_plan: { key: "business" },
+      interval: "yearly",
+      status: "active",
+      catalog: { ...catalog, promotion: { offers: [] } },
+      actions: {
+        can_schedule_billing_change: true,
+        can_change_interval: true,
+        can_cancel: true,
+        can_schedule_downgrade_to_plus: true,
+        can_upgrade_to_business: false,
+      },
+    };
+    const upgrades = buildUpgradePlanOptions(billing);
+    assert.equal(upgrades.length, 1);
+    assert.equal(upgrades[0].interval, "monthly");
+    const downs = buildDowngradePlanOptions(billing);
+    assert.ok(downs.some((o) => o.plan === "plus" && o.kind === "downgrade_plus"));
+    assert.equal(downs.some((o) => o.plan === "basic"), false);
+  });
+
+  it("7. Trial + Plus Monthly uses commercial Plus options", () => {
+    const billing = plusMonthlyBilling({
+      effective_plan: { key: "business" },
+      builtin_trial: { active: true },
+      status: "trialing",
+    });
+    const options = buildUpgradePlanOptions(billing);
+    assert.ok(options.some((o) => o.plan === "plus" && o.interval === "yearly"));
+    assert.ok(options.some((o) => o.plan === "business"));
+    assert.equal(options.every((o) => o.kind !== "checkout"), true);
+    assert.equal(isHighestPaidPlan(billing), false);
+  });
+
+  it("8. Trial + Plus Yearly shows Plus Monthly + Business options", () => {
+    const billing = {
+      effective_plan: { key: "business" },
+      subscribed_plan: { key: "plus" },
+      interval: "yearly",
+      status: "trialing",
+      builtin_trial: { active: true },
+      catalog: { ...catalog, promotion: { offers: [] } },
+      actions: {
+        can_upgrade_to_business: true,
+        can_schedule_billing_change: true,
+        can_change_interval: true,
+        can_cancel: true,
+      },
+    };
+    const options = buildUpgradePlanOptions(billing);
+    assert.ok(options.some((o) => o.plan === "plus" && o.interval === "monthly"));
+    assert.ok(options.some((o) => o.plan === "business"));
+    assert.equal(isHighestPaidPlan(billing), false);
+  });
+
+  it("9. Trial + Business Monthly shows yearly + Plus downgrade", () => {
+    const billing = {
+      effective_plan: { key: "business" },
+      subscribed_plan: { key: "business" },
+      interval: "monthly",
+      status: "trialing",
+      builtin_trial: { active: true },
+      catalog: { ...catalog, promotion: { offers: [] } },
+      actions: {
+        can_schedule_billing_change: true,
+        can_change_interval: true,
+        can_schedule_downgrade_to_plus: true,
+        can_cancel: true,
+      },
+    };
+    assert.equal(buildUpgradePlanOptions(billing)[0]?.interval, "yearly");
+    assert.ok(buildDowngradePlanOptions(billing).some((o) => o.plan === "plus"));
+    assert.equal(isHighestPaidPlan(billing), true);
+  });
+
+  it("10. Trial + Business Yearly shows monthly + Plus downgrade", () => {
+    const billing = {
+      effective_plan: { key: "business" },
+      subscribed_plan: { key: "business" },
+      interval: "yearly",
+      status: "trialing",
+      builtin_trial: { active: true },
+      catalog: { ...catalog, promotion: { offers: [] } },
+      actions: {
+        can_schedule_billing_change: true,
+        can_change_interval: true,
+        can_schedule_downgrade_to_plus: true,
+        can_cancel: true,
+      },
+    };
+    assert.equal(buildUpgradePlanOptions(billing)[0]?.interval, "monthly");
+    assert.ok(buildDowngradePlanOptions(billing).some((o) => o.plan === "plus"));
+  });
+
+  it("11–12. Trial + cancelled paid → four paid choices again", () => {
+    for (const subscribed of ["plus", "business"]) {
+      const billing = {
+        effective_plan: { key: "business" },
+        subscribed_plan: { key: subscribed },
+        interval: "monthly",
+        status: "trialing",
+        cancel_at_period_end: true,
+        builtin_trial: { active: true },
+        catalog,
+        actions: checkoutActions,
+      };
+      const options = buildUpgradePlanOptions(billing);
+      assert.equal(options.length, 4, subscribed);
+      assert.equal(options.every((o) => o.kind === "checkout"), true, subscribed);
+      assert.equal(commercialPlanKey(billing), null);
+      assert.equal(isHighestPaidPlan(billing), false);
+      assert.equal(buildDowngradePlanOptions(billing).length, 0);
+    }
+  });
+});
+
+describe("buildUpgradePlanOptions Plus Monthly", () => {
+  it("shows promo yearly offers and Business Monthly upgrade without Basic", () => {
+    const options = buildUpgradePlanOptions(plusMonthlyBilling());
+    const ids = options.map((o) => o.id);
+    assert.ok(ids.includes("plus_monthly_to_plus_yearly"));
+    assert.ok(ids.includes("plus_monthly_to_business_yearly"));
+    assert.ok(ids.includes("business-monthly-upgrade"));
+    assert.equal(
+      options.find((o) => o.id === "plus_monthly_to_plus_yearly").pricing.firstPeriodFormatted,
+      "$69.99",
+    );
+    assert.equal(
+      options.find((o) => o.id === "plus_monthly_to_business_yearly").pricing
+        .firstPeriodFormatted,
+      "$104.99",
+    );
+    assert.equal(options.some((o) => o.plan === "basic"), false);
+    assert.equal(
+      options.some((o) => o.plan === "plus" && o.interval === "monthly"),
+      false,
+    );
   });
 });
 

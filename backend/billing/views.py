@@ -103,9 +103,15 @@ class BillingCheckoutView(APIView):
             )
         except (BillingStateError, StripeConfigurationError, StripeProviderError) as exc:
             return _error_response(exc)
-        return Response(
-            {"checkout_url": result.checkout_url, "session_id": result.session_id}
-        )
+        mode = getattr(result, "mode", "checkout") or "checkout"
+        payload = {
+            "mode": mode,
+            "checkout_url": result.checkout_url or None,
+            "session_id": result.session_id or None,
+        }
+        if mode != "checkout":
+            payload["billing"] = build_billing_state(organization)
+        return Response(payload)
 
 
 class BillingUpgradePreviewView(APIView):

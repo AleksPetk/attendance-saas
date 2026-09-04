@@ -33,6 +33,10 @@ _PAID_STATUSES = frozenset({BillingStatus.ACTIVE, BillingStatus.PAST_DUE})
 _ACCESS_STATUSES = frozenset(
     {BillingStatus.TRIALING, BillingStatus.ACTIVE, BillingStatus.PAST_DUE}
 )
+# Commercial plan changes (schedule/upgrade) apply while a subscribed plan is
+# committed, including Stripe provider delay (trialing). Distinct from the
+# built-in CheckStation Business trial entitlement on Organization.plan.
+_COMMERCIAL_CHANGE_STATUSES = _ACCESS_STATUSES
 
 
 def _now(now):
@@ -388,7 +392,7 @@ def schedule_billing_change(
     target = _require_paid_plan(target_plan)
     interval = _require_interval(target_interval)
     org, billing = lock_workspace_billing(organization)
-    if billing.status not in _PAID_STATUSES:
+    if billing.status not in _COMMERCIAL_CHANGE_STATUSES:
         raise BillingStateError("Scheduled changes require an active paid subscription.")
     if billing.cancel_at_period_end:
         raise BillingStateError(
@@ -447,7 +451,7 @@ def schedule_downgrade(organization, *, target_plan, effective_at=None):
     if target != PLAN_PLUS:
         raise BillingStateError("V1 paid downgrade destination is Plus.")
     org, billing = lock_workspace_billing(organization)
-    if billing.subscribed_plan != PLAN_BUSINESS or org.plan != OrganizationPlan.BUSINESS:
+    if billing.subscribed_plan != PLAN_BUSINESS:
         raise BillingStateError("Only Business can be scheduled down to Plus.")
     return schedule_billing_change(
         organization,
@@ -513,7 +517,7 @@ def clear_pending_scheduled_change(organization):
         )
     if not scheduled_change_pending(billing):
         return billing
-    if billing.status not in _PAID_STATUSES:
+    if billing.status not in _COMMERCIAL_CHANGE_STATUSES:
         raise BillingStateError(
             "Cannot clear a scheduled change after paid access has ended."
         )
@@ -542,11 +546,11 @@ def clear_pending_downgrade(organization):
         if scheduled_change_pending(billing):
             return clear_pending_scheduled_change(organization)
         return billing
-    if billing.status not in _PAID_STATUSES:
+    if billing.status not in _COMMERCIAL_CHANGE_STATUSES:
         raise BillingStateError("Cannot clear a downgrade after paid access has ended.")
-    if billing.subscribed_plan != PLAN_BUSINESS or org.plan != OrganizationPlan.BUSINESS:
+    if billing.subscribed_plan != PLAN_BUSINESS:
         raise BillingStateError(
-            "Scheduled downgrade can only be cleared while Business remains active."
+            "Scheduled downgrade can only be cleared while Business remains subscribed."
         )
     if billing.cancel_at_period_end:
         raise BillingStateError(

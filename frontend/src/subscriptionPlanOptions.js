@@ -1,6 +1,9 @@
 /**
  * Pure helpers for Account → Subscription plan organization.
  * Pricing and eligibility come from the billing API — never recalculate discounts.
+ *
+ * Commercial plan selection uses subscribed_plan + commercial subscription state,
+ * NOT effective_plan / built-in Business trial entitlement.
  */
 
 import {
@@ -20,10 +23,29 @@ export function effectivePlanKey(billing, sessionPlanKey = null) {
   );
 }
 
+/**
+ * Commercial subscribed plan for option cards. Built-in Business trial does not
+ * count. Cancel-at-period-end during Stripe trialing is commercially Basic
+ * (reselection), matching confirmed product rules.
+ */
+export function commercialPlanKey(billing) {
+  if (billing?.cancel_at_period_end && billing?.status === "trialing") {
+    return null;
+  }
+  const key = billing?.subscribed_plan?.key;
+  if (key === "plus" || key === "business") return key;
+  return null;
+}
+
 export function effectiveBillingInterval(billing) {
   const interval = billing?.interval;
   if (interval === "monthly" || interval === "yearly") return interval;
   return null;
+}
+
+export function commercialBillingInterval(billing) {
+  if (!commercialPlanKey(billing)) return null;
+  return effectiveBillingInterval(billing);
 }
 
 /**
@@ -174,14 +196,42 @@ function sortUpgradeOptions(options) {
   });
 }
 
+function pushCheckoutPair(options, billing, actions, pushOption) {
+  for (const iv of ["monthly", "yearly"]) {
+    pushOption({
+      id: `checkout-plus-${iv}`,
+      plan: "plus",
+      interval: iv,
+      kind: "checkout",
+      recommended: Boolean(targetOfferPricing(billing, "plus", iv).promotional),
+      enabled: Boolean(actions.can_checkout_plus),
+      actionLabel: i18n.t("billing:upgrade.choosePlus", { interval: intervalNoun(iv) }),
+    });
+  }
+  for (const iv of ["monthly", "yearly"]) {
+    pushOption({
+      id: `checkout-business-${iv}`,
+      plan: "business",
+      interval: iv,
+      kind: "checkout",
+      recommended: Boolean(targetOfferPricing(billing, "business", iv).promotional),
+      enabled: Boolean(actions.can_checkout_business),
+      actionLabel: i18n.t("billing:upgrade.chooseBusiness", {
+        interval: intervalNoun(iv),
+      }),
+    });
+  }
+}
+
 /**
- * Build ordered Upgrade Plan cards from billing actions + catalog offers.
- * Does not include downgrades or Basic for paid workspaces.
+ * Build ordered Upgrade Plan cards from commercial subscribed state + actions.
+ * Does not include Basic (cancel is the only path to Basic).
  */
 export function buildUpgradePlanOptions(billing, sessionPlanKey = null) {
+  void sessionPlanKey;
   const actions = billing?.actions || {};
-  const plan = effectivePlanKey(billing, sessionPlanKey);
-  const interval = effectiveBillingInterval(billing);
+  const plan = commercialPlanKey(billing);
+  const interval = commercialBillingInterval(billing);
   const options = [];
 
   function pushOption(partial) {
@@ -201,35 +251,9 @@ export function buildUpgradePlanOptions(billing, sessionPlanKey = null) {
     });
   }
 
-  const status = billing?.status;
-  const unpaid =
-    billing?.purchase_source !== "apple" &&
-    !billing?.managed_by_platform &&
-    (!status || status === "none" || status === "canceled");
-
-  if (unpaid) {
-    for (const iv of ["monthly", "yearly"]) {
-      pushOption({
-        id: `checkout-plus-${iv}`,
-        plan: "plus",
-        interval: iv,
-        kind: "checkout",
-        recommended: Boolean(targetOfferPricing(billing, "plus", iv).promotional),
-        enabled: Boolean(actions.can_checkout_plus),
-        actionLabel: i18n.t("billing:upgrade.choosePlus", { interval: intervalNoun(iv) }),
-      });
-    }
-    for (const iv of ["monthly", "yearly"]) {
-      pushOption({
-        id: `checkout-business-${iv}`,
-        plan: "business",
-        interval: iv,
-        kind: "checkout",
-        recommended: Boolean(targetOfferPricing(billing, "business", iv).promotional),
-        enabled: Boolean(actions.can_checkout_business),
-        actionLabel: i18n.t("billing:upgrade.chooseBusiness", { interval: intervalNoun(iv) }),
-      });
-    }
+  // Commercially Basic: unpaid, no subscribed plan, or cancel-during-trialing.
+  if (!plan) {
+    pushCheckoutPair(options, billing, actions, pushOption);
     return sortUpgradeOptions(options);
   }
 
@@ -288,6 +312,17 @@ export function buildUpgradePlanOptions(billing, sessionPlanKey = null) {
   }
 
   if (plan === "plus" && interval === "yearly") {
+    if (actions.can_schedule_billing_change || actions.can_change_interval) {
+      pushOption({
+        id: "plus-monthly-switch",
+        plan: "plus",
+        interval: "monthly",
+        kind: "schedule",
+        recommended: false,
+        enabled: true,
+        actionLabel: i18n.t("billing:upgrade.switchMonthly"),
+      });
+    }
     if (actions.can_upgrade_to_business) {
       pushOption({
         id: "business-yearly-upgrade",
@@ -348,63 +383,35 @@ export function buildUpgradePlanOptions(billing, sessionPlanKey = null) {
   return options;
 }
 
+/**
+ * Downgrade cards for paid commercial plans.
+ * Basic is never a card — Cancel subscription is the only path to Basic.
+ */
 export function buildDowngradePlanOptions(billing, sessionPlanKey = null) {
+  void sessionPlanKey;
   const actions = billing?.actions || {};
-  const plan = effectivePlanKey(billing, sessionPlanKey);
-  const interval = effectiveBillingInterval(billing) || "monthly";
+  const plan = commercialPlanKey(billing);
+  const interval = commercialBillingInterval(billing) || "monthly";
   const options = [];
 
-  if (plan === "business") {
-    if (actions.can_schedule_downgrade_to_plus) {
-      options.push({
-        id: "downgrade-plus",
-        plan: "plus",
-        interval,
-        kind: "downgrade_plus",
-        title: `${planDisplayName(billing, "plus")} ${intervalNoun(interval)}`,
-        actionLabel: i18n.t("billing:downgrade.toPlus"),
-        enabled: true,
-        pricing: targetOfferPricing(billing, "plus", interval),
-      });
-    }
-    if (actions.can_cancel) {
-      options.push({
-        id: "downgrade-basic",
-        plan: "basic",
-        interval: null,
-        kind: "cancel_to_basic",
-        title: planDisplayName(billing, "basic"),
-        actionLabel: i18n.t("billing:downgrade.toBasic"),
-        enabled: true,
-        pricing: {
-          promotional: false,
-          firstPeriodWithInterval: i18n.t("billing:downgrade.free"),
-          listWithInterval: i18n.t("billing:downgrade.free"),
-        },
-      });
-    }
-  }
-
-  if (plan === "plus" && actions.can_cancel) {
+  if (plan === "business" && actions.can_schedule_downgrade_to_plus) {
     options.push({
-      id: "downgrade-basic",
-      plan: "basic",
-      interval: null,
-      kind: "cancel_to_basic",
-      title: planDisplayName(billing, "basic"),
-      actionLabel: "Move to Basic",
+      id: "downgrade-plus",
+      plan: "plus",
+      interval,
+      kind: "downgrade_plus",
+      title: `${planDisplayName(billing, "plus")} ${intervalNoun(interval)}`,
+      actionLabel: i18n.t("billing:downgrade.toPlus"),
       enabled: true,
-      pricing: {
-        promotional: false,
-        firstPeriodWithInterval: "Free",
-        listWithInterval: "Free",
-      },
+      pricing: targetOfferPricing(billing, "plus", interval),
     });
   }
 
   return options;
 }
 
+/** Highest commercial plan only — never from built-in Business trial alone. */
 export function isHighestPaidPlan(billing, sessionPlanKey = null) {
-  return effectivePlanKey(billing, sessionPlanKey) === "business";
+  void sessionPlanKey;
+  return commercialPlanKey(billing) === "business";
 }

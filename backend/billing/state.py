@@ -98,9 +98,27 @@ def build_billing_state(organization):
             "grace_deadline": _iso(billing.payment_grace_deadline),
         }
 
-    can_checkout = (not access_active) and stripe_ok and not is_apple
     cancel_scheduled = bool(billing and billing.cancel_at_period_end)
     change_scheduled = scheduled_change_pending(billing)
+    # Pending cancel during provider trialing (deferred paid start) is treated as
+    # commercially Basic for plan reselection — not as a live paid commitment.
+    reselect_after_trial_cancel = bool(
+        cancel_scheduled and status == BillingStatus.TRIALING
+    )
+    can_checkout = (
+        stripe_ok
+        and not is_apple
+        and ((not access_active) or reselect_after_trial_cancel)
+    )
+    # Committed commercial subscription that can be changed (not cancel-pending).
+    commercial_changeable = bool(
+        is_stripe
+        and status in {BillingStatus.TRIALING, BillingStatus.ACTIVE, BillingStatus.PAST_DUE}
+        and subscribed in {PLAN_PLUS, PLAN_BUSINESS}
+        and interval in {"monthly", "yearly"}
+        and not cancel_scheduled
+        and not change_scheduled
+    )
     pending_target_interval = None
     if billing and billing.pending_interval:
         pending_target_interval = billing.pending_interval
@@ -126,36 +144,22 @@ def build_billing_state(organization):
         and not downgrade_scheduled
         and not interval_change_scheduled
     )
-    paid_active = status in {BillingStatus.ACTIVE, BillingStatus.PAST_DUE}
     actions = {
         "can_checkout_plus": can_checkout,
         "can_checkout_business": can_checkout,
         "can_schedule_downgrade_to_plus": (
-            is_stripe
-            and paid_active
-            and subscribed == PLAN_BUSINESS
-            and effective == OrganizationPlan.BUSINESS
-            and not cancel_scheduled
-            and not change_scheduled
+            commercial_changeable and subscribed == PLAN_BUSINESS
         ),
         "can_cancel_scheduled_downgrade": (
             is_stripe
             and stripe_ok
-            and paid_active
+            and status in {BillingStatus.TRIALING, BillingStatus.ACTIVE, BillingStatus.PAST_DUE}
             and downgrade_scheduled
         ),
         "can_cancel_scheduled_change": (
             is_stripe and stripe_ok and change_scheduled
         ),
-        "can_schedule_billing_change": (
-            is_stripe
-            and stripe_ok
-            and paid_active
-            and subscribed in {PLAN_PLUS, PLAN_BUSINESS}
-            and interval in {"monthly", "yearly"}
-            and not cancel_scheduled
-            and not change_scheduled
-        ),
+        "can_schedule_billing_change": bool(stripe_ok and commercial_changeable),
         "can_cancel": is_stripe and access_active and not cancel_scheduled and not change_scheduled,
         "can_resume_subscription": (
             is_stripe
@@ -163,26 +167,15 @@ def build_billing_state(organization):
             and access_active
             and cancel_scheduled
         ),
+        # Commercial upgrade uses subscribed Plus — not effective entitlement
+        # (built-in Business trial must not hide Plus → Business).
         "can_upgrade_to_business": (
-            is_stripe
-            and paid_active
-            and subscribed == PLAN_PLUS
-            and effective == OrganizationPlan.PLUS
-            and not cancel_scheduled
-            and not change_scheduled
+            commercial_changeable and subscribed == PLAN_PLUS
         ),
         "can_open_portal": bool(
             is_stripe and billing and billing.external_customer_id
         ),
-        "can_change_interval": (
-            is_stripe
-            and stripe_ok
-            and paid_active
-            and subscribed in {PLAN_PLUS, PLAN_BUSINESS}
-            and interval in {"monthly", "yearly"}
-            and not cancel_scheduled
-            and not change_scheduled
-        ),
+        "can_change_interval": bool(stripe_ok and commercial_changeable),
     }
 
     pending_interval = None

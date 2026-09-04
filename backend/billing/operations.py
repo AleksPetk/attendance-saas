@@ -59,6 +59,20 @@ def start_paid_checkout(organization, owner, *, plan_key, interval):
             "Apple-managed subscriptions cannot use Stripe Checkout.",
             code="purchase_source_apple",
         )
+    # Cancelled during Stripe provider delay (trialing): commercially Basic for
+    # selection. Resume/retarget the existing subscription — never open a second
+    # Checkout that would create a duplicate commercial subscription.
+    if (
+        billing
+        and billing.purchase_source == PurchaseSource.STRIPE
+        and billing.status == BillingStatus.TRIALING
+        and billing.cancel_at_period_end
+        and billing.external_subscription_id
+        and billing.subscribed_plan in {PLAN_PLUS, PLAN_BUSINESS}
+    ):
+        return _retarget_cancelled_trialing_subscription(
+            organization, plan=plan, interval=interval_key
+        )
     if billing and billing.status in {
         BillingStatus.TRIALING,
         BillingStatus.ACTIVE,
@@ -88,6 +102,27 @@ def start_paid_checkout(organization, owner, *, plan_key, interval):
         coupon_id=coupon_id,
         coupon_slot=coupon_slot,
     )
+
+
+def _retarget_cancelled_trialing_subscription(organization, *, plan, interval):
+    """Resume cancel-at-period-end, then match/upgrade/schedule on the same sub."""
+    from billing.snapshots import CheckoutSessionResult
+
+    billing = request_resume_subscription(organization)
+    current_plan = billing.subscribed_plan
+    current_interval = billing.billing_interval
+    if current_plan == plan and current_interval == interval:
+        return CheckoutSessionResult(mode="resumed")
+    # Preserve existing Plus → Business same-interval immediate upgrade semantics.
+    if (
+        current_plan == PLAN_PLUS
+        and plan == PLAN_BUSINESS
+        and current_interval == interval
+    ):
+        apply_upgrade_to_business(organization)
+        return CheckoutSessionResult(mode="upgraded")
+    request_schedule_billing_change(organization, plan=plan, interval=interval)
+    return CheckoutSessionResult(mode="scheduled")
 
 
 def preview_upgrade_to_business(organization):
@@ -234,8 +269,17 @@ def request_schedule_billing_change(organization, *, plan, interval):
     market = market_for_existing_subscription(billing, workspace=organization)
     require_stripe_api(market=market)
     _require_stripe_source(billing)
-    if billing.status not in {BillingStatus.ACTIVE, BillingStatus.PAST_DUE}:
+    if billing.status not in {
+        BillingStatus.TRIALING,
+        BillingStatus.ACTIVE,
+        BillingStatus.PAST_DUE,
+    }:
         raise BillingStateError("Scheduled changes require an active paid subscription.")
+    if billing.cancel_at_period_end:
+        raise BillingStateError(
+            "Clear cancellation before scheduling a billing change.",
+            code="cancellation_pending",
+        )
     if not billing.external_subscription_id:
         raise BillingStateError("No Stripe subscription is on file.")
     plan_key = str(plan or billing.subscribed_plan or "").strip().lower()
@@ -244,6 +288,11 @@ def request_schedule_billing_change(organization, *, plan, interval):
         raise BillingStateError("Scheduled plan must be plus or business.")
     if interval_key not in PAID_INTERVALS:
         raise BillingStateError("Scheduled interval must be monthly or yearly.")
+    if (
+        plan_key == billing.subscribed_plan
+        and interval_key == billing.billing_interval
+    ):
+        raise BillingStateError("Target plan and interval match the current subscription.")
     from billing.coupons import resolve_schedule_coupon
 
     coupon_id, coupon_slot = resolve_schedule_coupon(
