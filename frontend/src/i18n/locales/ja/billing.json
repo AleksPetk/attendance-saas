@@ -187,5 +187,17 @@
     "opening": "開いています…",
     "portalUnavailable": "Stripe 管理のサブスクリプションが存在すると、Stripe の請求ツールが利用可能になります。"
   },
-  "perUnit": "あたり"
+  "perUnit": "あたり",
+  "promoDiscount": {
+    "percentOff": "{{duration}}{{percent}}%OFF",
+    "firstMonth": "初月",
+    "firstYear": "初年度",
+    "firstPeriod": "初回",
+    "summaryJoin": "・",
+    "thenRenews": "{{phrase}}、その後 {{price}}/{{unit}}",
+    "billedMonthly": "月払い",
+    "billedYearly": "年払い",
+    "month": "月",
+    "year": "年"
+  }
 }

@@ -487,6 +487,16 @@
     "perYear": "年",
     "billedMonthly": "月払い",
     "billedYearly": "年払い",
+    "discount": {
+      "percentOff": "{{duration}}{{percent}}%OFF",
+      "firstMonth": "初月",
+      "firstYear": "初年度",
+      "firstPeriod": "初回",
+      "summaryJoin": "・",
+      "thenRenews": "{{phrase}}、その後 {{price}}/{{unit}}",
+      "month": "月",
+      "year": "年"
+    },
     "normally": "通常 {{price}}",
     "basicNote": "まずは無料でスタート。カード登録不要。",
     "reassuranceAria": "請求に関する安心ポイント",

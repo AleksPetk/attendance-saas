@@ -11,6 +11,7 @@ import { PromotionalText } from "./promotionalText.js";
 import {
   catalogPromotion,
   isAcquisitionPromotion,
+  localizedPromotionSummary,
   promotionCheckoutWarning,
   promotionPriceLabel,
   promotionPriceNote,
@@ -130,6 +131,10 @@ const FALLBACK_CATALOG = {
   },
 };
 
+function discountT(t) {
+  return (key, opts) => t(`pricing.discount.${key}`, opts);
+}
+
 function yearlySavingsLabel(catalog, t) {
   const monthlyRow = catalog?.plans?.plus?.intervals?.monthly;
   const yearlyRow = catalog?.plans?.plus?.intervals?.yearly;
@@ -140,13 +145,6 @@ function yearlySavingsLabel(catalog, t) {
   }
   const savedMonths = Math.round((plusMonthly * 12 - plusYearly) / plusMonthly);
   return savedMonths > 0 ? t("pricing.saveMonths", { count: savedMonths }) : null;
-}
-
-function localizePriceNote(note, interval, t) {
-  if (!note || note === "Billed monthly" || note === "Billed yearly") {
-    return interval === "yearly" ? t("pricing.billedYearly") : t("pricing.billedMonthly");
-  }
-  return note;
 }
 
 function AuthOrAppCta({ className, to, label, handoffToAuth }) {
@@ -219,6 +217,7 @@ export default function PublicPricingScreen({ session = null }) {
   const currentPlanKey = signedIn ? workspacePlanKey(session) : null;
   const ctaContext = { signedIn, canOpenSubscription, currentPlanKey };
   const promo = catalogPromotion(catalog);
+  const promoSummary = localizedPromotionSummary(catalog, discountT(t));
   const acquisitionActive = isAcquisitionPromotion(catalog);
   const checkoutWarning = promotionCheckoutWarning(catalog);
   const yearlySavings = yearlySavingsLabel(catalog, t);
@@ -246,6 +245,7 @@ export default function PublicPricingScreen({ session = null }) {
     manageSubscription: t("pricing.cta.manageSubscription"),
   };
 
+  const dt = discountT(t);
   const cards = [
     {
       key: "basic",
@@ -262,7 +262,7 @@ export default function PublicPricingScreen({ session = null }) {
       price:
         promotionPriceLabel(catalog, "plus", interval) ||
         catalog.plans?.plus?.intervals?.[interval]?.formatted,
-      note: localizePriceNote(promotionPriceNote(catalog, "plus", interval), interval, t),
+      note: promotionPriceNote(catalog, "plus", interval, dt),
       listPrice: catalog.plans?.plus?.intervals?.[interval]?.formatted || null,
       featured: false,
       features: pricingFeatureList(catalog, "plus", t),
@@ -273,7 +273,7 @@ export default function PublicPricingScreen({ session = null }) {
       price:
         promotionPriceLabel(catalog, "business", interval) ||
         catalog.plans?.business?.intervals?.[interval]?.formatted,
-      note: localizePriceNote(promotionPriceNote(catalog, "business", interval), interval, t),
+      note: promotionPriceNote(catalog, "business", interval, dt),
       listPrice: catalog.plans?.business?.intervals?.[interval]?.formatted || null,
       featured: true,
       features: pricingFeatureList(catalog, "business", t),
@@ -332,7 +332,7 @@ export default function PublicPricingScreen({ session = null }) {
         {!catalogLoading && acquisitionActive ? (
           <section className="pricing-promo-banner" role="status">
             <strong>{promo.label}</strong>
-            <span>{promo.summary}</span>
+            <span>{promoSummary}</span>
           </section>
         ) : null}
         {!catalogLoading && checkoutWarning && acquisitionActive ? (

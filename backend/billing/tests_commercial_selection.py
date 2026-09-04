@@ -235,6 +235,17 @@ class CommercialSelectionStateTests(TestCase):
             resolve_audience(organization=self.org), AUDIENCE_BUSINESS_MONTHLY
         )
 
+    def test_cancelled_trialing_subscription_returns_basic_audience(self):
+        apply_effective_plan(
+            self.org, OrganizationPlan.BUSINESS, source="test.builtin"
+        )
+        billing = _deferred(self.org, plan="plus", interval="monthly")
+        schedule_cancellation(self.org, effective_at=billing.trial_ends_at)
+        self.assertEqual(resolve_audience(organization=self.org), AUDIENCE_BASIC)
+        billing = _deferred(self.org, plan="business", interval="yearly")
+        schedule_cancellation(self.org, effective_at=billing.trial_ends_at)
+        self.assertEqual(resolve_audience(organization=self.org), AUDIENCE_BASIC)
+
 
 @override_settings(**STRIPE_TEST_SETTINGS)
 class CommercialSelectionApiTests(TestCase):

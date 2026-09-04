@@ -41,12 +41,13 @@ from core.models import (
 from organizations.models import Organization, OrganizationPlan
 
 
-def _set_paid(org, *, plan, interval, status=BillingStatus.ACTIVE):
+def _set_paid(org, *, plan, interval, status=BillingStatus.ACTIVE, cancel_at_period_end=False):
     billing, _created = WorkspaceSubscription.objects.get_or_create(organization=org)
     billing.purchase_source = PurchaseSource.STRIPE
     billing.status = status
     billing.subscribed_plan = plan
     billing.billing_interval = interval
+    billing.cancel_at_period_end = bool(cancel_at_period_end)
     billing.external_customer_id = f"cus_{org.pk}"
     billing.external_subscription_id = f"sub_{org.pk}"
     billing.save()
@@ -98,6 +99,60 @@ class EligibilityResolverTests(TestCase):
         self.assertEqual(
             resolve_audience(organization=self.org), AUDIENCE_BUSINESS_YEARLY
         )
+
+    def test_builtin_trial_without_subscription_is_basic_audience(self):
+        # create_with_owner grants Business entitlement trial; no paid sub.
+        self.org.refresh_from_db()
+        self.assertEqual(self.org.plan, OrganizationPlan.BUSINESS)
+        self.assertEqual(resolve_audience(organization=self.org), AUDIENCE_BASIC)
+
+    def test_trialing_plus_non_cancelled_is_plus_audience(self):
+        _set_paid(
+            self.org,
+            plan="plus",
+            interval=BillingInterval.MONTHLY,
+            status=BillingStatus.TRIALING,
+        )
+        self.assertEqual(resolve_audience(organization=self.org), AUDIENCE_PLUS_MONTHLY)
+
+    def test_trialing_plus_cancelled_before_start_is_basic_audience(self):
+        _set_paid(
+            self.org,
+            plan="plus",
+            interval=BillingInterval.MONTHLY,
+            status=BillingStatus.TRIALING,
+            cancel_at_period_end=True,
+        )
+        self.assertEqual(resolve_audience(organization=self.org), AUDIENCE_BASIC)
+
+    def test_trialing_business_cancelled_before_start_is_basic_audience(self):
+        _set_paid(
+            self.org,
+            plan="business",
+            interval=BillingInterval.YEARLY,
+            status=BillingStatus.TRIALING,
+            cancel_at_period_end=True,
+        )
+        self.assertEqual(resolve_audience(organization=self.org), AUDIENCE_BASIC)
+
+    def test_active_plus_and_business_audiences(self):
+        _set_paid(self.org, plan="plus", interval=BillingInterval.MONTHLY)
+        self.assertEqual(resolve_audience(organization=self.org), AUDIENCE_PLUS_MONTHLY)
+        _set_paid(self.org, plan="business", interval=BillingInterval.MONTHLY)
+        self.assertEqual(
+            resolve_audience(organization=self.org), AUDIENCE_BUSINESS_MONTHLY
+        )
+
+    def test_active_cancelled_plus_keeps_plus_audience(self):
+        # Paid period already started — cancel-at-period-end is not Basic yet.
+        _set_paid(
+            self.org,
+            plan="plus",
+            interval=BillingInterval.MONTHLY,
+            status=BillingStatus.ACTIVE,
+            cancel_at_period_end=True,
+        )
+        self.assertEqual(resolve_audience(organization=self.org), AUDIENCE_PLUS_MONTHLY)
 
 
 class GroupOfferRulesTests(TestCase):

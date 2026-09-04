@@ -100,9 +100,14 @@ export function targetOfferPricing(billing, planKey, interval) {
       discountPercent: intervalPromo.discount_percent ?? null,
       label:
         typeof intervalPromo.discount_percent === "number"
-          ? `${intervalPromo.discount_percent}% off ${
-              intervalPromo.applies_to === "first_year" ? "first year" : "first month"
-            }`
+          ? i18n.t("billing:promoDiscount.percentOff", {
+              percent: intervalPromo.discount_percent,
+              duration: i18n.t(
+                intervalPromo.applies_to === "first_year"
+                  ? "billing:promoDiscount.firstYear"
+                  : "billing:promoDiscount.firstMonth",
+              ),
+            })
           : null,
       checkoutApplies: Boolean(intervalPromo.checkout_applies_promotion),
       offerId: intervalPromo.offer_id || null,
@@ -111,6 +116,12 @@ export function targetOfferPricing(billing, planKey, interval) {
 
   if (offer?.promotional_formatted) {
     const unit = interval === "yearly" ? "year" : "month";
+    const percent =
+      offer.discount_percent ?? offer.marketing_discount_percent ?? null;
+    const applies =
+      offer.duration_label === "first_year" || interval === "yearly"
+        ? "first_year"
+        : "first_month";
     return {
       promotional: true,
       firstPeriodFormatted: offer.promotional_formatted,
@@ -120,9 +131,18 @@ export function targetOfferPricing(billing, planKey, interval) {
         ? `${offer.renews_at_formatted}/${unit}`
         : listWithInterval,
       listWithInterval,
-      discountPercent:
-        offer.discount_percent ?? offer.marketing_discount_percent ?? null,
-      label: offer.label || null,
+      discountPercent: percent,
+      label:
+        typeof percent === "number"
+          ? i18n.t("billing:promoDiscount.percentOff", {
+              percent,
+              duration: i18n.t(
+                applies === "first_year"
+                  ? "billing:promoDiscount.firstYear"
+                  : "billing:promoDiscount.firstMonth",
+              ),
+            })
+          : offer.label || null,
       checkoutApplies: Boolean(offer.checkout_applies_promotion),
       offerId: offer.id || null,
     };

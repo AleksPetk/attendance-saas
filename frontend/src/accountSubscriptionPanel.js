@@ -13,6 +13,8 @@ import i18n from "./i18n/index.js";
 import { translatePlanName } from "./i18n/plans.js";
 import {
   catalogPromotion,
+  isAcquisitionPromotion,
+  localizedPromotionSummary,
   promotionCheckoutWarning,
 } from "./promotionCatalog.js";
 import { pricingTemplateClass } from "./pricingTemplates.js";
@@ -248,6 +250,8 @@ export function AccountSubscriptionPanel({
   const stripeConfigured = Boolean(billing?.stripe_configured);
   const isApple = billing?.purchase_source === "apple";
   const catalogPromo = catalogPromotion(billing?.catalog);
+  const discountT = (key, opts) => i18n.t(`billing:promoDiscount.${key}`, opts);
+  const catalogPromoSummary = localizedPromotionSummary(billing?.catalog, discountT);
   const checkoutPromoWarning = promotionCheckoutWarning(billing?.catalog);
   const upgradeOptions = buildUpgradePlanOptions(billing, sessionPlanKey);
   const downgradeOptions = buildDowngradePlanOptions(billing, sessionPlanKey);
@@ -940,11 +944,11 @@ export function AccountSubscriptionPanel({
             className: "account-panel-note account-promotional-text",
           })
         : null,
-      pricingCatalogResolved && catalogPromo?.active && planKey === "basic"
+      pricingCatalogResolved && isAcquisitionPromotion(billing?.catalog)
         ? createElement(
             "p",
             { className: "account-panel-note account-promo-banner", role: "status" },
-            `${catalogPromo.label || "Promotion"}: ${catalogPromo.summary || ""}`,
+            `${catalogPromo.label || "Promotion"}: ${catalogPromoSummary || ""}`,
           )
         : null,
       pricingCatalogResolved && checkoutPromoWarning

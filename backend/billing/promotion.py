@@ -196,7 +196,9 @@ def resolve_audience(*, organization=None, billing=None) -> str:
     Anonymous / no organization → public.
     CheckStation-managed workspaces receive no promotions.
     No paid access → basic (even if Organization.plan was left stale).
-    Paid/trialing/past_due → plan+interval audience.
+    Cancel-at-period-end while still provider-trialing (paid period has not
+    started) → basic again for promotion eligibility.
+    Paid/trialing/past_due with a live commercial commitment → plan+interval.
     """
     if organization is not None and organization.is_checkstation_account:
         return AUDIENCE_NONE
@@ -210,6 +212,13 @@ def resolve_audience(*, organization=None, billing=None) -> str:
         billing = get_workspace_billing(organization)
 
     if billing is None:
+        return AUDIENCE_BASIC
+
+    # Cancelled before the paid period starts: commercially Basic for offers.
+    if (
+        billing.cancel_at_period_end
+        and billing.status == BillingStatus.TRIALING
+    ):
         return AUDIENCE_BASIC
 
     access_active = billing.status in {

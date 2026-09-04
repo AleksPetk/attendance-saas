@@ -487,6 +487,16 @@
     "perYear": "year",
     "billedMonthly": "Billed monthly",
     "billedYearly": "Billed yearly",
+    "discount": {
+      "percentOff": "{{percent}}% off {{duration}}",
+      "firstMonth": "first month",
+      "firstYear": "first year",
+      "firstPeriod": "first period",
+      "summaryJoin": "; ",
+      "thenRenews": "{{phrase}}, then {{price}}/{{unit}}",
+      "month": "month",
+      "year": "year"
+    },
     "normally": "Normally {{price}}",
     "basicNote": "A simple place to begin — no card required",
     "reassuranceAria": "Billing reassurance",

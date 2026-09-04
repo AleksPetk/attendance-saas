@@ -187,5 +187,17 @@
     "opening": "Opening…",
     "portalUnavailable": "Stripe billing tools are available after a Stripe-managed subscription exists."
   },
-  "perUnit": "per"
+  "perUnit": "per",
+  "promoDiscount": {
+    "percentOff": "{{percent}}% off {{duration}}",
+    "firstMonth": "first month",
+    "firstYear": "first year",
+    "firstPeriod": "first period",
+    "summaryJoin": "; ",
+    "thenRenews": "{{phrase}}, then {{price}}/{{unit}}",
+    "billedMonthly": "Billed monthly",
+    "billedYearly": "Billed yearly",
+    "month": "month",
+    "year": "year"
+  }
 }
