@@ -148,6 +148,37 @@ class AccountRecoveryStartTests(AccountRecoveryBase):
         self.assertEqual(response.data["detail"], ACCOUNT_RECOVERY_PUBLIC_MESSAGE)
         send_mail.assert_not_called()
 
+    def test_staff_workspace_owner_with_verified_backup_can_start(self):
+        """Dual-hat owners (is_staff + workspace) must not be silently skipped."""
+        self.owner.is_staff = True
+        self.owner.save(update_fields=["is_staff"])
+        response, send_mail = self._start()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["detail"], ACCOUNT_RECOVERY_PUBLIC_MESSAGE)
+        send_mail.assert_called_once()
+        self.assertTrue(
+            OwnerAccountRecoveryChallenge.objects.filter(user=self.owner).exists()
+        )
+
+    def test_staff_without_workspace_cannot_start(self):
+        staff_only = User.objects.create_user(
+            email="platform-staff@example.com",
+            password="secure-password-staff",
+        )
+        staff_only.is_staff = True
+        staff_only.mark_email_verified()
+        staff_only.backup_email = "platform-staff-backup@example.com"
+        staff_only.backup_email_verified_at = timezone.now()
+        staff_only.save(
+            update_fields=["is_staff", "backup_email", "backup_email_verified_at"]
+        )
+        response, send_mail = self._start("platform-staff-backup@example.com")
+        self.assertEqual(response.status_code, 200)
+        send_mail.assert_not_called()
+        self.assertFalse(
+            OwnerAccountRecoveryChallenge.objects.filter(user=staff_only).exists()
+        )
+
     def test_backup_email_is_not_login_alias(self):
         login = self.api.post(
             "/api/auth/login/",

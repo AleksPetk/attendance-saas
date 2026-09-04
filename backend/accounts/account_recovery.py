@@ -160,19 +160,32 @@ def _record_event(*, user=None, event_type: str, backup_email: str = "", detail:
 
 
 def find_owner_by_verified_backup(email: str):
+    """
+    Resolve an active workspace-owning User by verified backup email.
+
+    Platform-only staff without a workspace are excluded. Workspace owners who
+    also have is_staff (e.g. dual-hat platform access) remain eligible — same
+    as password-reset, which does not reject is_staff owners.
+    """
+    from organizations.models import Organization
+
     normalized = normalize_owner_email(email)
     if not normalized:
         return None
-    return (
+    user = (
         User.objects.filter(
             backup_email=normalized,
             is_active=True,
-            is_staff=False,
             is_superuser=False,
         )
         .exclude(backup_email_verified_at__isnull=True)
         .first()
     )
+    if user is None:
+        return None
+    if not Organization.objects.filter(owner_id=user.pk).exists():
+        return None
+    return user
 
 
 def clear_recovery_session(request) -> None:
