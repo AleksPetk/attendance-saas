@@ -183,21 +183,6 @@ def handle_google_oauth_login(request, identity: GoogleIdentity) -> HttpResponse
     return redirect_google_oauth_result(GoogleOAuthResultCode.NO_ACCOUNT)
 
 
-def _claim_or_register_google_owner(identity: GoogleIdentity, *, billing_market: str):
-    provisional = get_provisional_unverified_owner(identity.email)
-    if provisional is not None:
-        return claim_provisional_owner_with_oauth(
-            provisional,
-            identity_email=identity.email,
-            billing_market=billing_market,
-            create_provider_link=create_google_provider_link,
-            identity=identity,
-        )
-    if email_ownership_established(identity.email):
-        raise ProvisionalClaimError("ownership_established")
-    return _register_new_google_owner(identity, billing_market=billing_market)
-
-
 def handle_google_oauth_register(
     request,
     identity: GoogleIdentity,
@@ -216,32 +201,51 @@ def handle_google_oauth_register(
     if get_google_provider_link(subject=identity.subject) is not None:
         return redirect_google_oauth_result(GoogleOAuthResultCode.GOOGLE_ALREADY_LINKED)
 
+    from billing.markets import lock_market_for_new_registration
+
+    billing_market = lock_market_for_new_registration(request)
+    provisional = get_provisional_unverified_owner(identity.email)
+
+    if provisional is not None:
+        # Another account may already own this address as backup/pending.
+        if email_ownership_established(identity.email, exclude_user=provisional):
+            return redirect_google_oauth_result(
+                GoogleOAuthResultCode.EXISTING_ACCOUNT_CONNECT_REQUIRED
+            )
+        try:
+            user = claim_provisional_owner_with_oauth(
+                provisional,
+                identity_email=identity.email,
+                billing_market=billing_market,
+                create_provider_link=create_google_provider_link,
+                identity=identity,
+            )
+        except ProvisionalClaimError:
+            if email_ownership_established(identity.email):
+                return redirect_google_oauth_result(
+                    GoogleOAuthResultCode.EXISTING_ACCOUNT_CONNECT_REQUIRED
+                )
+            return redirect_google_oauth_result(
+                GoogleOAuthResultCode.AUTHENTICATION_FAILED
+            )
+        return _finalize_owner_login(request, user)
+
     if email_ownership_established(identity.email):
         return redirect_google_oauth_result(
             GoogleOAuthResultCode.EXISTING_ACCOUNT_CONNECT_REQUIRED
         )
 
-    from billing.markets import lock_market_for_new_registration
-
-    billing_market = lock_market_for_new_registration(request)
-
     try:
-        user = _claim_or_register_google_owner(
-            identity, billing_market=billing_market
-        )
-    except ProvisionalClaimError:
-        if email_ownership_established(identity.email):
-            return redirect_google_oauth_result(
-                GoogleOAuthResultCode.EXISTING_ACCOUNT_CONNECT_REQUIRED
-            )
-        return redirect_google_oauth_result(GoogleOAuthResultCode.AUTHENTICATION_FAILED)
+        user = _register_new_google_owner(identity, billing_market=billing_market)
     except IntegrityError:
         logger.warning("Google registration race for subject=%s", identity.subject)
         link = get_google_provider_link(subject=identity.subject)
         if link is not None:
             return _login_existing_google_link(request, link, identity)
         provisional = get_provisional_unverified_owner(identity.email)
-        if provisional is not None:
+        if provisional is not None and not email_ownership_established(
+            identity.email, exclude_user=provisional
+        ):
             try:
                 user = claim_provisional_owner_with_oauth(
                     provisional,
@@ -260,7 +264,6 @@ def handle_google_oauth_register(
         return redirect_google_oauth_result(GoogleOAuthResultCode.AUTHENTICATION_FAILED)
 
     return _finalize_owner_login(request, user)
-
 def handle_google_oauth_link(
     request,
     identity: GoogleIdentity,

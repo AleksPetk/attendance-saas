@@ -464,6 +464,32 @@ class GoogleOAuthRegisterFlowTests(TestCase):
             ).exists()
         )
 
+    def test_provisional_claim_blocked_when_email_is_another_accounts_backup(self):
+        owner, _organization = create_owner(email="backup-holder@gmail.com")
+        owner.backup_email = "shared@gmail.com"
+        owner.save(update_fields=["backup_email"])
+        User.objects.create_user(
+            email="shared@gmail.com",
+            password="attacker-password-12",
+            email_verified=False,
+        )
+        pending = self._start_register()
+        response = self._callback(
+            pending, sub="shared-google-sub", email="shared@gmail.com"
+        )
+        self.assertEqual(
+            result_code_from_redirect(response["Location"]),
+            GoogleOAuthResultCode.EXISTING_ACCOUNT_CONNECT_REQUIRED,
+        )
+        provisional = User.objects.get(email="shared@gmail.com")
+        self.assertFalse(provisional.email_verified)
+        self.assertTrue(provisional.has_usable_password())
+        self.assertFalse(
+            OwnerAuthProviderLink.objects.filter(
+                provider_subject="shared-google-sub"
+            ).exists()
+        )
+
 
 @override_settings(**GOOGLE_TEST_SETTINGS)
 class GoogleOAuthSecurityTests(TestCase):
