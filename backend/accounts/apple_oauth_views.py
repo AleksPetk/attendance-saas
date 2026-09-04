@@ -6,6 +6,8 @@ import logging
 
 from django.contrib.auth import get_user_model
 from django.http import HttpResponseRedirect
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import csrf_exempt
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -135,13 +137,18 @@ class AppleOAuthStartView(APIView):
         return HttpResponseRedirect(authorization_url)
 
 
+@method_decorator(csrf_exempt, name="dispatch")
 class AppleOAuthCallbackView(APIView):
     """
     Apple redirect target.
 
-    Sign in with Apple uses `response_mode=form_post`, so the callback is POST.
+    Sign in with Apple uses `response_mode=form_post`, so the callback is a
+    cross-site POST that cannot carry our CSRF cookie/token. Protection is the
+    signed, single-use OAuth `state` plus ID-token nonce verification — not
+    Django CSRF. Session cookies remain SameSite=Lax for the rest of the app.
     """
 
+    authentication_classes = []
     permission_classes = [AllowAny]
 
     def _callback(self, request):

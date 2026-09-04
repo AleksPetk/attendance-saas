@@ -95,7 +95,8 @@ class AppleOAuthStartViewTests(TestCase):
 
     def test_link_start_requires_authenticated_owner(self):
         response = self.client.get("/api/auth/apple/start/?intent=link")
-        self.assertEqual(response.status_code, 401)
+        # Unauthenticated SPA requests are coerced to 403 (no WWW-Authenticate challenge).
+        self.assertEqual(response.status_code, 403)
 
 
 @override_settings(**APPLE_TEST_SETTINGS)
@@ -289,7 +290,8 @@ class AppleOAuthRegisterFlowTests(TestCase):
         )
         self.assertEqual(User.objects.count(), 0)
 
-    def test_legal_acknowledgement_cannot_be_bypassed(self):
+    def test_legal_acknowledgement_cannot_be_cleared_via_session_tamper(self):
+        """Signed state is authoritative; mutating the session mirror must not strip legal ack."""
         pending = self._start_register()
         session = self.client.session
         raw = session[OWNER_APPLE_OAUTH_SESSION_KEY]
@@ -299,8 +301,9 @@ class AppleOAuthRegisterFlowTests(TestCase):
         response = self._callback(pending)
         self.assertEqual(
             result_code_from_redirect(response["Location"]),
-            AppleOAuthResultCode.LEGAL_ACKNOWLEDGEMENT_REQUIRED,
+            AppleOAuthResultCode.SUCCESS,
         )
+        self.assertTrue(User.objects.filter(email="newowner@example.com").exists())
 
     def test_register_collision_with_existing_checkstation_email(self):
         create_owner(email="existing@example.com")
@@ -473,7 +476,8 @@ class AppleOAuthSecurityTests(TestCase):
             AppleOAuthResultCode.AUTHENTICATION_FAILED,
         )
 
-    def test_login_intent_cannot_complete_as_link(self):
+    def test_session_tamper_cannot_escalate_login_to_link(self):
+        """Intent lives in the signed state; session-only mutation cannot escalate."""
         owner, _organization = create_owner(email="linker@example.com")
         pending = self._start_login()
         session = self.client.session
@@ -494,9 +498,16 @@ class AppleOAuthSecurityTests(TestCase):
                 "/api/auth/apple/callback/",
                 {"code": "auth-code", "state": pending.state},
             )
+        # Signed state still says login. Existing CheckStation email without an
+        # Apple link → connect required, never a successful link via session tamper.
         self.assertEqual(
             result_code_from_redirect(response["Location"]),
-            AppleOAuthResultCode.AUTHENTICATION_REQUIRED,
+            AppleOAuthResultCode.EXISTING_ACCOUNT_CONNECT_REQUIRED,
+        )
+        self.assertFalse(
+            OwnerAuthProviderLink.objects.filter(
+                user=owner, provider=OwnerAuthProvider.APPLE
+            ).exists()
         )
 
 
@@ -605,3 +616,212 @@ class AppleOAuthClientSecretTests(TestCase):
             token = generate_apple_client_secret()
             claims = jwt.decode(token, options={"verify_signature": False})
             self.assertEqual(claims["sub"], APPLE_TEST_SETTINGS["APPLE_OAUTH_CLIENT_ID"])
+
+
+@override_settings(**APPLE_TEST_SETTINGS)
+class AppleOAuthFormPostHardeningTests(TestCase):
+    """Simulate Apple's cross-site form_post without the Lax session cookie."""
+
+    def setUp(self):
+        from django.core.cache import cache
+
+        cache.clear()
+
+    def _start_and_extract_state(self, path):
+        starter = Client()
+        response = starter.get(path)
+        self.assertEqual(response.status_code, 302)
+        query = parse_qs(urlparse(response["Location"]).query)
+        state = query["state"][0]
+        pending = load_apple_oauth_state(response.wsgi_request)
+        self.assertIsNotNone(pending)
+        self.assertEqual(pending.state, state)
+        return state, pending.nonce
+
+    def test_cross_site_post_without_session_cookie_accepts_valid_state(self):
+        state, nonce = self._start_and_extract_state("/api/auth/apple/start/?intent=login")
+        OwnerAuthProviderLink.objects.create(
+            user=create_owner(email="cross-site@example.com")[0],
+            provider=OwnerAuthProvider.APPLE,
+            provider_subject="apple-sub-cross-site",
+        )
+        claims = apple_claims(
+            sub="apple-sub-cross-site",
+            email="cross-site@example.com",
+            nonce=nonce,
+        )
+        # Fresh client: no cookies from the start request (Apple form_post case).
+        callback = Client(enforce_csrf_checks=True)
+        with patch(
+            "accounts.apple_oauth.exchange_authorization_code",
+            return_value={"id_token": "fake-id-token"},
+        ), patch(
+            "accounts.apple_oauth.verify_apple_id_token",
+            return_value=claims,
+        ):
+            response = callback.post(
+                "/api/auth/apple/callback/",
+                {"code": "auth-code", "state": state},
+            )
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(
+            result_code_from_redirect(response["Location"]),
+            AppleOAuthResultCode.SUCCESS,
+        )
+
+    def test_callback_does_not_require_django_csrf_token(self):
+        state, nonce = self._start_and_extract_state("/api/auth/apple/start/?intent=login")
+        claims = apple_claims(sub="apple-sub-csrf", email="csrf@example.com", nonce=nonce)
+        OwnerAuthProviderLink.objects.create(
+            user=create_owner(email="csrf@example.com")[0],
+            provider=OwnerAuthProvider.APPLE,
+            provider_subject="apple-sub-csrf",
+        )
+        callback = Client(enforce_csrf_checks=True)
+        with patch(
+            "accounts.apple_oauth.exchange_authorization_code",
+            return_value={"id_token": "fake-id-token"},
+        ), patch(
+            "accounts.apple_oauth.verify_apple_id_token",
+            return_value=claims,
+        ):
+            response = callback.post(
+                "/api/auth/apple/callback/",
+                {"code": "auth-code", "state": state},
+            )
+        self.assertNotEqual(response.status_code, 403)
+        self.assertEqual(response.status_code, 302)
+
+    def test_unrelated_post_still_requires_csrf(self):
+        # DRF only enforces CSRF on session-authenticated unsafe requests.
+        # Use a normal authenticated owner POST (not the Apple callback).
+        owner, _organization = create_owner(email="csrf-owner@example.com")
+        client = Client(enforce_csrf_checks=True)
+        client.force_login(owner)
+        response = client.post(
+            "/api/auth/change-password/",
+            {
+                "current_password": "secure-password",
+                "new_password": "another-secure-password",
+                "new_password_confirm": "another-secure-password",
+            },
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_missing_state_rejected(self):
+        callback = Client(enforce_csrf_checks=True)
+        with patch("accounts.apple_oauth.exchange_authorization_code") as exchange:
+            response = callback.post(
+                "/api/auth/apple/callback/",
+                {"code": "auth-code"},
+            )
+        exchange.assert_not_called()
+        self.assertEqual(
+            result_code_from_redirect(response["Location"]),
+            AppleOAuthResultCode.AUTHENTICATION_FAILED,
+        )
+
+    def test_invalid_state_rejected(self):
+        callback = Client(enforce_csrf_checks=True)
+        with patch("accounts.apple_oauth.exchange_authorization_code") as exchange:
+            response = callback.post(
+                "/api/auth/apple/callback/",
+                {"code": "auth-code", "state": "not-a-signed-state"},
+            )
+        exchange.assert_not_called()
+        self.assertEqual(
+            result_code_from_redirect(response["Location"]),
+            AppleOAuthResultCode.INVALID_STATE,
+        )
+
+    def test_replayed_signed_state_rejected_without_session(self):
+        state, nonce = self._start_and_extract_state("/api/auth/apple/start/?intent=login")
+        claims = apple_claims(sub="apple-sub-replay", email="replay@example.com", nonce=nonce)
+        OwnerAuthProviderLink.objects.create(
+            user=create_owner(email="replay@example.com")[0],
+            provider=OwnerAuthProvider.APPLE,
+            provider_subject="apple-sub-replay",
+        )
+        callback = Client(enforce_csrf_checks=True)
+        with patch(
+            "accounts.apple_oauth.exchange_authorization_code",
+            return_value={"id_token": "fake-id-token"},
+        ), patch(
+            "accounts.apple_oauth.verify_apple_id_token",
+            return_value=claims,
+        ):
+            first = callback.post(
+                "/api/auth/apple/callback/",
+                {"code": "auth-code", "state": state},
+            )
+            second = Client(enforce_csrf_checks=True).post(
+                "/api/auth/apple/callback/",
+                {"code": "auth-code", "state": state},
+            )
+        self.assertEqual(
+            result_code_from_redirect(first["Location"]),
+            AppleOAuthResultCode.SUCCESS,
+        )
+        self.assertEqual(
+            result_code_from_redirect(second["Location"]),
+            AppleOAuthResultCode.INVALID_STATE,
+        )
+
+    def test_wrong_nonce_rejected_on_cross_site_callback(self):
+        state, _nonce = self._start_and_extract_state("/api/auth/apple/start/?intent=login")
+        callback = Client(enforce_csrf_checks=True)
+        with patch(
+            "accounts.apple_oauth.exchange_authorization_code",
+            return_value={"id_token": "fake-id-token"},
+        ), patch(
+            "accounts.apple_oauth.verify_apple_id_token",
+            side_effect=__import__(
+                "accounts.apple_oauth_client", fromlist=["AppleOAuthClientError"]
+            ).AppleOAuthClientError("invalid_nonce"),
+        ):
+            response = callback.post(
+                "/api/auth/apple/callback/",
+                {"code": "auth-code", "state": state},
+            )
+        self.assertEqual(
+            result_code_from_redirect(response["Location"]),
+            AppleOAuthResultCode.AUTHENTICATION_FAILED,
+        )
+
+    def test_link_completes_without_session_cookie_using_signed_owner_binding(self):
+        owner, _org = create_owner(email="link-cross@example.com")
+        starter = Client()
+        starter.force_login(owner)
+        start = starter.get("/api/auth/apple/start/?intent=link")
+        self.assertEqual(start.status_code, 302)
+        state = parse_qs(urlparse(start["Location"]).query)["state"][0]
+        pending = load_apple_oauth_state(start.wsgi_request)
+        claims = apple_claims(
+            sub="apple-sub-link-cross",
+            email="link-cross@example.com",
+            nonce=pending.nonce,
+        )
+        callback = Client(enforce_csrf_checks=True)
+        with patch(
+            "accounts.apple_oauth.exchange_authorization_code",
+            return_value={"id_token": "fake-id-token"},
+        ), patch(
+            "accounts.apple_oauth.verify_apple_id_token",
+            return_value=claims,
+        ):
+            response = callback.post(
+                "/api/auth/apple/callback/",
+                {"code": "auth-code", "state": state},
+            )
+        self.assertEqual(
+            result_code_from_redirect(response["Location"]),
+            AppleOAuthResultCode.LINKED,
+        )
+        self.assertTrue(
+            OwnerAuthProviderLink.objects.filter(
+                user=owner,
+                provider=OwnerAuthProvider.APPLE,
+                provider_subject="apple-sub-link-cross",
+            ).exists()
+        )

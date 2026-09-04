@@ -276,14 +276,40 @@ def handle_apple_oauth_register(
         return redirect_apple_oauth_result(AppleOAuthResultCode.AUTHENTICATION_FAILED)
 
     return _finalize_owner_login(request, user)
+
+
+def _resolve_signed_owner_actor(request, *, owner_user_id: int):
+    """
+    Resolve the owner for link/verify after Apple form_post.
+
+    Prefer a live authenticated session when the Lax cookie is present (same-site
+    or cookie somehow available). Otherwise trust owner_user_id that was bound
+    into the signed state at start while the owner was authenticated.
+    """
+    if getattr(request.user, "is_authenticated", False):
+        if request.user.pk != owner_user_id:
+            return None
+        return request.user
+
+    return (
+        User.objects.filter(
+            pk=owner_user_id,
+            is_active=True,
+            is_staff=False,
+            is_superuser=False,
+        )
+        .first()
+    )
+
+
 def handle_apple_oauth_link(
     request,
     identity: AppleIdentity,
     *,
     owner_user_id: int,
 ) -> HttpResponseRedirect:
-    actor = request.user
-    if not getattr(actor, "is_authenticated", False) or actor.pk != owner_user_id:
+    actor = _resolve_signed_owner_actor(request, owner_user_id=owner_user_id)
+    if actor is None:
         return redirect_apple_account_security_result(AppleOAuthResultCode.AUTHENTICATION_REQUIRED)
 
     if getattr(actor, "is_staff", False) or getattr(actor, "is_superuser", False):
@@ -318,8 +344,8 @@ def handle_apple_oauth_verify(
     *,
     owner_user_id: int,
 ) -> HttpResponseRedirect:
-    actor = request.user
-    if not getattr(actor, "is_authenticated", False) or actor.pk != owner_user_id:
+    actor = _resolve_signed_owner_actor(request, owner_user_id=owner_user_id)
+    if actor is None:
         return redirect_apple_account_security_result(AppleOAuthResultCode.AUTHENTICATION_REQUIRED)
 
     if getattr(actor, "is_staff", False) or getattr(actor, "is_superuser", False):
