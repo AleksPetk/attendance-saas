@@ -39,15 +39,52 @@ HANDLED_EVENT_TYPES = frozenset(
 PROCESSING_RECLAIM_AFTER = timedelta(minutes=15)
 
 
+def _id_string(value) -> str:
+    if isinstance(value, dict):
+        return str(value.get("id") or "").strip()
+    return str(value or "").strip()
+
+
 def _subscription_id_from_object(obj: dict) -> str:
+    """Extract a Stripe subscription id from subscription or invoice payloads.
+
+    Newer Invoice objects omit top-level ``subscription`` and nest it under
+    ``parent.subscription_details.subscription`` (and line-item parents).
+    """
     if not obj:
         return ""
     if obj.get("object") == "subscription":
-        return str(obj.get("id") or "")
-    sub = obj.get("subscription")
-    if isinstance(sub, dict):
-        return str(sub.get("id") or "")
-    return str(sub or "")
+        return _id_string(obj.get("id"))
+
+    direct = _id_string(obj.get("subscription"))
+    if direct:
+        return direct
+
+    parent = obj.get("parent")
+    if isinstance(parent, dict):
+        details = parent.get("subscription_details") or {}
+        if isinstance(details, dict):
+            nested = _id_string(details.get("subscription"))
+            if nested:
+                return nested
+
+    lines = obj.get("lines")
+    if isinstance(lines, dict):
+        for line in lines.get("data") or []:
+            if not isinstance(line, dict):
+                continue
+            line_sub = _id_string(line.get("subscription"))
+            if line_sub:
+                return line_sub
+            line_parent = line.get("parent")
+            if not isinstance(line_parent, dict):
+                continue
+            item_details = line_parent.get("subscription_item_details") or {}
+            if isinstance(item_details, dict):
+                nested = _id_string(item_details.get("subscription"))
+                if nested:
+                    return nested
+    return ""
 
 
 def _customer_id_from_object(obj: dict) -> str:
@@ -55,6 +92,58 @@ def _customer_id_from_object(obj: dict) -> str:
     if isinstance(customer, dict):
         return str(customer.get("id") or "")
     return str(customer or "")
+
+
+def _resolve_organization_for_provider_object(obj: dict, *, provider=None):
+    """
+    Map a Stripe object to an Organization.
+
+    Prefer metadata + stored WorkspaceSubscription IDs. When an invoice (or
+    similar) has empty metadata and no local row yet, enrich from the Stripe
+    subscription's metadata so checkout races still resolve. Returns None when
+    the object is not a CheckStation billing object (caller should ignore).
+    """
+    subscription_id = _subscription_id_from_object(obj)
+    customer_id = _customer_id_from_object(obj)
+    metadata = obj.get("metadata") or {}
+    if not isinstance(metadata, dict):
+        metadata = {}
+
+    try:
+        return resolve_organization_from_mapping(
+            metadata=metadata,
+            customer_id=customer_id,
+            subscription_id=subscription_id,
+        )
+    except BillingStateError as exc:
+        if exc.code != "stripe_tenant_unmapped":
+            raise
+
+    if not subscription_id:
+        return None
+
+    billing_provider = provider or get_billing_provider()
+    try:
+        snapshot = billing_provider.retrieve_subscription(subscription_id)
+    except Exception as exc:
+        logger.info(
+            "Could not retrieve Stripe subscription %s for tenant mapping: %s",
+            subscription_id[:16],
+            exc,
+        )
+        return None
+
+    merged = {**(snapshot.metadata or {}), **metadata}
+    try:
+        return resolve_organization_from_mapping(
+            metadata=merged,
+            customer_id=customer_id or snapshot.customer_id,
+            subscription_id=subscription_id or snapshot.subscription_id,
+        )
+    except BillingStateError as exc:
+        if exc.code == "stripe_tenant_unmapped":
+            return None
+        raise
 
 
 def _mark_processing(row: ProviderEvent, *, now) -> ProviderEvent:
@@ -170,7 +259,7 @@ def process_provider_event(event) -> str:
         return "ignored"
     try:
         with transaction.atomic():
-            _dispatch(event)
+            result = _dispatch(event)
     except Exception as exc:
         _mark_failed(existing, exc)
         logger.exception(
@@ -179,6 +268,9 @@ def process_provider_event(event) -> str:
             event.event_id,
         )
         raise
+    if result == "ignored":
+        _mark_ignored(existing)
+        return "ignored"
     _mark_processed(existing)
     return "processed"
 
@@ -270,13 +362,16 @@ def _dispatch(event):
         return
 
     if event.event_type in {"invoice.paid", "invoice.payment_succeeded"}:
-        org = resolve_organization_from_mapping(
-            metadata=metadata,
-            customer_id=customer_id,
-            subscription_id=subscription_id,
-        )
+        org = _resolve_organization_for_provider_object(obj, provider=provider)
+        if org is None:
+            logger.info(
+                "Ignoring Stripe %s with no CheckStation workspace mapping",
+                event.event_type,
+            )
+            return "ignored"
         if _skip_checkstation_org(org):
             return
+        subscription_id = _subscription_id_from_object(obj)
         if subscription_id:
             snapshot = provider.retrieve_subscription(subscription_id)
             reconcile_subscription_snapshot(org, snapshot)
@@ -286,11 +381,12 @@ def _dispatch(event):
         return
 
     if event.event_type == "invoice.payment_failed":
-        org = resolve_organization_from_mapping(
-            metadata=metadata,
-            customer_id=customer_id,
-            subscription_id=subscription_id,
-        )
+        org = _resolve_organization_for_provider_object(obj, provider=provider)
+        if org is None:
+            logger.info(
+                "Ignoring Stripe invoice.payment_failed with no CheckStation workspace mapping"
+            )
+            return "ignored"
         if _skip_checkstation_org(org):
             return
         mark_payment_failure(org)
