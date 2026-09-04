@@ -1,10 +1,17 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { api, errorMessage, fieldError } from "./api.js";
+import { api, errorMessage } from "./api.js";
 import { localizedErrorMessage } from "./i18n/errorMessages.js";
 import { useLanguage } from "./i18n/LanguageProvider.jsx";
 import { AuthLayout, ErrorBanner, Field, PasswordInput, SuccessBanner } from "./components.jsx";
+
+function fieldError(error, name) {
+  const value = error?.data?.[name];
+  if (Array.isArray(value) && value.length) return value[0];
+  if (typeof value === "string") return value;
+  return "";
+}
 
 function RecoverStart() {
   const { t } = useTranslation(["auth", "errors"]);
