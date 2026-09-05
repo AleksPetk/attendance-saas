@@ -1,11 +1,10 @@
 """Operational Group rules used by Group APIs, kiosk, and attendance."""
 
-from groups.email_sender import group_email_sender_is_ready, send_after_action_email
+from groups.email_sender import group_email_sender_is_ready
 from groups.models import GroupType, group_is_operationally_active
 from groups.readiness import group_is_operationally_ready, group_setup_incomplete_error_payload
 from kiosk_builder.kiosk_settings_validation import compute_kiosk_readiness
 from kiosk_builder.models import ensure_group_kiosk_settings
-
 
 AFTER_CHECK_IN = "check_in"
 AFTER_CHECK_OUT = "check_out"
@@ -52,29 +51,18 @@ def maybe_run_after_action(
     timezone_name=None,
 ):
     """
-    Send after-action email when configured.
+    Enqueue durable after-action email when configured.
 
-    Email failures are recorded and must not affect the ActionRecord.
+    Must run inside the same DB transaction as ActionRecord create.
+    Does not perform SMTP. Email failures are handled by the outbox worker
+    and must never affect the ActionRecord.
     """
-    kind = after_action_kind_for_action_type(action_type)
-    if kind is None:
-        return False
-    if not after_action_should_run(group, kind):
-        return False
-    if action_record is None:
-        return False
-    participant_name = ""
-    if membership is not None:
-        participant_name = membership.effective_name
-    elif group_only_participant is not None:
-        participant_name = group_only_participant.name
-    else:
-        participant_name = getattr(action_record, "participant_name_snapshot", "") or ""
-    return send_after_action_email(
+    from groups.email_outbox import enqueue_after_action_email_outbox
+
+    return enqueue_after_action_email_outbox(
         group=group,
-        kind=kind,
+        action_type=action_type,
         action_record=action_record,
-        participant_name=participant_name,
         membership=membership,
         group_only_participant=group_only_participant,
         timezone_name=timezone_name,

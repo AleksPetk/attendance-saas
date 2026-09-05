@@ -11,6 +11,10 @@ from groups.email_sender import (
     save_group_email_sender,
     send_group_email_sender_test,
 )
+from groups.email_sender_rate_limits import (
+    check_email_sender_test_allowed,
+    record_email_sender_test_attempt,
+)
 from groups.email_sender_serializers import (
     GroupEmailSenderSerializer,
     GroupEmailSenderTestSerializer,
@@ -110,9 +114,13 @@ class GroupEmailSenderTestView(GroupScopedEmailSenderMixin, APIView):
                 group_archived_error_payload(),
                 status=status.HTTP_409_CONFLICT,
             )
+        limited = check_email_sender_test_allowed(request=request, group=group)
+        if limited is not None:
+            return limited
         serializer = GroupEmailSenderTestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         draft = serializer.draft_payload()
+        record_email_sender_test_attempt(request=request, group=group)
         try:
             sender = send_group_email_sender_test(
                 group=group,

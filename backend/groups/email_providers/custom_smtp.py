@@ -43,6 +43,8 @@ def validate_smtp_fields(
     from_email,
     require_password=True,
 ):
+    from groups.email_providers.smtp_destination import validate_custom_smtp_destination
+
     errors = {}
     host = (host or "").strip()
     username = (username or "").strip()
@@ -51,19 +53,17 @@ def validate_smtp_fields(
 
     if not host:
         errors["smtp_host"] = "SMTP host is required."
-    elif any(ch.isspace() for ch in host) or "/" in host:
-        errors["smtp_host"] = "Enter a valid SMTP host."
-
     if port is None:
         errors["smtp_port"] = "SMTP port is required."
-    else:
+    if host and port is not None:
         try:
-            port_int = int(port)
-        except (TypeError, ValueError):
-            errors["smtp_port"] = "SMTP port must be a number."
-            port_int = None
-        if port_int is not None and not (1 <= port_int <= 65535):
-            errors["smtp_port"] = "SMTP port must be between 1 and 65535."
+            validate_custom_smtp_destination(host=host, port=port)
+        except ValidationError as exc:
+            message_dict = getattr(exc, "message_dict", None) or {}
+            for key, messages in message_dict.items():
+                errors[key] = messages[0] if isinstance(messages, list) else messages
+            if not message_dict and exc.messages:
+                errors["smtp_host"] = exc.messages[0]
 
     if security not in SmtpSecurity.values:
         errors["smtp_security"] = "Select a valid SMTP security option."
@@ -176,6 +176,7 @@ class CustomSMTPProvider(EmailSenderProvider):
             envelope_from=envelope_from,
             envelope_to=envelope_to,
             group_id=getattr(sender, "group_id", None),
+            enforce_destination_policy=True,
         )
 
     def send_messages_batch(self, sender, *, messages):
@@ -191,4 +192,5 @@ class CustomSMTPProvider(EmailSenderProvider):
             from_name=sender.from_name,
             messages=messages,
             group_id=getattr(sender, "group_id", None),
+            enforce_destination_policy=True,
         )

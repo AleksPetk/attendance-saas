@@ -52,6 +52,13 @@ def batch_recipients(mock_send):
     return [m["to_email"] for m in messages]
 
 
+def flush_email_outbox(*, limit=50):
+    """Process due outbox jobs (tests that previously expected sync SMTP)."""
+    from groups.email_outbox import process_due_email_outbox
+
+    return process_due_email_outbox(limit=limit)
+
+
 def make_session_request():
     request = RequestFactory().post("/")
     session = SessionStore()

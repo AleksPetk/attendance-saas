@@ -1182,4 +1182,8 @@ class GroupOnlyParticipant(models.Model):
 
 
 # Register email-sender models with the groups app for migrations/admin.
-from groups.email_sender_models import GroupEmailDelivery, GroupEmailSender  # noqa: E402,F401
+from groups.email_sender_models import (  # noqa: E402,F401
+    GroupEmailDelivery,
+    GroupEmailOutboxJob,
+    GroupEmailSender,
+)

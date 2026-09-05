@@ -23,6 +23,7 @@ from groups.email_sender_models import (
     GroupEmailSender,
 )
 from groups.email_sender_testing import (
+    flush_email_outbox,
     GROUP_EMAIL_CRYPTO_TEST_SETTINGS,
     batch_recipients,
     make_session_request,
@@ -426,6 +427,7 @@ class GroupEmailSenderTests(TestCase):
                 participant_kind="member",
                 membership=membership,
             )
+            flush_email_outbox()
             mock_send.assert_called_once()
             self.assertEqual(
                 batch_recipients(mock_send),
@@ -462,6 +464,7 @@ class GroupEmailSenderTests(TestCase):
                 participant_kind="member",
                 membership=membership,
             )
+        flush_email_outbox()
         self.assertTrue(ActionRecord.objects.filter(pk=ar.pk).exists())
         delivery = GroupEmailDelivery.objects.get(action_record=ar)
         self.assertEqual(delivery.status, GroupEmailDeliveryStatus.FAILED)

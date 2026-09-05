@@ -105,6 +105,41 @@ services:
     restart: unless-stopped
     profiles: ["app"]
 
+  email-worker:
+    build:
+      context: ./backend
+    env_file:
+      - .env
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings_production
+      DEBUG: "False"
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+    command:
+      [
+        "python",
+        "manage.py",
+        "process_group_email_outbox",
+        "--loop",
+        "--poll-seconds",
+        "0.5",
+        "--limit",
+        "10",
+      ]
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    volumes:
+      - checkstation_media_data:/app/media
+    networks:
+      - checkstation
+    restart: unless-stopped
+    profiles: ["app"]
+
   docs:
     build:
       context: ./docs

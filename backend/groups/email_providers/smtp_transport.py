@@ -187,13 +187,17 @@ def classify_smtp_error(exc, *, password="", security="", stage=""):
 
 
 def build_email_message(*, from_email, from_name, to_email, subject, text_body, html_body=""):
+    from groups.email_providers.smtp_destination import sanitize_email_header_value
+
     message = EmailMessage()
-    if from_name:
-        message["From"] = f"{from_name} <{from_email}>"
+    safe_from_name = sanitize_email_header_value(from_name or "", max_length=150)
+    safe_subject = sanitize_email_header_value(subject or "", max_length=200)
+    if safe_from_name:
+        message["From"] = f"{safe_from_name} <{from_email}>"
     else:
         message["From"] = from_email
     message["To"] = to_email
-    message["Subject"] = subject
+    message["Subject"] = safe_subject
     message.set_content(text_body or "")
     if html_body:
         message.add_alternative(html_body, subtype="html")
@@ -212,6 +216,7 @@ def smtp_send(
     envelope_to,
     group_id=None,
     timeout=20,
+    enforce_destination_policy=False,
 ):
     """
     Distinct connection modes:
@@ -219,7 +224,22 @@ def smtp_send(
     - SSL/TLS: SMTP_SSL immediate TLS (often port 465)
     - STARTTLS: plain SMTP, EHLO, STARTTLS, EHLO, then auth (often 587)
     - None: plain SMTP without upgrade (not recommended)
+
+    When ``enforce_destination_policy`` is True (Custom SMTP), host/port are
+    re-checked for SSRF / allowlisted ports immediately before connect.
     """
+    if enforce_destination_policy:
+        from django.core.exceptions import ValidationError as DjangoValidationError
+
+        from groups.email_providers.smtp_destination import (
+            validate_custom_smtp_destination,
+        )
+
+        try:
+            validate_custom_smtp_destination(host=host, port=port)
+        except DjangoValidationError as exc:
+            raise EmailSenderProviderError(SAFE_CONNECT_FAILED) from exc
+
     stage = "connect"
     try:
         if security == SmtpSecurity.SSL:
@@ -334,6 +354,7 @@ def smtp_send_batch(
     sends,
     group_id=None,
     timeout=20,
+    enforce_destination_policy=False,
 ):
     """
     Open one SMTP session and send multiple messages on the same connection.
@@ -343,6 +364,26 @@ def smtp_send_batch(
     """
     if not sends:
         return []
+
+    if enforce_destination_policy:
+        from django.core.exceptions import ValidationError as DjangoValidationError
+
+        from groups.email_providers.smtp_destination import (
+            validate_custom_smtp_destination,
+        )
+
+        try:
+            validate_custom_smtp_destination(host=host, port=port)
+        except DjangoValidationError as exc:
+            err = EmailSenderProviderError(SAFE_CONNECT_FAILED)
+            return [
+                {
+                    "envelope_to": item["envelope_to"],
+                    "ok": False,
+                    "error": err,
+                }
+                for item in sends
+            ]
 
     results = []
     stage = "connect"
@@ -466,6 +507,7 @@ def send_smtp_messages_batch(
     from_name,
     messages,
     group_id=None,
+    enforce_destination_policy=False,
 ):
     """
     Build and send multiple messages over one SMTP connection.
@@ -484,6 +526,7 @@ def send_smtp_messages_batch(
         password=password,
         sends=sends,
         group_id=group_id,
+        enforce_destination_policy=enforce_destination_policy,
     )
     return [
         {

@@ -16,6 +16,7 @@ from kiosk_builder.kiosk_settings_constants import AttendanceResetMode
 from kiosk_builder.models import ensure_group_kiosk_settings
 
 from django.core.exceptions import ValidationError
+from django.db import transaction
 from django.utils import timezone
 
 
@@ -284,35 +285,37 @@ def perform_action_record_from_kiosk(
             source_section_id = section.pk
             class_name_snapshot = section.name
 
-    ar = ActionRecord.objects.create(
-        organization=group.organization,
-        group=group,
-        source_group_id=group.pk,
-        participant_kind=participant_kind,
-        member=member_obj if participant_kind == "member" else None,
-        group_only_participant=group_only_participant if participant_kind == "group_only_participant" else None,
-        action_type=action_type,
-        source=ActionSource.KIOSK,
-        performed_at=now,
-        kiosk_note_snapshot="kiosk",
-        participant_name_snapshot=snapshot["participant_name_snapshot"],
-        participant_email_snapshot=snapshot.get("participant_email_snapshot", ""),
-        participant_check_in_identifier_snapshot=snapshot.get("participant_check_in_identifier_snapshot", ""),
-        group_name_snapshot=group.name,
-        group_type_snapshot=group.group_type,
-        section=section,
-        source_section_id=source_section_id,
-        class_name_snapshot=class_name_snapshot,
-    )
-    maybe_run_after_action(
-        group,
-        action_type,
-        action_record=ar,
-        membership=membership if participant_kind == "member" else None,
-        group_only_participant=(
-            group_only_participant if participant_kind == "group_only_participant" else None
-        ),
-        timezone_name=timezone_name,
-    )
+    ar = None
+    with transaction.atomic():
+        ar = ActionRecord.objects.create(
+            organization=group.organization,
+            group=group,
+            source_group_id=group.pk,
+            participant_kind=participant_kind,
+            member=member_obj if participant_kind == "member" else None,
+            group_only_participant=group_only_participant if participant_kind == "group_only_participant" else None,
+            action_type=action_type,
+            source=ActionSource.KIOSK,
+            performed_at=now,
+            kiosk_note_snapshot="kiosk",
+            participant_name_snapshot=snapshot["participant_name_snapshot"],
+            participant_email_snapshot=snapshot.get("participant_email_snapshot", ""),
+            participant_check_in_identifier_snapshot=snapshot.get("participant_check_in_identifier_snapshot", ""),
+            group_name_snapshot=group.name,
+            group_type_snapshot=group.group_type,
+            section=section,
+            source_section_id=source_section_id,
+            class_name_snapshot=class_name_snapshot,
+        )
+        maybe_run_after_action(
+            group,
+            action_type,
+            action_record=ar,
+            membership=membership if participant_kind == "member" else None,
+            group_only_participant=(
+                group_only_participant if participant_kind == "group_only_participant" else None
+            ),
+            timezone_name=timezone_name,
+        )
     return ar
 

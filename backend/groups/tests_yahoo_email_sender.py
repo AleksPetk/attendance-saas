@@ -36,6 +36,7 @@ from groups.email_sender_models import (
 )
 from groups.email_sender_testing import (
     batch_recipients,
+    flush_email_outbox,
     mock_batch_send_fail_for,
     mock_batch_send_success,
     save_verified_email_sender,
@@ -404,6 +405,7 @@ class GroupYahooEmailSenderTests(TestCase):
                 participant_kind="member",
                 membership=membership,
             )
+            flush_email_outbox()
             mock_send.assert_called_once()
             self.assertEqual(
                 batch_recipients(mock_send),
@@ -438,6 +440,7 @@ class GroupYahooEmailSenderTests(TestCase):
                 participant_kind="member",
                 membership=membership,
             )
+            flush_email_outbox()
         self.assertTrue(ActionRecord.objects.filter(pk=ar.pk).exists())
         delivery = GroupEmailDelivery.objects.get(action_record=ar)
         self.assertEqual(delivery.status, GroupEmailDeliveryStatus.FAILED)

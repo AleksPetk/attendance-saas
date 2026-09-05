@@ -18,6 +18,7 @@ from groups.email_sender_models import (
     GroupEmailRecipientKind,
 )
 from groups.email_sender_testing import (
+    flush_email_outbox,
     batch_recipients,
     mock_batch_send_fail_for,
     mock_batch_send_success,
@@ -467,6 +468,7 @@ class ParticipationEmailDeliveryTests(TestCase):
                 participant_kind="member",
                 membership=membership,
             )
+            flush_email_outbox()
             mock_send.assert_called_once()
             self.assertEqual(batch_recipients(mock_send), ["mother@example.com"])
         delivery = GroupEmailDelivery.objects.get(action_record=ar)
@@ -487,6 +489,7 @@ class ParticipationEmailDeliveryTests(TestCase):
                 participant_kind="member",
                 membership=membership,
             )
+            flush_email_outbox()
             mock_send.assert_called_once()
             self.assertEqual(
                 batch_recipients(mock_send),
@@ -524,6 +527,7 @@ class ParticipationEmailDeliveryTests(TestCase):
                 participant_kind="member",
                 membership=membership,
             )
+            flush_email_outbox()
             mock_send.assert_called_once()
             self.assertEqual(
                 batch_recipients(mock_send),
@@ -562,6 +566,7 @@ class ParticipationEmailDeliveryTests(TestCase):
                 participant_kind="member",
                 membership=membership,
             )
+            flush_email_outbox()
             self.assertEqual(
                 batch_recipients(mock_send),
                 [
@@ -585,6 +590,7 @@ class ParticipationEmailDeliveryTests(TestCase):
                 participant_kind="member",
                 membership=membership,
             )
+            flush_email_outbox()
             for message in mock_send.call_args.kwargs["messages"]:
                 body = message["text_body"]
                 to_email = message["to_email"]
@@ -613,6 +619,7 @@ class ParticipationEmailDeliveryTests(TestCase):
                 participant_kind="member",
                 membership=membership,
             )
+            flush_email_outbox()
         # T — ActionRecord preserved
         self.assertIsNotNone(ar.pk)
         rows = list(
@@ -641,6 +648,7 @@ class ParticipationEmailDeliveryTests(TestCase):
                 participant_kind="member",
                 membership=membership,
             )
+            flush_email_outbox()
         self.assertEqual(
             GroupEmailDelivery.objects.filter(action_record=ar).count(),
             2,

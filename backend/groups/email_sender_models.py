@@ -157,7 +157,9 @@ class GroupEmailSender(models.Model):
         self.smtp_host = (self.smtp_host or "").strip()
         self.smtp_username = (self.smtp_username or "").strip()
         self.from_email = (self.from_email or "").strip().lower()
-        self.from_name = (self.from_name or "").strip()
+        from groups.email_providers.smtp_destination import sanitize_email_header_value
+
+        self.from_name = sanitize_email_header_value(self.from_name or "", max_length=150)
         self.last_test_error = (self.last_test_error or "").strip()[:255]
         if not isinstance(self.provider_settings, dict):
             self.provider_settings = {}
@@ -241,3 +243,71 @@ class GroupEmailDelivery(models.Model):
 
     def __str__(self):
         return f"{self.event_type} → {self.recipient} ({self.status})"
+
+
+class GroupEmailOutboxStatus(models.TextChoices):
+    PENDING = "pending", "Pending"
+    PROCESSING = "processing", "Processing"
+    SUCCEEDED = "succeeded", "Succeeded"
+    FAILED = "failed", "Failed"
+
+
+class GroupEmailOutboxJob(models.Model):
+    """Durable after-action email job (Postgres outbox; no secrets)."""
+
+    MAX_ATTEMPTS = 5
+    # attempt_count after each failed temporary try → delay before next.
+    # Attempt 1 is immediate (available_at=now at enqueue).
+    RETRY_DELAYS_SECONDS = (30, 120, 600, 1800)
+
+    organization = models.ForeignKey(
+        "organizations.Organization",
+        on_delete=models.PROTECT,
+        related_name="group_email_outbox_jobs",
+    )
+    group = models.ForeignKey(
+        "groups.Group",
+        on_delete=models.CASCADE,
+        related_name="email_outbox_jobs",
+    )
+    action_record = models.ForeignKey(
+        "attendance.ActionRecord",
+        on_delete=models.CASCADE,
+        related_name="email_outbox_jobs",
+    )
+    event_type = models.CharField(max_length=40)
+    status = models.CharField(
+        max_length=20,
+        choices=GroupEmailOutboxStatus.choices,
+        default=GroupEmailOutboxStatus.PENDING,
+        db_index=True,
+    )
+    attempt_count = models.PositiveSmallIntegerField(default=0)
+    max_attempts = models.PositiveSmallIntegerField(default=MAX_ATTEMPTS)
+    available_at = models.DateTimeField(db_index=True)
+    processing_started_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    last_error = models.CharField(max_length=255, blank=True, default="")
+    participant_name_snapshot = models.CharField(max_length=255, blank=True, default="")
+    timezone_name = models.CharField(max_length=64, blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["status", "available_at"]),
+            models.Index(fields=["organization", "created_at"]),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["action_record", "event_type"],
+                name="groups_email_outbox_action_event_uniq",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(status__in=GroupEmailOutboxStatus.values),
+                name="groups_email_outbox_status_valid",
+            ),
+        ]
+
+    def __str__(self):
+        return f"outbox {self.event_type} action={self.action_record_id} ({self.status})"

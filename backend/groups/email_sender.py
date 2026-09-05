@@ -949,13 +949,16 @@ def participation_emails_for_after_action(*, membership=None, group_only_partici
 
 
 def _subject_for_kind(kind, group_name):
+    from groups.email_providers.smtp_destination import sanitize_email_header_value
+
     labels = {
         "check_in": "Check-in",
         "check_out": "Check-out",
         "break": "Break",
     }
     label = labels.get(kind, "Attendance")
-    return f"{group_name}: {label}"
+    safe_group = sanitize_email_header_value(group_name or "", max_length=150)
+    return sanitize_email_header_value(f"{safe_group}: {label}", max_length=200)
 
 
 def _template_for_kind(group, kind):
@@ -1043,6 +1046,28 @@ def send_after_action_email(
         participant_emails=recipient_emails,
         forward_emails=getattr(group, "forward_emails", None) or [],
     )
+    # Idempotent retries: never send again to a recipient already marked sent.
+    if action_record is not None and action_record.pk:
+        deliveries = [
+            (to_email, recipient_kind)
+            for to_email, recipient_kind in deliveries
+            if not GroupEmailDelivery.objects.filter(
+                action_record_id=action_record.pk,
+                event_type=kind,
+                recipient=(to_email or "").strip().lower(),
+                status=GroupEmailDeliveryStatus.SENT,
+            ).exists()
+        ]
+        if not deliveries:
+            logger.info(
+                "Skipping after-action email: all recipients already sent "
+                "group_id=%s kind=%s action_record_id=%s",
+                group.id,
+                kind,
+                action_record.pk,
+            )
+            return True
+
     provider = get_email_sender_provider(sender.provider)
     participant_ok = False
 

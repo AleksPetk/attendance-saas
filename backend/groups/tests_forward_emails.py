@@ -15,6 +15,7 @@ from groups.email_sender_models import (
     GroupEmailRecipientKind,
 )
 from groups.email_sender_testing import (
+    flush_email_outbox,
     batch_recipients,
     mock_batch_send_fail_for,
     mock_batch_send_success,
@@ -262,6 +263,7 @@ class ForwardEmailDeliveryTests(TestCase):
                 participant_kind="member",
                 membership=membership,
             )
+            flush_email_outbox()
             mock_send.assert_called_once()
             self.assertEqual(
                 batch_recipients(mock_send),
@@ -285,6 +287,7 @@ class ForwardEmailDeliveryTests(TestCase):
                 participant_kind="member",
                 membership=membership,
             )
+            flush_email_outbox()
             mock_send.assert_called_once()
             recipients = batch_recipients(mock_send)
             self.assertEqual(recipients, ["parent@example.com", "office@example.com"])
@@ -324,6 +327,7 @@ class ForwardEmailDeliveryTests(TestCase):
                 participant_kind="member",
                 membership=membership,
             )
+            flush_email_outbox()
             mock_send.assert_called_once()
             self.assertEqual(
                 batch_recipients(mock_send),
@@ -349,6 +353,7 @@ class ForwardEmailDeliveryTests(TestCase):
                 participant_kind="member",
                 membership=membership,
             )
+            flush_email_outbox()
             self.assertEqual(
                 batch_recipients(mock_send),
                 ["parent@example.com", "office@example.com"],
@@ -389,6 +394,7 @@ class ForwardEmailDeliveryTests(TestCase):
                 participant_kind="member",
                 membership=membership,
             )
+            flush_email_outbox()
             for message in mock_send.call_args.kwargs["messages"]:
                 self.assertEqual(message["to_email"].count("@"), 1)
                 self.assertNotIn(",", message["to_email"])
@@ -408,6 +414,7 @@ class ForwardEmailDeliveryTests(TestCase):
                 participant_kind="member",
                 membership=membership,
             )
+            flush_email_outbox()
         self.assertTrue(ActionRecord.objects.filter(pk=ar.pk).exists())
         by_recipient = {
             row.recipient: (row.status, row.recipient_kind)
@@ -441,6 +448,7 @@ class ForwardEmailDeliveryTests(TestCase):
                 participant_kind="member",
                 membership=membership,
             )
+            flush_email_outbox()
         self.assertTrue(ActionRecord.objects.filter(pk=ar.pk).exists())
         by_recipient = {
             row.recipient: (row.status, row.recipient_kind)
@@ -469,6 +477,7 @@ class ForwardEmailDeliveryTests(TestCase):
                 participant_kind="member",
                 membership=membership,
             )
+            flush_email_outbox()
         rows = list(
             GroupEmailDelivery.objects.filter(action_record=ar).order_by("id")
         )
@@ -492,6 +501,7 @@ class ForwardEmailDeliveryTests(TestCase):
                 participant_kind="member",
                 membership=membership,
             )
+            flush_email_outbox()
             mock_send.assert_not_called()
         delivery = GroupEmailDelivery.objects.get(action_record=ar)
         self.assertEqual(delivery.recipient_kind, GroupEmailRecipientKind.PARTICIPANT)

@@ -307,6 +307,7 @@ class NotificationEmailFlowTemplateResolveTests(TestCase):
 
         from attendance.services import perform_action_record_from_kiosk
         from groups.email_sender_testing import (
+            flush_email_outbox,
             mock_batch_send_success,
             save_verified_email_sender,
         )
@@ -350,6 +351,7 @@ class NotificationEmailFlowTemplateResolveTests(TestCase):
                 participant_kind="member",
                 membership=membership,
             )
+            flush_email_outbox()
             mock_send.assert_called_once()
             message = mock_send.call_args.kwargs["messages"][0]
             self.assertIn("Participant: Nami", message["text_body"])
@@ -501,6 +503,7 @@ class NotificationEmailLocalTimeIntegrationTests(TestCase):
     def test_perform_with_timezone_sends_local_time_in_email(self):
         from attendance.services import perform_action_record_from_kiosk
         from groups.email_sender_testing import (
+            flush_email_outbox,
             mock_batch_send_success,
             save_verified_email_sender,
         )
@@ -549,6 +552,7 @@ class NotificationEmailLocalTimeIntegrationTests(TestCase):
                 now=performed_at,
                 timezone_name="Asia/Tokyo",
             )
+            flush_email_outbox()
             message = mock_send.call_args.kwargs["messages"][0]
             self.assertIn("Nami checked in at 11:19", message["text_body"])
             self.assertIn("Time: 11:19", message["text_body"])
