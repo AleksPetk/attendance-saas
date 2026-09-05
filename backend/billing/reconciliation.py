@@ -230,9 +230,11 @@ def reconcile_subscription_snapshot(organization, snapshot, *, now=None):
             return billing
 
     if plan_key == OrganizationPlan.PLUS and organization.plan == OrganizationPlan.BUSINESS:
-        if pending_downgrade and snapshot.current_period_end and snapshot.current_period_end > moment:
-            # Stripe still collecting Business until period end.
-            return billing
+        # Stripe price is already Plus. Apply the local downgrade even when a
+        # scheduled Business→Plus change was pending: after the schedule phase
+        # executes, current_period_end is the *new* Plus period end (always in
+        # the future), so a "period_end > now" hold would incorrectly leave the
+        # workspace on Business forever.
         apply_effective_plan(
             organization, OrganizationPlan.PLUS, source="billing.reconcile_downgrade"
         )

@@ -41,7 +41,21 @@ from core.models import (
 from organizations.models import Organization, OrganizationPlan
 
 
-def _set_paid(org, *, plan, interval, status=BillingStatus.ACTIVE, cancel_at_period_end=False):
+def _set_paid(
+    org,
+    *,
+    plan,
+    interval,
+    status=BillingStatus.ACTIVE,
+    cancel_at_period_end=False,
+    expire_builtin_trial=True,
+):
+    from billing.testing import mark_builtin_trial_expired_for_tests
+
+    # Paid Plus/Business audience requires post-trial commercial state.
+    # Leave expire_builtin_trial=False only when asserting active builtin trial.
+    if expire_builtin_trial:
+        mark_builtin_trial_expired_for_tests(org)
     billing, _created = WorkspaceSubscription.objects.get_or_create(organization=org)
     billing.purchase_source = PurchaseSource.STRIPE
     billing.status = status
@@ -106,7 +120,29 @@ class EligibilityResolverTests(TestCase):
         self.assertEqual(self.org.plan, OrganizationPlan.BUSINESS)
         self.assertEqual(resolve_audience(organization=self.org), AUDIENCE_BASIC)
 
+    def test_builtin_trial_with_future_plus_selection_is_basic_audience(self):
+        # Active builtin trial + deferred future Plus → still Basic/New audience.
+        _set_paid(
+            self.org,
+            plan="plus",
+            interval=BillingInterval.MONTHLY,
+            status=BillingStatus.TRIALING,
+            expire_builtin_trial=False,
+        )
+        self.assertEqual(resolve_audience(organization=self.org), AUDIENCE_BASIC)
+
+    def test_builtin_trial_with_future_business_selection_is_basic_audience(self):
+        _set_paid(
+            self.org,
+            plan="business",
+            interval=BillingInterval.YEARLY,
+            status=BillingStatus.TRIALING,
+            expire_builtin_trial=False,
+        )
+        self.assertEqual(resolve_audience(organization=self.org), AUDIENCE_BASIC)
+
     def test_trialing_plus_non_cancelled_is_plus_audience(self):
+        # Post-trial Stripe trialing (deferred paid already committed) → Plus.
         _set_paid(
             self.org,
             plan="plus",

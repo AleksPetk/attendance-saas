@@ -221,7 +221,8 @@ class BillingIntervalChangeTests(TestCase):
             {"plan": "plus", "interval": "yearly"},
             format="json",
         )
-        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        # Unauthenticated SPA requests are coerced to 403 (no WWW-Authenticate).
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
 
 @override_settings(**STRIPE_TEST_SETTINGS)

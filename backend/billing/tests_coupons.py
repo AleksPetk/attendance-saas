@@ -54,7 +54,10 @@ def _set_paid(org, *, plan, interval):
     from django.utils import timezone
 
     from billing.snapshots import SubscriptionSnapshot
+    from billing.testing import mark_builtin_trial_expired_for_tests
 
+    # Paid retention/acquisition audience requires a post-trial customer.
+    mark_builtin_trial_expired_for_tests(org)
     now = timezone.now()
     billing, _ = WorkspaceSubscription.objects.get_or_create(organization=org)
     billing.purchase_source = PurchaseSource.STRIPE

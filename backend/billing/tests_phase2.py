@@ -524,8 +524,9 @@ class BillingPhase2ApiTests(TestCase):
         anon = APIClient()
         resume = anon.post("/api/billing/resume/", {}, format="json")
         cancel_dg = anon.post("/api/billing/downgrade/cancel/", {}, format="json")
-        self.assertEqual(resume.status_code, 401)
-        self.assertEqual(cancel_dg.status_code, 401)
+        # Unauthenticated SPA requests are coerced to 403 (no WWW-Authenticate).
+        self.assertEqual(resume.status_code, 403)
+        self.assertEqual(cancel_dg.status_code, 403)
 
     def test_payment_failure_starts_grace_and_recovery(self):
         self._activate_plus()

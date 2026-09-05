@@ -60,6 +60,34 @@ class StripeProvider:
         stripe.api_key = key
         return stripe
 
+    def _proration_now_ts(self, stripe, subscription_id: str) -> int:
+        """Unix now for proration — respects Stripe Test Clock frozen_time.
+
+        Explicit wall-clock ``time.time()`` breaks Test Clock upgrades after the
+        clock has advanced past real time. Live subscriptions have no test_clock
+        and continue to use wall clock.
+        """
+        try:
+            sub = stripe.Subscription.retrieve(subscription_id)
+        except Exception:
+            return int(time.time())
+        clock_ref = _obj_get(sub, "test_clock")
+        clock_id = None
+        if isinstance(clock_ref, str) and clock_ref:
+            clock_id = clock_ref
+        elif clock_ref is not None:
+            clock_id = _obj_get(clock_ref, "id")
+        if not clock_id:
+            return int(time.time())
+        try:
+            clock = stripe.test_helpers.TestClock.retrieve(clock_id)
+            frozen = _obj_get(clock, "frozen_time")
+            if frozen:
+                return int(frozen)
+        except Exception:
+            pass
+        return int(time.time())
+
     def check_health(self):
         """Read-only Stripe connectivity. Does not create billing objects."""
         stripe = self._health_client()
@@ -208,7 +236,7 @@ class StripeProvider:
         target_price = price_id_for(target_plan, target_interval, market=market)
         snapshot = self.retrieve_subscription(subscription_id)
         item_id = self._item_id(subscription_id)
-        proration_date = int(time.time())
+        proration_date = self._proration_now_ts(stripe, subscription_id)
         try:
             invoice = stripe.Invoice.create_preview(
                 customer=snapshot.customer_id,
@@ -246,7 +274,7 @@ class StripeProvider:
         stripe = self._client()
         target_price = price_id_for(target_plan, target_interval, market=market)
         item_id = self._item_id(subscription_id)
-        proration_date = int(time.time())
+        proration_date = self._proration_now_ts(stripe, subscription_id)
         try:
             stripe.Subscription.modify(
                 subscription_id,
@@ -345,6 +373,10 @@ class StripeProvider:
             raise StripeProviderError("Stripe subscription is missing period dates.")
         next_phase = {
             "items": [{"price": target_price, "quantity": 1}],
+            # Reset the billing cycle when the target phase starts so interval
+            # changes (e.g. Plus Monthly → Plus Yearly) invoice at period end
+            # instead of only swapping the price onto the old cycle.
+            "billing_cycle_anchor": "phase_start",
         }
         coupon = str(coupon_id or "").strip()
         if coupon:
@@ -357,6 +389,7 @@ class StripeProvider:
             stripe.SubscriptionSchedule.modify(
                 schedule.id,
                 end_behavior="release",
+                proration_behavior="none",
                 phases=[
                     {
                         "items": [{"price": current_price, "quantity": 1}],
