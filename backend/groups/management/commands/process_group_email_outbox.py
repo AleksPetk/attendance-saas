@@ -66,26 +66,25 @@ class Command(BaseCommand):
         if loop:
             signal.signal(signal.SIGTERM, _stop)
             signal.signal(signal.SIGINT, _stop)
-            logger.info(
-                "Email outbox worker starting loop poll_seconds=%s limit=%s",
-                poll_seconds,
-                limit,
+            start_msg = (
+                f"Email outbox worker starting loop poll_seconds={poll_seconds} "
+                f"limit={limit}"
             )
+            logger.info(start_msg)
+            self.stdout.write(start_msg)
             while not stop["flag"]:
                 reclaim_stale_processing()
                 result = process_due_email_outbox(limit=limit)
                 if result["claimed"]:
-                    logger.info(
-                        "Email outbox pass claimed=%s succeeded=%s failed=%s "
-                        "retry_scheduled=%s pending=%s",
-                        result["claimed"],
-                        result["succeeded"],
-                        result["failed"],
-                        result["retry_scheduled"],
-                        GroupEmailOutboxJob.objects.filter(
-                            status=GroupEmailOutboxStatus.PENDING
-                        ).count(),
+                    pass_msg = (
+                        "Email outbox pass "
+                        f"claimed={result['claimed']} succeeded={result['succeeded']} "
+                        f"failed={result['failed']} "
+                        f"retry_scheduled={result['retry_scheduled']} "
+                        f"pending={GroupEmailOutboxJob.objects.filter(status=GroupEmailOutboxStatus.PENDING).count()}"
                     )
+                    logger.info(pass_msg)
+                    self.stdout.write(pass_msg)
                     # Tight loop while work exists.
                     continue
                 time.sleep(poll_seconds)
