@@ -11590,10 +11590,17 @@ a.btn-secondary {
 
 /* Light, compact Features introduction — preserves the existing orbit concept. */
 .features-hero {
-  grid-template-columns: minmax(0, 1.15fr) minmax(18rem, 0.85fr);
+  /*
+    Keep the hero inside the centered public content column.
+    Do NOT use 100vw-based side padding here: .public-container is capped at
+    --page-max, so viewport padding collapses the copy column on ultra-wide
+    screens (Japanese then wraps nearly vertically). Extra large-screen width
+    stays as outer whitespace from the centered container instead.
+  */
+  grid-template-columns: minmax(18rem, 1.15fr) minmax(18rem, 0.85fr);
   gap: clamp(1.5rem, 5vw, 5rem);
   min-height: clamp(25rem, 45vh, 31rem);
-  padding: clamp(2rem, 4vw, 3.25rem) max(1.5rem, calc((100vw - 1240px) / 2));
+  padding: clamp(2rem, 4vw, 3.25rem) 1.5rem;
   color: var(--navy);
   overflow: hidden;
   border-bottom: 1px solid rgba(148, 163, 184, 0.18);
@@ -11654,8 +11661,14 @@ a.btn-secondary {
 }
 
 @media (max-width: 880px) {
-  .features-hero { grid-template-columns: 1fr; min-height: 0; padding-top: 2.25rem; padding-bottom: 2rem; }
-  .features-hero-orbit { min-height: 18rem; }
+  .features-hero {
+    grid-template-columns: 1fr;
+    min-height: 0;
+    padding-top: 2.25rem;
+    padding-bottom: 2rem;
+  }
+  .features-hero-copy { min-width: 0; }
+  .features-hero-orbit { min-height: 18rem; min-width: 0; }
 }
 
 @media (max-width: 560px) {
