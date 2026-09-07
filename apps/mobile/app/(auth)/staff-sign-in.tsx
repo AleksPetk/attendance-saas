@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { Keyboard, StyleSheet, Text, TextInput, View } from "react-native";
 import { Redirect, router } from "expo-router";
+import { ApiError } from "@checkstation/api";
 import { AuthScreen } from "../../src/components/AuthScreen";
 import { Alert, Button, Field, PasswordVisibilityButton, TextLink } from "../../src/components/ui";
 import { signInErrorMessage } from "../../src/lib/authErrors";
@@ -33,7 +34,11 @@ export default function StaffSignInScreen() {
     try {
       await auth.loginStaff(workspaceId.trim(), username.trim(), password);
       Keyboard.dismiss(); router.replace("/(app)/(tabs)/home");
-    } catch (caught) { setError(signInErrorMessage(caught, "staff", t)); }
+    } catch (caught) {
+      setError(caught instanceof ApiError && caught.data.code === "plan_account_locked"
+        ? t("auth.staffPlanLocked")
+        : signInErrorMessage(caught, "staff", t));
+    }
     finally { setBusy(false); }
   }
 

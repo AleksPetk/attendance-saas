@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { getValidActionsForState, isActionAllowed } from "./kiosk.js";
-import { hasPlanFeature, workspacePlanKey } from "./entitlements.js";
+import {
+  canManageOwnerAccount,
+  canManageWorkspace,
+  canViewGlobalMembers,
+  hasPlanFeature,
+  workspacePlanKey,
+} from "./entitlements.js";
 
 describe("kiosk actions", () => {
   const group = {
@@ -49,5 +55,13 @@ describe("entitlements", () => {
       "plus",
     );
     assert.equal(hasPlanFeature({ workspace: { entitlements: { features: { structured_groups: true } } } }, "structured_groups"), true);
+  });
+
+  it("uses production capability keys and preserves role boundaries", () => {
+    assert.equal(canManageWorkspace({ role: "staff", capabilities: { can_manage_workspace: false } }), false);
+    assert.equal(canViewGlobalMembers({ role: "staff", capabilities: { can_view_global_members: false } }), false);
+    assert.equal(canManageOwnerAccount({ role: "admin", capabilities: { can_manage_owner_account: false } }), false);
+    assert.equal(canManageWorkspace({ role: "admin" }), true);
+    assert.equal(canManageWorkspace({ role: "owner", capabilities: { can_manage_workspace: false } }), false);
   });
 });

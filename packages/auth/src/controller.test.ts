@@ -18,7 +18,7 @@ describe("AuthController", () => {
       account_kind: "owner",
       role: "owner",
       workspace_id: "REAL01",
-      workspace: { workspace_id: "REAL01", name: "Production workspace" },
+      name: "Production workspace",
     };
     const fakeFetch: typeof fetch = async (input, init) => {
       const path = new URL(String(input)).pathname;
@@ -52,6 +52,10 @@ describe("AuthController", () => {
     await api.init();
     const result = await auth.loginOwner("owner@example.com", "correct-password");
     assert.equal(result.kind, "authenticated");
+    if (result.kind === "authenticated") {
+      assert.equal(result.session.workspace?.workspace_id, "REAL01");
+      assert.equal(result.session.workspace?.name, "Production workspace");
+    }
     assert.match(seenCookies[0] || "", /checkstation_sessionid=session-production/);
     assert.equal(auth.getState().status, "authenticated");
     await auth.logout();

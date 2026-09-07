@@ -2,9 +2,8 @@ import { useRef, useState } from "react";
 import { Keyboard, StyleSheet, Text, TextInput, View } from "react-native";
 import { Redirect, router } from "expo-router";
 import { AuthScreen } from "../../src/components/AuthScreen";
-import { Alert, Button, Field, PasswordVisibilityButton, TextLink } from "../../src/components/ui";
+import { Alert, Button, Field, OAuthProviderButtons, PasswordVisibilityButton, TextLink } from "../../src/components/ui";
 import { signInErrorMessage } from "../../src/lib/authErrors";
-import { openWorkspaceAuthUrl, workspaceAuthUrls } from "../../src/lib/authLinks";
 import { useApp } from "../../src/lib/AppProvider";
 import { colors, space, type } from "../../src/theme/tokens";
 
@@ -84,7 +83,7 @@ export default function SignInScreen() {
           <Text style={styles.footnoteText}>{t("auth.staffPrompt")} </Text>
           <TextLink label={t("auth.staffSignIn")} onPress={() => router.push("/(auth)/staff-sign-in")} />
           <Text style={styles.footnoteText}> · {t("auth.newHere")} </Text>
-          <TextLink label={t("auth.createAccount")} onPress={() => void openWorkspaceAuthUrl(workspaceAuthUrls.register)} />
+          <TextLink label={t("auth.createAccount")} onPress={() => router.push("/(auth)/register")} />
         </View>
       ) : undefined}
     >
@@ -117,9 +116,11 @@ export default function SignInScreen() {
           <Alert message={error} />
           <Button disabled={busy} label={busy ? t("auth.signingIn") : t("auth.signIn")} loading={busy} onPress={() => void onOwnerSignIn()} />
           <View style={styles.recoveryLinks}>
-            <TextLink label={t("auth.forgotPassword")} onPress={() => void openWorkspaceAuthUrl(workspaceAuthUrls.forgotPassword)} />
-            <TextLink label={t("auth.recoverAccount")} onPress={() => void openWorkspaceAuthUrl(workspaceAuthUrls.recoverAccount)} />
+            <TextLink label={t("auth.forgotPassword")} onPress={() => router.push("/(auth)/forgot-password")} />
+            <TextLink label={t("auth.recoverAccount")} onPress={() => router.push("/(auth)/recover-account")} />
           </View>
+          <View style={styles.divider}><View style={styles.dividerLine} /><Text style={styles.dividerText}>{t("auth.or")}</Text><View style={styles.dividerLine} /></View>
+          <OAuthProviderButtons appleLabel={t("auth.continueApple")} dialogBody={t("auth.oauthComingBody")} dialogTitle={t("auth.oauthComingTitle")} googleLabel={t("auth.continueGoogle")} okLabel={t("common.ok")} />
         </View>
       )}
     </AuthScreen>
@@ -130,4 +131,5 @@ const styles = StyleSheet.create({
   form: { gap: space.lg }, fields: { gap: space.lg }, recoveryLinks: { alignItems: "center", gap: 2 },
   footnoteRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "center" },
   footnoteText: { ...type.caption, color: colors.textMuted },
+  divider: { flexDirection: "row", alignItems: "center", gap: space.md }, dividerLine: { height: StyleSheet.hairlineWidth, flex: 1, backgroundColor: colors.border }, dividerText: { ...type.caption, color: colors.textMuted },
 });

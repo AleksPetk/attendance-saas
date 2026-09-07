@@ -1,36 +1,45 @@
+import { Ionicons } from "@expo/vector-icons";
 import { Redirect, Tabs } from "expo-router";
-import { useApp } from "../../../src/lib/AppProvider";
-import { colors } from "../../../src/theme/tokens";
+import { useWindowDimensions, type ColorValue } from "react-native";
+import { canViewGlobalMembers } from "@checkstation/domain";
 import { LoadingState, Screen } from "../../../src/components/ui";
+import { useApp } from "../../../src/lib/AppProvider";
+import { colors, shadows } from "../../../src/theme/tokens";
+
+type TabIconName = keyof typeof Ionicons.glyphMap;
+
+function tabIcon(name: TabIconName, activeName: TabIconName = name) {
+  return ({ color, focused, size }: { color: ColorValue; focused: boolean; size: number }) => (
+    <Ionicons color={color} name={focused ? activeName : name} size={size} />
+  );
+}
 
 export default function AppTabsLayout() {
   const { ready, authState, t } = useApp();
-  if (!ready) {
-    return (
-      <Screen>
-        <LoadingState label={t("common.loading")} />
-      </Screen>
-    );
-  }
-  if (authState.status !== "authenticated") {
-    return <Redirect href="/(auth)/sign-in" />;
-  }
+  const { width } = useWindowDimensions();
+  if (!ready) return <Screen><LoadingState label={t("common.loading")} /></Screen>;
+  if (authState.status !== "authenticated") return <Redirect href="/(auth)/sign-in" />;
 
+  const tablet = width >= 768;
+  const showMembers = canViewGlobalMembers(authState.session);
   return (
     <Tabs
       screenOptions={{
-        headerStyle: { backgroundColor: colors.surface },
-        headerTintColor: colors.text,
-        tabBarActiveTintColor: colors.brand,
-        tabBarInactiveTintColor: colors.textSecondary,
-        tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.border },
+        headerShown: false,
+        tabBarActiveTintColor: colors.blue,
+        tabBarInactiveTintColor: colors.textMuted,
+        tabBarLabelStyle: { fontSize: 12, fontWeight: "600" },
+        tabBarPosition: tablet ? "left" : "bottom",
+        tabBarStyle: tablet
+          ? { width: 220, backgroundColor: colors.surface, borderRightColor: colors.border, paddingTop: 24 }
+          : { backgroundColor: colors.surface, borderTopColor: colors.border, height: 84, paddingTop: 7, paddingBottom: 22, ...shadows.sm },
       }}
     >
-      <Tabs.Screen name="home" options={{ title: t("nav.home") }} />
-      <Tabs.Screen name="groups" options={{ title: t("nav.groups") }} />
-      <Tabs.Screen name="people" options={{ title: t("nav.people") }} />
-      <Tabs.Screen name="history" options={{ title: t("nav.history") }} />
-      <Tabs.Screen name="more" options={{ title: t("nav.more") }} />
+      <Tabs.Screen name="home" options={{ title: t("nav.home"), tabBarIcon: tabIcon("home-outline", "home") }} />
+      <Tabs.Screen name="people" options={{ href: showMembers ? undefined : null, title: t("nav.members"), tabBarIcon: tabIcon("people-outline", "people") }} />
+      <Tabs.Screen name="groups" options={{ title: t("nav.groups"), tabBarIcon: tabIcon("layers-outline", "layers") }} />
+      <Tabs.Screen name="history" options={{ title: t("nav.history"), tabBarIcon: tabIcon("time-outline", "time") }} />
+      <Tabs.Screen name="more" options={{ title: t("nav.more"), tabBarIcon: tabIcon("ellipsis-horizontal-circle-outline", "ellipsis-horizontal-circle") }} />
     </Tabs>
   );
 }

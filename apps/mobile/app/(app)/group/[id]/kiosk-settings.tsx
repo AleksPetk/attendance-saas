@@ -1,51 +1,21 @@
 import { useEffect, useState } from "react";
-import { ScrollView } from "react-native";
-import { useLocalSearchParams } from "expo-router";
+import { Redirect, useLocalSearchParams } from "expo-router";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { endpoints } from "@checkstation/api";
-import { Body, Card, LoadingState, Screen, Title } from "../../../../src/components/ui";
+import { canManageGroupConfiguration } from "@checkstation/domain";
+import { Alert, LoadingState, Screen } from "../../../../src/components/ui";
+import { PageHeader, SectionCard, StatusPill } from "../../../../src/components/mobile";
 import { useApp } from "../../../../src/lib/AppProvider";
+import { colors, space, type } from "../../../../src/theme/tokens";
 
+type Settings = { group_name?: string; mode?: string; input_field_count?: number; input_second_field?: string; use_pin?: boolean; exit_code_configured?: boolean; confirmation_template?: string; confirmation_return_seconds?: number; confirmation_sound_enabled?: boolean; confirmation_vibration_enabled?: boolean; attendance_reset_mode?: string; attendance_reset_daily_time?: string; attendance_reset_rolling_hours?: number; attendance_reset_rolling_minutes?: number; readiness?: { ready?: boolean; setup_complete?: boolean; issues?: string[] } };
 export default function KioskSettingsScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
-  const { api, t } = useApp();
-  const [settings, setSettings] = useState<Record<string, unknown> | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      try {
-        const data = await api.get<Record<string, unknown>>(endpoints.kioskSettings(id));
-        if (!cancelled) setSettings(data);
-      } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : t("common.error"));
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [api, id, t]);
-
-  if (loading) {
-    return (
-      <Screen>
-        <LoadingState label={t("common.loading")} />
-      </Screen>
-    );
-  }
-
-  return (
-    <Screen>
-      <ScrollView>
-        <Title>Kiosk settings</Title>
-        <Card>
-          {error ? <Body muted>{error}</Body> : null}
-          <Body muted>{settings ? JSON.stringify(settings).slice(0, 500) : t("common.empty")}</Body>
-        </Card>
-      </ScrollView>
-    </Screen>
-  );
+  const { id } = useLocalSearchParams<{ id: string }>(); const { api, authState, t } = useApp(); const [settings, setSettings] = useState<Settings | null>(null); const [loading, setLoading] = useState(true); const [error, setError] = useState("");
+  useEffect(() => { let cancelled = false; void api.get<Settings>(endpoints.kioskSettings(id)).then((value) => { if (!cancelled) setSettings(value); }).catch((caught) => { if (!cancelled) setError(caught instanceof Error ? caught.message : t("common.error")); }).finally(() => { if (!cancelled) setLoading(false); }); return () => { cancelled = true; }; }, [api, id, t]);
+  if (!canManageGroupConfiguration(authState.session)) return <Redirect href="/(app)/(tabs)/groups" />;
+  if (loading) return <Screen><LoadingState label={t("kiosk.settingsLoading")} /></Screen>;
+  const reset = settings?.attendance_reset_mode === "rolling" ? t("kiosk.rollingReset", { hours: settings.attendance_reset_rolling_hours || 0, minutes: settings.attendance_reset_rolling_minutes || 0 }) : t("kiosk.dailyReset", { time: settings?.attendance_reset_daily_time || "—" });
+  return <Screen style={styles.screen}><ScrollView contentContainerStyle={styles.content}><PageHeader title={t("kiosk.settings")} description={settings?.group_name} /><Alert message={error} />{settings ? <><SectionCard title={t("kiosk.identification")}><Info label={t("kiosk.mode")} value={settings.mode || "—"} /><Info label={t("kiosk.fields")} value={String(settings.input_field_count || 1)} /><Info label={t("kiosk.pin")} value={settings.use_pin ? t("security.enabled") : t("security.notEnabled")} /><Info label={t("kiosk.exitCode")} value={settings.exit_code_configured ? t("kiosk.configured") : t("kiosk.notConfigured")} /></SectionCard><SectionCard title={t("kiosk.confirmation")}><Info label={t("kiosk.template")} value={settings.confirmation_template || "—"} /><Info label={t("kiosk.returnDelay")} value={t("kiosk.seconds", { count: settings.confirmation_return_seconds || 0 })} /><View style={styles.pills}><StatusPill label={t("kiosk.sound")} tone={settings.confirmation_sound_enabled ? "green" : "neutral"} /><StatusPill label={t("kiosk.vibration")} tone={settings.confirmation_vibration_enabled ? "green" : "neutral"} /></View></SectionCard><SectionCard title={t("kiosk.attendanceReset")}><Text style={styles.value}>{reset}</Text></SectionCard></> : null}</ScrollView></Screen>;
 }
+function Info({ label, value }: { label: string; value: string }) { return <View style={styles.info}><Text style={styles.label}>{label}</Text><Text style={styles.value}>{value}</Text></View>; }
+const styles = StyleSheet.create({ screen: { padding: 0 }, content: { padding: space.lg, paddingBottom: space.xxxl, gap: space.lg }, info: { minHeight: 48, justifyContent: "center", borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border }, label: { ...type.caption, color: colors.textMuted }, value: { ...type.bodyStrong, color: colors.text, textTransform: "capitalize" }, pills: { flexDirection: "row", gap: space.sm, paddingTop: space.md } });

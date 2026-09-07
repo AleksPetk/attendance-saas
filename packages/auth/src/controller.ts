@@ -24,6 +24,14 @@ export type OwnerLoginResult =
 /** ApiClient or Electron TransportApiClient (cookies stay in main process). */
 export type AuthApi = ApiClient | TransportApiClient;
 
+function normalizeWorkspaceSession(payload: WorkspaceSession): WorkspaceSession {
+  if (payload.workspace) return payload;
+  return {
+    ...payload,
+    workspace: { ...payload },
+  };
+}
+
 export class AuthController {
   private state: AuthState = {
     status: "unknown",
@@ -81,6 +89,7 @@ export class AuthController {
   }
 
   private applySession(session: WorkspaceSession): AuthState {
+    session = normalizeWorkspaceSession(session);
     if (session?.kiosk_locked) {
       this.setState({
         status: "kiosk_locked",
@@ -119,15 +128,14 @@ export class AuthController {
     // Verify that the newly issued Django session is usable before entering
     // the authenticated app; this also catches transport regressions early.
     const session = await this.api.get<WorkspaceSession>(endpoints.workspace());
-    this.applySession(session);
-    return { kind: "authenticated", session };
+    const state = this.applySession(session);
+    return { kind: "authenticated", session: state.session! };
   }
 
   async completeOwnerTwoFactor(payload: { code?: string; recovery_code?: string }): Promise<WorkspaceSession> {
     await this.api.post(endpoints.ownerTotpChallenge(), payload);
     const session = await this.api.get<WorkspaceSession>(endpoints.workspace());
-    this.applySession(session);
-    return session;
+    return this.applySession(session).session!;
   }
 
   async completeOwnerTotp(code: string): Promise<WorkspaceSession> {
@@ -141,8 +149,7 @@ export class AuthController {
       password,
     });
     const session = await this.api.get<WorkspaceSession>(endpoints.workspace());
-    this.applySession(session);
-    return session;
+    return this.applySession(session).session!;
   }
 
   async logout(): Promise<void> {

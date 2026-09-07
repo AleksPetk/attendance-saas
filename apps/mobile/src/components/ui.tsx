@@ -1,7 +1,9 @@
 import React, { forwardRef, useState } from "react";
+import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import {
   ActivityIndicator,
+  Alert as NativeAlert,
   Image,
   Pressable,
   StyleSheet,
@@ -223,6 +225,34 @@ export function PasswordVisibilityButton({
   );
 }
 
+export function OAuthProviderButtons({
+  googleLabel,
+  appleLabel,
+  dialogTitle,
+  dialogBody,
+  okLabel,
+}: {
+  googleLabel: string;
+  appleLabel: string;
+  dialogTitle: string;
+  dialogBody: string;
+  okLabel: string;
+}) {
+  const notifyUnavailable = () => NativeAlert.alert(dialogTitle, dialogBody, [{ text: okLabel }]);
+  return (
+    <View style={styles.oauthStack}>
+      <Pressable accessibilityRole="button" onPress={notifyUnavailable} style={({ pressed }) => [styles.oauthButton, pressed && styles.oauthPressed]}>
+        <Ionicons color={colors.blue} name="logo-google" size={21} />
+        <Text style={styles.oauthLabel}>{googleLabel}</Text>
+      </Pressable>
+      <Pressable accessibilityRole="button" onPress={notifyUnavailable} style={({ pressed }) => [styles.oauthButton, pressed && styles.oauthPressed]}>
+        <Ionicons color={colors.text} name="logo-apple" size={21} />
+        <Text style={styles.oauthLabel}>{appleLabel}</Text>
+      </Pressable>
+    </View>
+  );
+}
+
 export function SegmentedControl<T extends string>({
   value,
   options,
@@ -378,6 +408,10 @@ const styles = StyleSheet.create({
   textLinkPressed: { opacity: 0.65 },
   passwordToggle: { width: 44, height: 44, alignItems: "center", justifyContent: "center", borderRadius: radii.sm },
   passwordTogglePressed: { backgroundColor: colors.surfaceMuted },
+  oauthStack: { gap: space.sm },
+  oauthButton: { minHeight: 46, borderWidth: 1, borderColor: colors.borderStrong, borderRadius: radii.sm, backgroundColor: colors.surface, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: space.sm },
+  oauthPressed: { backgroundColor: colors.surfaceMuted },
+  oauthLabel: { ...type.bodyStrong, color: colors.text },
   eyeOutline: { width: 21, height: 13, borderWidth: 1.8, borderColor: colors.textMuted, borderRadius: 11, alignItems: "center", justifyContent: "center", transform: [{ rotate: "-1deg" }] },
   eyePupil: { width: 5, height: 5, borderRadius: 3, backgroundColor: colors.textMuted },
   eyeSlash: { position: "absolute", width: 25, height: 1.8, borderRadius: 1, backgroundColor: colors.textMuted, transform: [{ rotate: "45deg" }] },

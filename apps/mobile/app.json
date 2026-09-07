@@ -16,7 +16,7 @@
           "image": "./assets/splash-icon.png",
           "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#0F766E"
+          "backgroundColor": "#071426"
         }
       ]
     ],
@@ -30,7 +30,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#0F766E"
+        "backgroundColor": "#071426"
       },
       "package": "app.checkstation.mobile"
     },

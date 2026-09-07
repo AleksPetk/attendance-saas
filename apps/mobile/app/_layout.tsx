@@ -18,6 +18,10 @@ export default function RootLayout() {
         <Stack.Screen name="index" options={{ headerShown: false }} />
         <Stack.Screen name="(auth)/sign-in" options={{ headerShown: false }} />
         <Stack.Screen name="(auth)/staff-sign-in" options={{ headerShown: false }} />
+        <Stack.Screen name="(auth)/register" options={{ headerShown: false }} />
+        <Stack.Screen name="(auth)/check-email" options={{ headerShown: false }} />
+        <Stack.Screen name="(auth)/forgot-password" options={{ headerShown: false }} />
+        <Stack.Screen name="(auth)/recover-account" options={{ headerShown: false }} />
         <Stack.Screen name="(app)" options={{ headerShown: false }} />
         <Stack.Screen
           name="kiosk/[groupId]"

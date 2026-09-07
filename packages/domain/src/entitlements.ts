@@ -59,7 +59,44 @@ export function isStaff(session: WorkspaceSession | null | undefined): boolean {
 }
 
 export function canManageWorkspace(session: WorkspaceSession | null | undefined): boolean {
-  return Boolean(session?.capabilities?.manage_workspace || session?.role === "owner" || session?.role === "admin");
+  return capabilityOrDefault(session, "can_manage_workspace", session?.role === "owner" || session?.role === "admin");
+}
+
+export function capability(session: WorkspaceSession | null | undefined, key: string): boolean {
+  return Boolean(session?.capabilities?.[key]);
+}
+
+function capabilityOrDefault(session: WorkspaceSession | null | undefined, key: string, fallback: boolean): boolean {
+  if (session?.capabilities && key in session.capabilities) return Boolean(session.capabilities[key]);
+  return fallback;
+}
+
+export function canViewGlobalMembers(session: WorkspaceSession | null | undefined): boolean {
+  return capabilityOrDefault(session, "can_view_global_members", session?.role === "owner" || session?.role === "admin");
+}
+
+export function canManageGroupConfiguration(session: WorkspaceSession | null | undefined): boolean {
+  return capabilityOrDefault(session, "can_manage_group_configuration", session?.role === "owner" || session?.role === "admin");
+}
+
+export function canManageStaffAccounts(session: WorkspaceSession | null | undefined): boolean {
+  return capabilityOrDefault(session, "can_manage_staff_accounts", session?.role === "owner" || session?.role === "admin");
+}
+
+export function canManageOwnerAccount(session: WorkspaceSession | null | undefined): boolean {
+  return capabilityOrDefault(session, "can_manage_owner_account", session?.role === "owner");
+}
+
+export function canViewBilling(session: WorkspaceSession | null | undefined): boolean {
+  return capabilityOrDefault(session, "can_view_billing", session?.role === "owner");
+}
+
+export function canLaunchKiosk(session: WorkspaceSession | null | undefined): boolean {
+  return capabilityOrDefault(session, "can_launch_kiosk", ["owner", "admin", "staff"].includes(session?.role || ""));
+}
+
+export function isGroupScopedStaff(session: WorkspaceSession | null | undefined): boolean {
+  return capabilityOrDefault(session, "is_group_scoped_staff", session?.role === "staff");
 }
 
 export function isKioskLocked(session: WorkspaceSession | null | undefined): boolean {

@@ -1,67 +1,27 @@
 import { useCallback, useState } from "react";
-import { RefreshControl, ScrollView } from "react-native";
-import { useFocusEffect, useRouter } from "expo-router";
-import { endpoints } from "@checkstation/api";
-import { EmptyState, ListRow, LoadingState, Screen, Title } from "../../../src/components/ui";
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { router, useFocusEffect } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+import { ApiError, endpoints } from "@checkstation/api";
+import { canManageGroupConfiguration, isGroupScopedStaff } from "@checkstation/domain";
+import { Alert, LoadingState, Screen } from "../../../src/components/ui";
+import { AddButton, EmptyPanel, FilterTabs, PageHeader, SearchField, StatusPill } from "../../../src/components/mobile";
 import { useApp } from "../../../src/lib/AppProvider";
+import { colors, radii, space, type } from "../../../src/theme/tokens";
 
-type GroupRow = {
-  id: number;
-  name: string;
-  group_type?: string;
-  status?: string;
-};
-
+type Group = { id: number; name: string; status?: string; group_type?: string; participant_count?: number; member_count?: number; group_only_participant_count?: number; is_plan_locked?: boolean; readiness?: { setup_complete?: boolean } };
+type Status = "active" | "archived";
 export default function GroupsScreen() {
-  const { api, t } = useApp();
-  const router = useRouter();
-  const [rows, setRows] = useState<GroupRow[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-
-  const load = useCallback(async () => {
-    setError("");
-    try {
-      const data = await api.get<GroupRow[] | { results: GroupRow[] }>(endpoints.groups());
-      const list = Array.isArray(data) ? data : data.results || [];
-      setRows(list);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t("common.error"));
-    } finally {
-      setLoading(false);
-    }
-  }, [api, t]);
-
-  useFocusEffect(
-    useCallback(() => {
-      setLoading(true);
-      void load();
-    }, [load]),
-  );
-
-  if (loading) {
-    return (
-      <Screen>
-        <LoadingState label={t("common.loading")} />
-      </Screen>
-    );
-  }
-
-  return (
-    <Screen>
-      <Title>{t("groups.title")}</Title>
-      <ScrollView refreshControl={<RefreshControl refreshing={false} onRefresh={() => void load()} />}>
-        {error ? <EmptyState label={error} /> : null}
-        {!error && rows.length === 0 ? <EmptyState label={t("common.empty")} /> : null}
-        {rows.map((g) => (
-          <ListRow
-            key={g.id}
-            title={g.name}
-            subtitle={`${g.group_type || "standard"} · ${g.status || "active"}`}
-            onPress={() => router.push(`/(app)/group/${g.id}`)}
-          />
-        ))}
-      </ScrollView>
-    </Screen>
-  );
+  const { api, authState, t } = useApp(); const [rows, setRows] = useState<Group[]>([]); const [status, setStatus] = useState<Status>("active"); const [search, setSearch] = useState(""); const [loading, setLoading] = useState(true); const [refreshing, setRefreshing] = useState(false); const [error, setError] = useState("");
+  const canConfigure = canManageGroupConfiguration(authState.session); const staffScoped = isGroupScopedStaff(authState.session);
+  const load = useCallback(async (refresh = false, term = search, nextStatus = status) => { refresh ? setRefreshing(true) : setLoading(true); setError(""); const params = new URLSearchParams({ status: nextStatus }); if (term.trim()) params.set("search", term.trim()); try { setRows(await api.get<Group[]>(`${endpoints.groups()}?${params.toString()}`)); } catch (caught) { setError(caught instanceof ApiError ? caught.message : t("common.error")); } finally { setLoading(false); setRefreshing(false); } }, [api, search, status, t]);
+  useFocusEffect(useCallback(() => { void load(); }, [load]));
+  return <Screen style={styles.screen}><ScrollView contentContainerStyle={styles.content} keyboardDismissMode="on-drag" refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void load(true)} tintColor={colors.blue} />}>
+    <PageHeader title={t("groups.title")} description={staffScoped ? t("groups.staffDescription") : t("groups.description")} action={canConfigure ? <AddButton label={t("groups.add")} onPress={() => router.push("/(app)/group/new")} /> : undefined} />
+    <FilterTabs onChange={(next) => { setStatus(next); void load(false, search, next); }} options={[{ value: "active", label: t("groups.active") }, { value: "archived", label: t("groups.archived") }]} value={status} />
+    <SearchField onChangeText={setSearch} onSubmitEditing={() => void load(false)} placeholder={t("groups.search")} value={search} />
+    <Alert message={error} />
+    {loading ? <View style={styles.loading}><LoadingState label={t("groups.loading")} /></View> : rows.length === 0 ? <EmptyPanel body={search ? t("groups.emptyFilteredBody") : staffScoped ? t("groups.emptyStaffBody") : status === "active" ? t("groups.emptyActiveBody") : t("groups.emptyArchivedBody")} icon="layers-outline" title={search ? t("groups.emptyFilteredTitle") : staffScoped ? t("groups.emptyStaffTitle") : status === "active" ? t("groups.emptyActiveTitle") : t("groups.emptyArchivedTitle")} /> : <View style={styles.list}>{rows.map((group) => { const locked = Boolean(group.is_plan_locked); const incomplete = status === "active" && group.readiness && !group.readiness.setup_complete; const total = group.participant_count ?? ((group.member_count || 0) + (group.group_only_participant_count || 0)); return <Pressable accessibilityRole="button" disabled={locked || status === "archived"} key={group.id} onPress={() => router.push(`/(app)/group/${group.id}`)} style={({ pressed }) => [styles.card, pressed && styles.cardPressed, (locked || status === "archived") && styles.cardMuted]}><View style={[styles.groupIcon, group.group_type === "structured" && styles.structuredIcon]}><Ionicons color={group.group_type === "structured" ? colors.blue : colors.green} name={group.group_type === "structured" ? "grid-outline" : "layers-outline"} size={22} /></View><View style={styles.cardMain}><View style={styles.cardTop}><Text numberOfLines={1} style={styles.name}>{group.name}</Text>{locked ? <StatusPill label={t("groups.planLocked")} tone="warning" /> : incomplete ? <StatusPill label={t("groups.setupIncomplete")} tone="warning" /> : status === "archived" ? <StatusPill label={t("groups.archivedLabel")} /> : <StatusPill label={t("groups.activeLabel")} tone="green" />}</View><Text style={styles.meta}>{group.group_type === "structured" ? t("groups.structured") : t("groups.standard")} · {t("groups.participants", { count: total })}</Text><Text style={styles.id}>#{group.id}</Text></View><Ionicons color={colors.textMuted} name={locked || status === "archived" ? "lock-closed-outline" : "chevron-forward"} size={18} /></Pressable>; })}</View>}
+  </ScrollView></Screen>;
 }
+const styles = StyleSheet.create({ screen: { padding: 0 }, content: { padding: space.lg, paddingBottom: space.xxxl, gap: space.lg }, loading: { minHeight: 260 }, list: { gap: space.md }, card: { minHeight: 94, flexDirection: "row", alignItems: "center", gap: space.md, padding: space.lg, borderWidth: 1, borderColor: colors.border, borderRadius: radii.lg, backgroundColor: colors.surface }, cardPressed: { backgroundColor: colors.surfaceMuted }, cardMuted: { opacity: 0.68 }, groupIcon: { width: 46, height: 46, borderRadius: 14, backgroundColor: colors.successSoft, alignItems: "center", justifyContent: "center" }, structuredIcon: { backgroundColor: colors.blueSoft }, cardMain: { flex: 1, gap: 3 }, cardTop: { flexDirection: "row", alignItems: "center", gap: space.sm }, name: { ...type.bodyStrong, color: colors.text, flexShrink: 1 }, meta: { ...type.caption, color: colors.textSecondary }, id: { fontSize: 12, color: colors.textMuted } });
