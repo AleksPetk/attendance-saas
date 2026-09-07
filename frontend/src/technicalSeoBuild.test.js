@@ -25,6 +25,9 @@ test("build emits ten canonical marketing HTML documents with raw SEO metadata",
       assert.match(html, new RegExp(`<html lang="${locale}">`));
       assert.match(html, /<title>[^<]+<\/title>/);
       assert.match(html, /<meta name="description" content="[^"]+" \/>/);
+      assert.ok(
+        html.includes('<meta name="google-adsense-account" content="ca-pub-7946536524469970" />'),
+      );
       assert.ok(html.includes(`<link rel="canonical" href="https://checkstation.app${path}" />`));
       assert.ok(html.includes('hreflang="en"'));
       assert.ok(html.includes('hreflang="ja"'));

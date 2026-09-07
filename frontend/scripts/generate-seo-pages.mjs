@@ -30,6 +30,7 @@ for (const locale of locales) {
 
     const head = [
       `<meta name="description" content="${escapeAttribute(description)}" />`,
+      '<meta name="google-adsense-account" content="ca-pub-7946536524469970" />',
       `<link rel="canonical" href="${publicOrigin}${canonicalPath}" />`,
       `<link rel="alternate" hreflang="en" href="${publicOrigin}${localizedPath("en", route.path)}" />`,
       `<link rel="alternate" hreflang="ja" href="${publicOrigin}${localizedPath("ja", route.path)}" />`,
