@@ -61,3 +61,8 @@ test("robots policies are host-specific", async () => {
   assert.match(workspace, /Disallow: \//);
   assert.doesNotMatch(workspace, /Sitemap:/);
 });
+
+test("marketing redirects stay relative behind the TLS reverse proxy", async () => {
+  const nginx = await readFile(new URL("../nginx.conf", import.meta.url), "utf8");
+  assert.match(nginx, /server_name checkstation\.app;\s+absolute_redirect off;/);
+});
