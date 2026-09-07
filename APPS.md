@@ -7,7 +7,7 @@ Hand-off document for continuing native app work (Codex / humans).
 | Layer | Choice | Why |
 |---|---|---|
 | Mobile | **Expo SDK 57** (React Native **0.86.3**, React **19.2.3**) + Expo Router | Matches `PROJECT.md`. One codebase for iPhone, iPad, Android phone/tablet. |
-| Desktop | **Electron + Vite + React** | Purpose-built desktop UI (not a WebView of the Workspace SPA). Shares TypeScript packages with mobile. macOS + Windows from one app. |
+| Desktop | **Electron 44** + Vite + React | Purpose-built desktop UI (not a WebView of the Workspace SPA). Shares TypeScript packages with mobile. macOS 13+ / Windows x64+arm64 from one app. |
 | Shared | `packages/*` TypeScript | API client, auth controller, domain helpers, i18n, config — no duplicated Django logic. |
 
 **Not chosen:** wrapping `workspace.checkstation.app` in a WebView; React Native macOS/Windows (less mature for this product’s desktop density); Flutter (would fork away from TS/React stack).
@@ -147,7 +147,7 @@ Env: `VITE_API_BASE_URL=http://localhost:8000/api`
 
 App IDs: `app.checkstation.desktop`
 
-Packaging: `npm run build -w @checkstation/desktop` runs the Vite renderer build. Full Electron dir packaging is `npm run build:electron -w @checkstation/desktop` (requires a complete `electron-builder` / `app-builder-bin` install with postinstall scripts allowed).
+Packaging: `npm run build -w @checkstation/desktop` runs the Vite renderer build. Full Electron dir packaging: `npm run build:electron -w @checkstation/desktop` (Electron **44.2.0**, electron-builder **26.16.0**; mac/win `dir` targets).
 
 ### Packages
 
@@ -168,8 +168,8 @@ cd frontend && npm test:… / npm run build
 |---|---|
 | iPhone / iPad | Expo project + tablet-aware layouts; run via Simulator when Xcode available |
 | Android | Same Expo project; run via emulator when SDK available |
-| macOS | Electron app boots in dev; `--dir` build configured |
-| Windows | Same Electron project; build from Windows CI/agent (`electron-builder --win`) — validate on Windows host |
+| macOS | Electron **44.2.0** app packs via `electron-builder --dir` (arm64 validated); requires **macOS 13+** |
+| Windows | Same Electron project; `win.target: dir` configured; build from Windows CI/agent — validate on Windows host |
 
 ## Screens implemented (foundation level)
 

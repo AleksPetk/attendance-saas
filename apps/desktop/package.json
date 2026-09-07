@@ -26,8 +26,8 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^4.3.4",
     "concurrently": "^9.1.2",
-    "electron": "34.5.8",
-    "electron-builder": "^25.1.8",
+    "electron": "44.2.0",
+    "electron-builder": "26.16.0",
     "tsx": "^4.19.3",
     "typescript": "^5.8.3",
     "vite": "^6.2.0",
@@ -36,7 +36,7 @@
   "build": {
     "appId": "app.checkstation.desktop",
     "productName": "CheckStation",
-    "electronVersion": "34.5.8",
+    "electronVersion": "44.2.0",
     "directories": {
       "output": "release"
     },
