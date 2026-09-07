@@ -103,10 +103,11 @@ export type FieldProps = TextInputProps & {
   hint?: string;
   error?: string;
   containerStyle?: StyleProp<ViewStyle>;
+  rightAccessory?: React.ReactNode;
 };
 
 export const Field = forwardRef<TextInput, FieldProps>(function Field(
-  { label, hint, error, containerStyle, onBlur, onFocus, style, ...rest },
+  { label, hint, error, containerStyle, onBlur, onFocus, style, rightAccessory, ...rest },
   ref,
 ) {
   const [focused, setFocused] = useState(false);
@@ -114,23 +115,26 @@ export const Field = forwardRef<TextInput, FieldProps>(function Field(
     <View style={[styles.field, containerStyle]}>
       <Text style={styles.label}>{label}</Text>
       {hint ? <Text style={styles.fieldHint}>{hint}</Text> : null}
-      <TextInput
-        ref={ref}
-        accessibilityLabel={label}
-        accessibilityState={{ disabled: rest.editable === false }}
-        onBlur={(event) => {
-          setFocused(false);
-          onBlur?.(event);
-        }}
-        onFocus={(event) => {
-          setFocused(true);
-          onFocus?.(event);
-        }}
-        placeholderTextColor={colors.placeholder}
-        selectionColor={colors.blue}
-        style={[styles.input, focused && styles.inputFocused, Boolean(error) && styles.inputError, style]}
-        {...rest}
-      />
+      <View style={[styles.inputWrap, focused && styles.inputFocused, Boolean(error) && styles.inputError]}>
+        <TextInput
+          ref={ref}
+          accessibilityLabel={label}
+          accessibilityState={{ disabled: rest.editable === false }}
+          onBlur={(event) => {
+            setFocused(false);
+            onBlur?.(event);
+          }}
+          onFocus={(event) => {
+            setFocused(true);
+            onFocus?.(event);
+          }}
+          placeholderTextColor={colors.placeholder}
+          selectionColor={colors.blue}
+          style={[styles.input, rightAccessory ? styles.inputWithAccessory : null, style]}
+          {...rest}
+        />
+        {rightAccessory ? <View style={styles.inputAccessory}>{rightAccessory}</View> : null}
+      </View>
       {error ? <Text style={styles.fieldError}>{error}</Text> : null}
     </View>
   );
@@ -166,6 +170,56 @@ export function Alert({
         {message}
       </Text>
     </View>
+  );
+}
+
+export function TextLink({
+  label,
+  onPress,
+  disabled = false,
+}: {
+  label: string;
+  onPress: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="link"
+      disabled={disabled}
+      hitSlop={8}
+      onPress={onPress}
+      style={({ pressed }) => [styles.textLinkHit, pressed && !disabled && styles.textLinkPressed]}
+    >
+      <Text style={[styles.textLink, disabled && styles.disabled]}>{label}</Text>
+    </Pressable>
+  );
+}
+
+export function PasswordVisibilityButton({
+  visible,
+  onPress,
+  showLabel,
+  hideLabel,
+}: {
+  visible: boolean;
+  onPress: () => void;
+  showLabel: string;
+  hideLabel: string;
+}) {
+  return (
+    <Pressable
+      accessibilityLabel={visible ? hideLabel : showLabel}
+      accessibilityRole="button"
+      accessibilityState={{ selected: visible }}
+      hitSlop={6}
+      onPress={onPress}
+      style={({ pressed }) => [styles.passwordToggle, pressed && styles.passwordTogglePressed]}
+    >
+      <View style={styles.eyeOutline}>
+        <View style={styles.eyePupil} />
+      </View>
+      {!visible ? <View style={styles.eyeSlash} /> : null}
+    </Pressable>
   );
 }
 
@@ -282,17 +336,19 @@ const styles = StyleSheet.create({
   field: { gap: space.sm },
   label: { ...type.label, color: colors.textSecondary },
   fieldHint: { ...type.caption, color: colors.textMuted, marginTop: -space.xs },
-  input: {
+  inputWrap: {
     minHeight: 46,
     borderWidth: 1,
     borderColor: colors.borderStrong,
     borderRadius: radii.sm,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
     backgroundColor: colors.surface,
-    color: colors.text,
-    fontSize: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    overflow: "hidden",
   },
+  input: { flex: 1, minHeight: 44, paddingHorizontal: 14, paddingVertical: 10, color: colors.text, fontSize: 16 },
+  inputWithAccessory: { paddingRight: 52 },
+  inputAccessory: { position: "absolute", right: 3, top: 0, bottom: 0, justifyContent: "center" },
   inputFocused: {
     borderColor: colors.blue,
     shadowColor: colors.blue,
@@ -317,6 +373,14 @@ const styles = StyleSheet.create({
   alertTextWarning: { color: colors.warningText },
   alertInfo: { backgroundColor: colors.infoSoft, borderColor: colors.infoBorder },
   alertTextInfo: { color: colors.infoText },
+  textLinkHit: { minHeight: 32, alignSelf: "center", justifyContent: "center", paddingHorizontal: space.xs },
+  textLink: { ...type.caption, color: colors.blue, textAlign: "center", textDecorationLine: "underline" },
+  textLinkPressed: { opacity: 0.65 },
+  passwordToggle: { width: 44, height: 44, alignItems: "center", justifyContent: "center", borderRadius: radii.sm },
+  passwordTogglePressed: { backgroundColor: colors.surfaceMuted },
+  eyeOutline: { width: 21, height: 13, borderWidth: 1.8, borderColor: colors.textMuted, borderRadius: 11, alignItems: "center", justifyContent: "center", transform: [{ rotate: "-1deg" }] },
+  eyePupil: { width: 5, height: 5, borderRadius: 3, backgroundColor: colors.textMuted },
+  eyeSlash: { position: "absolute", width: 25, height: 1.8, borderRadius: 1, backgroundColor: colors.textMuted, transform: [{ rotate: "45deg" }] },
   segments: {
     minHeight: touch.min,
     flexDirection: "row",

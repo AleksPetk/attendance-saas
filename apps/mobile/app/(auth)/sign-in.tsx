@@ -1,69 +1,39 @@
 import { useRef, useState } from "react";
-import {
-  Keyboard,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-  useWindowDimensions,
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { Keyboard, StyleSheet, Text, TextInput, View } from "react-native";
 import { Redirect, router } from "expo-router";
-import {
-  Alert,
-  BrandWordmark,
-  Button,
-  Card,
-  Field,
-  SegmentedControl,
-} from "../../src/components/ui";
-import { signInErrorMessage, type SignInMode } from "../../src/lib/authErrors";
+import { AuthScreen } from "../../src/components/AuthScreen";
+import { Alert, Button, Field, PasswordVisibilityButton, TextLink } from "../../src/components/ui";
+import { signInErrorMessage } from "../../src/lib/authErrors";
+import { openWorkspaceAuthUrl, workspaceAuthUrls } from "../../src/lib/authLinks";
 import { useApp } from "../../src/lib/AppProvider";
-import { colors, layout, space, type } from "../../src/theme/tokens";
+import { colors, space, type } from "../../src/theme/tokens";
 
 export default function SignInScreen() {
   const { auth, authState, t } = useApp();
-  const { width } = useWindowDimensions();
-  const isTablet = width >= 768;
-  const [mode, setMode] = useState<SignInMode>("owner");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [workspaceId, setWorkspaceId] = useState("");
-  const [username, setUsername] = useState("");
-  const [staffPassword, setStaffPassword] = useState("");
-  const [totp, setTotp] = useState("");
+  const [passwordVisible, setPasswordVisible] = useState(false);
+  const [twoFactorValue, setTwoFactorValue] = useState("");
+  const [useRecoveryCode, setUseRecoveryCode] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-
   const emailRef = useRef<TextInput | null>(null);
   const passwordRef = useRef<TextInput | null>(null);
-  const workspaceIdRef = useRef<TextInput | null>(null);
-  const usernameRef = useRef<TextInput | null>(null);
-  const staffPasswordRef = useRef<TextInput | null>(null);
-  const totpRef = useRef<TextInput | null>(null);
+  const twoFactorRef = useRef<TextInput | null>(null);
 
-  if (authState.status === "authenticated") {
-    return <Redirect href="/(app)/(tabs)/home" />;
-  }
+  if (authState.status === "authenticated") return <Redirect href="/(app)/(tabs)/home" />;
 
-  function clearErrorOnEdit() {
-    if (error) setError("");
-  }
+  function clearErrorOnEdit() { if (error) setError(""); }
 
-  function changeMode(next: SignInMode) {
-    Keyboard.dismiss();
-    setMode(next);
-    setError("");
+  function togglePasswordVisibility() {
+    setPasswordVisible((current) => !current);
+    requestAnimationFrame(() => passwordRef.current?.focus());
   }
 
   async function onOwnerSignIn() {
     if (!email.trim() || !password) {
       setError(t("auth.requiredOwnerFields"));
-      if (!email.trim()) emailRef.current?.focus();
-      else passwordRef.current?.focus();
+      (!email.trim() ? emailRef : passwordRef).current?.focus();
       return;
     }
     setBusy(true);
@@ -71,265 +41,93 @@ export default function SignInScreen() {
     try {
       const result = await auth.loginOwner(email.trim(), password);
       if (result.kind === "two_factor_required") {
-        setTimeout(() => totpRef.current?.focus(), 0);
+        requestAnimationFrame(() => twoFactorRef.current?.focus());
         return;
       }
       Keyboard.dismiss();
       router.replace("/(app)/(tabs)/home");
-    } catch (err) {
-      setError(signInErrorMessage(err, "owner", t));
+    } catch (caught) {
+      setError(signInErrorMessage(caught, "owner", t));
     } finally {
       setBusy(false);
     }
   }
 
-  async function onTotp() {
-    if (!totp.trim()) {
-      setError(t("auth.twoFactorLead"));
-      totpRef.current?.focus();
+  async function onTwoFactor() {
+    if (!twoFactorValue.trim()) {
+      setError(t("auth.twoFactorRequired"));
+      twoFactorRef.current?.focus();
       return;
     }
     setBusy(true);
     setError("");
     try {
-      await auth.completeOwnerTotp(totp.trim());
+      await auth.completeOwnerTwoFactor(useRecoveryCode
+        ? { recovery_code: twoFactorValue.trim() }
+        : { code: twoFactorValue.trim() });
       Keyboard.dismiss();
       router.replace("/(app)/(tabs)/home");
-    } catch (err) {
-      setError(signInErrorMessage(err, "owner", t));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function onStaffSignIn() {
-    if (!workspaceId.trim() || !username.trim() || !staffPassword) {
-      setError(t("auth.requiredStaffFields"));
-      if (!workspaceId.trim()) workspaceIdRef.current?.focus();
-      else if (!username.trim()) usernameRef.current?.focus();
-      else staffPasswordRef.current?.focus();
-      return;
-    }
-    setBusy(true);
-    setError("");
-    try {
-      await auth.loginStaff(workspaceId.trim(), username.trim(), staffPassword);
-      Keyboard.dismiss();
-      router.replace("/(app)/(tabs)/home");
-    } catch (err) {
-      setError(signInErrorMessage(err, "staff", t));
+    } catch (caught) {
+      setError(signInErrorMessage(caught, "owner", t));
     } finally {
       setBusy(false);
     }
   }
 
   const twoFactor = authState.status === "needs_2fa";
-  const title = twoFactor
-    ? t("auth.twoFactorTitle")
-    : mode === "owner"
-      ? t("auth.ownerTitle")
-      : t("auth.staffTitle");
-  const lead = twoFactor
-    ? t("auth.twoFactorLead")
-    : mode === "owner"
-      ? t("auth.ownerLead")
-      : t("auth.staffLead");
-
   return (
-    <SafeAreaView edges={["top", "bottom"]} style={styles.safeArea}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={styles.keyboardView}
-      >
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
-          keyboardShouldPersistTaps="handled"
-          onScrollBeginDrag={Keyboard.dismiss}
-          style={styles.scroll}
-        >
-          <View style={styles.authWrap}>
-            <BrandWordmark />
-            <Card style={[styles.authCard, isTablet && styles.authCardTablet]}>
-              {!twoFactor ? (
-                <SegmentedControl
-                  accessibilityLabel={t("auth.signInType")}
-                  onChange={changeMode}
-                  options={[
-                    { label: t("auth.customerTab"), value: "owner" },
-                    { label: t("auth.staffTab"), value: "staff" },
-                  ]}
-                  value={mode}
-                />
-              ) : null}
-
-              <View style={styles.header}>
-                <Text accessibilityRole="header" style={styles.title}>{title}</Text>
-                <Text style={styles.lead}>{lead}</Text>
-              </View>
-
-              {twoFactor ? (
-                <View style={styles.form}>
-                  <Field
-                    ref={totpRef}
-                    autoComplete="one-time-code"
-                    autoCorrect={false}
-                    keyboardType="number-pad"
-                    label={t("auth.twoFactor")}
-                    maxLength={6}
-                    onChangeText={(value) => {
-                      setTotp(value);
-                      clearErrorOnEdit();
-                    }}
-                    returnKeyType="done"
-                    textContentType="oneTimeCode"
-                    value={totp}
-                  />
-                  <Alert message={error} />
-                  <Button
-                    disabled={busy}
-                    label={busy ? t("auth.signingIn") : t("auth.continue")}
-                    loading={busy}
-                    onPress={() => void onTotp()}
-                  />
-                </View>
-              ) : mode === "owner" ? (
-                <View style={styles.form}>
-                  <Field
-                    ref={emailRef}
-                    autoCapitalize="none"
-                    autoComplete="email"
-                    autoCorrect={false}
-                    importantForAutofill="yes"
-                    keyboardType="email-address"
-                    label={t("auth.email")}
-                    onChangeText={(value) => {
-                      setEmail(value);
-                      clearErrorOnEdit();
-                    }}
-                    onSubmitEditing={() => passwordRef.current?.focus()}
-                    returnKeyType="next"
-                    spellCheck={false}
-                    submitBehavior="submit"
-                    textContentType="emailAddress"
-                    value={email}
-                  />
-                  <Field
-                    ref={passwordRef}
-                    autoCapitalize="none"
-                    autoComplete="current-password"
-                    autoCorrect={false}
-                    importantForAutofill="yes"
-                    label={t("auth.password")}
-                    onChangeText={(value) => {
-                      setPassword(value);
-                      clearErrorOnEdit();
-                    }}
-                    onSubmitEditing={() => void onOwnerSignIn()}
-                    returnKeyType="go"
-                    secureTextEntry
-                    spellCheck={false}
-                    submitBehavior="blurAndSubmit"
-                    textContentType="password"
-                    value={password}
-                  />
-                  <Alert message={error} />
-                  <Button
-                    disabled={busy}
-                    label={busy ? t("auth.signingIn") : t("auth.signIn")}
-                    loading={busy}
-                    onPress={() => void onOwnerSignIn()}
-                  />
-                </View>
-              ) : (
-                <View style={styles.form}>
-                  <Field
-                    ref={workspaceIdRef}
-                    autoCapitalize="characters"
-                    autoComplete="off"
-                    autoCorrect={false}
-                    hint={t("auth.workspaceIdHint")}
-                    label={t("auth.workspaceId")}
-                    onChangeText={(value) => {
-                      setWorkspaceId(value);
-                      clearErrorOnEdit();
-                    }}
-                    onSubmitEditing={() => usernameRef.current?.focus()}
-                    returnKeyType="next"
-                    spellCheck={false}
-                    submitBehavior="submit"
-                    value={workspaceId}
-                  />
-                  <Field
-                    ref={usernameRef}
-                    autoCapitalize="none"
-                    autoComplete="username"
-                    autoCorrect={false}
-                    importantForAutofill="yes"
-                    label={t("auth.username")}
-                    onChangeText={(value) => {
-                      setUsername(value);
-                      clearErrorOnEdit();
-                    }}
-                    onSubmitEditing={() => staffPasswordRef.current?.focus()}
-                    returnKeyType="next"
-                    spellCheck={false}
-                    submitBehavior="submit"
-                    textContentType="username"
-                    value={username}
-                  />
-                  <Field
-                    ref={staffPasswordRef}
-                    autoCapitalize="none"
-                    autoComplete="current-password"
-                    autoCorrect={false}
-                    importantForAutofill="yes"
-                    label={t("auth.password")}
-                    onChangeText={(value) => {
-                      setStaffPassword(value);
-                      clearErrorOnEdit();
-                    }}
-                    onSubmitEditing={() => void onStaffSignIn()}
-                    returnKeyType="go"
-                    secureTextEntry
-                    spellCheck={false}
-                    submitBehavior="blurAndSubmit"
-                    textContentType="password"
-                    value={staffPassword}
-                  />
-                  <Alert message={error} />
-                  <Button
-                    disabled={busy}
-                    label={busy ? t("auth.signingIn") : t("auth.enterWorkspace")}
-                    loading={busy}
-                    onPress={() => void onStaffSignIn()}
-                  />
-                </View>
-              )}
-            </Card>
+    <AuthScreen
+      title={twoFactor ? t("auth.twoFactorTitle") : t("auth.ownerTitle")}
+      lead={twoFactor ? t("auth.twoFactorLead") : undefined}
+      footnote={!twoFactor ? (
+        <View style={styles.footnoteRow}>
+          <Text style={styles.footnoteText}>{t("auth.staffPrompt")} </Text>
+          <TextLink label={t("auth.staffSignIn")} onPress={() => router.push("/(auth)/staff-sign-in")} />
+          <Text style={styles.footnoteText}> · {t("auth.newHere")} </Text>
+          <TextLink label={t("auth.createAccount")} onPress={() => void openWorkspaceAuthUrl(workspaceAuthUrls.register)} />
+        </View>
+      ) : undefined}
+    >
+      {twoFactor ? (
+        <View style={styles.form}>
+          <Field
+            ref={twoFactorRef}
+            autoComplete="one-time-code"
+            autoCorrect={false}
+            keyboardType={useRecoveryCode ? "default" : "number-pad"}
+            label={t("auth.twoFactor")}
+            maxLength={useRecoveryCode ? undefined : 6}
+            onChangeText={(value) => { setTwoFactorValue(value); clearErrorOnEdit(); }}
+            onSubmitEditing={() => void onTwoFactor()}
+            placeholder={useRecoveryCode ? t("auth.recoveryCodePlaceholder") : t("auth.authenticatorCodePlaceholder")}
+            returnKeyType="done"
+            textContentType={useRecoveryCode ? "none" : "oneTimeCode"}
+            value={twoFactorValue}
+          />
+          <Alert message={error} />
+          <Button label={useRecoveryCode ? t("auth.useAuthenticator") : t("auth.useRecovery")} onPress={() => { setUseRecoveryCode((current) => !current); setTwoFactorValue(""); setError(""); requestAnimationFrame(() => twoFactorRef.current?.focus()); }} variant="secondary" />
+          <Button disabled={busy} label={busy ? t("auth.signingIn") : t("auth.verify")} loading={busy} onPress={() => void onTwoFactor()} />
+        </View>
+      ) : (
+        <View style={styles.form}>
+          <View style={styles.fields}>
+            <Field ref={emailRef} autoCapitalize="none" autoComplete="email" autoCorrect={false} importantForAutofill="yes" keyboardType="email-address" label={t("auth.email")} onChangeText={(value) => { setEmail(value); clearErrorOnEdit(); }} onSubmitEditing={() => passwordRef.current?.focus()} returnKeyType="next" spellCheck={false} submitBehavior="submit" textContentType="emailAddress" value={email} />
+            <Field ref={passwordRef} autoCapitalize="none" autoComplete="current-password" autoCorrect={false} importantForAutofill="yes" label={t("auth.password")} onChangeText={(value) => { setPassword(value); clearErrorOnEdit(); }} onSubmitEditing={() => void onOwnerSignIn()} returnKeyType="go" rightAccessory={<PasswordVisibilityButton visible={passwordVisible} onPress={togglePasswordVisibility} showLabel={t("auth.showPassword")} hideLabel={t("auth.hidePassword")} />} secureTextEntry={!passwordVisible} spellCheck={false} submitBehavior="blurAndSubmit" textContentType="password" value={password} />
           </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+          <Alert message={error} />
+          <Button disabled={busy} label={busy ? t("auth.signingIn") : t("auth.signIn")} loading={busy} onPress={() => void onOwnerSignIn()} />
+          <View style={styles.recoveryLinks}>
+            <TextLink label={t("auth.forgotPassword")} onPress={() => void openWorkspaceAuthUrl(workspaceAuthUrls.forgotPassword)} />
+            <TextLink label={t("auth.recoverAccount")} onPress={() => void openWorkspaceAuthUrl(workspaceAuthUrls.recoverAccount)} />
+          </View>
+        </View>
+      )}
+    </AuthScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: colors.bg },
-  keyboardView: { flex: 1 },
-  scroll: { flex: 1 },
-  scrollContent: {
-    flexGrow: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: space.lg,
-    paddingVertical: space.xl,
-  },
-  authWrap: { width: "100%", maxWidth: layout.authMaxWidth, gap: space.md },
-  authCard: { marginBottom: 0, padding: space.xl, gap: space.xl },
-  authCardTablet: { padding: space.xxl },
-  header: { gap: space.sm },
-  title: { ...type.title, color: colors.text },
-  lead: { ...type.caption, color: colors.textMuted, lineHeight: 22 },
-  form: { gap: space.lg },
+  form: { gap: space.lg }, fields: { gap: space.lg }, recoveryLinks: { alignItems: "center", gap: 2 },
+  footnoteRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "center" },
+  footnoteText: { ...type.caption, color: colors.textMuted },
 });

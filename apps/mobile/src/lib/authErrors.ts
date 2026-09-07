@@ -21,11 +21,19 @@ export function signInErrorMessage(error: unknown, mode: SignInMode, t: Translat
   if (fieldMessage) return fieldMessage;
 
   if (
-    error.status === 401
-    || error.data.code === "not_authenticated"
+    (mode === "owner" && error.path.startsWith("/auth/login/"))
+    || (mode === "staff" && error.path.startsWith("/auth/staff-login/"))
+  ) {
+    if (error.status === 401 || error.status === 403) {
+      return t(mode === "owner" ? "auth.invalidOwnerCredentials" : "auth.invalidStaffCredentials");
+    }
+  }
+
+  if (
+    error.data.code === "not_authenticated"
     || error.data.detail === "Authentication credentials were not provided."
   ) {
-    return t(mode === "owner" ? "auth.invalidOwnerCredentials" : "auth.invalidStaffCredentials");
+    return t("auth.sessionError");
   }
 
   if (typeof error.data.detail === "string" && error.data.detail.trim()) {

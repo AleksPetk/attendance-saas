@@ -100,29 +100,38 @@ export class AuthController {
   }
 
   async loginOwner(email: string, password: string): Promise<OwnerLoginResult> {
-    const result = await this.api.post<Record<string, unknown>>(endpoints.ownerLogin(), {
-      email,
-      password,
-    });
-    if (result?.two_factor_required) {
-      this.setState({
-        status: "needs_2fa",
-        session: null,
-        twoFactorPending: true,
-        bootstrapError: null,
-      });
-      return { kind: "two_factor_required" };
+    try {
+      await this.api.post<WorkspaceSession>(endpoints.ownerLogin(), { email, password });
+    } catch (error) {
+      // The production endpoint represents a valid first factor requiring 2FA
+      // as a 403 response with this code; ApiClient correctly throws for it.
+      if (error instanceof ApiError && error.data.code === "two_factor_required") {
+        this.setState({
+          status: "needs_2fa",
+          session: null,
+          twoFactorPending: true,
+          bootstrapError: null,
+        });
+        return { kind: "two_factor_required" };
+      }
+      throw error;
     }
+    // Verify that the newly issued Django session is usable before entering
+    // the authenticated app; this also catches transport regressions early.
     const session = await this.api.get<WorkspaceSession>(endpoints.workspace());
     this.applySession(session);
     return { kind: "authenticated", session };
   }
 
-  async completeOwnerTotp(code: string): Promise<WorkspaceSession> {
-    await this.api.post(endpoints.ownerTotpChallenge(), { code });
+  async completeOwnerTwoFactor(payload: { code?: string; recovery_code?: string }): Promise<WorkspaceSession> {
+    await this.api.post(endpoints.ownerTotpChallenge(), payload);
     const session = await this.api.get<WorkspaceSession>(endpoints.workspace());
     this.applySession(session);
     return session;
+  }
+
+  async completeOwnerTotp(code: string): Promise<WorkspaceSession> {
+    return this.completeOwnerTwoFactor({ code });
   }
 
   async loginStaff(workspaceId: string, username: string, password: string): Promise<WorkspaceSession> {

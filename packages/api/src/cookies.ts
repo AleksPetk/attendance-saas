@@ -64,6 +64,15 @@ function parseSetCookie(header: string): StoredCookie | null {
   return cookie;
 }
 
+/**
+ * Headers implementations used by React Native may comma-join duplicate
+ * Set-Cookie fields. Split only at the start of another cookie-pair so the
+ * comma inside an Expires date remains intact.
+ */
+function splitCombinedSetCookie(header: string): string[] {
+  return header.split(/,(?=\s*[^;,=\s]+=[^;,]*)/g).map((value) => value.trim());
+}
+
 export class CookieJar {
   private cookies: StoredCookie[] = [];
 
@@ -114,13 +123,29 @@ export class CookieJar {
 
   absorbSetCookieHeaders(headers: string[]): void {
     const now = Date.now();
-    for (const header of headers) {
+    for (const header of headers.flatMap(splitCombinedSetCookie)) {
       const parsed = parseSetCookie(header);
       if (!parsed) continue;
       this.cookies = this.cookies.filter((c) => c.name !== parsed.name);
       if (parsed.expires != null && parsed.expires <= now) continue;
       this.cookies.push(parsed);
     }
+  }
+
+
+  /** Collect duplicate Set-Cookie fields before a native Headers polyfill combines them. */
+  absorbFromResponse(response: Response): void {
+    const nativeResponse = response as Response & { _rawHeaders?: Array<[string, string]> };
+    const rawSetCookies = Array.isArray(nativeResponse._rawHeaders)
+      ? nativeResponse._rawHeaders
+          .filter(([name]) => name.toLowerCase() === "set-cookie")
+          .map(([, value]) => value)
+      : [];
+    if (rawSetCookies.length) {
+      this.absorbSetCookieHeaders(rawSetCookies);
+      return;
+    }
+    this.absorbFromResponseHeaders(response.headers);
   }
 
   /** Collect Set-Cookie from Fetch Headers (single or getSetCookie). */

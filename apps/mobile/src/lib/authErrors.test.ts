@@ -12,10 +12,10 @@ describe("signInErrorMessage", () => {
     const error = new ApiError({
       status: 403,
       data: { detail: "Authentication credentials were not provided." },
-      path: "/auth/login/",
-      method: "POST",
+      path: "/workspace/",
+      method: "GET",
     });
-    assert.equal(signInErrorMessage(error, "owner", t), "auth.invalidOwnerCredentials");
+    assert.equal(signInErrorMessage(error, "owner", t), "auth.sessionError");
   });
 
   it("uses a staff-specific message for rejected credentials", () => {

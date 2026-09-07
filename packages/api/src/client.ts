@@ -179,7 +179,10 @@ export class ApiClient {
       if (options.signal) options.signal.removeEventListener("abort", onAbort);
     }
 
-    this.jar.absorbFromResponseHeaders(response.headers);
+    // Expo's native fetch preserves duplicate Set-Cookie fields in
+    // response._rawHeaders. Read those before the Headers polyfill can fold
+    // Django's rotated CSRF and session cookies into one value.
+    this.jar.absorbFromResponse(response);
     await this.jar.persist();
 
     if (response.status === 204) {

@@ -41,6 +41,29 @@ describe("CookieJar", () => {
     jar.set(CSRF_COOKIE, "from-json");
     assert.equal(jar.get(CSRF_COOKIE), "from-json");
   });
+
+  it("keeps both cookies when a native Headers polyfill comma-joins Set-Cookie", () => {
+    const jar = new CookieJar();
+    jar.absorbSetCookieHeaders([
+      "checkstation_csrftoken=rotated; expires=Tue, 08 Sep 2026 00:00:00 GMT; Path=/; Secure, checkstation_sessionid=session-1; Path=/; HttpOnly; Secure",
+    ]);
+    assert.equal(jar.get(CSRF_COOKIE), "rotated");
+    assert.equal(jar.get("checkstation_sessionid"), "session-1");
+  });
+
+  it("reads duplicate Set-Cookie fields from Expo native raw headers", () => {
+    const jar = new CookieJar();
+    const response = new Response(null, { status: 200 });
+    Object.defineProperty(response, "_rawHeaders", {
+      value: [
+        ["set-cookie", "checkstation_csrftoken=rotated; Path=/; Secure"],
+        ["set-cookie", "checkstation_sessionid=session-2; Path=/; HttpOnly; Secure"],
+      ],
+    });
+    jar.absorbFromResponse(response);
+    assert.equal(jar.get(CSRF_COOKIE), "rotated");
+    assert.equal(jar.get("checkstation_sessionid"), "session-2");
+  });
 });
 
 describe("csrfOriginFromApiBase", () => {
