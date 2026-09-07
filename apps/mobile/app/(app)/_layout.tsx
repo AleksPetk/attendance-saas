@@ -18,6 +18,7 @@ export default function AppGroupLayout() {
       <Stack.Screen name="group/[id]" options={{ title: t("nav.groups") }} />
       <Stack.Screen name="group/new" options={{ title: t("groups.add") }} />
       <Stack.Screen name="group/[id]/kiosk-settings" options={{ title: t("kiosk.settings") }} />
+      <Stack.Screen name="group/[id]/kiosk-design" options={{ title: t("kiosk.design") || "Kiosk design" }} />
     </Stack>
   );
 }
