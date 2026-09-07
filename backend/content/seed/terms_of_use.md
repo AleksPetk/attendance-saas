@@ -104,7 +104,7 @@ Yearly prices provide approximately two months of savings compared with paying m
 
 ### 9.2 Entitlements and ads
 
-Plans include different limits for Groups, Members, participants, workspace staff, exports, Structured Groups, and related features, as shown in the product. **Basic** may display advertising in specified workspace placements (not during live participant kiosk operation). **Plus** and **Business** do not include ads. A platform kill switch may hide ads without changing your plan.
+Plans include different limits for Groups, Members, participants, workspace staff, exports, Structured Groups, and related features, as shown in the product. **Basic** may display advertising in specified workspace placements (not during active participant check-in/out interaction). **Plus** and **Business** do not include ads. A platform kill switch may hide ads without changing your plan.
 
 Exceeding a limit after downgrade does not automatically delete your data. The product is designed to block increasing usage that would exceed the new plan. Feature-locked content remains in the workspace subject to those rules.
 

@@ -667,14 +667,15 @@ Platform-admin changes to `Organization.plan` for **CheckStation Accounts** are 
 - before kiosk launch (interstitial)
 - after kiosk exit (interstitial)
 - when leaving Kiosk Builder (interstitial)
+- kiosk idle banner (live kiosk idle/ready only)
 
-**Ads are not allowed during live participant kiosk operation.** That includes the participant flow, action chooser, loading/sending screens, confirmation, and the shared live kiosk renderer.
+**Ads are not allowed during active participant kiosk interaction.** That includes identify, PIN, action chooser, processing/sending, and success/confirmation. The idle banner may appear only on Standard start or Structured class picker while the kiosk is waiting.
 
 **Plus** and **Business** have **no ads**.
 
 A platform-operator **global kill switch** can hide all advertising without changing workspace plans or subscriptions.
 
-The current web implementation uses a **development mock provider**. A real ad provider is deferred until deployment. Provider or render failure must never block Dashboard, Groups, kiosk launch, kiosk exit, or Kiosk Builder navigation.
+The current web implementation uses a **development mock provider**. A real ad provider is deferred until deployment. Provider or render failure must never block Dashboard, Groups, kiosk launch, kiosk exit, Kiosk Builder navigation, or attendance actions.
 
 ### Owner Account area (architecture)
 

@@ -18,6 +18,7 @@ PLACEMENT_GROUPS_BANNER = "groups_banner"
 PLACEMENT_KIOSK_LAUNCH = "kiosk_launch_interstitial"
 PLACEMENT_KIOSK_EXIT = "kiosk_exit_interstitial"
 PLACEMENT_KIOSK_BUILDER_EXIT = "kiosk_builder_exit_interstitial"
+PLACEMENT_KIOSK_IDLE = "kiosk_idle_banner"
 
 AD_PLACEMENTS = (
     PLACEMENT_DASHBOARD_BANNER,
@@ -25,6 +26,7 @@ AD_PLACEMENTS = (
     PLACEMENT_KIOSK_LAUNCH,
     PLACEMENT_KIOSK_EXIT,
     PLACEMENT_KIOSK_BUILDER_EXIT,
+    PLACEMENT_KIOSK_IDLE,
 )
 
 

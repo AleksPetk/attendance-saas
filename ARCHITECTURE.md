@@ -501,8 +501,9 @@ Frozen **web** placements:
 - `kiosk_launch_interstitial` (workspace route, **before** `POST /api/groups/:id/kiosk/` lock)
 - `kiosk_exit_interstitial` (after successful exit-code unlock, **before** Group/Groups navigation)
 - `kiosk_builder_exit_interstitial` (after dirty-state resolution, **before** destination navigation)
+- `kiosk_idle_banner` (live kiosk **idle/ready only**: Standard start or Structured class picker; bottom-right; hide during identify/PIN/confirm/processing/success)
 
-**Live participant kiosk sessions must never show ads.** Do not put ads in `GroupKioskScreen`, `KioskRenderer` (`mode="live"`), `KioskBuilderPreview`, Kiosk Settings, Members, History, Staff, or Account.
+**Live participant kiosk interaction must stay ad-free** except the idle banner above. Do not put ads in `KioskRenderer` (`mode="live"`) internals, confirmation/processing screens, `KioskBuilderPreview`, Kiosk Settings, Members, History, Staff, or Account.
 
 Authenticated workspace payloads include an `advertising` object (`enabled`, `provider`, `placements`) beside `entitlements`. Fetch this **before** kiosk lock; do not add an ads request that must run while locked.
 

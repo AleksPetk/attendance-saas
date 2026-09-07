@@ -740,8 +740,8 @@ Only log decisions supported by approved product planning. Do not invent decisio
 | Field | Value |
 |-------|-------|
 | **Date** | 2026-08-25 |
-| **Updated** | 2026-08-25 |
-| **Decision** | **Basic** may show ads in these frozen **web** placements: **Dashboard banner**, **Groups banner**, **before kiosk launch** (interstitial), **after kiosk exit** (interstitial), and **when leaving Kiosk Builder** (interstitial). Ads are **not** allowed during **live participant kiosk operation**. **Plus** and **Business** have **no ads**. A platform-operator global kill switch can hide all advertising without changing workspace plans. Local/web development uses a mock provider; a real provider is deferred until deployment. Ad/provider failure must never block application functionality. |
+| **Updated** | 2026-09-07 (added kiosk idle banner) |
+| **Decision** | **Basic** may show ads in these frozen **web** placements: **Dashboard banner**, **Groups banner**, **before kiosk launch** (interstitial), **after kiosk exit** (interstitial), **when leaving Kiosk Builder** (interstitial), and a **kiosk idle banner** on the live kiosk idle/ready screen only (Standard start or Structured class picker). Ads are **not** allowed during **active participant kiosk interaction** (identify, PIN, action choice, processing, success/confirmation). **Plus** and **Business** have **no ads**. A platform-operator global kill switch can hide all advertising without changing workspace plans. Local/web development uses a mock provider; a real provider is deferred until deployment. Ad/provider failure must never block application functionality. |
 | **Reason** | Monetize Basic without interrupting participant check-in UX. |
 | **Status** | confirmed |
 | **Clarifies** | DEC-072 |

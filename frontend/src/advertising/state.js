@@ -4,6 +4,36 @@ export function advertisingFromSession(session) {
   return session?.workspace?.advertising || null;
 }
 
+/**
+ * Live kiosk idle/ready only (Standard start or Structured class picker).
+ * Hides during identify/confirm/processing/success and operator exit dialog.
+ */
+export function isKioskIdleReadyForAd({
+  step,
+  unavailable = false,
+  isStructured = false,
+  exitOpen = false,
+  identifying = false,
+  performing = false,
+  inputValues = null,
+} = {}) {
+  try {
+    if (unavailable || exitOpen || identifying || performing) return false;
+    if (step === "processing" || step === "success" || step === "confirm") return false;
+    if (step === "pin" || step === "class_pin") return false;
+    if (inputValues && typeof inputValues === "object") {
+      const draftActive = Object.values(inputValues).some(
+        (value) => String(value ?? "").trim() !== "",
+      );
+      if (draftActive) return false;
+    }
+    if (isStructured) return step === "classes";
+    return step === "start";
+  } catch {
+    return false;
+  }
+}
+
 /** Backend-authoritative: workspace requires ads AND platform switch is on. */
 export function advertisingIsEnabled(session) {
   return Boolean(advertisingFromSession(session)?.enabled);

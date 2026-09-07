@@ -60,3 +60,35 @@
   justify-self: start;
   margin-top: 0.35rem;
 }
+
+/* Quiet Basic-only mock banner on live kiosk idle/ready. Fail-open; never blocks input. */
+.kiosk-idle-ad {
+  position: fixed;
+  right: max(0.75rem, env(safe-area-inset-right, 0px));
+  bottom: max(0.75rem, env(safe-area-inset-bottom, 0px));
+  z-index: 30;
+  width: min(15.5rem, calc(100vw - 1.5rem));
+  max-width: 15.5rem;
+  pointer-events: none;
+}
+
+.kiosk-idle-ad .ad-banner {
+  padding: 0.55rem 0.75rem;
+  box-shadow: var(--shadow-sm, 0 1px 2px rgba(7, 20, 38, 0.08));
+}
+
+.kiosk-idle-ad .ad-kicker {
+  font-size: 0.62rem;
+}
+
+.kiosk-idle-ad .ad-headline {
+  font-size: 0.82rem;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+@media (max-width: 720px) {
+  .kiosk-idle-ad {
+    width: min(13.5rem, calc(100vw - 1.25rem));
+  }
+}

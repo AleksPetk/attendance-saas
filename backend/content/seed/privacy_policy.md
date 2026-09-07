@@ -194,7 +194,7 @@ We use information to:
 - authenticate owners and workspace staff and protect sessions
 - send platform transactional email (verification, password reset, email-change notices, and billing notices such as payment-failure warnings during grace)
 - process subscriptions, entitlements, plan limits, upgrades, downgrades, cancellations, and payment-provider events
-- display advertising placements on **Basic** workspaces when the plan requires ads **and** the platform advertising kill switch is on (not during live participant kiosk operation)
+- display advertising placements on **Basic** workspaces when the plan requires ads **and** the platform advertising kill switch is on (not during active participant kiosk interaction; idle/ready banner may show while waiting)
 - prevent fraud, abuse, and unauthorized access, including Contact-form rate limiting and bot protection
 - receive and respond to Contact messages and privacy/legal requests (capture and routing only; requests are not automatically executed)
 - comply with law and enforce the Terms of Use
@@ -220,7 +220,7 @@ Customer-configured SMTP providers (Google, Microsoft, Yahoo, or a customer's ow
 
 **Basic** workspaces may show ads. **Plus** and **Business** workspaces do not.
 
-Current frozen web placements are: dashboard banner, Groups banner, before kiosk launch, after kiosk exit, and when leaving Kiosk Builder. Ads are **not** shown during live participant kiosk operation, and are not shown on Members, History, Staff, or Account surfaces as currently specified.
+Current frozen web placements are: dashboard banner, Groups banner, before kiosk launch, after kiosk exit, when leaving Kiosk Builder, and a kiosk idle banner on the live kiosk idle/ready screen only. Ads are **not** shown during active participant check-in/out interaction (identify, PIN, action choice, processing, confirmation), and are not shown on Members, History, Staff, or Account surfaces as currently specified.
 
 A platform operator can disable all advertising globally without changing workspace plans. Local development uses a mock provider. Because no live ad network is connected, this Policy does not claim sharing of personal data with an advertising network.
 
