@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Alert as NativeAlert, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert as NativeAlert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { ApiError, endpoints, fieldErrorsFromBody } from "@checkstation/api";
 import { canLaunchKiosk, canManageGroupConfiguration, hasPlanFeature } from "@checkstation/domain";
@@ -33,8 +33,8 @@ export default function GroupDetailScreen() {
   const [activeSection, setActiveSection] = useState<ActiveSection>("overview");
   const canConfigure = canManageGroupConfiguration(authState.session);
   const canKiosk = canLaunchKiosk(authState.session);
-  const isOwnerOrAdmin = authState.session?.role === "owner" || authState.session?.role === "admin";
   const structuredAccess = hasPlanFeature(authState.session, "structured_groups");
+  const forwardEmailsAccess = hasPlanFeature(authState.session, "group_forward_emails");
 
   const load = useCallback(async () => {
     setLoading(true); setError("");
@@ -67,21 +67,28 @@ export default function GroupDetailScreen() {
   return (
     <Screen style={styles.screen}>
       <ScrollView contentContainerStyle={styles.content}>
-        <PageHeader
-          title={group.name}
-          description={structured ? `${t("groups.structured")} · #${group.id}` : `${t("groups.standard")} · #${group.id}`}
-        />
+        <PageHeader title={group.name} />
         <Alert message={error} />
 
-        <View style={styles.pills}>
-          {locked ? <StatusPill label={t("groups.planLocked")} tone="warning" /> : archived ? <StatusPill label={t("groups.archivedLabel")} tone="neutral" /> : incomplete ? <StatusPill label={t("groups.setupIncomplete")} tone="warning" /> : <StatusPill label={t("groups.activeLabel")} tone="green" />}
+        <View style={styles.headerMeta}>
+          <StatusPill label={structured ? t("groups.structured") : t("groups.standard")} tone="blue" />
+          <StatusPill label={archived ? t("groups.archivedLabel") : t("groups.activeLabel")} tone={archived ? "neutral" : "green"} />
+          {locked ? <StatusPill label={t("groups.planLocked")} tone="warning" /> : incomplete ? <StatusPill label={t("groups.setupIncomplete")} tone="warning" /> : null}
         </View>
 
-        <View style={styles.tabs}>
+        <View accessibilityRole="tablist" style={styles.detailTabs}>
           {sections.map((s) => (
-            <View key={s.key} style={[styles.tab, activeSection === s.key && styles.tabActive]}>
-              <Text style={[styles.tabText, activeSection === s.key && styles.tabTextActive]} onPress={() => setActiveSection(s.key)}>{s.label}</Text>
-            </View>
+            <Pressable
+              accessibilityRole="tab"
+              accessibilityState={{ selected: activeSection === s.key }}
+              key={s.key}
+              onPress={() => setActiveSection(s.key)}
+              style={({ pressed }) => [styles.detailTab, activeSection === s.key && styles.detailTabActive, pressed && styles.tabPressed]}
+            >
+              <Text adjustsFontSizeToFit minimumFontScale={0.82} numberOfLines={1} style={[styles.detailTabText, activeSection === s.key && styles.detailTabTextActive]}>
+                {s.label}
+              </Text>
+            </Pressable>
           ))}
         </View>
 
@@ -94,7 +101,7 @@ export default function GroupDetailScreen() {
         )}
 
         {activeSection === "configuration" && canConfigure && !locked && (
-          <ConfigurationSection groupId={id} group={group} api={api} authState={authState} t={t} structuredAccess={structuredAccess} onSaved={() => void load()} />
+          <ConfigurationSection groupId={id} group={group} api={api} t={t} structuredAccess={structuredAccess} forwardEmailsAccess={forwardEmailsAccess} onSaved={() => void load()} />
         )}
 
         {activeSection === "kiosk" && !locked && !archived && (
@@ -197,7 +204,7 @@ function PeopleSection({ groupId, group, api, t, canConfigure }: { groupId: stri
     <>
       <SectionCard
         title={t("groups.participantLabel") || "People"}
-        description={`${participants.length} ${t("groups.participants", { count: participants.length })}`}
+        description={t("groups.participants", { count: participants.length })}
       >
         {participants.length === 0 ? (
           <Text style={styles.emptyText}>{t("groups.noParticipants") || "No participants yet."}</Text>
@@ -445,18 +452,25 @@ function EditParticipantSheet({ participant, groupId, group, api, t, onClose, on
   );
 }
 
-function ConfigurationSection({ groupId, group, api, authState, t, structuredAccess, onSaved }: { groupId: string; group: Group; api: any; authState: any; t: (key: string, vars?: Record<string, string | number>) => string; structuredAccess: boolean; onSaved: () => void }) {
+function ConfigurationSection({ groupId, group, api, t, structuredAccess, forwardEmailsAccess, onSaved }: { groupId: string; group: Group; api: any; t: (key: string, vars?: Record<string, string | number>) => string; structuredAccess: boolean; forwardEmailsAccess: boolean; onSaved: () => void }) {
   const [name, setName] = useState(group.name);
   const [actions, setActions] = useState(group.actions);
   const [participation, setParticipation] = useState(group.participation);
-  const [forwardEmails, setForwardEmails] = useState(group.forward_emails?.join(", ") || "");
+  const [requireClassPin, setRequireClassPin] = useState(group.require_class_pin);
+  const [forwardEmails, setForwardEmails] = useState<string[]>(group.forward_emails?.length ? [...group.forward_emails] : [""]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [archiving, setArchiving] = useState(false);
 
   async function save() {
-    setBusy(true); setError(""); setFieldErrors({});
+    setBusy(true); setError(""); setSuccess(""); setFieldErrors({});
+    if (!name.trim()) {
+      setFieldErrors({ name: t("groups.nameRequired") });
+      setBusy(false);
+      return;
+    }
     try {
       const payload: Record<string, unknown> = {};
       if (name.trim() !== group.name) payload.name = name.trim();
@@ -470,9 +484,10 @@ function ConfigurationSection({ groupId, group, api, authState, t, structuredAcc
         email_required: participation.email_required,
         pin_required: participation.pin_required,
       };
-      if (forwardEmails.trim()) payload.forward_emails = forwardEmails.split(",").map((e) => e.trim()).filter(Boolean);
-      else payload.forward_emails = [];
+      if (group.group_type === "structured" && structuredAccess) payload.require_class_pin = requireClassPin;
+      if (forwardEmailsAccess) payload.forward_emails = forwardEmails.map((email) => email.trim()).filter(Boolean);
       await api.patch(endpoints.group(groupId), payload);
+      setSuccess(t("groups.settingsSaved"));
       onSaved();
     } catch (caught) {
       if (caught instanceof ApiError) {
@@ -508,60 +523,125 @@ function ConfigurationSection({ groupId, group, api, authState, t, structuredAcc
 
   return (
     <>
-      <SectionCard title={t("groups.configuration") || "Configuration"}>
-        <Alert message={error} />
+      <Alert message={error} />
+      <Alert message={success} variant="success" />
+
+      <SectionCard title={t("groups.groupSection")} description={t("groups.groupSectionHint")}>
         <View style={styles.form}>
-          <Field error={fieldErrors.name} label={t("groups.name")} value={name} onChangeText={setName} />
-
-          <Text style={styles.formLabel}>{t("groups.actions") || "Actions"}</Text>
-          <View style={styles.toggleRow}>
-            <Text style={styles.toggleLabel}>{t("kiosk.checkIn") || "Check-in"}</Text>
-            <Text style={styles.toggleValue} onPress={() => setActions((a) => ({ ...a, check_in_enabled: !a.check_in_enabled }))}>
-              {actions.check_in_enabled ? (t("security.enabled") || "ON") : (t("security.notEnabled") || "OFF")}
-            </Text>
+          <Field error={fieldErrors.name} label={t("groups.name")} value={name} onChangeText={setName} returnKeyType="done" />
+          <View style={styles.readOnlyRow}>
+            <View style={styles.settingCopy}>
+              <Text style={styles.settingLabel}>{t("groups.groupType")}</Text>
+              <Text style={styles.settingHint}>{t("groups.groupTypeImmutable")}</Text>
+            </View>
+            <StatusPill label={group.group_type === "structured" ? t("groups.structured") : t("groups.standard")} tone="blue" />
           </View>
-          <View style={styles.toggleRow}>
-            <Text style={styles.toggleLabel}>{t("kiosk.checkOut") || "Check-out"}</Text>
-            <Text style={styles.toggleValue} onPress={() => setActions((a) => ({ ...a, check_out_enabled: !a.check_out_enabled }))}>
-              {actions.check_out_enabled ? (t("security.enabled") || "ON") : (t("security.notEnabled") || "OFF")}
-            </Text>
-          </View>
-          <View style={styles.toggleRow}>
-            <Text style={styles.toggleLabel}>{t("kiosk.breaks") || "Breaks"}</Text>
-            <Text style={styles.toggleValue} onPress={() => setActions((a) => ({ ...a, breaks_enabled: !a.breaks_enabled, max_breaks: a.breaks_enabled ? null : 1 }))}>
-              {actions.breaks_enabled ? (t("security.enabled") || "ON") : (t("security.notEnabled") || "OFF")}
-            </Text>
-          </View>
-          {actions.breaks_enabled ? (
-            <Field label={t("kiosk.maxBreaks") || "Max breaks"} value={String(actions.max_breaks || 1)} onChangeText={(v) => setActions((a) => ({ ...a, max_breaks: Math.min(3, Math.max(1, Number(v) || 1)) }))} keyboardType="number-pad" />
-          ) : null}
-
-          <Text style={styles.formLabel}>{t("groups.participation") || "Participation"}</Text>
-          <View style={styles.toggleRow}>
-            <Text style={styles.toggleLabel}>{t("groups.requireEmail") || "Require email"}</Text>
-            <Text style={styles.toggleValue} onPress={() => setParticipation((p) => ({ ...p, email_required: !p.email_required }))}>
-              {participation.email_required ? (t("security.enabled") || "ON") : (t("security.notEnabled") || "OFF")}
-            </Text>
-          </View>
-          <View style={styles.toggleRow}>
-            <Text style={styles.toggleLabel}>{t("groups.requirePin") || "Require PIN"}</Text>
-            <Text style={styles.toggleValue} onPress={() => setParticipation((p) => ({ ...p, pin_required: !p.pin_required }))}>
-              {participation.pin_required ? (t("security.enabled") || "ON") : (t("security.notEnabled") || "OFF")}
-            </Text>
-          </View>
-
-          <Field label={t("groups.forwardEmails") || "Forward emails"} value={forwardEmails} onChangeText={setForwardEmails} hint={t("groups.forwardEmailsHint") || "Comma-separated email addresses"} autoCapitalize="none" keyboardType="email-address" />
-
-          <Button label={busy ? (t("groups.saving") || "Saving...") : (t("groups.save") || "Save")} loading={busy} disabled={busy} onPress={() => void save()} />
         </View>
       </SectionCard>
 
-      {group.status === "active" ? (
-        <Button label={archiving ? (t("groups.archiving") || "Archiving...") : (t("groups.archive") || "Archive group")} variant="danger" onPress={archive} disabled={archiving} />
-      ) : (
-        <Button label={t("groups.restore") || "Restore group"} onPress={() => void restore()} disabled={busy} />
-      )}
+      <SectionCard title={t("groups.actions")} description={t("groups.actionsHint")}>
+        <View style={styles.settingsList}>
+          <SettingSwitch label={t("kiosk.checkIn")} value={actions.check_in_enabled} onValueChange={(value) => setActions((current) => ({ ...current, check_in_enabled: value }))} />
+          <SettingSwitch label={t("kiosk.checkOut")} value={actions.check_out_enabled} onValueChange={(value) => setActions((current) => ({ ...current, check_out_enabled: value }))} />
+          <SettingSwitch label={t("kiosk.breaks")} value={actions.breaks_enabled} onValueChange={(value) => setActions((current) => ({ ...current, breaks_enabled: value, max_breaks: value ? current.max_breaks || 1 : null }))} />
+          {actions.breaks_enabled ? (
+            <View style={styles.choiceSetting}>
+              <Text style={styles.settingLabel}>{t("kiosk.maxBreaks")}</Text>
+              <View accessibilityRole="radiogroup" style={styles.choiceRow}>
+                {[1, 2, 3].map((count) => (
+                  <Pressable accessibilityRole="radio" accessibilityState={{ checked: actions.max_breaks === count }} key={count} onPress={() => setActions((current) => ({ ...current, max_breaks: count }))} style={[styles.choice, actions.max_breaks === count && styles.choiceActive]}>
+                    <Text style={[styles.choiceText, actions.max_breaks === count && styles.choiceTextActive]}>{count}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+          ) : null}
+        </View>
+      </SectionCard>
+
+      <SectionCard title={t("groups.participation")} description={t("groups.participationHint")}>
+        <View style={styles.settingsList}>
+          <SettingSwitch label={t("groups.requireEmail")} value={participation.email_required} onValueChange={(value) => setParticipation((current) => ({ ...current, email_required: value }))} />
+          <SettingSwitch label={t("groups.requirePin")} value={participation.pin_required} onValueChange={(value) => setParticipation((current) => ({ ...current, pin_required: value }))} />
+          {group.group_type === "structured" && structuredAccess ? (
+            <SettingSwitch label={t("groups.requireClassPin")} value={requireClassPin} onValueChange={setRequireClassPin} />
+          ) : null}
+        </View>
+      </SectionCard>
+
+      <SectionCard title={t("groups.notifications")} description={forwardEmailsAccess ? t("groups.forwardEmailsHint") : t("groups.notificationsHint")}>
+        {forwardEmailsAccess ? (
+          <View style={styles.forwardEmailList}>
+            {forwardEmails.map((email, index) => (
+              <View key={`forward-email-${index}`} style={styles.forwardEmailRow}>
+                <Field
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  containerStyle={styles.forwardEmailField}
+                  error={index === 0 ? fieldErrors.forward_emails : undefined}
+                  keyboardType="email-address"
+                  label={forwardEmails.length > 1 ? t("groups.forwardEmailNumbered", { number: index + 1 }) : t("groups.forwardEmail")}
+                  onChangeText={(value) => setForwardEmails((current) => current.map((item, itemIndex) => itemIndex === index ? value : item))}
+                  placeholder={t("groups.forwardEmailsPlaceholder")}
+                  value={email}
+                />
+                {forwardEmails.length > 1 ? (
+                  <Pressable accessibilityLabel={`${t("groups.remove")} ${index + 1}`} accessibilityRole="button" hitSlop={8} onPress={() => setForwardEmails((current) => current.filter((_, itemIndex) => itemIndex !== index))} style={({ pressed }) => [styles.removeEmail, pressed && styles.tabPressed]}>
+                    <Text style={styles.removeEmailText}>{t("groups.remove")}</Text>
+                  </Pressable>
+                ) : null}
+              </View>
+            ))}
+            {forwardEmails.length < 3 ? (
+              <Pressable accessibilityRole="button" onPress={() => setForwardEmails((current) => [...current, ""])} style={({ pressed }) => [styles.addEmailButton, pressed && styles.tabPressed]}>
+                <Text style={styles.addEmailButtonText}>{t("groups.addAnotherForwardEmail")}</Text>
+              </Pressable>
+            ) : null}
+          </View>
+        ) : (
+          <View style={styles.lockedSetting}>
+            <Text style={styles.settingLabel}>{t("groups.forwardEmails")}</Text>
+            <Text style={styles.settingHint}>{t("groups.forwardEmailsLockedHint")}</Text>
+          </View>
+        )}
+      </SectionCard>
+
+      <Button label={busy ? t("groups.savingChanges") : t("groups.saveChanges")} loading={busy} disabled={busy || archiving} onPress={() => void save()} />
+
+      <View style={styles.dangerZone}>
+        <Text style={styles.dangerTitle}>{t("groups.dangerZone")}</Text>
+        <Text style={styles.dangerHint}>{group.status === "active" ? t("groups.archiveHint") : t("groups.restoreHint")}</Text>
+        <Pressable
+          accessibilityRole="button"
+          disabled={archiving || busy}
+          onPress={group.status === "active" ? archive : () => void restore()}
+          style={({ pressed }) => [styles.dangerAction, pressed && styles.dangerActionPressed, (archiving || busy) && styles.disabledAction]}
+        >
+          <Text style={styles.dangerActionText}>
+            {group.status === "active" ? (archiving ? t("groups.archiving") : t("groups.archive")) : t("groups.restore")}
+          </Text>
+        </Pressable>
+      </View>
     </>
+  );
+}
+
+function SettingSwitch({ label, hint, value, onValueChange }: { label: string; hint?: string; value: boolean; onValueChange: (value: boolean) => void }) {
+  return (
+    <View style={styles.settingRow}>
+      <View style={styles.settingCopy}>
+        <Text style={styles.settingLabel}>{label}</Text>
+        {hint ? <Text style={styles.settingHint}>{hint}</Text> : null}
+      </View>
+      <Switch
+        accessibilityLabel={label}
+        ios_backgroundColor={colors.borderStrong}
+        onValueChange={onValueChange}
+        trackColor={{ false: colors.borderStrong, true: colors.blue }}
+        thumbColor={colors.surface}
+        value={value}
+      />
+    </View>
   );
 }
 
@@ -592,7 +672,13 @@ function Info({ label, value }: { label: string; value: string }) {
 const styles = StyleSheet.create({
   screen: { padding: 0 },
   content: { padding: space.lg, paddingBottom: space.xxxl, gap: space.lg },
-  pills: { flexDirection: "row", gap: space.sm },
+  headerMeta: { flexDirection: "row", flexWrap: "wrap", gap: space.sm, marginTop: -space.sm },
+  detailTabs: { flexDirection: "row", padding: 3, borderRadius: 10, backgroundColor: colors.surfaceSubtle },
+  detailTab: { flex: 1, minWidth: 0, minHeight: 40, alignItems: "center", justifyContent: "center", borderRadius: 8, paddingHorizontal: 3 },
+  detailTabActive: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
+  detailTabText: { fontSize: 12, fontWeight: "600", lineHeight: 16, color: colors.textMuted, textAlign: "center" },
+  detailTabTextActive: { color: colors.bluePressed },
+  tabPressed: { opacity: 0.7 },
   tabs: { flexDirection: "row", padding: 3, borderRadius: 8, backgroundColor: colors.surfaceSubtle },
   tab: { flex: 1, minHeight: 38, alignItems: "center", justifyContent: "center", borderRadius: 6 },
   tabActive: { backgroundColor: colors.surface },
@@ -614,9 +700,33 @@ const styles = StyleSheet.create({
   sheetClose: { ...type.captionStrong, color: colors.blue },
   form: { gap: space.md },
   formLabel: { ...type.label, color: colors.textSecondary, marginTop: space.sm },
-  toggleRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", minHeight: 44, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
-  toggleLabel: { ...type.body, color: colors.text },
-  toggleValue: { ...type.bodyStrong, color: colors.blue },
+  settingsList: { marginHorizontal: -space.lg, marginVertical: -space.sm },
+  settingRow: { minHeight: 58, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: space.md, paddingHorizontal: space.lg, paddingVertical: space.sm, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
+  settingCopy: { flex: 1, gap: 2 },
+  settingLabel: { ...type.body, color: colors.text },
+  settingHint: { ...type.caption, color: colors.textMuted },
+  readOnlyRow: { minHeight: 58, flexDirection: "row", alignItems: "center", gap: space.md, paddingTop: space.xs },
+  choiceSetting: { paddingHorizontal: space.lg, paddingVertical: space.md, gap: space.sm },
+  choiceRow: { flexDirection: "row", gap: space.sm },
+  choice: { width: 48, minHeight: 40, alignItems: "center", justifyContent: "center", borderRadius: 8, borderWidth: 1, borderColor: colors.borderStrong, backgroundColor: colors.surface },
+  choiceActive: { borderColor: colors.blue, backgroundColor: colors.blueSoft },
+  choiceText: { ...type.bodyStrong, color: colors.textSecondary },
+  choiceTextActive: { color: colors.bluePressed },
+  forwardEmailList: { gap: space.md },
+  forwardEmailRow: { flexDirection: "row", alignItems: "flex-end", gap: space.sm },
+  forwardEmailField: { flex: 1 },
+  removeEmail: { minHeight: 44, justifyContent: "center", paddingHorizontal: space.xs, marginBottom: 1 },
+  removeEmailText: { ...type.captionStrong, color: colors.dangerText },
+  addEmailButton: { alignSelf: "flex-start", minHeight: 40, justifyContent: "center", paddingHorizontal: space.xs },
+  addEmailButtonText: { ...type.captionStrong, color: colors.blue },
+  lockedSetting: { gap: space.xs, paddingVertical: space.sm },
+  dangerZone: { borderRadius: 14, borderWidth: 1, borderColor: colors.dangerBorder, backgroundColor: colors.surface, padding: space.lg, gap: space.sm },
+  dangerTitle: { ...type.bodyStrong, color: colors.dangerText },
+  dangerHint: { ...type.caption, color: colors.textMuted },
+  dangerAction: { alignSelf: "flex-start", minHeight: 40, justifyContent: "center", borderRadius: 8, borderWidth: 1, borderColor: colors.dangerBorder, paddingHorizontal: space.lg, backgroundColor: colors.dangerSoft },
+  dangerActionPressed: { backgroundColor: colors.dangerBorder },
+  dangerActionText: { ...type.captionStrong, color: colors.dangerText },
+  disabledAction: { opacity: 0.5 },
   clearRow: { flexDirection: "row", alignItems: "center" },
   clearToggle: { ...type.captionStrong, color: colors.danger },
   memberList: { maxHeight: 200 },
