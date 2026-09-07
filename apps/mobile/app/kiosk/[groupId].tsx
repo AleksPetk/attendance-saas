@@ -6,6 +6,7 @@ import { getValidActionsForState, type ActionType } from "@checkstation/domain";
 import { LoadingState } from "../../src/components/ui";
 import { Avatar } from "../../src/components/Avatar";
 import { useApp } from "../../src/lib/AppProvider";
+import { normalizeKioskVisualDesign, type KioskVisualDesign } from "../../src/lib/kioskVisualDesign";
 import { colors, space, type } from "../../src/theme/tokens";
 
 type KioskConfig = {
@@ -32,36 +33,6 @@ type KioskConfig = {
   structured: boolean;
   require_class_pin: boolean;
   participant_code_label: string;
-};
-
-type KioskVisualDesign = {
-  header: {
-    enabled: boolean;
-    height: number;
-    background: { mode: string; color: string; color2: string | null; gradient_angle: number };
-    logo: string | null;
-    alignment: string;
-    title: { text: string; font: string; size_rem: number; color: string; effects: { shadow: boolean; outline: boolean } };
-  };
-  main: {
-    background: { mode: string; color: string; color2: string | null; gradient_angle: number };
-    image_transform: { focal_x: number; focal_y: number; zoom: number };
-    overlay: number;
-    layout_preset: string;
-    input_template: string;
-    card_template: string;
-    title: { text: string; font: string; size_rem: number; color: string; alignment: string; effects: Record<string, unknown> };
-    button_preset: string;
-    input_preset: string;
-    card_preset: string;
-  };
-  footer: {
-    enabled: boolean;
-    height: number;
-    background: { mode: string; color: string; color2: string | null; gradient_angle: number };
-    logo: string | null;
-    text: { lines: string[]; alignment: string; font: string; size_rem: number; color: string; effects: Record<string, unknown> };
-  };
 };
 
 type KioskPerson = {
@@ -159,8 +130,7 @@ export default function KioskScreen() {
         const data = await api.get<Record<string, unknown>>(endpoints.kiosk(groupId));
         if (!cancelled) {
           setKiosk(data);
-          const vd = (data as any).visual_design as KioskVisualDesign | undefined;
-          setVisualDesign(vd || null);
+          setVisualDesign(normalizeKioskVisualDesign((data as any).visual_design));
           const kc: KioskConfig = {
             kiosk_mode: (data as any).kiosk_mode || "card",
             theme: (data as any).theme || "classic",
@@ -198,20 +168,20 @@ export default function KioskScreen() {
 
   const actions = participant ? getValidActionsForState(groupFlags, attendanceState) : [];
 
-  const bgColor = visualDesign?.main.background.color || "#FFFFFF";
-  const headerBgColor = visualDesign?.header.background.color || "#2563EB";
-  const footerBgColor = visualDesign?.footer.background.color || "#1E293B";
-  const headerTextColor = visualDesign?.header.title.color || "#FFFFFF";
-  const mainTextColor = visualDesign?.main.title.color || "#111827";
-  const buttonBg = visualDesign?.main.button_preset === "flat" ? "transparent" : visualDesign?.main.button_preset === "pill" ? colors.blue : colors.blue;
-  const cardBorder = visualDesign?.main.card_preset === "bordered" ? colors.border : "transparent";
-  const cardShadow = visualDesign?.main.card_preset === "elevated" ? 0.08 : 0;
-  const cardBg = visualDesign?.main.card_preset === "flat" ? "transparent" : colors.surface;
-  const headerEnabled = visualDesign?.header.enabled ?? true;
-  const footerEnabled = visualDesign?.footer.enabled ?? true;
-  const headerTitle = visualDesign?.header.title.text || "";
-  const mainTitle = visualDesign?.main.title.text || "";
-  const footerLines = visualDesign?.footer.text.lines || [];
+  const bgColor = visualDesign?.main?.background?.color ?? "#FFFFFF";
+  const headerBgColor = visualDesign?.header?.background?.color ?? "#2563EB";
+  const footerBgColor = visualDesign?.footer?.background?.color ?? "#1E293B";
+  const headerTextColor = visualDesign?.header?.title?.color ?? "#FFFFFF";
+  const mainTextColor = visualDesign?.main?.title?.color ?? "#111827";
+  const buttonBg = visualDesign?.main?.button_preset === "flat" ? "transparent" : visualDesign?.main?.button_preset === "pill" ? colors.blue : colors.blue;
+  const cardBorder = visualDesign?.main?.card_preset === "bordered" ? colors.border : "transparent";
+  const cardShadow = visualDesign?.main?.card_preset === "elevated" ? 0.08 : 0;
+  const cardBg = visualDesign?.main?.card_preset === "flat" ? "transparent" : colors.surface;
+  const headerEnabled = visualDesign?.header?.enabled ?? true;
+  const footerEnabled = visualDesign?.footer?.enabled ?? true;
+  const headerTitle = visualDesign?.header?.title?.text ?? "";
+  const mainTitle = visualDesign?.main?.title?.text ?? "";
+  const footerLines = visualDesign?.footer?.text?.lines ?? [];
   const showMainTitle = kioskConfig?.welcome_text || mainTitle;
 
   const fadeIn = () => {
@@ -558,7 +528,7 @@ export default function KioskScreen() {
         {footerEnabled && footerLines.length > 0 ? (
           <View style={[styles.footer, { backgroundColor: footerBgColor }]}>
             {footerLines.map((line, i) => (
-              <Text key={i} style={[styles.footerText, { color: visualDesign?.footer.text.color || "#94A3B8" }]}>
+              <Text key={i} style={[styles.footerText, { color: visualDesign?.footer?.text?.color ?? "#94A3B8" }]}>
                 {line}
               </Text>
             ))}
