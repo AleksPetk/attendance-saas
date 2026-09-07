@@ -42,7 +42,7 @@
       "typedRoutes": true
     },
     "extra": {
-      "apiBaseUrl": "http://localhost:8000/api",
+      "apiBaseUrl": "https://workspace.checkstation.app/api",
       "eas": {
         "projectId": "checkstation-mobile-placeholder"
       }

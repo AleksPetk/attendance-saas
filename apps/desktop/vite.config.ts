@@ -5,7 +5,8 @@ import path from "node:path";
 export default defineConfig({
   plugins: [react()],
   root: ".",
-  server: { port: 5174, strictPort: true },
+  base: "./",
+  server: { host: "127.0.0.1", port: 5174, strictPort: true },
   resolve: {
     alias: {
       "@checkstation/api": path.resolve(__dirname, "../../packages/api/src/index.ts"),
