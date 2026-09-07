@@ -9,7 +9,7 @@
     "navPricing": "Pricing",
     "navLogin": "Login",
     "navGetStarted": "Get started",
-    "footerTagline": "Configurable check-in platform",
+    "footerTagline": "Configurable attendance check-in platform",
     "footerCopyright": "© {{year}} CheckStation",
     "footerRights": "All rights reserved.",
     "footerNavAria": "Footer",
@@ -47,9 +47,9 @@
   },
   "imagePlaceholder": "Image placeholder",
   "home": {
-    "heroKicker": "Flexible check-in for real-world teams",
-    "heroTitle": "Make attendance feel effortless.",
-    "heroLead": "Bring people, Groups, custom kiosks, and activity history together in one workspace that adapts to the way you already work.",
+    "heroKicker": "Flexible attendance check-in for real-world teams",
+    "heroTitle": "Attendance tracking that feels effortless.",
+    "heroLead": "An online attendance tracker that brings people, Groups, self check-in kiosks, and activity history together in one workspace — adapted to the way you already work.",
     "ctaRegister": "Register now",
     "ctaHowItWorks": "See how it works",
     "trialBadge": "{{days}} days",
@@ -65,7 +65,7 @@
     "carouselNextAria": "Next workspace image",
     "whyKicker": "Why CheckStation",
     "whyTitle": "Simple for people. Powerful for your team.",
-    "whyLead": "Set up the details once, then give everyone a clear and dependable way to keep attendance moving.",
+    "whyLead": "Set up the details once, then give everyone a clear and dependable way to keep attendance tracking moving.",
     "values": [
       {
         "title": "Start quickly",
@@ -98,8 +98,8 @@
     "groupEmailSenderLabel": "Group email sender settings",
     "groupEmailNotificationsLabel": "Notification and forwarding rules",
     "featuresKicker": "A complete flow",
-    "featuresTitle": "Everything your check-in needs, working together.",
-    "featuresLead": "From the people you organize to the actions you review later, CheckStation keeps the whole experience connected.",
+    "featuresTitle": "Everything your attendance check-in needs, working together.",
+    "featuresLead": "From the people you organize to the actions you review later, CheckStation keeps the whole attendance experience connected.",
     "featureItems": [
       {
         "title": "Members & Groups",
@@ -191,15 +191,15 @@
     "previewKicker": "See your workspace come together",
     "previewTitle": "One place for people, kiosks, and the full attendance story.",
     "previewLead": "Move from a clear daily overview to member management and attendance history — all inside the same connected workspace.",
-    "finalKicker": "Ready to make check-in easier?",
+    "finalKicker": "Ready to make attendance check-in easier?",
     "finalTitle": "Build your first CheckStation flow today.",
-    "finalLead": "Start free, try Business for {{days}} days, and create a check-in experience that fits your world.",
+    "finalLead": "Start free, try Business for {{days}} days, and create an attendance check-in experience that fits your world.",
     "createWorkspace": "Create your workspace"
   },
   "features": {
     "heroKicker": "A clearer way to manage attendance",
-    "heroTitle": "Check-in that works the way your organization works.",
-    "heroLead": "CheckStation brings people, Groups, kiosk flows, and activity history together in one calm, configurable workspace — so your team can spend less time managing attendance and more time doing the work.",
+    "heroTitle": "Attendance tracking and kiosk check-in that fit your Groups.",
+    "heroLead": "CheckStation is flexible attendance tracking software: Members, Groups, self check-in kiosks, notifications, and activity history in one calm workspace — so your team spends less time managing attendance and more time doing the work.",
     "ctaPricing": "Check out pricing",
     "ctaHowItWorks": "See how it works",
     "proofAria": "Key benefits",
@@ -338,8 +338,8 @@
   },
   "howItWorks": {
     "journeyKicker": "Your journey",
-    "journeyTitle": "From setup to daily attendance — it just clicks.",
-    "journeyLead": "Choose a step to see how CheckStation helps your setup take shape.",
+    "journeyTitle": "From setup to daily attendance tracking — it just clicks.",
+    "journeyLead": "Choose a step to see how CheckStation helps your attendance management system take shape.",
     "steps": [
       {
         "number": "01",
@@ -470,8 +470,8 @@
   },
   "pricing": {
     "kicker": "Simple, flexible pricing",
-    "title": "Choose the plan that fits today.",
-    "lead": "Start free, then upgrade when you need more room to grow.",
+    "title": "Start free. Grow when you need to.",
+    "lead": "Begin with a free attendance app on Basic, then upgrade when you need more room to grow.",
     "billingLabel": "Billing",
     "intervalAria": "Billing interval",
     "monthly": "Monthly",
@@ -667,16 +667,16 @@
     }
   },
   "meta": {
-    "homeTitle": "CheckStation — Flexible check-in, made simple",
-    "homeDescription": "Create flexible kiosk check-in experiences for schools, workplaces, clubs, and more. Start free with a {{days}}-day Business trial and no card required.",
-    "featuresTitle": "Features — CheckStation",
-    "featuresDescription": "Configure check-in your way, run participant-friendly kiosks, and keep a dependable record of every action.",
-    "howItWorksTitle": "How it works — CheckStation",
-    "howItWorksDescription": "Set up flexible check-in flows, run them across your devices, and keep every action connected in one CheckStation workspace.",
-    "howItWorksOgDescription": "A flexible check-in flow for every Group, all from one workspace.",
-    "pricingTitle": "Pricing — CheckStation",
-    "pricingDescription": "Simple plans for every workspace. Start free and upgrade anytime.",
-    "contactTitle": "Contact — CheckStation",
-    "contactDescription": "Contact CheckStation. Choose a topic to see related help, then send a message if you still need us."
+    "homeTitle": "CheckStation — Attendance Tracker & Check-In System",
+    "homeDescription": "Online attendance tracker with self check-in kiosks for schools, workplaces, clubs, and events. Start free on Basic, plus a {{days}}-day Business trial — no card required.",
+    "featuresTitle": "Attendance Tracking & Kiosk Check-In Features | CheckStation",
+    "featuresDescription": "Flexible attendance tracking software with Group-owned self check-in kiosks, Members, notifications, and activity history — configured around how your organization actually works.",
+    "howItWorksTitle": "How CheckStation Attendance Tracking Works",
+    "howItWorksDescription": "Set up your attendance management system in clear steps: create a workspace, add people and Groups, shape each kiosk check-in flow, then launch and review.",
+    "howItWorksOgDescription": "A clear path from workspace setup to daily attendance tracking — with a kiosk check-in flow for every Group.",
+    "pricingTitle": "Free Attendance App & Pricing | CheckStation",
+    "pricingDescription": "Start with a free attendance system on Basic — no card required. Upgrade to Plus or Business when you need more capacity, or try Business free first.",
+    "contactTitle": "Contact CheckStation",
+    "contactDescription": "Contact CheckStation support. Choose a topic for related help, then send a message if you still need us."
   }
 }

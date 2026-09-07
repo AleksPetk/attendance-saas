@@ -1344,7 +1344,7 @@ test("public pricing source uses Basic Plus Business and removes Starter Pro", (
   assert.match(src, /\$149\.99/);
   assert.match(promoEn, /"monthly": "Monthly"/);
   assert.match(promoEn, /"yearly": "Yearly"/);
-  assert.match(promoEn, /Simple plans for every workspace/);
+  assert.match(promoEn, /Start with a free attendance system on Basic/);
   assert.match(promoEn, /Get Started Free/);
   assert.match(promoEn, /Choose Plus/);
   assert.match(promoEn, /Go Business/);

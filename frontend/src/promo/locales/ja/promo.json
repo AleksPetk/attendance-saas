@@ -9,7 +9,7 @@
     "navPricing": "料金",
     "navLogin": "ログイン",
     "navGetStarted": "はじめる",
-    "footerTagline": "Configurable check-in platform",
+    "footerTagline": "柔軟な出席管理・チェックイン",
     "footerCopyright": "© {{year}} CheckStation",
     "footerRights": "All rights reserved.",
     "footerNavAria": "フッター",
@@ -47,9 +47,9 @@
   },
   "imagePlaceholder": "日本語スクリーンショット用プレースホルダー",
   "home": {
-    "heroKicker": "現場のチームのための、柔軟なチェックイン",
+    "heroKicker": "現場に合う出席管理とチェックイン",
     "heroTitle": "出席管理を、もっとかんたんに。",
-    "heroLead": "人・グループ・カスタムキオスク・活動履歴をひとつのワークスペースに。いまの運用に合わせて使えます。",
+    "heroLead": "学校・塾・職場・クラブ向けの出席管理アプリ。人・グループ・キオスクでの出席確認・活動履歴をひとつのワークスペースにまとめ、いまの運用に合わせて使えます。",
     "ctaRegister": "今すぐ登録",
     "ctaHowItWorks": "使い方を見る",
     "trialBadge": "{{days}}日間",
@@ -98,8 +98,8 @@
     "groupEmailSenderLabel": "グループのメール送信元設定",
     "groupEmailNotificationsLabel": "通知と転送のルール",
     "featuresKicker": "一連の流れがそろっている",
-    "featuresTitle": "チェックインに必要な機能を、ひとつに。",
-    "featuresLead": "人の整理から後から見返すアクションまで。CheckStation は体験全体をつなぎます。",
+    "featuresTitle": "出席管理に必要な機能を、ひとつに。",
+    "featuresLead": "人の整理から後から見返すアクションまで。CheckStationは出席管理の体験全体をつなぎます。",
     "featureItems": [
       {
         "title": "メンバーとグループ",
@@ -193,13 +193,13 @@
     "previewLead": "日々の状況確認から、メンバー管理、出席履歴の確認まで。必要な情報と操作を、ひとつのワークスペースにまとめて管理できます。",
     "finalKicker": "まずは、ここから。",
     "finalTitle": "CheckStationを、今日からはじめよう。",
-    "finalLead": "まずは無料でスタート。Businessプランを{{days}}日間試して、現場に合ったチェックイン環境を作れます。",
+    "finalLead": "まずは無料でスタート。Businessプランを{{days}}日間試して、現場に合った出席管理・チェックイン環境を作れます。",
     "createWorkspace": "ワークスペースを作成"
   },
   "features": {
     "heroKicker": "出席管理を、もっとわかりやすく",
-    "heroTitle": "現場の運用に合うチェックイン。",
-    "heroLead": "CheckStationは、人・グループ・キオスク・活動履歴をひとつのワークスペースにまとめます。出席管理の手間を減らし、チームが本来の仕事に集中できる環境をつくれます。",
+    "heroTitle": "現場に合う出席管理とチェックイン。",
+    "heroLead": "CheckStationは、メンバー・グループ・キオスクでの出席確認・通知・活動履歴をひとつのワークスペースにまとめます。出席管理の手間を減らし、チームが本来の仕事に集中できる環境をつくれます。",
     "ctaPricing": "料金を確認",
     "ctaHowItWorks": "使い方を見る",
     "proofAria": "主なメリット",
@@ -338,8 +338,8 @@
   },
   "howItWorks": {
     "journeyKicker": "セットアップから日々の運用まで",
-    "journeyTitle": "セットアップから毎日の出席管理まで、ひとつの流れで。",
-    "journeyLead": "ステップを選んで、設定から日々の運用までの流れを確認できます。",
+    "journeyTitle": "セットアップから毎日の出席確認まで、ひとつの流れで。",
+    "journeyLead": "ステップを選ぶと、出席管理システムを整える流れが見えてきます。",
     "steps": [
       {
         "number": "01",
@@ -470,8 +470,8 @@
   },
   "pricing": {
     "kicker": "シンプルで柔軟な料金",
-    "title": "今の規模に合ったプランを選べます。",
-    "lead": "無料ではじめ、成長に合わせていつでもアップグレード。",
+    "title": "無料の出席管理から、必要な分だけ。",
+    "lead": "Basicは無料の出席管理システム。成長に合わせていつでもアップグレード。",
     "billingLabel": "請求",
     "intervalAria": "請求間隔",
     "monthly": "月払い",
@@ -667,16 +667,16 @@
     }
   },
   "meta": {
-    "homeTitle": "CheckStation — 柔軟なチェックインを、シンプルに",
-    "homeDescription": "学校・職場・クラブなどに合う、柔軟なキオスクチェックイン体験を。カード不要の{{days}}日間 Business トライアルで無料スタート。",
-    "featuresTitle": "機能 — CheckStation",
-    "featuresDescription": "自分たちのやり方でチェックインを設定し、参加者にやさしいキオスクを運用。すべてのアクションを信頼できる記録に。",
-    "howItWorksTitle": "使い方 — CheckStation",
-    "howItWorksDescription": "柔軟なチェックインフローを設定し、各種デバイスで運用。すべてのアクションをひとつの CheckStation ワークスペースにつなげます。",
-    "howItWorksOgDescription": "グループごとの柔軟なチェックインフローを、ひとつのワークスペースから。",
-    "pricingTitle": "料金 — CheckStation",
-    "pricingDescription": "どのワークスペースにも合うシンプルなプラン。無料ではじめ、いつでもアップグレード。",
-    "contactTitle": "お問い合わせ — CheckStation",
-    "contactDescription": "CheckStation へのお問い合わせ。トピックを選んで関連ヘルプを確認し、必要ならメッセージを送れます。"
+    "homeTitle": "CheckStation — 出席管理システム・チェックインアプリ",
+    "homeDescription": "学校・塾・職場・クラブ向けの出席管理アプリ。キオスクで出席確認ができ、Basicは無料。カード不要の{{days}}日間Businessトライアルもあります。",
+    "featuresTitle": "出席管理・チェックイン機能 | CheckStation",
+    "featuresDescription": "グループごとのキオスク、メンバー管理、通知、履歴まで。現場に合う出席確認・出欠管理を、ひとつのワークスペースで。",
+    "howItWorksTitle": "CheckStationの使い方｜出席管理の始め方",
+    "howItWorksDescription": "ワークスペース作成からメンバー追加、グループ設定、キオスク起動まで。出席管理システムを導入する流れをステップで解説します。",
+    "howItWorksOgDescription": "ワークスペース設定から毎日の出席確認まで。グループごとのキオスクチェックインをひとつの流れで。",
+    "pricingTitle": "無料の出席管理アプリ・料金プラン | CheckStation",
+    "pricingDescription": "Basicは無料の出席管理システム。必要に応じてPlus・Businessへ。Businessはカード不要でトライアルできます。",
+    "contactTitle": "お問い合わせ | CheckStation",
+    "contactDescription": "CheckStationへのお問い合わせ。トピックを選んで関連ヘルプを確認し、必要ならメッセージを送れます。"
   }
 }
