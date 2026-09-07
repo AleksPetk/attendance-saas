@@ -6,7 +6,7 @@ Hand-off document for continuing native app work (Codex / humans).
 
 | Layer | Choice | Why |
 |---|---|---|
-| Mobile | **Expo (React Native) + Expo Router** | Matches `PROJECT.md` (React Native / Expo). One codebase for iPhone, iPad, Android phone/tablet. |
+| Mobile | **Expo SDK 57** (React Native **0.86.3**, React **19.2.3**) + Expo Router | Matches `PROJECT.md`. One codebase for iPhone, iPad, Android phone/tablet. |
 | Desktop | **Electron + Vite + React** | Purpose-built desktop UI (not a WebView of the Workspace SPA). Shares TypeScript packages with mobile. macOS + Windows from one app. |
 | Shared | `packages/*` TypeScript | API client, auth controller, domain helpers, i18n, config — no duplicated Django logic. |
 
@@ -49,26 +49,39 @@ APPS.md            This file
 - Bottom tabs: Home, Groups, People, History, More
 - Stacks for detail / account / plan / staff / help / security
 - Full-screen kiosk route
-- SecureStore-backed cookie jar
+- SecureStore-backed cookie jar + `expo/fetch` (better Set-Cookie visibility than stock RN fetch)
+- Sends `Origin` / `Referer` = API host origin so Django 5 CSRF accepts native POSTs
+- Absorbs `csrfToken` from `/auth/csrf/` JSON body (does not rely solely on Set-Cookie)
 - Phone + tablet layout via `useWindowDimensions`
 
 **Desktop (`apps/desktop`)**
 - Persistent sidebar shell
 - Dense main content region
 - Same feature routes + kiosk full-window mode
-- localStorage-backed cookie jar
+- **Main-process** session jar (IPC `checkstation:http`); encrypted via `safeStorage` under Electron `userData` — **not** renderer `localStorage`
 
 ## Auth / session model
 
 Production web auth is **Django session cookie + CSRF** (`checkstation_sessionid`, `checkstation_csrftoken`). There is **no** first-class native JWT.
 
-Native clients:
-1. Maintain a cookie jar (SecureStore / localStorage)
-2. `GET /api/auth/csrf/`
-3. Send `Cookie` + `X-CSRFToken` on mutating requests
+Native / desktop clients:
+1. Maintain a cookie jar (mobile SecureStore / Electron main process)
+2. `GET /api/auth/csrf/` — store token from Set-Cookie **and/or** JSON `csrfToken`
+3. Send `Origin` + `Referer` (API host), `Cookie`, and `X-CSRFToken` on mutating requests
 4. Owner: `POST /api/auth/login/` (+ optional `POST /api/auth/owner-2fa/challenge/`)
 5. Staff: `POST /api/auth/staff-login/`
 6. Bootstrap: `GET /api/workspace/`
+7. Logout / session-expiry clears the jar (and Electron encrypted file)
+
+### Production API connectivity
+
+| Concern | Status |
+|---|---|
+| Base URL | `https://workspace.checkstation.app/api` (prod); localhost in dev |
+| HTTPS | Required for production config (`@checkstation/config`) |
+| CORS | **Mobile native** is not a browser CORS client. **Electron main** fetch also bypasses renderer CORS. Vite-only browser preview of desktop is CORS-sensitive and is not the shipping path. |
+| CSRF | Client sends API-host `Origin` (Django `good_origin`); no backend loosening required for cookie+CSRF login |
+| Backend changes for this foundation pass | **None** |
 
 ### Known backend gaps (do not hack around)
 
@@ -76,6 +89,7 @@ Native clients:
 2. **Token auth** — optional future; cookie jar is the foundation path without weakening browser security.
 3. **Native store billing** — not implemented; plan screen shows entitlement/billing **state** only.
 4. **Native ads** — abstract only; no AdSense / AdMob in this foundation.
+5. **RN Set-Cookie edge cases** — if a specific device runtime still strips Set-Cookie from `expo/fetch`, session establishment fails until that runtime is fixed or a reviewed native CookieManager (dev build) is added. CSRF JSON body path already covers CSRF.
 
 ## Navigation
 
@@ -132,6 +146,8 @@ npm run desktop:build   # Vite build + electron-builder --dir
 Env: `VITE_API_BASE_URL=http://localhost:8000/api`
 
 App IDs: `app.checkstation.desktop`
+
+Packaging: `npm run build -w @checkstation/desktop` runs the Vite renderer build. Full Electron dir packaging is `npm run build:electron -w @checkstation/desktop` (requires a complete `electron-builder` / `app-builder-bin` install with postinstall scripts allowed).
 
 ### Packages
 

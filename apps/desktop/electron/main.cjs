@@ -1,7 +1,9 @@
-const { app, BrowserWindow, shell } = require("electron");
+const { app, BrowserWindow, shell, ipcMain } = require("electron");
 const path = require("path");
+const { createSessionApi } = require("./sessionApi.cjs");
 
 const isDev = !app.isPackaged;
+const sessionApi = createSessionApi();
 
 function createWindow() {
   const win = new BrowserWindow({
@@ -31,6 +33,10 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  ipcMain.handle("checkstation:initSession", () => sessionApi.initSession());
+  ipcMain.handle("checkstation:clearSession", () => sessionApi.clearSession());
+  ipcMain.handle("checkstation:http", (_event, req) => sessionApi.http(req || {}));
+
   createWindow();
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

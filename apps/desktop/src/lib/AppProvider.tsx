@@ -1,11 +1,35 @@
 import { useMemo, useEffect, useState, createContext, useContext } from "react";
-import { ApiClient, CookieJar, MemoryCookieStorage } from "@checkstation/api";
+import { ApiClient, CookieJar, TransportApiClient } from "@checkstation/api";
 import { AuthController, type AuthState } from "@checkstation/auth";
 import { createAppConfig } from "@checkstation/config";
 import { createTranslator, resolveLocale, type AppLocale } from "@checkstation/i18n";
 
+type DesktopBridge = {
+  platform: string;
+  initSession: () => Promise<void>;
+  clearSession: () => Promise<void>;
+  http: (req: {
+    path: string;
+    method?: string;
+    json?: unknown;
+    credentials?: boolean;
+    timeoutMs?: number;
+  }) => Promise<
+    | { ok: true; status: number; data: unknown }
+    | { ok: false; status: number; data: unknown; path: string; method: string }
+  >;
+};
+
+declare global {
+  interface Window {
+    checkstationDesktop?: DesktopBridge;
+  }
+}
+
+type AuthApi = ApiClient | TransportApiClient;
+
 type Ctx = {
-  api: ApiClient;
+  api: AuthApi;
   auth: AuthController;
   authState: AuthState;
   locale: AppLocale;
@@ -16,23 +40,31 @@ type Ctx = {
 
 const AppContext = createContext<Ctx | null>(null);
 
-const STORAGE_KEY = "checkstation.desktop.cookies.v1";
+function buildConfig() {
+  return createAppConfig({
+    environment: import.meta.env.PROD ? "production" : "development",
+    apiBaseUrl:
+      import.meta.env.VITE_API_BASE_URL
+      || (import.meta.env.PROD
+        ? "https://workspace.checkstation.app/api"
+        : "http://localhost:8000/api"),
+  });
+}
 
-class LocalStorageCookieStorage extends MemoryCookieStorage {
-  async load() {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      return raw ? JSON.parse(raw) : [];
-    } catch {
-      return [];
-    }
+function createDesktopApi(): AuthApi {
+  const config = buildConfig();
+  const bridge = typeof window !== "undefined" ? window.checkstationDesktop : undefined;
+  if (
+    bridge
+    && typeof bridge.http === "function"
+    && typeof bridge.initSession === "function"
+    && typeof bridge.clearSession === "function"
+  ) {
+    // Session cookies live in Electron main (encrypted userData), not renderer storage.
+    return new TransportApiClient(config, bridge);
   }
-  async save(cookies: any[]) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(cookies));
-  }
-  async clear() {
-    localStorage.removeItem(STORAGE_KEY);
-  }
+  // Vite-only browser preview: in-memory jar (never persist session secrets to localStorage).
+  return new ApiClient(config, new CookieJar());
 }
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
@@ -46,15 +78,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   });
 
   const { api, auth } = useMemo(() => {
-    const config = createAppConfig({
-      environment: import.meta.env.PROD ? "production" : "development",
-      apiBaseUrl:
-        import.meta.env.VITE_API_BASE_URL
-        || (import.meta.env.PROD
-          ? "https://workspace.checkstation.app/api"
-          : "http://localhost:8000/api"),
-    });
-    const client = new ApiClient(config, new CookieJar(new LocalStorageCookieStorage()));
+    const client = createDesktopApi();
     return { api: client, auth: new AuthController(client) };
   }, []);
 

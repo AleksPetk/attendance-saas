@@ -1,5 +1,5 @@
 import type { CheckStationAppConfig } from "@checkstation/config";
-import { CookieJar, CSRF_COOKIE } from "./cookies.js";
+import { CookieJar, CSRF_COOKIE, csrfOriginFromApiBase } from "./cookies.js";
 import {
   ApiError,
   NetworkError,
@@ -22,6 +22,21 @@ export type RequestOptions = {
 };
 
 export type SessionExpiredListener = (path: string) => void;
+
+export type ApiFetch = (
+  input: string,
+  init?: RequestInit,
+) => Promise<Response>;
+
+export type ApiClientOptions = {
+  /** Override fetch (e.g. expo/fetch for Set-Cookie visibility on native). */
+  fetchImpl?: ApiFetch;
+  /**
+   * Origin/Referer sent so Django CSRF origin checks pass without a browser.
+   * Defaults to the API host origin (accepted by Django as good_origin).
+   */
+  csrfOrigin?: string;
+};
 
 const SESSION_EXPIRY_EXEMPT_PREFIXES = [
   "/auth/login/",
@@ -50,20 +65,32 @@ function shouldAttachCsrf(method: string): boolean {
 function joinUrl(apiBaseUrl: string, path: string): string {
   const base = apiBaseUrl.replace(/\/$/, "");
   const p = path.startsWith("/") ? path : `/${path}`;
-  // apiBaseUrl already ends with /api; path should be like /workspace/ or /auth/login/
   return `${base}${p}`;
+}
+
+function absorbCsrfFromJsonBody(jar: CookieJar, data: unknown): boolean {
+  if (!data || typeof data !== "object") return false;
+  const token = (data as { csrfToken?: unknown }).csrfToken;
+  if (typeof token !== "string" || !token) return false;
+  jar.set(CSRF_COOKIE, token);
+  return true;
 }
 
 export class ApiClient {
   readonly jar: CookieJar;
   private csrfEnsured = false;
   private onSessionExpired: SessionExpiredListener | null = null;
+  private readonly fetchImpl: ApiFetch;
+  private readonly csrfOrigin: string;
 
   constructor(
     private readonly config: CheckStationAppConfig,
     jar?: CookieJar,
+    options: ApiClientOptions = {},
   ) {
     this.jar = jar ?? new CookieJar();
+    this.fetchImpl = options.fetchImpl ?? fetch.bind(globalThis);
+    this.csrfOrigin = options.csrfOrigin ?? csrfOriginFromApiBase(config.apiBaseUrl);
   }
 
   setSessionExpiredListener(listener: SessionExpiredListener | null): void {
@@ -81,7 +108,10 @@ export class ApiClient {
   async ensureCsrf(): Promise<string> {
     const existing = this.jar.get(CSRF_COOKIE);
     if (existing && this.csrfEnsured) return existing;
-    await this.request("/auth/csrf/", { method: "GET", credentials: true });
+    await this.request<{ csrfToken?: string }>("/auth/csrf/", {
+      method: "GET",
+      credentials: true,
+    });
     this.csrfEnsured = true;
     return this.jar.get(CSRF_COOKIE);
   }
@@ -96,6 +126,10 @@ export class ApiClient {
 
     const headers: Record<string, string> = {
       Accept: "application/json",
+      // Django 5 CSRF: when Origin is present it is verified against the API host
+      // or CSRF_TRUSTED_ORIGINS. Native/Electron have no browser origin otherwise.
+      Origin: this.csrfOrigin,
+      Referer: `${this.csrfOrigin}/`,
     };
     const cookieHeader = this.jar.cookieHeader();
     if (useCredentials && cookieHeader) {
@@ -126,12 +160,12 @@ export class ApiClient {
     const url = joinUrl(this.config.apiBaseUrl, path);
     let response: Response;
     try {
-      response = await fetch(url, {
+      response = await this.fetchImpl(url, {
         method,
         headers,
         body,
         signal: controller.signal,
-        // Native clients manage cookies manually; omit browser auto-cookies.
+        // Native/desktop manage cookies manually; omit browser auto-cookies.
         credentials: "omit",
       });
     } catch (err) {
@@ -154,6 +188,8 @@ export class ApiClient {
 
     if (!response.ok) {
       const data = await parseErrorBody(response);
+      absorbCsrfFromJsonBody(this.jar, data);
+      await this.jar.persist();
       const error = new ApiError({
         status: response.status,
         data,
@@ -172,9 +208,12 @@ export class ApiClient {
 
     const contentType = response.headers.get("content-type") || "";
     if (contentType.includes("application/json")) {
-      return (await response.json()) as T;
+      const data = (await response.json()) as T;
+      if (absorbCsrfFromJsonBody(this.jar, data)) {
+        await this.jar.persist();
+      }
+      return data;
     }
-    // Binary exports etc.
     return (await response.blob()) as T;
   }
 

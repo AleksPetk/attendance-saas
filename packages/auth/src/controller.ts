@@ -1,4 +1,4 @@
-import { ApiClient, ApiError, endpoints } from "@checkstation/api";
+import { ApiError, endpoints, type ApiClient, type TransportApiClient } from "@checkstation/api";
 import type { WorkspaceSession } from "@checkstation/domain";
 
 export type AuthStatus =
@@ -21,6 +21,9 @@ export type OwnerLoginResult =
   | { kind: "authenticated"; session: WorkspaceSession }
   | { kind: "two_factor_required" };
 
+/** ApiClient or Electron TransportApiClient (cookies stay in main process). */
+export type AuthApi = ApiClient | TransportApiClient;
+
 export class AuthController {
   private state: AuthState = {
     status: "unknown",
@@ -30,7 +33,7 @@ export class AuthController {
   };
   private listeners = new Set<AuthListener>();
 
-  constructor(private readonly api: ApiClient) {
+  constructor(private readonly api: AuthApi) {
     this.api.setSessionExpiredListener(() => {
       void this.handleSessionExpired();
     });

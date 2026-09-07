@@ -5,10 +5,11 @@
   "main": "electron/main.cjs",
   "scripts": {
     "dev": "concurrently -k \"vite\" \"wait-on http://127.0.0.1:5174 && electron .\"",
-    "build": "vite build && electron-builder --dir",
+    "build": "vite build",
+    "build:electron": "vite build && electron-builder --dir",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "echo 'desktop lint placeholder'",
-    "test": "node --import tsx --test src/**/*.test.ts"
+    "test": "node --import tsx --test src/**/*.test.ts && node --test electron/**/*.test.cjs"
   },
   "dependencies": {
     "@checkstation/api": "*",
@@ -16,16 +17,16 @@
     "@checkstation/config": "*",
     "@checkstation/domain": "*",
     "@checkstation/i18n": "*",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
     "react-router-dom": "^7.18.2"
   },
   "devDependencies": {
-    "@types/react": "^18.3.12",
-    "@types/react-dom": "^18.3.1",
+    "@types/react": "~19.2.4",
+    "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^4.3.4",
     "concurrently": "^9.1.2",
-    "electron": "^34.3.0",
+    "electron": "34.5.8",
     "electron-builder": "^25.1.8",
     "tsx": "^4.19.3",
     "typescript": "^5.8.3",
@@ -35,9 +36,24 @@
   "build": {
     "appId": "app.checkstation.desktop",
     "productName": "CheckStation",
-    "directories": { "output": "release" },
-    "files": ["dist/**/*", "electron/**/*"],
-    "mac": { "target": ["dir"], "category": "public.app-category.business" },
-    "win": { "target": ["dir"] }
+    "electronVersion": "34.5.8",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*"
+    ],
+    "mac": {
+      "target": [
+        "dir"
+      ],
+      "category": "public.app-category.business"
+    },
+    "win": {
+      "target": [
+        "dir"
+      ]
+    }
   }
 }

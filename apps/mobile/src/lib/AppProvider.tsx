@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { fetch as expoFetch } from "expo/fetch";
 import { ApiClient } from "@checkstation/api";
 import { AuthController, type AuthState } from "@checkstation/auth";
 import { createTranslator, resolveLocale, type AppLocale } from "@checkstation/i18n";
@@ -29,7 +30,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const { api, auth } = useMemo(() => {
     const config = loadMobileConfig();
-    const client = new ApiClient(config, createSecureCookieJar());
+    // expo/fetch exposes Set-Cookie more reliably than RN's default whatwg-fetch.
+    const client = new ApiClient(config, createSecureCookieJar(), {
+      fetchImpl: expoFetch as typeof fetch,
+    });
     const controller = new AuthController(client);
     return { api: client, auth: controller };
   }, []);

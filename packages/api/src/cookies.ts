@@ -1,6 +1,6 @@
 /**
  * In-memory cookie jar for native/desktop clients talking to Django session auth.
- * Mirrors SPA cookie + CSRF behavior without embedding secrets.
+ * Mirrors SPA cookie + CSRF behavior without embedding secrets in app logic.
  */
 
 export type StoredCookie = {
@@ -89,6 +89,21 @@ export class CookieJar {
     return hit?.value ?? "";
   }
 
+  /** Upsert a cookie value (used when CSRF is returned in JSON body). */
+  set(name: string, value: string, extras: Partial<StoredCookie> = {}): void {
+    this.cookies = this.cookies.filter((c) => c.name !== name);
+    if (!value) return;
+    this.cookies.push({
+      name,
+      value,
+      path: extras.path ?? "/",
+      domain: extras.domain,
+      secure: extras.secure,
+      httpOnly: extras.httpOnly,
+      expires: extras.expires ?? null,
+    });
+  }
+
   cookieHeader(): string {
     const now = Date.now();
     return this.cookies
@@ -112,8 +127,11 @@ export class CookieJar {
   absorbFromResponseHeaders(headers: Headers): void {
     const anyHeaders = headers as Headers & { getSetCookie?: () => string[] };
     if (typeof anyHeaders.getSetCookie === "function") {
-      this.absorbSetCookieHeaders(anyHeaders.getSetCookie());
-      return;
+      const list = anyHeaders.getSetCookie();
+      if (list?.length) {
+        this.absorbSetCookieHeaders(list);
+        return;
+      }
     }
     const single = headers.get("set-cookie");
     if (single) this.absorbSetCookieHeaders([single]);
@@ -122,3 +140,14 @@ export class CookieJar {
 
 export const SESSION_COOKIE = "checkstation_sessionid";
 export const CSRF_COOKIE = "checkstation_csrftoken";
+
+/** Django CSRF accepts Origin equal to the API host. Strip /api suffix. */
+export function csrfOriginFromApiBase(apiBaseUrl: string): string {
+  const trimmed = apiBaseUrl.replace(/\/$/, "");
+  const withoutApi = trimmed.endsWith("/api") ? trimmed.slice(0, -4) : trimmed;
+  try {
+    return new URL(withoutApi || trimmed).origin;
+  } catch {
+    return withoutApi || trimmed;
+  }
+}
