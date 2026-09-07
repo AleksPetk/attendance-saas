@@ -110,6 +110,7 @@ class StripeProvider:
         billing_start_at=None,
         coupon_id=None,
         coupon_slot=None,
+        idempotency_key=None,
     ) -> CheckoutSessionResult:
         stripe = self._client()
         price_id = price_id_for(plan_key, interval, market=market)
@@ -146,8 +147,15 @@ class StripeProvider:
                 start_at = dj_timezone.make_aware(start_at, dj_timezone.utc)
             if start_at > datetime.now(tz=dt_timezone.utc):
                 params["subscription_data"]["trial_end"] = int(start_at.timestamp())
+        request_options = {}
+        key = str(idempotency_key or "").strip()
+        if key:
+            request_options["idempotency_key"] = key
         try:
-            session = stripe.checkout.Session.create(**params)
+            if request_options:
+                session = stripe.checkout.Session.create(**params, **request_options)
+            else:
+                session = stripe.checkout.Session.create(**params)
         except Exception as exc:
             logger.exception(
                 "Stripe Checkout creation failed plan=%s interval=%s market=%s "
@@ -168,7 +176,33 @@ class StripeProvider:
         session_id = _obj_get(session, "id") or ""
         if not url:
             raise StripeProviderError("Stripe Checkout did not return a URL.")
-        return CheckoutSessionResult(checkout_url=url, session_id=session_id)
+        expires_at = None
+        raw_expires = _obj_get(session, "expires_at")
+        if raw_expires:
+            try:
+                expires_at = datetime.fromtimestamp(int(raw_expires), tz=dt_timezone.utc)
+            except (TypeError, ValueError, OSError):
+                expires_at = None
+        return CheckoutSessionResult(
+            checkout_url=url,
+            session_id=session_id,
+            expires_at=expires_at,
+        )
+
+    def expire_checkout_session(self, session_id: str) -> None:
+        """Best-effort expire of a replaced/abandoned Checkout Session."""
+        stripe = self._client()
+        sid = str(session_id or "").strip()
+        if not sid:
+            return
+        try:
+            stripe.checkout.Session.expire(sid)
+        except Exception as exc:
+            logger.warning(
+                "Stripe Checkout expire failed session_prefix=%s error_type=%s",
+                sid[:20],
+                type(exc).__name__,
+            )
 
     def list_invoices(self, *, customer_id, limit=10) -> list[InvoiceSnapshot]:
         stripe = self._client()
@@ -217,12 +251,22 @@ class StripeProvider:
     def retrieve_checkout_session(self, session_id: str):
         stripe = self._client()
         try:
-            return stripe.checkout.Session.retrieve(
+            session = stripe.checkout.Session.retrieve(
                 session_id,
                 expand=["subscription"],
             )
         except Exception as exc:
             raise StripeProviderError("Stripe Checkout session could not be retrieved.") from exc
+        return {
+            "id": _obj_get(session, "id") or session_id,
+            "status": _obj_get(session, "status") or "",
+            "url": _obj_get(session, "url") or "",
+            "expires_at": _obj_get(session, "expires_at"),
+            "subscription": _obj_get(session, "subscription"),
+            "customer": _obj_get(session, "customer"),
+            "metadata": _obj_get(session, "metadata") or {},
+            "client_reference_id": _obj_get(session, "client_reference_id") or "",
+        }
 
     def preview_upgrade(
         self,

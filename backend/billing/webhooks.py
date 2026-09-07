@@ -341,6 +341,9 @@ def _dispatch(event):
             raise BillingStateError("Checkout session has no subscription.")
         snapshot = provider.retrieve_subscription(subscription_id)
         reconcile_subscription_snapshot(org, snapshot)
+        from billing.checkout_attempts import mark_attempt_completed_for_session
+
+        mark_attempt_completed_for_session(org, session_id)
         _reassert_block_cancellation(org)
         return
 

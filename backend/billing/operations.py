@@ -43,6 +43,34 @@ def _return_urls():
     return success, cancel, portal
 
 
+def _create_or_reuse_checkout_session(
+    organization,
+    owner,
+    *,
+    plan,
+    interval,
+    market,
+    billing_start_at=None,
+    coupon_id=None,
+    coupon_slot=None,
+):
+    from billing.checkout_attempts import create_or_resume_checkout_session
+
+    success_url, cancel_url, _portal = _return_urls()
+    return create_or_resume_checkout_session(
+        organization,
+        owner,
+        plan=plan,
+        interval=interval,
+        market=market,
+        success_url=success_url,
+        cancel_url=cancel_url,
+        billing_start_at=billing_start_at,
+        coupon_id=coupon_id,
+        coupon_slot=coupon_slot,
+    )
+
+
 def start_paid_checkout(organization, owner, *, plan_key, interval):
     _deny_checkstation_billing(organization)
     market = resolve_billing_market(organization)
@@ -98,16 +126,12 @@ def start_paid_checkout(organization, owner, *, plan_key, interval):
         interval=interval_key,
         market=market,
     )
-    success_url, cancel_url, _portal = _return_urls()
-    provider = get_billing_provider()
-    return provider.create_checkout_session(
-        organization=organization,
-        owner=owner,
-        plan_key=plan,
+    return _create_or_reuse_checkout_session(
+        organization,
+        owner,
+        plan=plan,
         interval=interval_key,
         market=market,
-        success_url=success_url,
-        cancel_url=cancel_url,
         billing_start_at=billing_start_at_for_checkout(organization),
         coupon_id=coupon_id,
         coupon_slot=coupon_slot,
@@ -198,16 +222,12 @@ def _start_or_retarget_deferred_trial_selection(
         interval=interval,
         market=market,
     )
-    success_url, cancel_url, _portal = _return_urls()
-    provider = get_billing_provider()
-    return provider.create_checkout_session(
-        organization=organization,
-        owner=owner,
-        plan_key=plan,
+    return _create_or_reuse_checkout_session(
+        organization,
+        owner,
+        plan=plan,
         interval=interval,
         market=market,
-        success_url=success_url,
-        cancel_url=cancel_url,
         billing_start_at=trial_end,
         coupon_id=coupon_id,
         coupon_slot=coupon_slot,

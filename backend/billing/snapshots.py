@@ -11,6 +11,7 @@ class CheckoutSessionResult:
     # checkout = new Stripe Checkout Session; other modes reuse the existing
     # subscription after cancel-during-trial reselection (no second sub).
     mode: str = "checkout"
+    expires_at: datetime | None = None
 
 
 @dataclass(frozen=True)

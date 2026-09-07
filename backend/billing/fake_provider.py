@@ -26,6 +26,7 @@ FAKE_SIGNATURE_OK = "fake-valid"
 class FakeStripeProvider:
     def __init__(self):
         self.checkouts = {}
+        self.checkout_by_idempotency = {}
         self.subscriptions = {}
         self.customers = {}
         self.portal_calls = []
@@ -44,6 +45,7 @@ class FakeStripeProvider:
         self.fail_next_upgrade = False
         self.fail_next_resume = False
         self.fail_next_cancel_downgrade = False
+        self.fail_next_checkout = False
         self.health_calls = []
         self.fail_next_health = False
 
@@ -63,11 +65,27 @@ class FakeStripeProvider:
         billing_start_at=None,
         coupon_id=None,
         coupon_slot=None,
+        idempotency_key=None,
     ) -> CheckoutSessionResult:
+        from billing.exceptions import StripeProviderError
+
+        if self.fail_next_checkout:
+            self.fail_next_checkout = False
+            raise StripeProviderError("Stripe Checkout could not be created.")
+        key = str(idempotency_key or "").strip()
+        if key and key in self.checkout_by_idempotency:
+            existing_id = self.checkout_by_idempotency[key]
+            existing = self.checkouts[existing_id]
+            return CheckoutSessionResult(
+                checkout_url=f"https://checkout.stripe.test/pay/{existing_id}",
+                session_id=existing_id,
+                expires_at=existing.get("expires_at"),
+            )
         session_id = f"cs_test_{uuid4().hex[:16]}"
         customer_id = self.customers.get(organization.pk) or f"cus_test_{organization.pk}"
         self.customers[organization.pk] = customer_id
         price_id = price_id_for(plan_key, interval, market=market)
+        expires_at = timezone.now() + timedelta(hours=24)
         self.checkouts[session_id] = {
             "organization_id": organization.pk,
             "owner_id": owner.pk,
@@ -81,14 +99,36 @@ class FakeStripeProvider:
             "cancel_url": cancel_url,
             "coupon_id": str(coupon_id or "").strip() or None,
             "coupon_slot": str(coupon_slot or "").strip() or None,
+            "idempotency_key": key or None,
+            "expires_at": expires_at,
+            "status": "open",
+            "url": f"https://checkout.stripe.test/pay/{session_id}",
+            "expired": False,
         }
+        if key:
+            self.checkout_by_idempotency[key] = session_id
         return CheckoutSessionResult(
             checkout_url=f"https://checkout.stripe.test/pay/{session_id}",
             session_id=session_id,
+            expires_at=expires_at,
         )
+
+    def expire_checkout_session(self, session_id: str) -> None:
+        checkout = self.checkouts.get(session_id)
+        if checkout is not None:
+            if checkout.get("status") == "complete":
+                from billing.exceptions import StripeProviderError
+
+                raise StripeProviderError("Cannot expire a completed Checkout Session.")
+            checkout["expired"] = True
+            checkout["status"] = "expired"
 
     def complete_checkout(self, session_id: str) -> SubscriptionSnapshot:
         checkout = self.checkouts[session_id]
+        if checkout.get("expired") or checkout.get("status") == "expired":
+            from billing.exceptions import StripeProviderError
+
+            raise StripeProviderError("Stripe Checkout session is expired.")
         now = timezone.now()
         billing_start_at = checkout.get("billing_start_at")
         sub_id = f"sub_test_{uuid4().hex[:16]}"
@@ -118,6 +158,7 @@ class FakeStripeProvider:
         )
         self.subscriptions[sub_id] = snapshot
         checkout["subscription_id"] = sub_id
+        checkout["status"] = "complete"
         return snapshot
 
     def create_portal_session(self, *, customer_id, return_url) -> PortalSessionResult:
@@ -169,12 +210,22 @@ class FakeStripeProvider:
 
     def retrieve_checkout_session(self, session_id: str):
         checkout = self.checkouts[session_id]
+        status = checkout.get("status") or "open"
+        if checkout.get("expired"):
+            status = "expired"
         return {
             "id": session_id,
+            "status": status,
+            "url": checkout.get("url")
+            or f"https://checkout.stripe.test/pay/{session_id}",
+            "expires_at": int(checkout["expires_at"].timestamp())
+            if checkout.get("expires_at")
+            else None,
             "subscription": checkout.get("subscription_id"),
             "customer": checkout["customer_id"],
             "metadata": {"organization_id": str(checkout["organization_id"])},
             "client_reference_id": str(checkout["organization_id"]),
+            "expired": bool(checkout.get("expired")),
         }
 
     def preview_upgrade(self, *, subscription_id, target_plan, target_interval, market="global"):

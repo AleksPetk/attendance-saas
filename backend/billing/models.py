@@ -185,6 +185,71 @@ class WorkspaceSubscription(models.Model):
         return f"{workspace_id} ({self.status})"
 
 
+class CheckoutAttemptStatus(models.TextChoices):
+    PENDING = "pending", "Claimed; Stripe result not persisted"
+    OPEN = "open", "Stripe Checkout Session open"
+    COMPLETED = "completed", "Stripe Checkout Session completed"
+    EXPIRED = "expired", "Stripe Checkout Session expired"
+    REPLACED = "replaced", "Superseded by a newer attempt"
+
+
+class WorkspaceCheckoutAttempt(models.Model):
+    """Durable Stripe Checkout claim for one workspace.
+
+    The idempotency key is committed before Session.create so a crash after
+    Stripe succeeds but before local session_id persistence still reuses the
+    same Stripe session on retry. At most one pending/open attempt per org.
+    """
+
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name="checkout_attempts",
+    )
+    attempt_id = models.UUIDField(unique=True, editable=False)
+    idempotency_key = models.CharField(max_length=255, unique=True, editable=False)
+    plan_key = models.CharField(max_length=20)
+    interval = models.CharField(max_length=20)
+    status = models.CharField(
+        max_length=20,
+        choices=CheckoutAttemptStatus.choices,
+        default=CheckoutAttemptStatus.PENDING,
+        db_index=True,
+    )
+    stripe_session_id = models.CharField(max_length=255, blank=True, default="")
+    checkout_url = models.TextField(blank=True, default="")
+    expires_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Workspace checkout attempt"
+        verbose_name_plural = "Workspace checkout attempts"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["organization"],
+                condition=Q(
+                    status__in=[
+                        CheckoutAttemptStatus.PENDING,
+                        CheckoutAttemptStatus.OPEN,
+                    ]
+                ),
+                name="billing_one_active_checkout_attempt",
+            ),
+            models.CheckConstraint(
+                condition=Q(status__in=CheckoutAttemptStatus.values),
+                name="billing_checkoutattempt_status_valid",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["organization", "status"]),
+            models.Index(fields=["stripe_session_id"]),
+        ]
+
+    def __str__(self):
+        return f"{self.organization_id}:{self.status}:{self.attempt_id}"
+
+
 class ProviderEventStatus(models.TextChoices):
     RECEIVED = "received", "Received"
     PROCESSING = "processing", "Processing"
