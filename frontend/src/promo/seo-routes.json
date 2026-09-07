@@ -1,0 +1,32 @@
+[
+  {
+    "path": "/",
+    "metaTitleKey": "homeTitle",
+    "metaDescriptionKey": "homeDescription",
+    "h1Key": "home.heroTitle"
+  },
+  {
+    "path": "/features",
+    "metaTitleKey": "featuresTitle",
+    "metaDescriptionKey": "featuresDescription",
+    "h1Key": "features.heroTitle"
+  },
+  {
+    "path": "/how-it-works",
+    "metaTitleKey": "howItWorksTitle",
+    "metaDescriptionKey": "howItWorksDescription",
+    "h1Key": "howItWorks.journeyTitle"
+  },
+  {
+    "path": "/pricing",
+    "metaTitleKey": "pricingTitle",
+    "metaDescriptionKey": "pricingDescription",
+    "h1Key": "pricing.title"
+  },
+  {
+    "path": "/contact",
+    "metaTitleKey": "contactTitle",
+    "metaDescriptionKey": "contactDescription",
+    "h1Key": "contact.title"
+  }
+]

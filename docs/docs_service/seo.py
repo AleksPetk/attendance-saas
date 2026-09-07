@@ -7,6 +7,18 @@ from html import escape
 
 SUPPORTED_LOCALES = ("en", "ja")
 
+CANONICAL_SLUGS = (
+    "documentation",
+    "getting-started",
+    "groups-members",
+    "kiosk-setup",
+    "billing-plans",
+    "faq",
+    "support",
+    "privacy-policy",
+    "terms-of-use",
+)
+
 KNOWN_SLUGS = {
     "/": "documentation",
     "/documentation": "documentation",
@@ -20,7 +32,7 @@ KNOWN_SLUGS = {
     "/terms-of-use": "terms-of-use",
 }
 
-DOCUMENT_SLUGS = frozenset(KNOWN_SLUGS.values())
+DOCUMENT_SLUGS = frozenset(CANONICAL_SLUGS)
 
 DEFAULT_TITLE = "CheckStation Docs"
 DEFAULT_DESCRIPTION = (
@@ -83,7 +95,71 @@ def alternate_urls_for_slug(public_url, slug):
         else:
             href = f"{base}/{lang}/{slug}"
         alternates.append({"language": lang, "href": href})
+    if alternates:
+        alternates.append({"language": "x-default", "href": alternates[0]["href"]})
     return alternates
+
+
+def ensure_x_default(alternate_urls):
+    alternates = [dict(item) for item in (alternate_urls or [])]
+    if any(item.get("language") == "x-default" for item in alternates):
+        return alternates
+    english = next((item for item in alternates if item.get("language") == "en"), None)
+    if english and english.get("href"):
+        alternates.append({"language": "x-default", "href": english["href"]})
+    return alternates
+
+
+def redirect_path_for_docs(path):
+    """Return the canonical locale path for a known non-canonical Docs alias."""
+    raw = path or "/"
+    normalized = raw.rstrip("/") or "/"
+    parts = [part for part in normalized.split("/") if part]
+    if not parts:
+        return "/en/"
+
+    if parts[0] in SUPPORTED_LOCALES:
+        locale = parts[0]
+        if len(parts) == 1:
+            canonical = f"/{locale}/"
+        elif len(parts) == 2 and parts[1] in DOCUMENT_SLUGS:
+            canonical = f"/{locale}/" if parts[1] == "documentation" else f"/{locale}/{parts[1]}"
+        else:
+            return None
+    elif len(parts) == 1 and f"/{parts[0]}" in KNOWN_SLUGS:
+        slug = KNOWN_SLUGS[f"/{parts[0]}"]
+        canonical = "/en/" if slug == "documentation" else f"/en/{slug}"
+    else:
+        return None
+
+    return canonical if raw != canonical else None
+
+
+def docs_sitemap_xml(public_url):
+    base = (public_url or "").rstrip("/")
+    entries = []
+    for slug in CANONICAL_SLUGS:
+        alternates = alternate_urls_for_slug(base, slug)
+        for locale in SUPPORTED_LOCALES:
+            path = f"/{locale}/" if slug == "documentation" else f"/{locale}/{slug}"
+            links = "\n".join(
+                f'    <xhtml:link rel="alternate" hreflang="{escape(item["language"], quote=True)}" '
+                f'href="{escape(item["href"], quote=True)}" />'
+                for item in alternates
+            )
+            entries.append(
+                "  <url>\n"
+                f"    <loc>{escape(base + path)}</loc>\n"
+                f"{links}\n"
+                "  </url>"
+            )
+    return (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"\n'
+        '        xmlns:xhtml="http://www.w3.org/1999/xhtml">\n'
+        + "\n".join(entries)
+        + "\n</urlset>\n"
+    )
 
 
 def hreflang_html(alternate_urls):
@@ -176,7 +252,7 @@ def page_meta(config, path):
             title = "CheckStation Docs"
         description = document.get("description") or DEFAULT_DESCRIPTION
         canonical = document.get("canonical_url") or canonical
-        alternates = document.get("alternate_urls") or alternates
+        alternates = ensure_x_default(document.get("alternate_urls") or alternates)
         return {
             "title": title,
             "description": description,

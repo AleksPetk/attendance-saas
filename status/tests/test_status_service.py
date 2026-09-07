@@ -456,6 +456,20 @@ class StatusHttpTests(unittest.TestCase):
         self.assertNotIn('rel="icon" href="/brand/logo-mark.png"', html)
         self.assertNotIn("vite.svg", html)
 
+    def test_robots_and_sitemap_are_host_specific_and_canonical(self):
+        code, headers, body = self._get("/robots.txt")
+        self.assertEqual(code, 200)
+        self.assertIn("text/plain", headers.get("Content-Type", ""))
+        self.assertIn(b"Sitemap: https://status.checkstation.app/sitemap.xml", body)
+
+        code, headers, body = self._get("/sitemap.xml")
+        self.assertEqual(code, 200)
+        self.assertIn("application/xml", headers.get("Content-Type", ""))
+        xml = body.decode("utf-8")
+        self.assertEqual(xml.count("<url>"), 2)
+        self.assertIn("<loc>http://localhost:8090/en/</loc>", xml)
+        self.assertIn('hreflang="x-default"', xml)
+
     def test_japanese_status_page_and_api(self):
         code, headers, body = self._get("/ja/")
         self.assertEqual(code, 200)

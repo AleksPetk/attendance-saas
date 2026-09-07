@@ -53,6 +53,23 @@ export function applyPromoSeo({
     "content",
     lang === "ja" ? "ja_JP" : "en_US",
   );
+  ensureMeta('meta[property="og:site_name"]', "property", "og:site_name").setAttribute(
+    "content",
+    "CheckStation",
+  );
+  ensureMeta('meta[property="og:locale:alternate"]', "property", "og:locale:alternate").setAttribute(
+    "content",
+    lang === "ja" ? "en_US" : "ja_JP",
+  );
+  ensureMeta('meta[name="twitter:card"]', "name", "twitter:card").setAttribute("content", "summary");
+  ensureMeta('meta[name="twitter:title"]', "name", "twitter:title").setAttribute(
+    "content",
+    title || "",
+  );
+  ensureMeta('meta[name="twitter:description"]', "name", "twitter:description").setAttribute(
+    "content",
+    ogDesc,
+  );
 
   const origin = publicSiteOrigin();
   const path = String(canonicalPath || "/").startsWith("/")
@@ -60,6 +77,10 @@ export function applyPromoSeo({
     : `/${canonicalPath || ""}`;
   if (origin && path) {
     ensureLink("canonical").setAttribute("href", `${origin}${path}`);
+    ensureMeta('meta[property="og:url"]', "property", "og:url").setAttribute(
+      "content",
+      `${origin}${path}`,
+    );
 
     const logical = path.replace(/^\/(en|ja)(?=\/|$)/, "") || "/";
     const enPath = logical === "/" ? "/en/" : `/en${logical}`;

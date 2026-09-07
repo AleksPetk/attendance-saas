@@ -56,6 +56,28 @@ def _query_lang(query):
     return values[0] if values else None
 
 
+def _sitemap_xml(public_url):
+    base = (public_url or "").rstrip("/")
+    entries = []
+    for locale in SUPPORTED_LOCALES:
+        loc = f"{base}/{locale}/"
+        entries.append(
+            "  <url>\n"
+            f"    <loc>{escape(loc)}</loc>\n"
+            f'    <xhtml:link rel="alternate" hreflang="en" href="{escape(base + "/en/", quote=True)}" />\n'
+            f'    <xhtml:link rel="alternate" hreflang="ja" href="{escape(base + "/ja/", quote=True)}" />\n'
+            f'    <xhtml:link rel="alternate" hreflang="x-default" href="{escape(base + "/en/", quote=True)}" />\n'
+            "  </url>"
+        )
+    return (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"\n'
+        '        xmlns:xhtml="http://www.w3.org/1999/xhtml">\n'
+        + "\n".join(entries)
+        + "\n</urlset>\n"
+    )
+
+
 def create_handler(store, config):
     static_dir = Path(config["static_dir"])
     index_template = (static_dir / "index.html").read_text(encoding="utf-8")
@@ -85,6 +107,13 @@ def create_handler(store, config):
                 return
             if path == "/healthz":
                 self._json(200, {"status": "ok"})
+                return
+            if path == "/sitemap.xml":
+                self._send(
+                    200,
+                    _sitemap_xml(public_url).encode("utf-8"),
+                    content_type="application/xml; charset=utf-8",
+                )
                 return
 
             normalized = path.rstrip("/") or "/"

@@ -6,7 +6,13 @@ from unittest.mock import patch
 from urllib.request import urlopen
 
 from docs_service.config import load_config
-from docs_service.seo import canonical_for_path, is_valid_docs_html_path, page_meta, slug_for_path, split_locale_path
+from docs_service.seo import (
+    canonical_for_path,
+    is_valid_docs_html_path,
+    page_meta,
+    slug_for_path,
+    split_locale_path,
+)
 from docs_service.server import serve
 
 
@@ -65,6 +71,7 @@ class SeoHelpersTests(unittest.TestCase):
         self.assertIn("http://localhost:8091/en/privacy-policy", meta["canonical"])
         self.assertIn('hreflang="en"', meta["hreflang"])
         self.assertIn('hreflang="ja"', meta["hreflang"])
+        self.assertIn('hreflang="x-default"', meta["hreflang"])
 
 
 class DocsHttpTests(unittest.TestCase):
@@ -95,7 +102,6 @@ class DocsHttpTests(unittest.TestCase):
         for path in (
             "/en/",
             "/ja/",
-            "/en/documentation",
             "/en/getting-started",
             "/ja/groups-members",
             "/en/kiosk-setup",
@@ -160,6 +166,44 @@ class DocsHttpTests(unittest.TestCase):
         self.assertEqual(response.status, 301)
         self.assertEqual(response.getheader("Location"), "/en/")
 
+    def test_known_aliases_redirect_directly_to_canonical_paths(self):
+        import http.client
+        from urllib.parse import urlparse
+
+        parsed = urlparse(self.base)
+        expected = {
+            "/en": "/en/",
+            "/ja": "/ja/",
+            "/en/documentation": "/en/",
+            "/ja/documentation/": "/ja/",
+            "/documentation": "/en/",
+            "/getting-started": "/en/getting-started",
+            "/en/getting-started/": "/en/getting-started",
+        }
+        for path, location in expected.items():
+            conn = http.client.HTTPConnection(parsed.hostname, parsed.port, timeout=3)
+            conn.request("GET", path)
+            response = conn.getresponse()
+            response.read()
+            conn.close()
+            self.assertEqual(response.status, 301, path)
+            self.assertEqual(response.getheader("Location"), location, path)
+
+    def test_robots_and_sitemap_are_host_specific_and_canonical(self):
+        code, body, headers = self._get("/robots.txt")
+        self.assertEqual(code, 200)
+        self.assertIn("text/plain", headers.get("Content-Type", ""))
+        self.assertIn(b"Sitemap: https://docs.checkstation.app/sitemap.xml", body)
+
+        code, body, headers = self._get("/sitemap.xml")
+        self.assertEqual(code, 200)
+        self.assertIn("application/xml", headers.get("Content-Type", ""))
+        xml = body.decode("utf-8")
+        self.assertEqual(xml.count("<url>"), 18)
+        self.assertIn("<loc>http://localhost:8091/en/</loc>", xml)
+        self.assertIn('hreflang="x-default"', xml)
+        self.assertNotIn("/documentation</loc>", xml)
+
     def test_html_does_not_use_logo_mark_as_favicon(self):
         code, body, _headers = self._get("/en/")
         self.assertEqual(code, 200)
@@ -210,6 +254,7 @@ class DocsHttpTests(unittest.TestCase):
         self.assertIn('content="How Check Station handles data."', html)
         self.assertIn('href="http://localhost:8091/en/privacy-policy"', html)
         self.assertIn('hreflang="ja"', html)
+        self.assertIn('hreflang="x-default"', html)
         self.assertIn('<html lang="en">', html)
 
     def test_css_has_mobile_layout_rules(self):

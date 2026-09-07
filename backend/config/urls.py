@@ -2,8 +2,10 @@ from django.contrib import admin
 from django.urls import include, path
 
 from core.media_views import ProtectedMediaView
+from core.seo import manager_robots_txt
 
 urlpatterns = [
+    path("robots.txt", manager_robots_txt, name="manager-robots"),
     path("admin/two-factor/", include("accounts.two_factor_urls")),
     path("admin/", admin.site.urls),
     path("api/", include("core.urls")),

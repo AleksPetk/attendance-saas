@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && node scripts/generate-seo-pages.mjs",
     "preview": "vite preview",
     "test:history-csv": "node --test src/history/*.test.js",
     "test:kiosk-settings": "node --test src/kiosk/kioskSettingsForm.test.js src/kiosk/kioskConfirmation.test.js src/kiosk/unifiedVisualFlow.test.js src/kiosk/kioskActionFlow.test.js src/kiosk/kioskFlowStages.test.js src/kioskTutorials.test.js",
@@ -29,6 +29,7 @@
     "test:advertising": "node --test src/advertising/*.test.js src/workspaceEntitlements.test.js",
     "test:i18n": "node --test src/i18n/*.test.js",
     "test:promo": "node --test src/promo/*.test.js src/siteOrigins.test.js",
+    "test:seo": "node --test src/technicalSeoBuild.test.js",
     "test:performance": "node --test src/performanceBuild.test.js src/featuresShowcaseCarousel.test.js"
   },
   "dependencies": {

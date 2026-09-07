@@ -44,6 +44,13 @@ SECURE_REFERRER_POLICY = env(  # noqa: F405
     "SECURE_REFERRER_POLICY", default="same-origin"
 )
 X_FRAME_OPTIONS = "DENY"
+MANAGER_HOST = env("MANAGER_HOST", default="manager.checkstation.app")  # noqa: F405
+
+if "core.seo.ManagerNoIndexMiddleware" not in MIDDLEWARE:  # noqa: F405
+    _security_idx = MIDDLEWARE.index(  # noqa: F405
+        "django.middleware.security.SecurityMiddleware"
+    )
+    MIDDLEWARE.insert(_security_idx + 1, "core.seo.ManagerNoIndexMiddleware")  # noqa: F405
 
 # WhiteNoise serves collectstatic output. React SPA is not served from Django.
 if "whitenoise.middleware.WhiteNoiseMiddleware" not in MIDDLEWARE:  # noqa: F405

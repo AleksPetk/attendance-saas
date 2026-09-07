@@ -8,7 +8,13 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from docs_service.config import load_config
-from docs_service.seo import faq_crawl_html, is_valid_docs_html_path, page_meta
+from docs_service.seo import (
+    docs_sitemap_xml,
+    faq_crawl_html,
+    is_valid_docs_html_path,
+    page_meta,
+    redirect_path_for_docs,
+)
 
 CORS_HEADERS = (
     ("Access-Control-Allow-Origin", "*"),
@@ -73,16 +79,21 @@ def create_handler(config):
         def do_GET(self):
             parsed = urlparse(self.path)
             path = parsed.path or "/"
-            if path == "/":
-                self._redirect("/en/")
+            canonical_redirect = redirect_path_for_docs(path)
+            if canonical_redirect:
+                location = canonical_redirect + (("?" + parsed.query) if parsed.query else "")
+                self._redirect(location)
                 return
-            if path != "/" and path.endswith("/") and path != "/":
-                trimmed = path.rstrip("/") or "/"
-                if trimmed != path:
-                    self._redirect(trimmed)
-                    return
             if path == "/healthz":
                 self._json(200, {"status": "ok"})
+                return
+            if path == "/sitemap.xml":
+                self._send(
+                    200,
+                    docs_sitemap_xml(config.get("public_url")).encode("utf-8"),
+                    content_type="application/xml; charset=utf-8",
+                    cache="public, max-age=3600, must-revalidate",
+                )
                 return
             if path == "/config.js":
                 body = (
