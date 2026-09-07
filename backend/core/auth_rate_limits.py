@@ -55,7 +55,8 @@ def check_owner_login_allowed(request, email: str) -> Response | None:
         [
             ("owner_login", "ip", ip, limits["ip_limit"]),
             ("owner_login", "account", normalized, limits["account_limit"]),
-        ]
+        ],
+        security_sensitive=True,
     )
     if not blocked.allowed:
         return throttled_response()
@@ -72,6 +73,7 @@ def record_owner_login_failure(request, email: str) -> RateLimitResult:
         ip,
         limit=limits["ip_limit"],
         window_seconds=limits["ip_window"],
+        security_sensitive=True,
     )
     return record_failure(
         "owner_login",
@@ -79,12 +81,13 @@ def record_owner_login_failure(request, email: str) -> RateLimitResult:
         normalized,
         limit=limits["account_limit"],
         window_seconds=limits["account_window"],
+        security_sensitive=True,
     )
 
 
 def clear_owner_login_failures(email: str) -> None:
     normalized = _normalize_email(email)
-    clear_failures("owner_login", "account", normalized)
+    clear_failures("owner_login", "account", normalized, security_sensitive=True)
 
 
 # --- Staff login ---
@@ -116,7 +119,8 @@ def check_staff_login_allowed(
             ("staff_login", "ip", ip, limits["ip_limit"]),
             ("staff_login", "account", account, limits["account_limit"]),
             ("staff_login", "workspace_ip", workspace_ip, limits["workspace_ip_limit"]),
-        ]
+        ],
+        security_sensitive=True,
     )
     if not blocked.allowed:
         return throttled_response()
@@ -136,6 +140,7 @@ def record_staff_login_failure(
         ip,
         limit=limits["ip_limit"],
         window_seconds=limits["ip_window"],
+        security_sensitive=True,
     )
     record_failure(
         "staff_login",
@@ -143,6 +148,7 @@ def record_staff_login_failure(
         workspace_ip,
         limit=limits["workspace_ip_limit"],
         window_seconds=limits["ip_window"],
+        security_sensitive=True,
     )
     return record_failure(
         "staff_login",
@@ -150,12 +156,13 @@ def record_staff_login_failure(
         account,
         limit=limits["account_limit"],
         window_seconds=limits["account_window"],
+        security_sensitive=True,
     )
 
 
 def clear_staff_login_failures(workspace_id: str, username: str) -> None:
     account = _staff_account_key(workspace_id, username)
-    clear_failures("staff_login", "account", account)
+    clear_failures("staff_login", "account", account, security_sensitive=True)
 
 
 # --- Password reset ---
@@ -179,7 +186,8 @@ def check_password_reset_allowed(request, email: str) -> bool:
         [
             ("password_reset", "ip", ip, limits["ip_limit"]),
             ("password_reset", "email", normalized, limits["email_limit"]),
-        ]
+        ],
+        security_sensitive=True,
     )
     return blocked.allowed
 
@@ -194,6 +202,7 @@ def record_password_reset_attempt(request, email: str) -> None:
         ip,
         limit=limits["ip_limit"],
         window_seconds=limits["ip_window"],
+        security_sensitive=True,
     )
     record_failure(
         "password_reset",
@@ -201,6 +210,7 @@ def record_password_reset_attempt(request, email: str) -> None:
         normalized,
         limit=limits["email_limit"],
         window_seconds=limits["email_window"],
+        security_sensitive=True,
     )
 
 
@@ -224,7 +234,8 @@ def check_account_recovery_allowed(request, email: str) -> bool:
         [
             ("account_recovery", "ip", ip, limits["ip_limit"]),
             ("account_recovery", "email", normalized, limits["email_limit"]),
-        ]
+        ],
+        security_sensitive=True,
     )
     return blocked.allowed
 
@@ -239,6 +250,7 @@ def record_account_recovery_attempt(request, email: str) -> None:
         ip,
         limit=limits["ip_limit"],
         window_seconds=limits["ip_window"],
+        security_sensitive=True,
     )
     record_failure(
         "account_recovery",
@@ -246,6 +258,7 @@ def record_account_recovery_attempt(request, email: str) -> None:
         normalized,
         limit=limits["email_limit"],
         window_seconds=limits["email_window"],
+        security_sensitive=True,
     )
 
 
@@ -263,7 +276,8 @@ def check_verification_resend_ip_allowed(request) -> bool:
     limits = verification_resend_limits()
     ip = get_client_ip(request)
     blocked = check_any_throttled(
-        [("verification_resend", "ip", ip, limits["ip_limit"])]
+        [("verification_resend", "ip", ip, limits["ip_limit"])],
+        security_sensitive=True,
     )
     return blocked.allowed
 
@@ -277,6 +291,7 @@ def record_verification_resend_ip(request) -> None:
         ip,
         limit=limits["ip_limit"],
         window_seconds=limits["ip_window"],
+        security_sensitive=True,
     )
 
 
@@ -302,7 +317,8 @@ def check_class_pin_allowed(request, *, organization_id, group_id, section_id) -
     ip = get_client_ip(request)
     scope = f"{organization_id}:{group_id}:{section_id}:{ip}"
     blocked = check_any_throttled(
-        [("class_pin", "scope", scope, limits["limit"])]
+        [("class_pin", "scope", scope, limits["limit"])],
+        security_sensitive=True,
     )
     return blocked.allowed
 
@@ -317,20 +333,24 @@ def record_class_pin_failure(request, *, organization_id, group_id, section_id) 
         scope,
         limit=limits["limit"],
         window_seconds=limits["window"],
+        security_sensitive=True,
     )
 
 
 def clear_class_pin_failures(request, *, organization_id, group_id, section_id) -> None:
     ip = get_client_ip(request)
     scope = f"{organization_id}:{group_id}:{section_id}:{ip}"
-    clear_failures("class_pin", "scope", scope)
+    clear_failures("class_pin", "scope", scope, security_sensitive=True)
 
 
 def check_kiosk_exit_allowed(request, *, organization_id, group_id) -> bool:
     limits = kiosk_exit_limits()
     ip = get_client_ip(request)
     scope = f"{organization_id}:{group_id}:{ip}"
-    blocked = check_any_throttled([("kiosk_exit", "scope", scope, limits["limit"])])
+    blocked = check_any_throttled(
+        [("kiosk_exit", "scope", scope, limits["limit"])],
+        security_sensitive=True,
+    )
     return blocked.allowed
 
 
@@ -344,10 +364,11 @@ def record_kiosk_exit_failure(request, *, organization_id, group_id) -> None:
         scope,
         limit=limits["limit"],
         window_seconds=limits["window"],
+        security_sensitive=True,
     )
 
 
 def clear_kiosk_exit_failures(request, *, organization_id, group_id) -> None:
     ip = get_client_ip(request)
     scope = f"{organization_id}:{group_id}:{ip}"
-    clear_failures("kiosk_exit", "scope", scope)
+    clear_failures("kiosk_exit", "scope", scope, security_sensitive=True)

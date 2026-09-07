@@ -38,7 +38,8 @@ def check_email_sender_test_allowed(*, request, group) -> Response | None:
             ("group_email_test", "user", user_id, user_limit),
             ("group_email_test", "group", group_id, group_limit),
             ("group_email_test", "ip", ip, ip_limit),
-        ]
+        ],
+        security_sensitive=True,
     )
     if not blocked.allowed:
         return throttled_test_email_response()
@@ -61,4 +62,5 @@ def record_email_sender_test_attempt(*, request, group) -> None:
             identifier,
             limit=limit,
             window_seconds=window,
+            security_sensitive=True,
         )
