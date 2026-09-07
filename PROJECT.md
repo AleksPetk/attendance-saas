@@ -15,7 +15,7 @@ Current architectural direction (not permission to implement until explicitly in
 | Backend | Python, Django, Django REST Framework |
 | Database | PostgreSQL |
 | Web frontend | React |
-| Mobile (later) | React Native / Expo |
+| Mobile / desktop apps | React Native / Expo (mobile) + Electron (desktop); see [APPS.md](./APPS.md) |
 | Deployment (later) | Docker, Linux, Nginx, Gunicorn, Cloudflare where appropriate |
 | Status | Independent Status service (API-first public JSON + standalone status website; production `status.checkstation.app`) |
 | Docs / legal | Canonical Content API in Django (documents + structured FAQ) + standalone Docs website (API-first; DEC-086). Production origin `docs.checkstation.app`. Support hub is Docs self-service (DEC-087). |
@@ -31,10 +31,10 @@ Native/desktop applications (macOS, Windows) and mobile app store billing are **
 2. Django / DRF backend ← foundation in progress
 3. React web frontend ← foundation in progress
 4. Complete, test, and polish backend + web
-5. Mobile frontend later
-6. macOS / Windows desktop applications later
+5. Mobile + desktop application foundation (in progress — [APPS.md](./APPS.md))
+6. Native polish / store submission (platform priority: iOS → macOS → Android → Windows)
 
-Do not begin mobile or desktop work unless explicitly instructed.
+Native work must not redesign the finished web Workspace/promo UI.
 
 ## Source of Truth
 

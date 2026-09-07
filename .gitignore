@@ -58,6 +58,17 @@ out/
 .cache/
 .parcel-cache/
 .turbo/
+
+# Native apps (Expo / Electron)
+apps/mobile/.expo/
+apps/mobile/dist/
+apps/desktop/release/
+apps/desktop/dist/
+*.jks
+*.mobileprovision
+*.p12
+google-services.json
+GoogleService-Info.plist
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*

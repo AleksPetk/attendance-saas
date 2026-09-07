@@ -1,0 +1,23 @@
+{
+  "name": "checkstation",
+  "private": true,
+  "version": "0.1.0",
+  "description": "CheckStation monorepo — web (frontend/), native apps (apps/), shared packages (packages/)",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "mobile": "npm run start -w @checkstation/mobile",
+    "mobile:ios": "npm run ios -w @checkstation/mobile",
+    "mobile:android": "npm run android -w @checkstation/mobile",
+    "desktop": "npm run dev -w @checkstation/desktop",
+    "desktop:build": "npm run build -w @checkstation/desktop",
+    "typecheck": "npm run typecheck -w @checkstation/api -w @checkstation/auth -w @checkstation/domain -w @checkstation/i18n -w @checkstation/config -w @checkstation/mobile -w @checkstation/desktop",
+    "test:packages": "npm run test -w @checkstation/api -w @checkstation/auth -w @checkstation/domain -w @checkstation/i18n",
+    "lint:apps": "npm run lint -w @checkstation/mobile -w @checkstation/desktop --if-present"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

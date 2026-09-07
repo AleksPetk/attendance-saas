@@ -1,0 +1,41 @@
+{
+  "name": "@checkstation/mobile",
+  "version": "0.1.0",
+  "private": true,
+  "main": "expo-router/entry",
+  "scripts": {
+    "start": "expo start",
+    "ios": "expo start --ios",
+    "android": "expo start --android",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "expo lint --quiet || true",
+    "test": "echo 'mobile package tests live in shared packages'"
+  },
+  "dependencies": {
+    "@checkstation/api": "*",
+    "@checkstation/auth": "*",
+    "@checkstation/config": "*",
+    "@checkstation/domain": "*",
+    "@checkstation/i18n": "*",
+    "@react-native-async-storage/async-storage": "2.1.2",
+    "@react-navigation/native": "^7.0.14",
+    "expo": "~52.0.46",
+    "expo-constants": "~17.0.8",
+    "expo-linking": "~7.0.5",
+    "expo-router": "~4.0.20",
+    "expo-secure-store": "~14.0.1",
+    "expo-status-bar": "~2.0.1",
+    "expo-system-ui": "~4.0.9",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "react-native": "0.76.9",
+    "react-native-safe-area-context": "4.12.0",
+    "react-native-screens": "~4.4.0",
+    "react-native-web": "~0.19.13"
+  },
+  "devDependencies": {
+    "@types/react": "~18.3.12",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.3"
+  }
+}

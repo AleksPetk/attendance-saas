@@ -12,7 +12,7 @@ Possible customers include schools, companies, gyms, clubs, childcare and traini
 
 **Technical foundation is in progress.**
 
-Product and architecture documentation is in place. A Django + DRF backend, React web frontend, PostgreSQL, independent Status service, public Docs website, and Docker Compose local stack are implemented at foundation level (health check, custom User model, Organization owner + WorkspaceStaffAccount, Members, Groups, GroupMemberships, and Group-only Participants). Event models are **not** yet implemented. Mobile and desktop applications come later.
+Product and architecture documentation is in place. A Django + DRF backend, React web frontend, PostgreSQL, independent Status service, public Docs website, and Docker Compose local stack are implemented. **Mobile (Expo) and desktop (Electron) application foundations** live under `apps/` and `packages/` — see [APPS.md](./APPS.md). Event models are **not** yet implemented. Native store billing is not implemented yet.
 
 ## Core Product Concepts
 
@@ -43,16 +43,19 @@ This is the **planned** stack. Foundation pieces are partially implemented local
 |-------|-----------|
 | Backend | Python, Django, Django REST Framework |
 | Database | PostgreSQL |
-| Web frontend | React |
+| Web frontend | React (`frontend/`) — finished for current phase; do not redesign casually |
+| Mobile | Expo / React Native (`apps/mobile`) — foundation in progress |
+| Desktop | Electron + React (`apps/desktop`) — foundation in progress |
+| Shared app packages | TypeScript (`packages/api`, `auth`, `domain`, `i18n`, `config`) |
 | Status | Independent Python Status service (`http://localhost:8090`; production `status.checkstation.app`) |
 | Docs | Standalone Docs website (`http://localhost:8091`; production `docs.checkstation.app`) consuming the Django Content API |
 
-Public production origins (DEC-088): `checkstation.app` (promotional site, including Contact), `workspace.checkstation.app` (workspace and account/auth), `docs.checkstation.app`, `status.checkstation.app`. The API hostname is not frozen. Local development remains the localhost ports above.
+Public production origins (DEC-088): `checkstation.app` (promotional site, including Contact), `workspace.checkstation.app` (workspace and account/auth), `docs.checkstation.app`, `status.checkstation.app`. The API hostname is not frozen. Local development remains the localhost ports above. Native apps call `https://workspace.checkstation.app/api/` (see [APPS.md](./APPS.md)).
 
-Later stages, when explicitly in scope:
+Later stages:
 
-- Mobile: React Native / Expo
-- Desktop: macOS and Windows applications
+- Native polish / store submission (priority: iOS → macOS → Android → Windows)
+- Native store billing (separate research; OPEN-015)
 - Deployment: Docker, Linux, Nginx, Gunicorn, and Cloudflare where appropriate
 
 Web billing uses a Stripe provider boundary (Checkout redirect, webhooks, Customer Portal, upgrade preview). Live Stripe TEST credentials are not committed; supply them locally after creating a Stripe account. Native app store billing requires separate research before implementation; purchase-source persistence is frozen (`none` / `stripe` / `apple`).
@@ -61,10 +64,10 @@ Web billing uses a Stripe provider boundary (Checkout redirect, webhooks, Custom
 
 1. Product and architecture design
 2. Django / DRF backend ← **in progress (foundation)**
-3. React web frontend ← **in progress (foundation)**
+3. React web frontend ← **current web product**
 4. Complete, test, and polish backend + web
-5. Mobile frontend later
-6. macOS / Windows desktop applications later
+5. Mobile + desktop application foundation ← **started ([APPS.md](./APPS.md))**
+6. Native polish / store submission
 
 ## Engineering Principles
 
