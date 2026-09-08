@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { LinearGradient } from "expo-linear-gradient";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useFocusEffect } from "expo-router";
 import { ApiError, endpoints, type ApiClient } from "@checkstation/api";
 import { formatDateTime, type AppLocale } from "@checkstation/i18n";
 import { Alert, LoadingState, Screen } from "../../../src/components/ui";
-import { ActionIcon, EmptyPanel, FilterTabs, PageHeader, SearchField, SectionCard } from "../../../src/components/mobile";
+import { ActionIcon, EmptyPanel, PageHeader, SearchField, SectionCard } from "../../../src/components/mobile";
 import { AttendanceReportPanel } from "../../../src/features/history/AttendanceReportPanel";
 import { DateField, SelectField, type PickerOption } from "../../../src/features/history/HistoryPicker";
 import { useApp } from "../../../src/lib/AppProvider";
@@ -24,7 +25,14 @@ export default function HistoryScreen() {
 }
 
 function HistoryHeader({ view, setView, t }: { view: HistoryView; setView: (view: HistoryView) => void; t: (key: string) => string }) {
-  return <><PageHeader title={t("history.title")} description={view === "activity" ? t("history.description") : t("history.reportDescription")} /><FilterTabs value={view} onChange={setView} options={[{ value: "activity", label: t("history.activityLog") }, { value: "report", label: t("history.attendanceReport") }]} /></>;
+  return <><PageHeader title={t("history.title")} description={view === "activity" ? t("history.description") : t("history.reportDescription")} /><View accessibilityRole="tablist" style={styles.viewSwitcher}>{([
+    { value: "activity", label: t("history.activityLog") },
+    { value: "report", label: t("history.attendanceReport") },
+  ] as const).map((option) => {
+    const active = option.value === view;
+    const surface = <Text numberOfLines={1} style={[styles.viewTabText, active && styles.viewTabTextActive]}>{option.label}</Text>;
+    return <Pressable accessibilityRole="tab" accessibilityState={{ selected: active }} key={option.value} onPress={() => setView(option.value)} style={({ pressed }) => [styles.viewTab, active && styles.viewTabActive, pressed && styles.viewTabPressed]}>{active ? <LinearGradient colors={[colors.blue, colors.cyan]} end={{ x: 1, y: 1 }} start={{ x: 0, y: 0 }} style={styles.viewTabSurface}>{surface}</LinearGradient> : <View style={[styles.viewTabSurface, styles.viewTabInactive]}>{surface}</View>}</Pressable>;
+  })}</View></>;
 }
 
 function ActivityLog({ api, locale, t, view, setView }: { api: ApiClient; locale: AppLocale; t: (key: string, vars?: Record<string, string | number>) => string; view: HistoryView; setView: (view: HistoryView) => void }) {
@@ -112,5 +120,5 @@ function actionLabel(action: string | undefined, t: (key: string) => string) {
 }
 
 const styles = StyleSheet.create({
-  screen: { padding: 0 }, content: { padding: space.lg, paddingBottom: space.xxxl, gap: space.lg, width: "100%", maxWidth: 1120, alignSelf: "center" }, loading: { minHeight: 220 }, activityFilters: { gap: space.md }, filterRow: { flexDirection: "row", gap: space.sm }, filterHalf: { flex: 1 }, dayRow: { flexDirection: "row", alignItems: "flex-end", gap: space.sm }, dayField: { flex: 1 }, clearButton: { minHeight: 44, alignItems: "center", justifyContent: "center", paddingHorizontal: space.md, borderRadius: radii.sm, backgroundColor: colors.blueSoft }, clearText: { ...type.captionStrong, color: colors.bluePressed }, timeline: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radii.lg, overflow: "hidden" }, row: { minHeight: 84, flexDirection: "row", alignItems: "flex-start", gap: space.md, padding: space.lg, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border }, main: { flex: 1, gap: 3 }, topLine: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: space.sm }, name: { ...type.bodyStrong, color: colors.text, flexShrink: 1 }, action: { ...type.captionStrong, color: colors.blue }, meta: { ...type.caption, color: colors.textSecondary }, when: { fontSize: 12, color: colors.textMuted },
+  screen: { padding: 0 }, content: { padding: space.lg, paddingBottom: space.xxxl, gap: space.lg, width: "100%", maxWidth: 1120, alignSelf: "center" }, viewSwitcher: { width: "100%", maxWidth: 352, flexDirection: "row", gap: space.xs, padding: space.xs, borderWidth: 1, borderColor: colors.borderStrong, borderRadius: radii.md, backgroundColor: colors.surfaceSubtle }, viewTab: { flex: 1, minWidth: 0, borderRadius: radii.sm }, viewTabActive: { shadowColor: colors.blue, shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.28, shadowRadius: 2, elevation: 2 }, viewTabPressed: { opacity: 0.78 }, viewTabSurface: { minHeight: 40, paddingHorizontal: space.sm, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "transparent", borderRadius: radii.sm }, viewTabInactive: { backgroundColor: colors.surfaceMuted }, viewTabText: { ...type.captionStrong, color: colors.navy, textAlign: "center" }, viewTabTextActive: { color: colors.surface }, loading: { minHeight: 220 }, activityFilters: { gap: space.md }, filterRow: { flexDirection: "row", gap: space.sm }, filterHalf: { flex: 1 }, dayRow: { flexDirection: "row", alignItems: "flex-end", gap: space.sm }, dayField: { flex: 1 }, clearButton: { minHeight: 44, alignItems: "center", justifyContent: "center", paddingHorizontal: space.md, borderRadius: radii.sm, backgroundColor: colors.blueSoft }, clearText: { ...type.captionStrong, color: colors.bluePressed }, timeline: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radii.lg, overflow: "hidden" }, row: { minHeight: 84, flexDirection: "row", alignItems: "flex-start", gap: space.md, padding: space.lg, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border }, main: { flex: 1, gap: 3 }, topLine: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: space.sm }, name: { ...type.bodyStrong, color: colors.text, flexShrink: 1 }, action: { ...type.captionStrong, color: colors.blue }, meta: { ...type.caption, color: colors.textSecondary }, when: { fontSize: 12, color: colors.textMuted },
 });
