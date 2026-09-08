@@ -1,7 +1,6 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import { useNavigation, usePreventRemove } from "@react-navigation/native";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { LinearGradient } from "expo-linear-gradient";
-import { Redirect, useFocusEffect, useLocalSearchParams } from "expo-router";
+import { Redirect, useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from "expo-router";
 import { Alert as NativeAlert, ImageBackground, Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
 import { ApiError, endpoints, fieldErrorsFromBody } from "@checkstation/api";
 import { canManageGroupConfiguration } from "@checkstation/domain";
@@ -42,6 +41,8 @@ export default function KioskDesignScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { api, authState, t } = useApp();
   const navigation = useNavigation();
+  const router = useRouter();
+  const allowNextNavigation = useRef(false);
   const [design, setDesign] = useState<KioskDesignData | null>(null);
   const [catalog, setCatalog] = useState<PresetCatalog | null>(null);
   const [config, setConfig] = useState<KioskDesignConfig | null>(null);
@@ -73,12 +74,24 @@ export default function KioskDesignScreen() {
   }, [api, id, t]);
 
   useFocusEffect(useCallback(() => { void load(); }, [load]));
-  usePreventRemove(dirty && !saving, ({ data }) => {
+  useEffect(() => navigation.addListener("beforeRemove", (event) => {
+    if (!dirty || saving || allowNextNavigation.current) {
+      allowNextNavigation.current = false;
+      return;
+    }
+    event.preventDefault();
     NativeAlert.alert(t("kiosk.unsavedDesignTitle"), t("kiosk.unsavedDesignMessage"), [
       { text: t("common.cancel"), style: "cancel" },
-      { text: t("kiosk.discardChanges"), style: "destructive", onPress: () => navigation.dispatch(data.action) },
+      {
+        text: t("kiosk.discardChanges"),
+        style: "destructive",
+        onPress: () => {
+          allowNextNavigation.current = true;
+          navigation.dispatch(event.data.action);
+        },
+      },
     ]);
-  });
+  }), [dirty, navigation, saving, t]);
 
   const patch = useCallback((path: string, value: unknown) => {
     setConfig((current) => {
@@ -213,7 +226,7 @@ export default function KioskDesignScreen() {
 
         <View style={styles.saveActions}>
           <Button label={saving ? t("kiosk.savingDesign") : t("kiosk.saveDesign")} loading={saving} disabled={saving || !dirty} onPress={() => void save()} />
-          <Button label={t("common.cancel")} variant="secondary" disabled={saving} onPress={() => navigation.goBack()} />
+          <Button label={t("common.cancel")} variant="secondary" disabled={saving} onPress={() => router.back()} />
         </View>
       </ScrollView>
     </Screen>
