@@ -45,7 +45,7 @@ describe("CookieJar", () => {
   it("keeps both cookies when a native Headers polyfill comma-joins Set-Cookie", () => {
     const jar = new CookieJar();
     jar.absorbSetCookieHeaders([
-      "checkstation_csrftoken=rotated; expires=Tue, 08 Sep 2026 00:00:00 GMT; Path=/; Secure, checkstation_sessionid=session-1; Path=/; HttpOnly; Secure",
+      "checkstation_csrftoken=rotated; expires=Wed, 08 Sep 2027 00:00:00 GMT; Path=/; Secure, checkstation_sessionid=session-1; Path=/; HttpOnly; Secure",
     ]);
     assert.equal(jar.get(CSRF_COOKIE), "rotated");
     assert.equal(jar.get("checkstation_sessionid"), "session-1");
@@ -158,5 +158,23 @@ describe("ApiClient", () => {
     assert.match(last.Cookie, /checkstation_sessionid=sess-1/);
     assert.equal(last["X-CSRFToken"], "csrf-1");
     assert.equal(last.Origin, "http://localhost:8000");
+  });
+
+  it("returns an unconsumed response for authenticated file downloads", async () => {
+    const fakeFetch: typeof fetch = async () => new Response("report-data", {
+      status: 200,
+      headers: {
+        "content-disposition": 'attachment; filename="attendance-report.csv"',
+        "content-type": "text/csv",
+      },
+    });
+    const config = createAppConfig({
+      apiBaseUrl: "https://workspace.checkstation.app/api",
+      environment: "production",
+    });
+    const client = new ApiClient(config, new CookieJar(), { fetchImpl: fakeFetch });
+    const response = await client.get<Response>("/history/attendance-report/export/", { rawResponse: true });
+    assert.equal(response.headers.get("content-disposition"), 'attachment; filename="attendance-report.csv"');
+    assert.equal(await response.text(), "report-data");
   });
 });

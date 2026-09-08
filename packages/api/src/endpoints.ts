@@ -42,7 +42,9 @@ export const endpoints = {
   groupClass: (groupId: number | string, sectionId: number | string) => `/groups/${groupId}/classes/${sectionId}/`,
   groupEmailSender: (groupId: number | string) => `/groups/${groupId}/email-sender/`,
   history: () => "/history/",
+  attendanceReportOptions: () => "/history/attendance-report/options/",
   attendanceReport: () => "/history/attendance-report/",
+  attendanceReportExport: () => "/history/attendance-report/export/",
   workspaceStaff: () => "/workspace-staff/",
   announcements: () => "/announcements/",
 } as const;

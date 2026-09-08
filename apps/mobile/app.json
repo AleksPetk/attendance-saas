@@ -18,7 +18,8 @@
           "resizeMode": "contain",
           "backgroundColor": "#071426"
         }
-      ]
+      ],
+      "expo-sharing"
     ],
     "ios": {
       "supportsTablet": true,

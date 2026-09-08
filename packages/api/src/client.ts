@@ -19,6 +19,8 @@ export type RequestOptions = {
   signal?: AbortSignal;
   /** Override timeout ms. */
   timeoutMs?: number;
+  /** Return the successful Response without consuming its body. */
+  rawResponse?: boolean;
 };
 
 export type SessionExpiredListener = (path: string) => void;
@@ -207,6 +209,10 @@ export class ApiClient {
         this.onSessionExpired?.(path);
       }
       throw error;
+    }
+
+    if (options.rawResponse) {
+      return response as T;
     }
 
     const contentType = response.headers.get("content-type") || "";
