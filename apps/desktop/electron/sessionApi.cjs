@@ -60,6 +60,16 @@ function joinUrl(apiBaseUrl, requestPath) {
   return `${base}${p}`;
 }
 
+function resolveRequestUrl(apiBaseUrl, requestPath, allowedOrigin) {
+  const value = String(requestPath || "");
+  if (!/^https?:\/\//i.test(value)) return joinUrl(apiBaseUrl, value);
+  const parsed = new URL(value);
+  if (parsed.origin !== allowedOrigin) {
+    throw new Error("External API URLs are not allowed");
+  }
+  return parsed.toString();
+}
+
 function parseSetCookie(header) {
   const parts = header.split(";").map((p) => p.trim());
   if (!parts[0]) return null;
@@ -261,7 +271,18 @@ function createSessionApi(options = {}) {
     }
 
     let body;
-    if (req.json !== undefined) {
+    if (Array.isArray(req.formData)) {
+      body = new FormData();
+      for (const entry of req.formData) {
+        if (!entry || !entry.name) continue;
+        if (entry.kind === "file") {
+          const bytes = Buffer.from(String(entry.value || ""), "base64");
+          body.append(entry.name, new Blob([bytes], { type: entry.type || "application/octet-stream" }), entry.filename || "upload");
+        } else {
+          body.append(entry.name, String(entry.value ?? ""));
+        }
+      }
+    } else if (req.json !== undefined) {
       headers["Content-Type"] = "application/json";
       body = JSON.stringify(req.json);
     }
@@ -269,7 +290,18 @@ function createSessionApi(options = {}) {
     const timeoutMs = req.timeoutMs || requestTimeoutMs;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
-    const url = joinUrl(apiBaseUrl, requestPath);
+    let url;
+    try {
+      url = resolveRequestUrl(apiBaseUrl, requestPath, csrfOrigin);
+    } catch (err) {
+      return {
+        ok: false,
+        status: 0,
+        data: { detail: err instanceof Error ? err.message : "Invalid API URL" },
+        path: requestPath,
+        method,
+      };
+    }
 
     let response;
     try {
@@ -296,7 +328,13 @@ function createSessionApi(options = {}) {
 
     let data = null;
     const contentType = response.headers.get("content-type") || "";
-    if (response.status !== 204) {
+    if (req.responseType === "base64" && response.ok) {
+      data = {
+        base64: Buffer.from(await response.arrayBuffer()).toString("base64"),
+        contentType,
+        contentDisposition: response.headers.get("content-disposition") || "",
+      };
+    } else if (response.status !== 204) {
       if (contentType.includes("application/json")) {
         try {
           data = await response.json();
@@ -345,4 +383,4 @@ function createSessionApi(options = {}) {
   };
 }
 
-module.exports = { createSessionApi, defaultApiBaseUrl, csrfOriginFromApiBase };
+module.exports = { createSessionApi, defaultApiBaseUrl, csrfOriginFromApiBase, resolveRequestUrl };

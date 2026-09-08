@@ -1,26 +1,28 @@
-import { useEffect, useState } from "react";
-import { endpoints } from "@checkstation/api";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { ApiError, endpoints, fieldErrorsFromBody } from "@checkstation/api";
+import { canManageStaffAccounts, hasPlanFeature } from "@checkstation/domain";
+import { Alert, Badge, Button, Card, DataRow, Empty, Field, Input, Loading, Modal, Page, PageHeader, Segmented, Switch, formatError } from "../components/ui";
 import { useApp } from "../lib/AppProvider";
 
-type Row = { id: number; username?: string; role?: string; status?: string };
+type Staff = { id: number; username: string; email?: string; role: "staff" | "admin"; status: "active" | "inactive"; is_plan_locked?: boolean; group_access?: Array<{ group_id: number; name: string }> };
+type Access = { group_id: number; name: string; group_type: string; assigned: boolean };
+type Editor = { mode: "create" } | { mode: "edit" | "password" | "access"; staff: Staff };
 
 export function StaffPage() {
-  const { api, t } = useApp();
-  const [rows, setRows] = useState<Row[]>([]);
-  useEffect(() => {
-    void api
-      .get<Row[] | { results: Row[] }>(endpoints.workspaceStaff())
-      .then((data) => setRows(Array.isArray(data) ? data : data.results || []))
-      .catch(() => setRows([]));
-  }, [api]);
-  return (
-    <div>
-      <h1>{t("nav.staff")}</h1>
-      <ul>
-        {rows.map((s) => (
-          <li key={s.id}>{s.username} · {s.role} · {s.status}</li>
-        ))}
-      </ul>
-    </div>
-  );
+  const { api, authState, t } = useApp(); const allowed = canManageStaffAccounts(authState.session) && hasPlanFeature(authState.session, "staff_management"); const [rows, setRows] = useState<Staff[]>([]); const [search, setSearch] = useState(""); const [loading, setLoading] = useState(true); const [busy, setBusy] = useState(false); const [error, setError] = useState(""); const [editor, setEditor] = useState<Editor | null>(null);
+  const load = useCallback(async () => { if (!allowed) return; setLoading(true); setError(""); try { const data = await api.get<Staff[] | { results: Staff[] }>(endpoints.workspaceStaff()); setRows(Array.isArray(data) ? data : data.results || []); } catch (caught) { setError(formatError(caught, t("common.error"))); } finally { setLoading(false); } }, [allowed, api, t]);
+  useEffect(() => { void load(); }, [load]);
+  async function lifecycle(staff: Staff, remove = false) { const copy = t(remove ? "staff.deleteConfirm" : "staff.statusConfirm", { name: staff.username }); if (!confirm(copy)) return; setBusy(true); setError(""); try { if (remove) await api.delete(endpoints.workspaceStaffAccount(staff.id)); else await api.patch(endpoints.workspaceStaffAccount(staff.id), { status: staff.status === "active" ? "inactive" : "active" }); await load(); } catch (caught) { setError(formatError(caught, t("common.error"))); } finally { setBusy(false); } }
+  if (!allowed) return <Page><Alert tone="warning">{t("staff.planRequired")}</Alert></Page>;
+  const visible = rows.filter((row) => `${row.username} ${row.email || ""}`.toLowerCase().includes(search.trim().toLowerCase()));
+  return <Page><PageHeader title={t("nav.staff")} description={t("staff.description")} actions={<Button onClick={() => setEditor({ mode: "create" })}>{t("staff.create")}</Button>} /><Input className="input search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t("staff.search")} /><Alert>{error}</Alert>{loading ? <Loading label={t("staff.loading")} /> : visible.length ? <div className="data-list">{visible.map((staff) => <DataRow key={staff.id} title={staff.username} detail={staff.email || t("staff.noEmail")} badge={<><Badge tone="blue">{staff.role === "admin" ? t("staff.admin") : t("nav.staff")}</Badge><Badge tone={staff.status === "active" ? "green" : "neutral"}>{staff.status === "active" ? t("members.active") : t("staff.inactive")}</Badge>{staff.is_plan_locked ? <Badge tone="warning">{t("members.planLocked")}</Badge> : null}</>} meta={staff.role === "staff" ? staff.group_access?.map((g) => g.name).join(", ") || t("staff.noGroupAccess") : undefined} actions={<><Button className="button-sm" variant="secondary" onClick={() => setEditor({ mode: "edit", staff })}>{t("staff.edit")}</Button>{staff.role === "staff" ? <Button className="button-sm" variant="secondary" onClick={() => setEditor({ mode: "access", staff })}>{t("staff.groupAccess")}</Button> : null}<Button className="button-sm" variant="secondary" onClick={() => setEditor({ mode: "password", staff })}>{t("staff.resetPassword")}</Button><Button className="button-sm" variant={staff.status === "active" ? "secondary" : "primary"} disabled={busy || staff.is_plan_locked} onClick={() => void lifecycle(staff)}>{t(staff.status === "active" ? "staff.deactivate" : "staff.activate")}</Button>{staff.status === "inactive" ? <Button className="button-sm" variant="danger" disabled={busy} onClick={() => void lifecycle(staff, true)}>{t("staff.delete")}</Button> : null}</>} />)}</div> : <Empty title={t("staff.emptyTitle")} body={t("staff.emptyBody")} />}{editor ? <StaffEditor editor={editor} onClose={() => setEditor(null)} onSaved={() => { setEditor(null); void load(); }} /> : null}</Page>;
+}
+
+function StaffEditor({ editor, onClose, onSaved }: { editor: Editor; onClose: () => void; onSaved: () => void }) {
+  const { api, authState, t } = useApp(); const staff = "staff" in editor ? editor.staff : undefined; const canAdmins = authState.session?.capabilities?.can_manage_workspace_admin_accounts ?? authState.session?.role === "owner"; const [username, setUsername] = useState(staff?.username || ""); const [email, setEmail] = useState(staff?.email || ""); const [role, setRole] = useState<"staff" | "admin">(staff?.role || "staff"); const [password, setPassword] = useState(""); const [access, setAccess] = useState<Access[]>([]); const [search, setSearch] = useState(""); const [loading, setLoading] = useState(editor.mode === "access"); const [busy, setBusy] = useState(false); const [error, setError] = useState(""); const [fields, setFields] = useState<Record<string, string>>({});
+  useEffect(() => { if (editor.mode !== "access") return; void api.get<{ items: Access[] }>(endpoints.workspaceStaffGroupAccess(editor.staff.id)).then((data) => setAccess(data.items || [])).catch((caught) => setError(formatError(caught, t("common.error")))).finally(() => setLoading(false)); }, [api, editor, t]);
+  async function save(event: FormEvent) { event.preventDefault(); setBusy(true); setError(""); setFields({}); try { if (editor.mode === "access") await api.put(endpoints.workspaceStaffGroupAccess(editor.staff.id), { group_ids: access.filter((x) => x.assigned).map((x) => x.group_id) }); else if (editor.mode === "password") await api.post(endpoints.workspaceStaffPassword(editor.staff.id), { password }); else if (editor.mode === "create") await api.post(endpoints.workspaceStaff(), { username, email, role: canAdmins ? role : "staff", password }); else await api.patch(endpoints.workspaceStaffAccount(editor.staff.id), { username, email, ...(canAdmins ? { role } : {}) }); onSaved(); } catch (caught) { if (caught instanceof ApiError) setFields(fieldErrorsFromBody(caught.data)); setError(formatError(caught, t("common.error"))); } finally { setBusy(false); } }
+  const title = t(editor.mode === "create" ? "staff.create" : editor.mode === "edit" ? "staff.edit" : editor.mode === "access" ? "staff.groupAccess" : "staff.resetPassword");
+  const filtered = access.filter((item) => item.name.toLowerCase().includes(search.toLowerCase()));
+  return <Modal title={title} onClose={onClose} actions={<><Button variant="secondary" onClick={onClose}>{t("common.cancel")}</Button><Button type="submit" form="staff-editor" loading={busy} disabled={loading}>{t(editor.mode === "create" ? "staff.create" : editor.mode === "access" ? "staff.saveAccess" : editor.mode === "password" ? "staff.resetPassword" : "common.save")}</Button></>}><form id="staff-editor" className="form" onSubmit={save}><Alert>{error}</Alert>{editor.mode === "access" ? <><Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t("staff.searchGroups")} />{loading ? <Loading label={t("common.loading")} /> : <div className="data-list">{filtered.map((item) => <div className="setting-row access-row" key={item.group_id}><div className="setting-copy"><strong>{item.name}</strong><span>{t(item.group_type === "structured" ? "groups.structured" : "groups.standard")}</span></div><Switch label={item.name} checked={item.assigned} onChange={(assigned) => setAccess((current) => current.map((row) => row.group_id === item.group_id ? { ...row, assigned } : row))} /></div>)}</div>}</> : editor.mode === "password" ? <><p className="muted-copy">{t("staff.passwordHint")}</p><Field label={t("security.newPassword")} error={fields.password}><Input autoFocus required type="password" value={password} onChange={(e) => setPassword(e.target.value)} /></Field></> : <><Field label={t("auth.username")} error={fields.username}><Input required value={username} onChange={(e) => setUsername(e.target.value)} /></Field><Field label={t("auth.email")} hint={t("staff.emailHint")} error={fields.email}><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} /></Field>{canAdmins ? <Field label={t("staff.role")}><Segmented value={role} onChange={setRole} options={[{ value: "staff", label: t("nav.staff") }, { value: "admin", label: t("staff.admin") }]} /></Field> : null}{editor.mode === "create" ? <Field label={t("security.newPassword")} error={fields.password}><Input required type="password" value={password} onChange={(e) => setPassword(e.target.value)} /></Field> : null}</>}</form></Modal>;
 }

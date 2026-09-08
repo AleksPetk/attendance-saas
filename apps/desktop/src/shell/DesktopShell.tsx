@@ -1,52 +1,34 @@
-import { NavLink, Outlet } from "react-router-dom";
+import { NavLink, Outlet, useLocation } from "react-router-dom";
+import { canManageOwnerAccount, canManageStaffAccounts, canViewBilling, canViewGlobalMembers, workspacePlanKey } from "@checkstation/domain";
+import { Brand, Button, Badge } from "../components/ui";
 import { useApp } from "../lib/AppProvider";
 
-const linkStyle = ({ isActive }: { isActive: boolean }) => ({
-  display: "block",
-  padding: "10px 12px",
-  borderRadius: 8,
-  color: isActive ? "#fff" : "var(--sidebar-text)",
-  background: isActive ? "rgba(15,118,110,0.55)" : "transparent",
-  textDecoration: "none",
-  marginBottom: 4,
-});
-
 export function DesktopShell() {
-  const { t, auth, authState, locale, setLocale } = useApp();
-  return (
-    <div style={{ display: "grid", gridTemplateColumns: "240px 1fr", height: "100%" }}>
-      <aside
-        style={{
-          background: "var(--sidebar)",
-          color: "var(--sidebar-text)",
-          padding: 16,
-          display: "flex",
-          flexDirection: "column",
-          gap: 8,
-        }}
-      >
-        <div style={{ fontWeight: 700, fontSize: 18, marginBottom: 12 }}>{t("app.name")}</div>
-        <NavLink to="/" end style={linkStyle}>{t("nav.home")}</NavLink>
-        <NavLink to="/groups" style={linkStyle}>{t("nav.groups")}</NavLink>
-        <NavLink to="/people" style={linkStyle}>{t("nav.people")}</NavLink>
-        <NavLink to="/history" style={linkStyle}>{t("nav.history")}</NavLink>
-        <NavLink to="/staff" style={linkStyle}>{t("nav.staff")}</NavLink>
-        <NavLink to="/plan" style={linkStyle}>{t("nav.plan")}</NavLink>
-        <NavLink to="/account" style={linkStyle}>{t("nav.account")}</NavLink>
-        <NavLink to="/help" style={linkStyle}>{t("nav.help")}</NavLink>
-        <div style={{ flex: 1 }} />
-        <div style={{ fontSize: 12, opacity: 0.8 }}>
-          {String(authState.session?.workspace?.workspace_id || "")}
-        </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <button type="button" onClick={() => setLocale("en")} disabled={locale === "en"}>EN</button>
-          <button type="button" onClick={() => setLocale("ja")} disabled={locale === "ja"}>JA</button>
-        </div>
-        <button type="button" onClick={() => void auth.logout()}>{t("nav.logout")}</button>
-      </aside>
-      <main style={{ padding: 24, overflow: "auto" }}>
-        <Outlet />
-      </main>
-    </div>
-  );
+  const { t, auth, authState, locale, setLocale } = useApp(); const location = useLocation(); const session = authState.session;
+  const items = [
+    { to: "/", label: t("nav.home"), icon: "home", show: true },
+    { to: "/people", label: t("nav.members"), icon: "people", show: canViewGlobalMembers(session) },
+    { to: "/groups", label: t("nav.groups"), icon: "groups", show: true },
+    { to: "/history", label: t("nav.history"), icon: "history", show: true },
+    { to: "/staff", label: t("nav.staff"), icon: "staff", show: canManageStaffAccounts(session) },
+    { to: "/account", label: t("nav.account"), icon: "account", show: canManageOwnerAccount(session) },
+    { to: "/plan", label: t("nav.plan"), icon: "plan", show: canViewBilling(session) },
+    { to: "/help", label: t("nav.help"), icon: "help", show: true },
+  ];
+  const page = items.find((item) => item.to === "/" ? location.pathname === "/" : location.pathname.startsWith(item.to));
+  return <div className="app-shell"><aside className="sidebar"><Brand /><nav className="sidebar-nav">{items.filter((item) => item.show).map((item) => <NavLink className={({ isActive }) => `nav-link${isActive ? " is-active" : ""}`} end={item.to === "/"} key={item.to} to={item.to}><NavIcon name={item.icon} />{item.label}</NavLink>)}</nav><div className="sidebar-footer"><div className="workspace-chip"><strong>{String(session?.workspace?.name || t("app.name"))}</strong><span>{String(session?.workspace?.workspace_id || "")} · {String(session?.role || "")}</span><div className="workspace-plan"><Badge tone="blue">{String(workspacePlanKey(session)).toUpperCase()}</Badge></div></div><div className="sidebar-actions"><Button className="button-sm" disabled={locale === "en"} onClick={() => setLocale("en")} variant="ghost">EN</Button><Button className="button-sm" disabled={locale === "ja"} onClick={() => setLocale("ja")} variant="ghost">JA</Button><Button className="button-sm" onClick={() => void auth.logout()} variant="ghost">{t("nav.logout")}</Button></div></div></aside><main className="desktop-main"><header className="topbar"><span className="topbar-title">{page?.label || t("app.name")}</span><span className="topbar-meta">{String(session?.actor?.name || session?.actor?.username || session?.actor?.email || "")}</span></header><Outlet /></main></div>;
+}
+
+function NavIcon({ name }: { name: string }) {
+  const paths: Record<string, React.ReactNode> = {
+    home: <><path d="M3 11.5 12 4l9 7.5" /><path d="M5.5 10.5V20h13v-9.5M9.5 20v-6h5v6" /></>,
+    people: <><circle cx="9" cy="8" r="3" /><path d="M3.5 20v-2.2A4.8 4.8 0 0 1 8.3 13h1.4a4.8 4.8 0 0 1 4.8 4.8V20M15 6.5a3 3 0 0 1 0 5.8M16 14a4.8 4.8 0 0 1 4.5 4.8V20" /></>,
+    groups: <><rect x="3" y="4" width="7" height="7" rx="2" /><rect x="14" y="4" width="7" height="7" rx="2" /><rect x="3" y="15" width="7" height="6" rx="2" /><rect x="14" y="15" width="7" height="6" rx="2" /></>,
+    history: <><path d="M4.7 7.3A8.5 8.5 0 1 1 3.5 15" /><path d="M4.7 3.5v3.8H1M12 7.5V12l3 2" /></>,
+    staff: <><path d="M7 10V7a5 5 0 0 1 10 0v3" /><rect x="4" y="10" width="16" height="11" rx="2" /><path d="M12 14v3" /></>,
+    account: <><circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0 1 16 0" /></>,
+    plan: <><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M3 9h18M7 15h4" /></>,
+    help: <><circle cx="12" cy="12" r="9" /><path d="M9.8 9a2.3 2.3 0 1 1 3.1 2.2c-.9.4-.9 1.2-.9 2M12 17h.01" /></>,
+  };
+  return <svg className="nav-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">{paths[name]}</svg>;
 }

@@ -16,6 +16,10 @@ export type DesktopHttpRequest = {
   json?: unknown;
   credentials?: boolean;
   timeoutMs?: number;
+  formData?: Array<
+    | { name: string; kind: "text"; value: string }
+    | { name: string; kind: "file"; value: string; filename: string; type: string }
+  >;
 };
 
 export type DesktopHttpSuccess = {
@@ -101,8 +105,19 @@ export class TransportApiClient {
   async request<T = unknown>(path: string, options: RequestOptions = {}): Promise<T> {
     const method = (options.method || "GET").toUpperCase() as HttpMethod;
     const useCredentials = options.credentials !== false;
+    let formData: DesktopHttpRequest["formData"];
     if (options.formData) {
-      throw new Error("FormData uploads via Electron IPC are not supported in this foundation.");
+      formData = [];
+      for (const [name, value] of options.formData.entries()) {
+        if (typeof value === "string") formData.push({ name, kind: "text", value });
+        else formData.push({
+          name,
+          kind: "file",
+          value: arrayBufferToBase64(await value.arrayBuffer()),
+          filename: value.name || "upload",
+          type: value.type || "application/octet-stream",
+        });
+      }
     }
 
     const result = await this.bridge.http({
@@ -111,6 +126,7 @@ export class TransportApiClient {
       json: options.json,
       credentials: useCredentials,
       timeoutMs: options.timeoutMs,
+      formData,
     });
 
     if (!result.ok) {
@@ -153,4 +169,14 @@ export class TransportApiClient {
   delete<T = unknown>(path: string, options?: Omit<RequestOptions, "method">) {
     return this.request<T>(path, { ...options, method: "DELETE" });
   }
+}
+
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  const chunk = 0x8000;
+  for (let offset = 0; offset < bytes.length; offset += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + chunk));
+  }
+  return btoa(binary);
 }

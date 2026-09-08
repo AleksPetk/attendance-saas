@@ -1,86 +1,18 @@
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
+import { Link } from "react-router-dom";
 import { ApiError, fieldErrorsFromBody } from "@checkstation/api";
+import { AuthLayout } from "../components/AuthLayout";
+import { Alert, Button, Field, Input, Segmented } from "../components/ui";
 import { useApp } from "../lib/AppProvider";
 
 export function SignInPage() {
-  const { auth, authState, t } = useApp();
-  const [mode, setMode] = useState<"owner" | "staff">("owner");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [workspaceId, setWorkspaceId] = useState("");
-  const [username, setUsername] = useState("");
-  const [totp, setTotp] = useState("");
-  const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
-
-  async function submitOwner() {
-    setBusy(true);
-    setError("");
-    try {
-      await auth.loginOwner(email.trim(), password);
-    } catch (err) {
-      if (err instanceof ApiError) {
-        const fields = fieldErrorsFromBody(err.data);
-        setError(fields.email || fields.password || err.message);
-      } else setError(t("common.error"));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function submitTotp() {
-    setBusy(true);
-    setError("");
-    try {
-      await auth.completeOwnerTotp(totp.trim());
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t("common.error"));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function submitStaff() {
-    setBusy(true);
-    setError("");
-    try {
-      await auth.loginStaff(workspaceId.trim(), username.trim(), password);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t("common.error"));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <div style={{ maxWidth: 420, margin: "10vh auto", padding: 24, background: "var(--surface)", borderRadius: 12, border: "1px solid var(--border)" }}>
-      <h1>{t("app.name")}</h1>
-      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-        <button type="button" onClick={() => setMode("owner")}>{t("auth.ownerSignIn")}</button>
-        <button type="button" onClick={() => setMode("staff")}>{t("auth.staffSignIn")}</button>
-      </div>
-      {authState.status === "needs_2fa" ? (
-        <>
-          <label>{t("auth.twoFactor")}<input value={totp} onChange={(e) => setTotp(e.target.value)} /></label>
-          <button type="button" disabled={busy} onClick={() => void submitTotp()}>{t("auth.continue")}</button>
-        </>
-      ) : mode === "owner" ? (
-        <>
-          <label>{t("auth.email")}<input value={email} onChange={(e) => setEmail(e.target.value)} /></label>
-          <label>{t("auth.password")}<input type="password" value={password} onChange={(e) => setPassword(e.target.value)} /></label>
-          <button type="button" disabled={busy} onClick={() => void submitOwner()}>{t("auth.signIn")}</button>
-          <p style={{ color: "var(--muted)" }}>{t("auth.oauthUnavailable")}</p>
-        </>
-      ) : (
-        <>
-          <label>{t("auth.workspaceId")}<input value={workspaceId} onChange={(e) => setWorkspaceId(e.target.value)} /></label>
-          <label>{t("auth.username")}<input value={username} onChange={(e) => setUsername(e.target.value)} /></label>
-          <label>{t("auth.password")}<input type="password" value={password} onChange={(e) => setPassword(e.target.value)} /></label>
-          <button type="button" disabled={busy} onClick={() => void submitStaff()}>{t("auth.signIn")}</button>
-        </>
-      )}
-      {error ? <p style={{ color: "var(--danger)" }}>{error}</p> : null}
-      <style>{`label{display:block;margin:8px 0} input{display:block;width:100%;margin-top:4px;padding:8px}`}</style>
-    </div>
-  );
+  const { auth, authState, t } = useApp(); const [mode, setMode] = useState<"owner" | "staff">("owner"); const [email, setEmail] = useState(""); const [password, setPassword] = useState(""); const [workspaceId, setWorkspaceId] = useState(""); const [username, setUsername] = useState(""); const [code, setCode] = useState(""); const [recovery, setRecovery] = useState(false); const [visible, setVisible] = useState(false); const [error, setError] = useState(""); const [busy, setBusy] = useState(false);
+  async function submit(event: FormEvent) { event.preventDefault(); setBusy(true); setError(""); try { if (authState.status === "needs_2fa") await auth.completeOwnerTwoFactor(recovery ? { recovery_code: code.trim() } : { code: code.trim() }); else if (mode === "owner") await auth.loginOwner(email.trim(), password); else await auth.loginStaff(workspaceId.trim(), username.trim(), password); } catch (caught) { if (caught instanceof ApiError) { const fields = fieldErrorsFromBody(caught.data); setError(fields.email || fields.password || fields.code || caught.message); } else setError(t("common.error")); } finally { setBusy(false); } }
+  const passwordInput = (autoComplete: string) => <div className="password-wrap"><Input autoComplete={autoComplete} onChange={(event) => setPassword(event.target.value)} required type={visible ? "text" : "password"} value={password} /><button className="password-toggle" onClick={() => setVisible((value) => !value)} type="button">{t(visible ? "auth.hidePassword" : "auth.showPassword")}</button></div>;
+  if (authState.status === "needs_2fa") return <AuthLayout title={t("auth.twoFactorTitle")} lead={t("auth.twoFactorLead")}><form className="form" onSubmit={submit}><Field label={recovery ? t("auth.recoveryCodePlaceholder") : t("auth.twoFactor")}><Input autoComplete="one-time-code" autoFocus onChange={(event) => setCode(event.target.value)} placeholder={t(recovery ? "auth.recoveryCodePlaceholder" : "auth.authenticatorCodePlaceholder")} required value={code} /></Field><Alert>{error}</Alert><Button loading={busy} type="submit">{t("auth.verify")}</Button><Button onClick={() => { setRecovery((value) => !value); setCode(""); }} type="button" variant="secondary">{t(recovery ? "auth.useAuthenticator" : "auth.useRecovery")}</Button></form></AuthLayout>;
+  return <AuthLayout title={mode === "owner" ? t("auth.customerLogin") : t("auth.staffSignIn")} lead={mode === "staff" ? t("auth.staffLead") : undefined} footnote={<>{mode === "owner" ? <><span>{t("auth.newHere")} </span><Link to="/register">{t("auth.createAccount")}</Link></> : <button className="button button-secondary" onClick={() => setMode("owner")}>{t("auth.ownerSignIn")}</button>}</>}>
+    <form className="form" onSubmit={submit}><Segmented label={t("auth.signInType")} onChange={setMode} options={[{ value: "owner", label: t("auth.customerTab") }, { value: "staff", label: t("auth.staffTab") }]} value={mode} />
+      {mode === "owner" ? <><Field label={t("auth.email")}><Input autoComplete="email" autoFocus onChange={(event) => setEmail(event.target.value)} required type="email" value={email} /></Field><Field label={t("auth.password")}>{passwordInput("current-password")}</Field><div className="auth-links"><Link to="/forgot-password">{t("auth.forgotPassword")}</Link><Link to="/recover-account">{t("auth.recoverAccount")}</Link></div></> : <><Field hint={t("auth.workspaceIdHint")} label={t("auth.workspaceId")}><Input autoCapitalize="characters" onChange={(event) => setWorkspaceId(event.target.value)} required value={workspaceId} /></Field><Field label={t("auth.username")}><Input autoComplete="username" onChange={(event) => setUsername(event.target.value)} required value={username} /></Field><Field label={t("auth.password")}>{passwordInput("current-password")}</Field></>}
+      <Alert>{error}</Alert><Button loading={busy} type="submit">{t(mode === "owner" ? "auth.signIn" : "auth.enterWorkspace")}</Button>{mode === "owner" ? <><div className="divider">{t("auth.or")}</div><div className="oauth-grid"><Button disabled title={t("auth.oauthComingBody")} variant="secondary">Google</Button><Button disabled title={t("auth.oauthComingBody")} variant="secondary">Apple</Button></div><p className="auth-footnote">{t("auth.oauthComingBody")}</p><div className="auth-links"><button className="button button-secondary" onClick={() => setMode("staff")} type="button">{t("auth.staffSignIn")}</button></div></> : null}
+    </form></AuthLayout>;
 }

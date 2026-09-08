@@ -1,13 +1,27 @@
-import { Link } from "react-router-dom";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { endpoints } from "@checkstation/api";
+import { canManageOwnerAccount } from "@checkstation/domain";
+import { Alert, Badge, Button, Card, DataRow, Field, Input, Loading, Modal, Page, PageHeader, Segmented, formatError } from "../components/ui";
 import { useApp } from "../lib/AppProvider";
 
+type Account = { email?: string; email_verified?: boolean; pending_primary_email?: string | null; backup_email_status?: string; backup_email?: string | null; pending_backup_email?: string | null; preferred_language?: "en" | "ja"; sign_in_methods?: { password?: { enabled?: boolean } } };
+type EmailAction = "primary" | "backup" | "remove-backup";
+
 export function AccountPage() {
-  const { authState, t } = useApp();
-  return (
-    <div>
-      <h1>{t("account.title")}</h1>
-      <p>Role: {String(authState.session?.role || "")}</p>
-      <p><Link to="/security">Security</Link></p>
-    </div>
-  );
+  const { api, authState, locale, setLocale, t } = useApp(); const allowed = canManageOwnerAccount(authState.session); const [account, setAccount] = useState<Account | null>(null); const [loading, setLoading] = useState(true); const [error, setError] = useState(""); const [action, setAction] = useState<EmailAction | null>(null); const [busy, setBusy] = useState(false); const [message, setMessage] = useState("");
+  const load = useCallback(async () => { if (!allowed) return; setLoading(true); setError(""); try { setAccount(await api.get<Account>(endpoints.account())); } catch (caught) { setError(formatError(caught, t("common.error"))); } finally { setLoading(false); } }, [allowed, api, t]);
+  useEffect(() => { void load(); }, [load]);
+  async function language(value: "en" | "ja") { setBusy(true); setError(""); try { setAccount(await api.patch<Account>(endpoints.account(), { preferred_language: value })); setLocale(value); } catch (caught) { setError(formatError(caught, t("common.error"))); } finally { setBusy(false); } }
+  async function pending(kind: "primary" | "backup", operation: "resend" | "cancel") { setBusy(true); setError(""); try { const path = kind === "primary" ? operation === "resend" ? endpoints.accountPrimaryEmailResend() : endpoints.accountPrimaryEmailCancel() : operation === "resend" ? endpoints.accountBackupEmailResend() : endpoints.accountBackupEmailCancel(); await api.post(path, {}); setMessage(operation === "resend" ? t("account.verificationSent") : t("manage.saved")); await load(); } catch (caught) { setError(formatError(caught, t("common.error"))); } finally { setBusy(false); } }
+  if (!allowed) return <Page><Alert tone="warning">{t("more.staffRoleDescription")}</Alert></Page>;
+  if (loading) return <Page><Loading label={t("account.loading")} /></Page>;
+  return <Page narrow><PageHeader title={t("account.title")} description={t("account.description")} /><Alert>{error}</Alert><Alert tone="success">{message}</Alert><Card title={t("account.loginEmail")}><DataRow title={account?.email || "—"} detail={t("auth.email")} badge={<Badge tone={account?.email_verified ? "green" : "warning"}>{t(account?.email_verified ? "account.verified" : "account.unverified")}</Badge>} actions={<Button className="button-sm" variant="secondary" onClick={() => setAction("primary")}>{t("account.changeEmail")}</Button>} />{account?.pending_primary_email ? <Pending email={account.pending_primary_email} kind="primary" busy={busy} onAction={pending} /> : null}</Card><Card title={t("account.recovery")}><DataRow title={account?.backup_email || account?.pending_backup_email || t("account.notConfigured")} detail={t("account.backupEmail")} badge={account?.backup_email_status === "verified" ? <Badge tone="green">{t("account.verified")}</Badge> : undefined} actions={<Button className="button-sm" variant="secondary" onClick={() => setAction("backup")}>{t("account.setBackup")}</Button>} />{account?.pending_backup_email ? <Pending email={account.pending_backup_email} kind="backup" busy={busy} onAction={pending} /> : null}{account?.backup_email ? <Button variant="danger" onClick={() => setAction("remove-backup")}>{t("account.removeBackup")}</Button> : null}</Card><Card title={t("more.language")}><Segmented value={locale} onChange={(value) => void language(value)} options={[{ value: "en", label: "English" }, { value: "ja", label: "日本語" }]} /></Card>{action ? <EmailModal action={action} onClose={() => setAction(null)} onSaved={() => { setAction(null); setMessage(t("account.verificationSent")); void load(); }} /> : null}</Page>;
+}
+
+function Pending({ email, kind, busy, onAction }: { email: string; kind: "primary" | "backup"; busy: boolean; onAction: (kind: "primary" | "backup", action: "resend" | "cancel") => void }) { const { t } = useApp(); return <div className="pending-action"><span>{t("account.pendingEmail", { email })}</span><div className="toolbar"><Button className="button-sm" variant="secondary" disabled={busy} onClick={() => onAction(kind, "resend")}>{t("account.resend")}</Button><Button className="button-sm" variant="danger" disabled={busy} onClick={() => onAction(kind, "cancel")}>{t("account.cancelEmail")}</Button></div></div>; }
+function EmailModal({ action, onClose, onSaved }: { action: EmailAction; onClose: () => void; onSaved: () => void }) {
+  const { api, t } = useApp(); const [email, setEmail] = useState(""); const [password, setPassword] = useState(""); const [busy, setBusy] = useState(false); const [error, setError] = useState("");
+  async function submit(event: FormEvent) { event.preventDefault(); setBusy(true); setError(""); try { const path = action === "primary" ? endpoints.accountPrimaryEmail() : action === "backup" ? endpoints.accountBackupEmail() : endpoints.accountBackupEmailRemove(); await api.post(path, { ...(action !== "remove-backup" ? { email } : {}), current_password: password }); onSaved(); } catch (caught) { setError(formatError(caught, t("common.error"))); } finally { setBusy(false); } }
+  const title = t(action === "primary" ? "account.changeEmail" : action === "backup" ? "account.setBackup" : "account.removeBackup");
+  return <Modal title={title} onClose={onClose} actions={<><Button variant="secondary" onClick={onClose}>{t("common.cancel")}</Button><Button variant={action === "remove-backup" ? "danger" : "primary"} form="email-action" type="submit" loading={busy}>{t("common.confirm")}</Button></>}><form id="email-action" className="form" onSubmit={submit}><p className="muted-copy">{t(action === "remove-backup" ? "account.removeBackupHint" : "account.emailVerifyHint")}</p>{action !== "remove-backup" ? <Field label={t("auth.email")}><Input autoFocus required type="email" value={email} onChange={(e) => setEmail(e.target.value)} /></Field> : null}<Field label={t("security.currentPassword")}><Input required type="password" value={password} onChange={(e) => setPassword(e.target.value)} /></Field><Alert>{error}</Alert></form></Modal>;
 }

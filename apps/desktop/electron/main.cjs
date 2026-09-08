@@ -1,4 +1,5 @@
-const { app, BrowserWindow, shell, ipcMain } = require("electron");
+const { app, BrowserWindow, shell, ipcMain, dialog } = require("electron");
+const fs = require("fs");
 const path = require("path");
 const { createSessionApi } = require("./sessionApi.cjs");
 
@@ -36,6 +37,14 @@ app.whenReady().then(() => {
   ipcMain.handle("checkstation:initSession", () => sessionApi.initSession());
   ipcMain.handle("checkstation:clearSession", () => sessionApi.clearSession());
   ipcMain.handle("checkstation:http", (_event, req) => sessionApi.http(req || {}));
+  ipcMain.handle("checkstation:saveFile", async (_event, request) => {
+    const result = await dialog.showSaveDialog({
+      defaultPath: String(request?.defaultPath || "checkstation-export"),
+    });
+    if (result.canceled || !result.filePath) return { saved: false };
+    await fs.promises.writeFile(result.filePath, Buffer.from(String(request?.base64 || ""), "base64"));
+    return { saved: true, path: result.filePath };
+  });
 
   createWindow();
   app.on("activate", () => {

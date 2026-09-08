@@ -14,10 +14,16 @@ type DesktopBridge = {
     json?: unknown;
     credentials?: boolean;
     timeoutMs?: number;
+    responseType?: "base64";
+    formData?: Array<
+      | { name: string; kind: "text"; value: string }
+      | { name: string; kind: "file"; value: string; filename: string; type: string }
+    >;
   }) => Promise<
     | { ok: true; status: number; data: unknown }
     | { ok: false; status: number; data: unknown; path: string; method: string }
   >;
+  saveFile?: (req: { defaultPath: string; base64: string }) => Promise<{ saved: boolean; path?: string }>;
 };
 
 declare global {
@@ -34,7 +40,7 @@ type Ctx = {
   authState: AuthState;
   locale: AppLocale;
   setLocale: (l: AppLocale) => void;
-  t: (key: string) => string;
+  t: (key: string, vars?: Record<string, string | number>) => string;
   ready: boolean;
 };
 
@@ -100,4 +106,33 @@ export function useApp() {
   const ctx = useContext(AppContext);
   if (!ctx) throw new Error("useApp requires AppProvider");
   return ctx;
+}
+
+export async function downloadDesktopApiFile(path: string, defaultName: string) {
+  const bridge = window.checkstationDesktop;
+  if (!bridge?.saveFile) throw new Error("Desktop file saving is unavailable.");
+  const result = await bridge.http({ path, method: "GET", credentials: true, timeoutMs: 60_000, responseType: "base64" });
+  if (!result.ok) {
+    const body = result.data as { detail?: string } | null;
+    throw new Error(body?.detail || `Export failed (${result.status})`);
+  }
+  const data = result.data as { base64?: string; contentDisposition?: string };
+  const quoted = data.contentDisposition?.match(/filename="([^"]+)"/i)?.[1];
+  const encoded = data.contentDisposition?.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
+  const name = encoded ? decodeURIComponent(encoded) : quoted || defaultName;
+  if (!data.base64) throw new Error("The report file was empty.");
+  return bridge.saveFile({ defaultPath: name, base64: data.base64 });
+}
+
+export async function loadDesktopApiAsset(path: string): Promise<string> {
+  const bridge = window.checkstationDesktop;
+  if (!bridge) return path;
+  const result = await bridge.http({ path, method: "GET", credentials: true, responseType: "base64" });
+  if (!result.ok) throw new Error(`Image request failed (${result.status})`);
+  const data = result.data as { base64?: string; contentType?: string };
+  if (!data.base64) throw new Error("The image was empty.");
+  const raw = atob(data.base64);
+  const bytes = new Uint8Array(raw.length);
+  for (let index = 0; index < raw.length; index += 1) bytes[index] = raw.charCodeAt(index);
+  return URL.createObjectURL(new Blob([bytes], { type: data.contentType || "application/octet-stream" }));
 }

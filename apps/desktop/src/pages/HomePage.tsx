@@ -1,21 +1,15 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { endpoints } from "@checkstation/api";
-import { workspacePlanKey } from "@checkstation/domain";
+import { canManageGroupConfiguration, canViewGlobalMembers } from "@checkstation/domain";
+import { formatDateTime } from "@checkstation/i18n";
+import { Alert, Button, Card, DataRow, Empty, Loading, Page, PageHeader, Stat, formatError } from "../components/ui";
 import { useApp } from "../lib/AppProvider";
 
+type Activity = { id: number; action?: string; source?: string; group_name?: string; performed_at?: string; person?: { name?: string } };
+type Dashboard = { member_count?: number; group_count?: number; recent_activity?: Activity[] };
 export function HomePage() {
-  const { api, authState, t } = useApp();
-  const [dashboard, setDashboard] = useState<unknown>(null);
-  useEffect(() => {
-    void api.get(endpoints.dashboard()).then(setDashboard).catch(() => setDashboard(null));
-  }, [api]);
-  return (
-    <div>
-      <h1>{t("home.welcome")}</h1>
-      <p>{String(authState.session?.workspace?.name || authState.session?.workspace?.workspace_id || "")}</p>
-      <p>{t("home.plan")}: {workspacePlanKey(authState.session)}</p>
-      <p>Role: {String(authState.session?.role || "")}</p>
-      {dashboard ? <pre style={{ whiteSpace: "pre-wrap" }}>{JSON.stringify(dashboard, null, 2).slice(0, 800)}</pre> : null}
-    </div>
-  );
+  const { api, authState, locale, t } = useApp(); const navigate = useNavigate(); const [data, setData] = useState<Dashboard | null>(null); const [loading, setLoading] = useState(true); const [error, setError] = useState(""); const showMembers = canViewGlobalMembers(authState.session); const canConfigure = canManageGroupConfiguration(authState.session);
+  const load = useCallback(async () => { setLoading(true); setError(""); try { setData(await api.get<Dashboard>(endpoints.dashboard())); } catch (caught) { setError(formatError(caught, t("common.error"))); } finally { setLoading(false); } }, [api, t]); useEffect(() => { void load(); }, [load]);
+  return <Page><PageHeader actions={<Button onClick={() => void load()} variant="secondary">{t("common.retry")}</Button>} description={t("dashboard.description")} eyebrow={t("dashboard.eyebrow")} title={t("dashboard.title")} /><Alert>{error}</Alert>{loading ? <Loading label={t("dashboard.loading")} /> : <><div className="stats">{showMembers ? <Stat hint={t("dashboard.membersHint")} label={t("nav.members")} onClick={() => navigate("/people")} value={data?.member_count || 0} /> : null}<Stat hint={showMembers ? t("dashboard.groupsHint") : t("dashboard.assignedGroupsHint")} label={t("nav.groups")} onClick={() => navigate("/groups")} tone="green" value={data?.group_count || 0} /><Stat hint={t("dashboard.recentHint")} label={t("dashboard.recentActions")} onClick={() => navigate("/history")} tone="cyan" value={data?.recent_activity?.length || 0} /></div><div className="section-grid"><Card description={t("dashboard.recentDescription")} title={t("dashboard.recentActivity")}>{data?.recent_activity?.length ? <div className="data-list">{data.recent_activity.map((item) => <DataRow avatar={<span className="activity-icon">{item.action === "check_in" ? "→" : item.action === "check_out" ? "←" : "•"}</span>} detail={`${item.group_name || ""}${item.source ? ` · ${item.source}` : ""}`} key={item.id} meta={item.performed_at ? formatDateTime(item.performed_at, locale) : ""} onClick={() => navigate("/history")} title={item.person?.name || t("common.unknown")} />)}</div> : <Empty action={<Button onClick={() => navigate("/groups")}>{t("dashboard.goGroups")}</Button>} body={t("dashboard.emptyBody")} title={t("dashboard.emptyTitle")} />}</Card><Card title={t("dashboard.quickActions")}><div className="form">{showMembers ? <Button onClick={() => navigate("/people/new")} variant="secondary">{t("members.add")}</Button> : null}<Button onClick={() => navigate(canConfigure ? "/groups/new" : "/groups")} variant="secondary">{canConfigure ? t("groups.add") : t("dashboard.openGroups")}</Button><Button onClick={() => navigate("/history")} variant="secondary">{t("dashboard.viewHistory")}</Button></div></Card></div></>}</Page>;
 }

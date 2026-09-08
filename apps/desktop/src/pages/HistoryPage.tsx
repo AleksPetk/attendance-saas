@@ -1,36 +1,45 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { endpoints } from "@checkstation/api";
+import { hasPlanFeature } from "@checkstation/domain";
 import { formatDateTime } from "@checkstation/i18n";
-import { useApp } from "../lib/AppProvider";
+import { Alert, Badge, Button, Card, DataRow, Empty, Field, Input, Loading, Page, PageHeader, Segmented, Select, formatError } from "../components/ui";
+import { downloadDesktopApiFile, useApp } from "../lib/AppProvider";
 
-type Row = {
-  id: number;
-  action_type?: string;
-  participant_name_snapshot?: string;
-  performed_at?: string;
-  group_name_snapshot?: string;
-};
+type View = "activity" | "report";
+type Activity = { id: number; action?: string; action_type?: string; source?: string; group_name?: string; group_name_snapshot?: string; class_name?: string; performed_at?: string; participant_name_snapshot?: string; person?: { name?: string; email?: string; check_in_identifier?: string } };
+type Group = { id?: number; source_group_id?: number; name: string; group_type?: string; status?: string };
+type Member = { id: number; name: string; status?: string };
+type Participant = { kind: string; id: number; name: string; participant_code?: string };
+type Options = { groups: Group[]; members: Member[]; member_groups?: Group[]; participants?: Participant[] };
+type Report = { report_by: string; member_name?: string; group_name?: string; date_label?: string; columns?: Array<{ key: string; label: string }>; sections?: Array<{ date: string; label: string; rows: Array<{ participant_key: string; name: string; group_name?: string; class_name?: string; cells: Record<string, string | null> }> }> };
 
 export function HistoryPage() {
-  const { api, t, locale } = useApp();
-  const [rows, setRows] = useState<Row[]>([]);
-  useEffect(() => {
-    void api
-      .get<Row[] | { results: Row[] }>(endpoints.history())
-      .then((data) => setRows((Array.isArray(data) ? data : data.results || []).slice(0, 50)))
-      .catch(() => setRows([]));
-  }, [api]);
-  return (
-    <div>
-      <h1>{t("history.title")}</h1>
-      <ul>
-        {rows.map((r) => (
-          <li key={r.id}>
-            {r.action_type} · {r.participant_name_snapshot} · {r.group_name_snapshot} ·{" "}
-            {r.performed_at ? formatDateTime(r.performed_at, locale) : ""}
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
+  const { t } = useApp(); const [view, setView] = useState<View>("activity");
+  return <Page><PageHeader title={t("history.title")} description={t(view === "activity" ? "history.description" : "history.reportDescription")} /><Segmented value={view} onChange={setView} options={[{ value: "activity", label: t("history.activityLog") }, { value: "report", label: t("history.attendanceReport") }]} />{view === "activity" ? <ActivityLog /> : <AttendanceReport />}</Page>;
 }
+
+function ActivityLog() {
+  const { api, locale, t } = useApp(); const [rows, setRows] = useState<Activity[]>([]); const [groups, setGroups] = useState<Group[]>([]); const [search, setSearch] = useState(""); const [action, setAction] = useState(""); const [groupId, setGroupId] = useState(""); const [day, setDay] = useState(""); const [loading, setLoading] = useState(true); const [error, setError] = useState("");
+  const load = useCallback(async () => { setLoading(true); setError(""); const q = new URLSearchParams(); if (search.trim()) q.set("search", search.trim()); if (action) q.set("action", action); if (groupId) q.set("group_id", groupId); if (day) q.set("day", day); try { const data = await api.get<{ items?: Activity[] }>(`${endpoints.history()}?${q}`); setRows(data.items || []); } catch (caught) { setError(formatError(caught, t("common.error"))); } finally { setLoading(false); } }, [action, api, day, groupId, search, t]);
+  useEffect(() => { void api.get<Group[]>(`${endpoints.groups()}?status=active`).then(setGroups).catch(() => undefined); }, [api]);
+  useEffect(() => { void load(); }, [load]);
+  function clear() { setSearch(""); setAction(""); setGroupId(""); setDay(""); }
+  return <><Card title={t("history.filters")}><form className="form" onSubmit={(e) => { e.preventDefault(); void load(); }}><div className="form-grid"><Field label={t("history.group")}><Select value={groupId} onChange={(e) => setGroupId(e.target.value)}><option value="">{t("history.allGroups")}</option>{groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}</Select></Field><Field label={t("history.action")}><Select value={action} onChange={(e) => setAction(e.target.value)}><option value="">{t("history.anyAction")}</option><option value="check_in">{t("history.checkedIn")}</option><option value="check_out">{t("history.checkedOut")}</option><option value="break_start">{t("history.breakStarted")}</option><option value="break_end">{t("history.breakEnded")}</option></Select></Field><Field label={t("history.search")}><Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t("history.searchPlaceholder")} /></Field><Field label={t("history.day")}><Input type="date" value={day} onChange={(e) => setDay(e.target.value)} /></Field></div><div className="toolbar"><Button type="submit" variant="secondary">{t("history.searchAction")}</Button><Button type="button" variant="secondary" onClick={clear}>{t("history.clearFilters")}</Button></div></form></Card><Alert>{error}</Alert>{loading ? <Loading label={t("history.loading")} /> : rows.length ? <div className="data-list">{rows.map((row) => { const actionKey = row.action || row.action_type || ""; return <DataRow key={row.id} avatar={<span className="activity-icon">{actionKey === "check_in" ? "→" : actionKey === "check_out" ? "←" : "↔"}</span>} title={row.person?.name || row.participant_name_snapshot || t("common.unknown")} detail={[row.group_name || row.group_name_snapshot, row.class_name, row.source].filter(Boolean).join(" · ")} meta={row.performed_at ? formatDateTime(row.performed_at, locale) : ""} badge={<Badge tone="blue">{actionLabel(actionKey, t)}</Badge>} />; })}</div> : <Empty title={t("history.emptyTitle")} body={t("history.emptyBody")} />}</>;
+}
+
+function AttendanceReport() {
+  const { api, authState, t } = useApp(); const [mode, setMode] = useState<"group" | "member">("group"); const [options, setOptions] = useState<Options>({ groups: [], members: [] }); const [groupId, setGroupId] = useState(""); const [memberId, setMemberId] = useState(""); const [participant, setParticipant] = useState(""); const [preset, setPreset] = useState(""); const [from, setFrom] = useState(""); const [to, setTo] = useState(""); const [report, setReport] = useState<Report | null>(null); const [loading, setLoading] = useState(true); const [exporting, setExporting] = useState(""); const [error, setError] = useState("");
+  const loadOptions = useCallback(async (suffix = "") => { try { const data = await api.get<Options>(`${endpoints.attendanceReportOptions()}${suffix}`); setOptions((current) => ({ groups: data.groups || current.groups, members: data.members || current.members, member_groups: "member_groups" in data ? data.member_groups : current.member_groups, participants: "participants" in data ? data.participants : current.participants })); } catch (caught) { setError(formatError(caught, t("common.error"))); } finally { setLoading(false); } }, [api, t]);
+  useEffect(() => { void loadOptions(); }, [loadOptions]);
+  const query = useMemo(() => reportQuery({ mode, groupId, memberId, participant, preset, from, to }), [from, groupId, memberId, mode, participant, preset, to]);
+  const ready = Boolean((mode === "group" ? groupId : memberId) && preset && (preset !== "custom" || (from && to && from <= to)));
+  useEffect(() => { if (!ready) { setReport(null); return; } let active = true; setLoading(true); setError(""); void api.get<Report>(`${endpoints.attendanceReport()}?${query}`).then((data) => { if (active) setReport(data); }).catch((caught) => { if (active) setError(formatError(caught, t("common.error"))); }).finally(() => { if (active) setLoading(false); }); return () => { active = false; }; }, [api, query, ready, t]);
+  function changeMode(next: "group" | "member") { setMode(next); setGroupId(""); setMemberId(""); setParticipant(""); setReport(null); }
+  async function exportReport(format: "pdf" | "xlsx" | "csv") { setExporting(format); setError(""); try { await downloadDesktopApiFile(`${endpoints.attendanceReportExport()}?${query}&export_format=${format}`, `attendance-report.${format}`); } catch (caught) { setError(formatError(caught, t("history.exportFailed"))); } finally { setExporting(""); } }
+  const exports = ([["pdf","report_export_pdf"],["xlsx","report_export_excel"],["csv","report_export_csv"]] as const).filter(([,feature]) => hasPlanFeature(authState.session, feature));
+  return <><Card title={t("history.reportFilters")} description={t("history.reportFiltersHint")}><div className="form"><Field label={t("history.reportBy")}><Segmented value={mode} onChange={changeMode} options={[{ value: "group", label: t("history.group") }, { value: "member", label: t("history.member") }]} /></Field><div className="form-grid">{mode === "group" ? <><Field label={t("history.group")}><Select value={groupId} onChange={(e) => { setGroupId(e.target.value); setParticipant(""); if (e.target.value) void loadOptions(`?source_group_id=${encodeURIComponent(e.target.value)}`); }}><option value="">{t("history.selectGroup")}</option>{options.groups.map((g) => <option key={g.source_group_id || g.id} value={g.source_group_id || g.id}>{g.name}</option>)}</Select></Field><Field label={t("history.participantOptional")}><Select disabled={!groupId} value={participant} onChange={(e) => setParticipant(e.target.value)}><option value="">{t("history.allParticipants")}</option>{(options.participants || []).map((p) => <option key={`${p.kind}:${p.id}`} value={`${p.kind}:${p.id}`}>{p.name}</option>)}</Select></Field></> : <><Field label={t("history.member")}><Select value={memberId} onChange={(e) => { setMemberId(e.target.value); setGroupId(""); if (e.target.value) void loadOptions(`?member_id=${encodeURIComponent(e.target.value)}`); }}><option value="">{t("history.selectMember")}</option>{options.members.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}</Select></Field><Field label={t("history.groupOptional")}><Select disabled={!memberId} value={groupId} onChange={(e) => setGroupId(e.target.value)}><option value="">{t("history.allMemberGroups")}</option>{(options.member_groups || []).map((g) => <option key={g.source_group_id || g.id} value={g.source_group_id || g.id}>{g.name}</option>)}</Select></Field></>}<Field label={t("history.dateRange")}><Select value={preset} onChange={(e) => setPreset(e.target.value)}><option value="">{t("history.dateRange")}</option><option value="today">{t("history.preset.today")}</option><option value="this_week">{t("history.preset.this_week")}</option><option value="this_month">{t("history.preset.this_month")}</option><option value="custom">{t("history.preset.custom")}</option></Select></Field>{preset === "custom" ? <div className="form-grid"><Field label={t("history.from")}><Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></Field><Field label={t("history.to")}><Input type="date" value={to} onChange={(e) => setTo(e.target.value)} /></Field></div> : null}</div></div></Card><Card title={t("history.exportReport")} description={exports.length ? t("history.exportHint") : t("history.exportPlanRequired")}><div className="toolbar">{exports.map(([format]) => <Button key={format} variant="secondary" loading={exporting === format} disabled={!report?.sections?.length || Boolean(exporting)} onClick={() => void exportReport(format)}>{format === "xlsx" ? t("history.excel") : format.toUpperCase()}</Button>)}</div></Card><Alert>{error}</Alert>{loading ? <Loading label={t("history.generatingReport")} /> : report?.sections?.length ? <ReportResults report={report} /> : ready ? <Empty title={t("history.noAttendanceTitle")} body={t("history.noAttendanceBody")} /> : <Empty title={t("history.chooseRangeTitle")} body={t("history.chooseRangeBody")} />}</>;
+}
+
+function ReportResults({ report }: { report: Report }) { const { t } = useApp(); return <Card title={report.report_by === "member" ? report.member_name || t("history.attendanceReport") : report.group_name || t("history.attendanceReport")} description={report.date_label}><div className="report-table">{(report.sections || []).map((section) => <section key={section.date}><h3>{section.label}</h3>{section.rows.map((row) => <div className="report-row" key={`${section.date}-${row.participant_key}`}><strong>{row.name}</strong>{row.group_name ? <span>{row.group_name}</span> : null}{row.class_name ? <span>{row.class_name}</span> : null}{(report.columns || []).map((column) => <span key={column.key}><small>{column.label}</small>{row.cells[column.key] || "—"}</span>)}</div>)}</section>)}</div></Card>; }
+function reportQuery({ mode, groupId, memberId, participant, preset, from, to }: { mode: string; groupId: string; memberId: string; participant: string; preset: string; from: string; to: string }) { const q = new URLSearchParams({ report_by: mode, preset }); if (mode === "member") { q.set("member_id", memberId); if (groupId) q.set("source_group_id", groupId); } else { q.set("source_group_id", groupId); const [kind,id] = participant.split(":"); if (kind && id) { q.set("participant_kind", kind); q.set("participant_id", id); } } try { q.set("timezone", Intl.DateTimeFormat().resolvedOptions().timeZone); } catch { /* no timezone */ } if (preset === "custom") { q.set("date_from", from); q.set("date_to", to); } return q.toString(); }
+function actionLabel(action: string, t: (key: string) => string) { if (action === "check_in") return t("history.checkedIn"); if (action === "check_out") return t("history.checkedOut"); if (action === "break_start") return t("history.breakStarted"); if (action === "break_end") return t("history.breakEnded"); return action.replaceAll("_", " ") || t("history.action"); }

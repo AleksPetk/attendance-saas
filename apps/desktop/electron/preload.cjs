@@ -5,4 +5,5 @@ contextBridge.exposeInMainWorld("checkstationDesktop", {
   initSession: () => ipcRenderer.invoke("checkstation:initSession"),
   clearSession: () => ipcRenderer.invoke("checkstation:clearSession"),
   http: (req) => ipcRenderer.invoke("checkstation:http", req),
+  saveFile: (req) => ipcRenderer.invoke("checkstation:saveFile", req),
 });

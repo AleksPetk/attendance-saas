@@ -1,29 +1,22 @@
-import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
-import { endpoints } from "@checkstation/api";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useNavigate } from "react-router-dom";
+import { ApiError, endpoints, fieldErrorsFromBody } from "@checkstation/api";
+import { canManageWorkspace, canViewGlobalMembers } from "@checkstation/domain";
+import { Alert, Badge, Button, DataRow, Empty, Field, Input, Loading, Modal, Page, PageHeader, Segmented, formatError } from "../components/ui";
+import { AuthenticatedImage } from "../components/AuthenticatedImage";
 import { useApp } from "../lib/AppProvider";
 
-type Row = { id: number; name?: string; full_name?: string; email?: string };
+export type Member = { id: number; name: string; full_name?: string; email?: string; phone?: string; status?: string; photo_url?: string | null; is_plan_locked?: boolean };
+export function PeoplePage({ initialCreate = false }: { initialCreate?: boolean } = {}) {
+  const { api, authState, t } = useApp(); const navigate = useNavigate(); const [rows, setRows] = useState<Member[]>([]); const [status, setStatus] = useState<"active" | "archived">("active"); const [search, setSearch] = useState(""); const [loading, setLoading] = useState(true); const [error, setError] = useState(""); const [creating, setCreating] = useState(initialCreate); const allowed = canViewGlobalMembers(authState.session); const canManage = canManageWorkspace(authState.session);
+  const load = useCallback(async () => { if (!allowed) return; setLoading(true); setError(""); const params = new URLSearchParams({ status }); if (search.trim()) params.set("search", search.trim()); try { const data = await api.get<Member[] | { results: Member[] }>(`${endpoints.members()}?${params}`); setRows(Array.isArray(data) ? data : data.results || []); } catch (caught) { setError(formatError(caught, t("common.error"))); } finally { setLoading(false); } }, [allowed, api, search, status, t]); useEffect(() => { void load(); }, [load]);
+  if (!allowed) return <Page><Alert tone="warning">{t("more.staffRoleDescription")}</Alert></Page>;
+  return <Page><PageHeader actions={canManage && status === "active" ? <Button onClick={() => setCreating(true)}>{t("members.add")}</Button> : undefined} description={t("members.description")} title={t("members.title")} /><div className="tabs-line"><Segmented onChange={setStatus} options={[{ value: "active", label: t("members.active") }, { value: "archived", label: t("members.archived") }]} value={status} /><form className="toolbar" onSubmit={(event) => { event.preventDefault(); void load(); }}><Input className="input search" onChange={(event) => setSearch(event.target.value)} placeholder={t("members.search")} value={search} /><Button type="submit" variant="secondary">{t("history.searchAction")}</Button></form></div><Alert>{error}</Alert>{loading ? <Loading label={t("members.loading")} /> : rows.length ? <div className="data-list">{rows.map((member) => <DataRow avatar={<span className="avatar">{member.photo_url ? <AuthenticatedImage alt="" className="avatar-image" src={member.photo_url} /> : null}<span className="avatar-fallback">{(member.name || member.full_name || "?").slice(0, 1).toUpperCase()}</span></span>} badge={member.is_plan_locked ? <Badge tone="warning">{t("members.planLocked")}</Badge> : status === "archived" ? <Badge>{t("members.archivedLabel")}</Badge> : undefined} detail={member.email || member.phone || t("members.noContact")} key={member.id} onClick={() => navigate(`/people/${member.id}`)} title={member.name || member.full_name || String(member.id)} />)}</div> : <Empty body={search ? t("members.emptyFilteredBody") : status === "active" ? t("members.emptyActiveBody") : t("members.emptyArchivedBody")} title={search ? t("members.emptyFilteredTitle") : status === "active" ? t("members.emptyActiveTitle") : t("members.emptyArchivedTitle")} />}{creating ? <MemberCreate onClose={() => setCreating(false)} onSaved={(member) => { setCreating(false); navigate(`/people/${member.id}`); }} /> : null}</Page>;
+}
 
-export function PeoplePage() {
-  const { api, t } = useApp();
-  const [rows, setRows] = useState<Row[]>([]);
-  useEffect(() => {
-    void api
-      .get<Row[] | { results: Row[] }>(endpoints.members())
-      .then((data) => setRows(Array.isArray(data) ? data : data.results || []))
-      .catch(() => setRows([]));
-  }, [api]);
-  return (
-    <div>
-      <h1>{t("people.title")}</h1>
-      <ul>
-        {rows.map((m) => (
-          <li key={m.id}>
-            <Link to={`/people/${m.id}`}>{m.name || m.full_name || m.id}</Link>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
+function MemberCreate({ onClose, onSaved }: { onClose: () => void; onSaved: (member: Member) => void }) {
+  const { api, t } = useApp(); const [values, setValues] = useState({ name: "", email: "", phone: "", date_of_birth: "", address: "", notes: "" }); const [photo, setPhoto] = useState<File | null>(null); const [busy, setBusy] = useState(false); const [error, setError] = useState(""); const [fields, setFields] = useState<Record<string, string>>({});
+  function update(key: keyof typeof values, value: string) { setValues((current) => ({ ...current, [key]: value })); }
+  async function submit(event: FormEvent) { event.preventDefault(); setBusy(true); setError(""); setFields({}); try { const body = new FormData(); Object.entries(values).forEach(([key, value]) => body.append(key, value.trim())); if (photo) body.append("photo", photo); onSaved(await api.request<Member>(endpoints.members(), { method: "POST", formData: body })); } catch (caught) { if (caught instanceof ApiError) setFields(fieldErrorsFromBody(caught.data)); setError(formatError(caught, t("common.error"))); } finally { setBusy(false); } }
+  return <Modal actions={<><Button onClick={onClose} variant="secondary">{t("common.cancel")}</Button><Button form="member-create" loading={busy} type="submit">{t("members.add")}</Button></>} onClose={onClose} title={t("members.add")}><form className="form" id="member-create" onSubmit={submit}><Field error={fields.photo} label={t("members.choosePhoto")}><Input accept="image/*" onChange={(event) => setPhoto(event.target.files?.[0] || null)} type="file" /></Field><Field error={fields.name} label={t("members.name")}><Input autoFocus onChange={(event) => update("name", event.target.value)} required value={values.name} /></Field><div className="form-grid"><Field error={fields.email} label={t("auth.email")}><Input onChange={(event) => update("email", event.target.value)} type="email" value={values.email} /></Field><Field error={fields.phone} label={t("members.phone")}><Input onChange={(event) => update("phone", event.target.value)} value={values.phone} /></Field><Field error={fields.date_of_birth} label={t("members.birthday")}><Input onChange={(event) => update("date_of_birth", event.target.value)} type="date" value={values.date_of_birth} /></Field><Field error={fields.address} label={t("members.address")}><Input onChange={(event) => update("address", event.target.value)} value={values.address} /></Field></div><Field error={fields.notes} label={t("members.notes")}><textarea className="textarea" onChange={(event) => update("notes", event.target.value)} value={values.notes} /></Field><Alert>{error}</Alert></form></Modal>;
 }
