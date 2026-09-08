@@ -1,33 +1,29 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { LinearGradient } from "expo-linear-gradient";
 import { Redirect, useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from "expo-router";
-import { Alert as NativeAlert, ImageBackground, Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
+import { Alert as NativeAlert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
 import { ApiError, endpoints, fieldErrorsFromBody } from "@checkstation/api";
 import { canManageGroupConfiguration } from "@checkstation/domain";
 import { Alert, Button, Field, LoadingState, Screen } from "../../../../src/components/ui";
+import { AuthenticatedImage } from "../../../../src/components/Avatar";
 import { PageHeader, SectionCard } from "../../../../src/components/mobile";
 import { useApp } from "../../../../src/lib/AppProvider";
-import { normalizeKioskVisualDesign, type KioskVisualDesign } from "../../../../src/lib/kioskVisualDesign";
+import { normalizeKioskDesignDocument, normalizeKioskVisualDesign, patchKioskDesignConfig, type KioskDesignDocument, type KioskVisualDesign } from "../../../../src/lib/kioskVisualDesign";
 import { colors, radii, shadows, space, type } from "../../../../src/theme/tokens";
 
 type EditorSection = "header" | "main" | "footer" | "cards";
-type KioskDesignConfig = KioskVisualDesign & { version?: number };
+type KioskDesignConfig = KioskVisualDesign;
 type PresetMeta = { label?: string; description?: string; layout?: string; card?: string; button?: string; input?: string };
 type PresetCatalog = Record<"main_layouts" | "button_styles" | "input_styles" | "card_styles" | "card_templates" | "input_templates" | "fonts", Record<string, PresetMeta>>;
-type KioskDesignData = { id: number; config: KioskDesignConfig; header_logo_url: string | null; footer_logo_url: string | null; main_background_image_url: string | null; updated_at: string };
+type KioskDesignData = KioskDesignDocument;
 
 const COLOR_SWATCHES = [
   "#FFFFFF", "#F8FAFC", "#E2E8F0", "#94A3B8", "#1E293B", "#0F172A", "#000000",
   "#2563EB", "#3B82F6", "#22C55E", "#16A34A", "#F59E0B", "#EF4444", "#A855F7",
 ];
 
-function cloneConfig(config: KioskDesignConfig): KioskDesignConfig {
-  return JSON.parse(JSON.stringify(config)) as KioskDesignConfig;
-}
-
 function normalizeConfig(config: unknown): KioskDesignConfig {
-  const source = config && typeof config === "object" ? config as { version?: unknown } : {};
-  return { ...normalizeKioskVisualDesign(config), version: typeof source.version === "number" ? source.version : 1 };
+  return normalizeKioskVisualDesign(config);
 }
 
 function normalizeHex(raw: string): string | null {
@@ -61,8 +57,9 @@ export default function KioskDesignScreen() {
         api.get<KioskDesignData>(endpoints.kioskDesign(id)),
         api.get<PresetCatalog>(endpoints.kioskPresets()).catch(() => null),
       ]);
-      const next = normalizeConfig(designData.config);
-      setDesign(designData);
+      const normalizedDocument = normalizeKioskDesignDocument(designData);
+      const next = normalizedDocument.config;
+      setDesign(normalizedDocument);
       setCatalog(presetData);
       setConfig(next);
       setBaseline(JSON.stringify(next));
@@ -96,12 +93,7 @@ export default function KioskDesignScreen() {
   const patch = useCallback((path: string, value: unknown) => {
     setConfig((current) => {
       if (!current) return current;
-      const next = cloneConfig(current) as unknown as Record<string, unknown>;
-      const parts = path.split(".");
-      let cursor = next;
-      for (const part of parts.slice(0, -1)) cursor = cursor[part] as Record<string, unknown>;
-      cursor[parts[parts.length - 1]] = value;
-      return next as unknown as KioskDesignConfig;
+      return patchKioskDesignConfig(current, path, value);
     });
   }, []);
 
@@ -114,8 +106,9 @@ export default function KioskDesignScreen() {
     setError("");
     try {
       const result = await api.put<KioskDesignData>(endpoints.kioskDesign(id), { config });
-      const saved = normalizeConfig(result.config || config);
-      setDesign(result);
+      const normalizedDocument = normalizeKioskDesignDocument(result);
+      const saved = normalizedDocument.config;
+      setDesign(normalizedDocument);
       setConfig(saved);
       setBaseline(JSON.stringify(saved));
       NativeAlert.alert(t("common.saved"), t("kiosk.designSaved"));
@@ -281,7 +274,7 @@ function TextStyleEditor({ path, text, catalog, patch, t }: { path: string; text
 }
 
 function BackgroundSurface({ background, imageUrl, style, children }: { background: KioskVisualDesign["main"]["background"]; imageUrl?: string | null; style?: object; children: ReactNode }) {
-  if (background.mode === "image" && imageUrl) return <ImageBackground source={{ uri: imageUrl }} style={style} imageStyle={styles.previewImage}>{children}</ImageBackground>;
+  if (background.mode === "image" && imageUrl) return <View style={[style, { backgroundColor: background.color, overflow: "hidden" }]}><AuthenticatedImage resizeMode="cover" style={StyleSheet.absoluteFill} url={imageUrl} />{children}</View>;
   if (background.mode === "gradient" && background.color2) return <LinearGradient colors={[background.color, background.color2]} end={{ x: 1, y: 1 }} start={{ x: 0, y: 0 }} style={style}>{children}</LinearGradient>;
   return <View style={[style, { backgroundColor: background.color }]}>{children}</View>;
 }
@@ -289,7 +282,7 @@ function BackgroundSurface({ background, imageUrl, style, children }: { backgrou
 function LivePreview({ config, design, t }: { config: KioskDesignConfig; design: KioskDesignData | null; t: (key: string) => string }) {
   const cardStyle = config.main.card_preset === "flat" ? styles.previewCardFlat : config.main.card_preset === "bordered" ? styles.previewCardBordered : styles.previewCardElevated;
   const buttonStyle = config.main.button_preset === "pill" ? styles.previewButtonPill : config.main.button_preset === "flat" ? styles.previewButtonFlat : styles.previewButtonRounded;
-  return <View style={styles.previewShell}><View style={styles.previewHeading}><Text style={styles.previewHeadingText}>{t("kiosk.livePreview")}</Text><Text style={styles.previewUnsaved}>{t("kiosk.previewUpdatesLive")}</Text></View><View style={styles.previewCanvas}>{config.header.enabled ? <BackgroundSurface background={config.header.background} style={styles.previewHeader}><Text numberOfLines={1} style={[styles.previewHeaderText, { color: config.header.title.color, textAlign: config.header.alignment as "left" | "center" | "right" }]}>{config.header.title.text || t("kiosk.previewHeader")}</Text></BackgroundSurface> : null}<BackgroundSurface background={config.main.background} imageUrl={design?.main_background_image_url} style={styles.previewMain}><Text numberOfLines={1} style={[styles.previewMainTitle, { color: config.main.title.color, textAlign: config.main.title.alignment as "left" | "center" | "right" }]}>{config.main.title.text || t("kiosk.previewWelcome")}</Text><View style={[styles.previewCard, cardStyle]}><View style={styles.previewAvatar} /><View style={styles.previewPersonCopy}><Text style={styles.previewPersonName}>{t("kiosk.previewPerson")}</Text><Text style={styles.previewPersonCode}>CS-1024</Text></View></View><View style={[styles.previewButton, buttonStyle]}><Text style={styles.previewButtonText}>{t("kiosk.previewAction")}</Text></View></BackgroundSurface>{config.footer.enabled ? <BackgroundSurface background={config.footer.background} style={styles.previewFooter}><Text numberOfLines={1} style={[styles.previewFooterText, { color: config.footer.text.color, textAlign: config.footer.text.alignment as "left" | "center" | "right" }]}>{config.footer.text.lines[0] || t("kiosk.previewFooter")}</Text></BackgroundSurface> : null}</View></View>;
+  return <View style={styles.previewShell}><View style={styles.previewHeading}><Text style={styles.previewHeadingText}>{t("kiosk.livePreview")}</Text><Text style={styles.previewUnsaved}>{t("kiosk.previewUpdatesLive")}</Text></View><View style={styles.previewCanvas}>{config.header.enabled ? <BackgroundSurface background={config.header.background} style={styles.previewHeader}>{design?.header_logo_url ? <AuthenticatedImage style={styles.previewLogo} url={design.header_logo_url} /> : null}<Text numberOfLines={1} style={[styles.previewHeaderText, { color: config.header.title.color, textAlign: config.header.alignment as "left" | "center" | "right" }]}>{config.header.title.text || t("kiosk.previewHeader")}</Text></BackgroundSurface> : null}<BackgroundSurface background={config.main.background} imageUrl={design?.main_background_image_url} style={styles.previewMain}><Text numberOfLines={1} style={[styles.previewMainTitle, { color: config.main.title.color, textAlign: config.main.title.alignment as "left" | "center" | "right" }]}>{config.main.title.text || t("kiosk.previewWelcome")}</Text><View style={[styles.previewCard, cardStyle]}><View style={styles.previewAvatar} /><View style={styles.previewPersonCopy}><Text style={styles.previewPersonName}>{t("kiosk.previewPerson")}</Text><Text style={styles.previewPersonCode}>CS-1024</Text></View></View><View style={[styles.previewButton, buttonStyle]}><Text style={styles.previewButtonText}>{t("kiosk.previewAction")}</Text></View></BackgroundSurface>{config.footer.enabled ? <BackgroundSurface background={config.footer.background} style={styles.previewFooter}>{design?.footer_logo_url ? <AuthenticatedImage style={styles.previewLogo} url={design.footer_logo_url} /> : null}<Text numberOfLines={1} style={[styles.previewFooterText, { color: config.footer.text.color, textAlign: config.footer.text.alignment as "left" | "center" | "right" }]}>{config.footer.text.lines[0] || t("kiosk.previewFooter")}</Text></BackgroundSurface> : null}</View></View>;
 }
 
 const styles = StyleSheet.create({
@@ -301,5 +294,5 @@ const styles = StyleSheet.create({
   presetRow: { gap: space.sm, paddingRight: space.md }, presetCard: { width: 104, minHeight: 82, borderRadius: radii.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, padding: space.sm, gap: space.xs }, presetCardWide: { width: 122 }, presetCardActive: { borderColor: colors.blue, backgroundColor: colors.blueSoft }, presetMini: { height: 36, borderRadius: 6, backgroundColor: colors.surfaceSubtle, padding: 6, gap: 4 }, presetMiniActive: { backgroundColor: colors.surface }, presetMiniLine: { width: "55%", height: 4, borderRadius: 2, backgroundColor: colors.borderStrong }, presetMiniBlock: { flex: 1, borderRadius: 4, backgroundColor: colors.border }, presetLabel: { ...type.captionStrong, color: colors.textSecondary, textTransform: "capitalize" }, presetLabelActive: { color: colors.bluePressed },
   colorLabelRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" }, currentColor: { width: 28, height: 28, borderRadius: 8, borderWidth: 1, borderColor: colors.borderStrong }, swatches: { flexDirection: "row", flexWrap: "wrap", gap: space.sm }, swatch: { width: 34, height: 34, borderRadius: 10, borderWidth: 1, borderColor: colors.borderStrong }, swatchActive: { borderWidth: 3, borderColor: colors.blue }, helperText: { ...type.caption, color: colors.textMuted },
   stepper: { flexDirection: "row", alignItems: "center", gap: space.sm }, stepperButton: { width: 38, height: 38, alignItems: "center", justifyContent: "center", borderRadius: radii.sm, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceMuted }, stepperButtonText: { fontSize: 22, lineHeight: 24, color: colors.bluePressed }, stepperValue: { ...type.captionStrong, color: colors.text, minWidth: 42, textAlign: "center" }, saveActions: { gap: space.sm },
-  previewShell: { borderRadius: radii.lg, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, overflow: "hidden", ...shadows.md }, previewHeading: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: space.md, paddingVertical: space.sm, borderBottomWidth: 1, borderBottomColor: colors.border }, previewHeadingText: { ...type.captionStrong, color: colors.text }, previewUnsaved: { fontSize: 11, color: colors.textMuted }, previewCanvas: { height: 270, backgroundColor: colors.surfaceMuted }, previewHeader: { minHeight: 42, justifyContent: "center", paddingHorizontal: space.md }, previewHeaderText: { ...type.captionStrong }, previewMain: { flex: 1, alignItems: "center", justifyContent: "center", gap: space.sm, padding: space.md }, previewImage: { resizeMode: "cover" }, previewMainTitle: { ...type.bodyStrong, width: "100%" }, previewCard: { width: "82%", minHeight: 58, flexDirection: "row", alignItems: "center", gap: space.sm, borderRadius: 10, padding: space.sm, backgroundColor: colors.surface }, previewCardElevated: { ...shadows.md }, previewCardFlat: { backgroundColor: colors.surfaceMuted }, previewCardBordered: { borderWidth: 2, borderColor: colors.blue }, previewAvatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.blueSoft }, previewPersonCopy: { flex: 1 }, previewPersonName: { ...type.captionStrong, color: colors.text }, previewPersonCode: { fontSize: 11, color: colors.textMuted }, previewButton: { minHeight: 32, justifyContent: "center", paddingHorizontal: space.lg, backgroundColor: colors.blue }, previewButtonRounded: { borderRadius: 8 }, previewButtonPill: { borderRadius: 999 }, previewButtonFlat: { borderRadius: 2 }, previewButtonText: { fontSize: 11, fontWeight: "700", color: colors.surface }, previewFooter: { minHeight: 34, justifyContent: "center", paddingHorizontal: space.md }, previewFooterText: { fontSize: 11 },
+  previewShell: { borderRadius: radii.lg, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, overflow: "hidden", ...shadows.md }, previewHeading: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: space.md, paddingVertical: space.sm, borderBottomWidth: 1, borderBottomColor: colors.border }, previewHeadingText: { ...type.captionStrong, color: colors.text }, previewUnsaved: { fontSize: 11, color: colors.textMuted }, previewCanvas: { height: 270, backgroundColor: colors.surfaceMuted }, previewHeader: { minHeight: 42, flexDirection: "row", alignItems: "center", gap: space.sm, justifyContent: "center", paddingHorizontal: space.md }, previewLogo: { width: 34, height: 24 }, previewHeaderText: { ...type.captionStrong, flex: 1 }, previewMain: { flex: 1, alignItems: "center", justifyContent: "center", gap: space.sm, padding: space.md }, previewMainTitle: { ...type.bodyStrong, width: "100%" }, previewCard: { width: "82%", minHeight: 58, flexDirection: "row", alignItems: "center", gap: space.sm, borderRadius: 10, padding: space.sm, backgroundColor: colors.surface }, previewCardElevated: { ...shadows.md }, previewCardFlat: { backgroundColor: colors.surfaceMuted }, previewCardBordered: { borderWidth: 2, borderColor: colors.blue }, previewAvatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.blueSoft }, previewPersonCopy: { flex: 1 }, previewPersonName: { ...type.captionStrong, color: colors.text }, previewPersonCode: { fontSize: 11, color: colors.textMuted }, previewButton: { minHeight: 32, justifyContent: "center", paddingHorizontal: space.lg, backgroundColor: colors.blue }, previewButtonRounded: { borderRadius: 8 }, previewButtonPill: { borderRadius: 999 }, previewButtonFlat: { borderRadius: 2 }, previewButtonText: { fontSize: 11, fontWeight: "700", color: colors.surface }, previewFooter: { minHeight: 34, flexDirection: "row", alignItems: "center", gap: space.sm, justifyContent: "center", paddingHorizontal: space.md }, previewFooterText: { fontSize: 11, flex: 1 },
 });

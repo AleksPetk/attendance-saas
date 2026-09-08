@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { loadDesktopApiAsset } from "../lib/AppProvider";
 
-export function AuthenticatedImage({ src, alt = "", className }: { src?: string | null; alt?: string; className?: string }) {
+export function useAuthenticatedAsset(src?: string | null) {
   const [resolved, setResolved] = useState("");
 
   useEffect(() => {
@@ -19,5 +19,10 @@ export function AuthenticatedImage({ src, alt = "", className }: { src?: string 
     };
   }, [src]);
 
+  return resolved;
+}
+
+export function AuthenticatedImage({ src, alt = "", className }: { src?: string | null; alt?: string; className?: string }) {
+  const resolved = useAuthenticatedAsset(src);
   return resolved ? <img alt={alt} className={className} src={resolved} /> : null;
 }

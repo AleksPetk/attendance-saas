@@ -1,4 +1,4 @@
-import { Image, StyleSheet, Text, View } from "react-native";
+import { Image, StyleSheet, Text, View, type ImageStyle, type StyleProp } from "react-native";
 import { useApp } from "../lib/AppProvider";
 import { colors, radii, type } from "../theme/tokens";
 
@@ -50,6 +50,13 @@ export function Avatar({
       </Text>
     </View>
   );
+}
+
+export function AuthenticatedImage({ url, style, resizeMode = "contain" }: { url?: string | null; style?: StyleProp<ImageStyle>; resizeMode?: "contain" | "cover" }) {
+  const { api } = useApp();
+  const cookie = api.jar.cookieHeader();
+  if (!url) return null;
+  return <Image resizeMode={resizeMode} source={{ uri: url, headers: cookie ? { Cookie: cookie } : undefined }} style={style} />;
 }
 
 export function AvatarRow({
