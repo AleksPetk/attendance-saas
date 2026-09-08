@@ -19,7 +19,8 @@
           "backgroundColor": "#071426"
         }
       ],
-      "expo-sharing"
+      "expo-sharing",
+      ["expo-image-picker", { "photosPermission": "Choose a profile photo for a CheckStation participant.", "cameraPermission": false, "microphonePermission": false }]
     ],
     "ios": {
       "supportsTablet": true,

@@ -1,3 +1,4 @@
+import { managementEn, managementJa } from "./management.js";
 export type AppLocale = "en" | "ja";
 
 export const SUPPORTED_LOCALES: AppLocale[] = ["en", "ja"];
@@ -310,8 +311,8 @@ const en: Dict = {
   "history.chooseRangeBody": "Choose Today, This week, This month, or a custom range to generate the report.",
   "history.noAttendanceTitle": "No attendance in this range",
   "history.noAttendanceBody": "Try different report filters or dates. Reports only include days with attendance activity.",
-  "history.groupContext": "Group: {{name}}",
-  "history.participantContext": "Participant: {{name}}",
+  "history.groupContext": "Group: {name}",
+  "history.participantContext": "Participant: {name}",
   "history.archived": "Archived",
   "history.deleted": "Deleted",
   "history.unknownClass": "Unknown Class",
@@ -811,8 +812,8 @@ const ja: Dict = {
   "history.chooseRangeBody": "今日、今週、今月、またはカスタム期間を選択してレポートを生成してください。",
   "history.noAttendanceTitle": "この期間に出席記録はありません",
   "history.noAttendanceBody": "レポートのフィルターや期間を変更してください。出席アクティビティがある日のみ表示されます。",
-  "history.groupContext": "グループ: {{name}}",
-  "history.participantContext": "参加者: {{name}}",
+  "history.groupContext": "グループ: {name}",
+  "history.participantContext": "参加者: {name}",
   "history.archived": "アーカイブ済み",
   "history.deleted": "削除済み",
   "history.unknownClass": "不明なクラス",
@@ -1006,7 +1007,7 @@ const ja: Dict = {
   "kiosk.savingSettings": "保存中…",
 };
 
-const catalogs: Record<AppLocale, Dict> = { en, ja };
+const catalogs: Record<AppLocale, Dict> = { en: { ...en, ...managementEn }, ja: { ...ja, ...managementJa } };
 
 export function resolveLocale(input?: string | null): AppLocale {
   const raw = String(input || "").toLowerCase();

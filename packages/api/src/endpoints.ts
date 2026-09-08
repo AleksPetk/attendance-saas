@@ -46,5 +46,13 @@ export const endpoints = {
   attendanceReport: () => "/history/attendance-report/",
   attendanceReportExport: () => "/history/attendance-report/export/",
   workspaceStaff: () => "/workspace-staff/",
+  workspaceStaffAccount: (id: number | string) => `/workspace-staff/${id}/`,
+  workspaceStaffPassword: (id: number | string) => `/workspace-staff/${id}/reset-password/`,
+  workspaceStaffGroupAccess: (id: number | string) => `/workspace-staff/${id}/group-access/`,
+  changePassword: () => "/auth/change-password/",
+  ownerTwoFactorSetup: () => "/auth/owner-2fa/setup/",
+  ownerTwoFactorVerify: () => "/auth/owner-2fa/setup/verify/",
+  ownerTwoFactorRegenerate: () => "/auth/owner-2fa/recovery-codes/regenerate/",
+  ownerTwoFactorDisable: () => "/auth/owner-2fa/disable/",
   announcements: () => "/announcements/",
 } as const;

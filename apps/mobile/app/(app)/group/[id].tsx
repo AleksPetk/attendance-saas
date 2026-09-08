@@ -2,9 +2,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert as NativeAlert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { ApiError, endpoints, fieldErrorsFromBody } from "@checkstation/api";
-import { canLaunchKiosk, canManageGroupConfiguration, hasPlanFeature } from "@checkstation/domain";
+import { canLaunchKiosk, canManageGroupConfiguration, isGroupScopedStaff, hasPlanFeature } from "@checkstation/domain";
 import { Alert, Button, Field, LoadingState, Screen } from "../../../src/components/ui";
 import { PageHeader, SectionCard, StatusPill } from "../../../src/components/mobile";
+import { GroupClasses } from "../../../src/components/GroupClasses";
 import { AvatarRow } from "../../../src/components/Avatar";
 import { useApp } from "../../../src/lib/AppProvider";
 import { colors, space, type } from "../../../src/theme/tokens";
@@ -32,6 +33,7 @@ export default function GroupDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [activeSection, setActiveSection] = useState<ActiveSection>("overview");
   const canConfigure = canManageGroupConfiguration(authState.session);
+  const canParticipants = canConfigure || isGroupScopedStaff(authState.session);
   const canKiosk = canLaunchKiosk(authState.session);
   const structuredAccess = hasPlanFeature(authState.session, "structured_groups");
   const forwardEmailsAccess = hasPlanFeature(authState.session, "group_forward_emails");
@@ -66,7 +68,7 @@ export default function GroupDetailScreen() {
 
   return (
     <Screen style={styles.screen}>
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive" contentContainerStyle={styles.content}>
         <PageHeader title={group.name} />
         <Alert message={error} />
 
@@ -97,7 +99,7 @@ export default function GroupDetailScreen() {
         )}
 
         {activeSection === "people" && (
-          <PeopleSection groupId={id} group={group} api={api} t={t} canConfigure={canConfigure && !locked} />
+          structured ? <GroupClasses groupId={id} canManage={canConfigure && !locked && !archived && structuredAccess} renderParticipants={(section) => <PeopleSection key={section.id} groupId={`${id}/classes/${section.id}`} group={group} api={api} t={t} canConfigure={canParticipants && !locked && !archived && section.status === "active"} />} /> : <PeopleSection groupId={id} group={group} api={api} t={t} canConfigure={canParticipants && !locked && !archived} />
         )}
 
         {activeSection === "configuration" && canConfigure && !locked && (
@@ -179,12 +181,13 @@ function OverviewSection({ group, t }: { group: Group; t: (key: string, vars?: R
 function PeopleSection({ groupId, group, api, t, canConfigure }: { groupId: string; group: Group; api: any; t: (key: string, vars?: Record<string, string | number>) => string; canConfigure: boolean }) {
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [showAddSheet, setShowAddSheet] = useState(false);
   const [editingParticipant, setEditingParticipant] = useState<Participant | null>(null);
   const structured = group.group_type === "structured";
 
   const loadParticipants = useCallback(async () => {
-    setLoading(true);
+    setLoading(true); setError("");
     try {
       const [memberships, visitors] = await Promise.all([
         api.get(endpoints.groupMemberships(groupId)) as Promise<Participant[]>,
@@ -192,9 +195,9 @@ function PeopleSection({ groupId, group, api, t, canConfigure }: { groupId: stri
       ]);
       setParticipants([...memberships.map((m: Participant) => ({ ...m, _kind: "member" as const })),
         ...visitors.map((v: Participant) => ({ ...v, _kind: "visitor" as const }))]);
-    } catch { /* ignore */ }
+    } catch (caught) { setError(caught instanceof Error ? caught.message : t("common.error")); }
     finally { setLoading(false); }
-  }, [api, groupId]);
+  }, [api, groupId, t]);
 
   useFocusEffect(useCallback(() => { void loadParticipants(); }, [loadParticipants]));
 
@@ -206,7 +209,8 @@ function PeopleSection({ groupId, group, api, t, canConfigure }: { groupId: stri
         title={t("groups.participantLabel") || "People"}
         description={t("groups.participants", { count: participants.length })}
       >
-        {participants.length === 0 ? (
+        <Alert message={error} />
+        {!error && participants.length === 0 ? (
           <Text style={styles.emptyText}>{t("groups.noParticipants") || "No participants yet."}</Text>
         ) : (
           participants.map((p) => (
@@ -270,7 +274,7 @@ function AddParticipantSheet({ groupId, group, api, t, onClose, onSaved }: { gro
 
   useEffect(() => {
     if (mode === "member") {
-      void (api.get(endpoints.groupAvailableMembers(groupId)) as Promise<AvailableMember[]>).then(setAvailableMembers).catch(() => {});
+      void (api.get(endpoints.groupAvailableMembers(groupId)) as Promise<AvailableMember[]>).then(setAvailableMembers).catch((caught) => setError(caught instanceof Error ? caught.message : t("common.error")));
     }
   }, [api, groupId, mode]);
 
@@ -396,14 +400,14 @@ function EditParticipantSheet({ participant, groupId, group, api, t, onClose, on
     try {
       const payload: Record<string, unknown> = {};
       if (isVisitor) {
-        if (name.trim()) payload.name = name.trim();
-        if (email.trim()) payload.email = email.trim();
+        payload.name = name.trim();
+        payload.email = email.trim();
       } else {
-        if (name.trim()) payload.override_name = name.trim();
-        if (email.trim()) payload.override_email = email.trim();
+        payload.override_name = name.trim();
+        payload.override_email = email.trim();
       }
-      const validEmails = participationEmails.filter(Boolean);
-      if (validEmails.length) payload.participation_emails = validEmails;
+      const validEmails = participationEmails.map((email) => email.trim()).filter(Boolean);
+      payload.participation_emails = validEmails;
       if (pin.trim()) payload.participation_pin = pin.trim();
       if (clearPin) payload.clear_participation_pin = true;
 

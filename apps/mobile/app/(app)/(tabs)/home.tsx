@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { ApiError, endpoints } from "@checkstation/api";
 import { canManageGroupConfiguration, canViewGlobalMembers } from "@checkstation/domain";
@@ -19,7 +19,7 @@ export default function HomeScreen() {
   const session = authState.session;
   const showMembers = canViewGlobalMembers(session); const canConfigure = canManageGroupConfiguration(session);
   const load = useCallback(async (refresh = false) => { refresh ? setRefreshing(true) : setLoading(true); setError(""); try { setData(await api.get<Dashboard>(endpoints.dashboard())); } catch (caught) { setError(caught instanceof ApiError ? caught.message : t("common.error")); } finally { setLoading(false); setRefreshing(false); } }, [api, t]);
-  useEffect(() => { void load(); }, [load]);
+  useFocusEffect(useCallback(() => { void load(true); }, [load]));
   if (loading) return <Screen><LoadingState label={t("dashboard.loading")} /></Screen>;
   return (
     <Screen style={styles.screen}>
@@ -47,4 +47,4 @@ export default function HomeScreen() {
 }
 
 function QuickAction({ icon, label, onPress }: { icon: keyof typeof Ionicons.glyphMap; label: string; onPress: () => void }) { return <Pressable onPress={onPress} style={({ pressed }) => [styles.quickAction, pressed && styles.pressed]}><View style={styles.quickIcon}><Ionicons color={colors.blue} name={icon} size={21} /></View><Text style={styles.quickLabel}>{label}</Text><Ionicons color={colors.textMuted} name="chevron-forward" size={18} /></Pressable>; }
-const styles = StyleSheet.create({ screen: { padding: 0 }, content: { padding: space.lg, paddingBottom: space.xxxl, gap: space.lg }, stats: { flexDirection: "row", flexWrap: "wrap", gap: space.md }, activityRow: { minHeight: 66, flexDirection: "row", alignItems: "center", gap: space.md, paddingVertical: space.md }, rowBorder: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border }, activityMain: { flex: 1 }, activityName: { ...type.bodyStrong, color: colors.text }, activityMeta: { ...type.caption, color: colors.textMuted }, activityTime: { maxWidth: 115, flexDirection: "row", alignItems: "center", gap: 2 }, activityWhen: { ...type.caption, color: colors.textSecondary, textAlign: "right", flexShrink: 1 }, actions: { gap: space.xs }, quickAction: { minHeight: 52, flexDirection: "row", alignItems: "center", gap: space.md, borderRadius: radii.sm, paddingHorizontal: space.sm }, quickIcon: { width: 36, height: 36, borderRadius: 10, backgroundColor: colors.primarySoft, alignItems: "center", justifyContent: "center" }, quickLabel: { ...type.bodyStrong, color: colors.text, flex: 1 }, pressed: { backgroundColor: colors.surfaceMuted } });
+const styles = StyleSheet.create({ screen: { padding: 0 }, content: { padding: space.lg, paddingBottom: space.xxxl, gap: space.lg, width: "100%", maxWidth: 1120, alignSelf: "center" }, stats: { flexDirection: "row", flexWrap: "wrap", gap: space.md }, activityRow: { minHeight: 66, flexDirection: "row", alignItems: "center", gap: space.md, paddingVertical: space.md }, rowBorder: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border }, activityMain: { flex: 1 }, activityName: { ...type.bodyStrong, color: colors.text }, activityMeta: { ...type.caption, color: colors.textMuted }, activityTime: { maxWidth: 115, flexDirection: "row", alignItems: "center", gap: 2 }, activityWhen: { ...type.caption, color: colors.textSecondary, textAlign: "right", flexShrink: 1 }, actions: { gap: space.xs }, quickAction: { minHeight: 52, flexDirection: "row", alignItems: "center", gap: space.md, borderRadius: radii.sm, paddingHorizontal: space.sm }, quickIcon: { width: 36, height: 36, borderRadius: 10, backgroundColor: colors.primarySoft, alignItems: "center", justifyContent: "center" }, quickLabel: { ...type.bodyStrong, color: colors.text, flex: 1 }, pressed: { backgroundColor: colors.surfaceMuted } });

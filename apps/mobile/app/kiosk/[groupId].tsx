@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Animated, Dimensions, Pressable, SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { endpoints } from "@checkstation/api";
-import { getValidActionsForState, type ActionType } from "@checkstation/domain";
+import { type ActionType } from "@checkstation/domain";
+import { kioskActionPayload, kioskIdentityPayload, type KioskIdentity } from "../../src/lib/kioskRequests";
 import { LoadingState } from "../../src/components/ui";
 import { Avatar } from "../../src/components/Avatar";
 import { useApp } from "../../src/lib/AppProvider";
@@ -11,6 +12,7 @@ import { colors, space, type } from "../../src/theme/tokens";
 
 type KioskConfig = {
   kiosk_mode: "card" | "input";
+  use_pin: boolean;
   theme: string;
   title: string;
   welcome_text: string;
@@ -41,7 +43,7 @@ type KioskPerson = {
   participant_kind: "member" | "group_only_participant";
   name: string;
   email: string;
-  group_participant_code: string;
+  participant_code: string;
   photo_url: string | null;
   requires_pin: boolean;
 };
@@ -61,10 +63,10 @@ type ParticipantState = {
 
 type IdentifyResult = {
   code: string;
-  participant: {
-    id: number;
+  participant: KioskIdentity & {
+    id?: number;
     name: string;
-    group_participant_code: string;
+    participant_code: string;
     photo_url: string | null;
     email: string;
   };
@@ -102,6 +104,12 @@ export default function KioskScreen() {
   const [kioskConfig, setKioskConfig] = useState<KioskConfig | null>(null);
   const [people, setPeople] = useState<KioskPerson[]>([]);
   const [classes, setClasses] = useState<KioskClass[]>([]);
+  const [classReady, setClassReady] = useState(false);
+  const [pendingPerson, setPendingPerson] = useState<KioskPerson | null>(null);
+  const [secondValue, setSecondValue] = useState("");
+  const performLock = useRef(false);
+  const returnTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (returnTimer.current) clearTimeout(returnTimer.current); }, []);
   const [selectedClass, setSelectedClass] = useState<KioskClass | null>(null);
   const [classPin, setClassPin] = useState("");
   const [classPinBusy, setClassPinBusy] = useState(false);
@@ -131,17 +139,19 @@ export default function KioskScreen() {
         if (!cancelled) {
           setKiosk(data);
           setVisualDesign(normalizeKioskVisualDesign((data as any).visual_design));
+          const saved = (data.kiosk_settings || data.kiosk || {}) as Partial<KioskConfig>;
           const kc: KioskConfig = {
-            kiosk_mode: (data as any).kiosk_mode || "card",
-            theme: (data as any).theme || "classic",
-            title: (data as any).title || "",
-            welcome_text: (data as any).welcome_text || "",
-            confirmation: (data as any).confirmation || { template: "clean", return_seconds: 3, sound_enabled: true, vibration_enabled: false, check_in_message: "", check_out_message: "", break_start_message: "", break_end_message: "" },
-            card_display: (data as any).card_display || { show_name: true, show_participant_code: true, show_email: false },
-            input_fields: (data as any).input_fields || ["name"],
-            structured: Boolean((data as any).structured),
-            require_class_pin: Boolean((data as any).require_class_pin),
-            participant_code_label: (data as any).participant_code_label || "Code",
+            use_pin: saved.use_pin ?? false,
+            kiosk_mode: saved.kiosk_mode || "card",
+            theme: saved.theme || "classic",
+            title: saved.title || "",
+            welcome_text: saved.welcome_text || "",
+            confirmation: saved.confirmation || { template: "clean", return_seconds: 3, sound_enabled: true, vibration_enabled: false, check_in_message: "", check_out_message: "", break_start_message: "", break_end_message: "" },
+            card_display: { show_name: true, show_participant_code: true, show_email: false, ...saved.card_display },
+            input_fields: saved.input_fields || ["participant_code"],
+            structured: Boolean(saved.structured),
+            require_class_pin: Boolean(saved.require_class_pin),
+            participant_code_label: saved.participant_code_label || "Code",
           };
           setKioskConfig(kc);
           if ((data as any).people) setPeople((data as any).people as KioskPerson[]);
@@ -156,17 +166,8 @@ export default function KioskScreen() {
     return () => { cancelled = true; };
   }, [api, groupId, t]);
 
-  const groupFlags = useMemo(
-    () => ({
-      check_in_enabled: Boolean((kiosk as any)?.group?.check_in_enabled ?? true),
-      check_out_enabled: Boolean((kiosk as any)?.group?.check_out_enabled ?? true),
-      breaks_enabled: Boolean((kiosk as any)?.group?.breaks_enabled ?? false),
-      max_breaks: Number((kiosk as any)?.group?.max_breaks ?? 0),
-    }),
-    [kiosk],
-  );
-
-  const actions = participant ? getValidActionsForState(groupFlags, attendanceState) : [];
+  // The production server owns action availability, including check-out-only Groups.
+  const actions = participant ? allowedActions : [];
 
   const bgColor = visualDesign?.main?.background?.color ?? "#FFFFFF";
   const headerBgColor = visualDesign?.header?.background?.color ?? "#2563EB";
@@ -197,38 +198,21 @@ export default function KioskScreen() {
     return Math.floor((width - gap * (cols + 1)) / cols);
   }, [width, landscape]);
 
-  async function selectPerson(person: KioskPerson) {
-    if (person.requires_pin) {
-      setCardPinBusy(true);
-      setMessage("");
-      try {
-        const data = await api.post<IdentifyResult>(endpoints.kioskIdentify(groupId), {
-          participant_kind: person.participant_kind,
-          membership_id: person.membership_id,
-          group_only_participant_id: person.group_only_participant_id,
-        });
-        setParticipant(data.participant);
-        setAttendanceState(data.attendance_state);
-        setAllowedActions(data.allowed_actions);
-        if (data.attendance_state.is_checked_in) setMessage(`Already checked in (${data.participant.name})`);
-      } catch (err) {
-        setMessage(err instanceof Error ? err.message : t("common.error"));
-      } finally { setCardPinBusy(false); }
-    } else {
-      setBusy(true); setMessage("");
-      try {
-        const data = await api.post<IdentifyResult>(endpoints.kioskIdentify(groupId), {
-          participant_kind: person.participant_kind,
-          membership_id: person.membership_id,
-          group_only_participant_id: person.group_only_participant_id,
-        });
-        setParticipant(data.participant);
-        setAttendanceState(data.attendance_state);
-        setAllowedActions(data.allowed_actions);
-      } catch (err) {
-        setMessage(err instanceof Error ? err.message : t("common.error"));
-      } finally { setBusy(false); }
+  async function selectPerson(person: KioskPerson, pinValue?: string) {
+    if ((person.requires_pin || kioskConfig?.use_pin) && pinValue === undefined) {
+      setPendingPerson(person); setCardPin(""); setMessage(""); return;
     }
+    setBusy(true); setMessage("");
+    try {
+      const data = await api.post<IdentifyResult>(endpoints.kioskIdentify(groupId), {
+        ...kioskIdentityPayload(person), ...(pinValue ? { pin: pinValue } : {}),
+      });
+      setParticipant(data.participant);
+      setAttendanceState(data.attendance_state);
+      setAllowedActions(data.allowed_actions);
+      setPendingPerson(null);
+    } catch (err) { setMessage(err instanceof Error ? err.message : t("common.error")); }
+    finally { setBusy(false); }
   }
 
   async function identifyInput() {
@@ -237,6 +221,8 @@ export default function KioskScreen() {
       const data = await api.post<IdentifyResult>(endpoints.kioskIdentify(groupId), {
         participant_code: identifier.trim().toUpperCase(),
         pin: pin.trim() || undefined,
+        ...(kioskConfig?.input_fields.includes("email") ? { email: secondValue.trim() } : {}),
+        ...(kioskConfig?.input_fields.includes("name") ? { name: secondValue.trim() } : {}),
       });
       setParticipant(data.participant);
       setAttendanceState(data.attendance_state);
@@ -248,41 +234,36 @@ export default function KioskScreen() {
   }
 
   async function perform(action: ActionType) {
-    setBusy(true); setMessage(""); setSuccessMessage("");
+    if (!participant || performLock.current) return;
+    performLock.current = true; setBusy(true); setMessage(""); setSuccessMessage("");
     try {
-      const data = await api.post<PerformResult>(endpoints.kioskPerform(groupId), {
-        action_type: action,
-        participant_code: identifier.trim().toUpperCase(),
-        pin: pin.trim() || undefined,
-      });
-      setAttendanceState(data.attendance_state);
-      setAllowedActions(data.allowed_actions);
-      setSuccessMessage(data.confirmation?.message || data.success_message || `${action} recorded`);
-      if (data.confirmation?.return_delay_seconds) {
-        setTimeout(() => setSuccessMessage(""), data.confirmation.return_delay_seconds * 1000);
-      }
-    } catch (err) {
-      setMessage(err instanceof Error ? err.message : t("common.error"));
-    } finally { setBusy(false); }
+      const data = await api.post<PerformResult>(endpoints.kioskPerform(groupId), kioskActionPayload(
+        participant, action, kioskConfig?.kiosk_mode === "card" ? cardPin : pin,
+        Intl.DateTimeFormat().resolvedOptions().timeZone,
+      ));
+      setAttendanceState(data.attendance_state); setAllowedActions(data.allowed_actions);
+      setSuccessMessage(data.confirmation?.message || data.success_message || t("kiosk.recorded"));
+      if (returnTimer.current) clearTimeout(returnTimer.current);
+      const delay = data.confirmation?.return_delay_seconds ?? data.return_delay_seconds;
+      if (typeof delay === "number") returnTimer.current = setTimeout(() => {
+        returnToKiosk();
+        if (kioskConfig?.structured) { setSelectedClass(null); setClassReady(false); setPeople([]); }
+      }, Math.max(0, delay) * 1000);
+    } catch (err) { setMessage(err instanceof Error ? err.message : t("common.error")); }
+    finally { performLock.current = false; setBusy(false); }
   }
 
-  async function performCardAction(action: ActionType) {
-    setBusy(true); setMessage(""); setSuccessMessage("");
+  async function loadClassPeople(section: KioskClass) {
+    setClassPinBusy(true); setClassPinError("");
     try {
-      const data = await api.post<PerformResult>(endpoints.kioskPerform(groupId), {
-        action_type: action,
-        participant_kind: participant?.id ? "member" : "group_only_participant",
-        membership_id: participant?.id,
-      });
-      setAttendanceState(data.attendance_state);
-      setAllowedActions(data.allowed_actions);
-      setSuccessMessage(data.confirmation?.message || data.success_message || `${action} recorded`);
-      if (data.confirmation?.return_delay_seconds) {
-        setTimeout(() => setSuccessMessage(""), data.confirmation.return_delay_seconds * 1000);
-      }
-    } catch (err) {
-      setMessage(err instanceof Error ? err.message : t("common.error"));
-    } finally { setBusy(false); }
+      const data = await api.get<{ people: KioskPerson[] }>(endpoints.kiosk(groupId) + "classes/" + section.id + "/people/");
+      setPeople(data.people); setClassReady(true);
+    } catch (err) { setClassPinError(err instanceof Error ? err.message : t("common.error")); }
+    finally { setClassPinBusy(false); }
+  }
+  function openClass(section: KioskClass) {
+    setSelectedClass(section); setClassReady(false); setClassPin(""); setClassPinError(""); setPeople([]);
+    if (!kioskConfig?.require_class_pin) void loadClassPeople(section);
   }
 
   async function exitKiosk() {
@@ -301,12 +282,15 @@ export default function KioskScreen() {
     try {
       await api.post(endpoints.kioskIdentify(groupId).replace("/identify/", `/classes/${selectedClass!.id}/verify-pin/`), { pin: classPin.trim() });
       setClassPin("");
+      await loadClassPeople(selectedClass!);
     } catch (err) {
       setClassPinError(err instanceof Error ? err.message : t("common.error"));
     } finally { setClassPinBusy(false); }
   }
 
   function returnToKiosk() {
+    if (returnTimer.current) clearTimeout(returnTimer.current);
+    setPendingPerson(null); setSecondValue("");
     setParticipant(null);
     setAttendanceState({ is_checked_in: false, is_on_break: false, break_count: 0 });
     setAllowedActions([]);
@@ -330,7 +314,8 @@ export default function KioskScreen() {
       <StatusBar barStyle="light-content" hidden />
       <SafeAreaView style={{ flex: 1 }}>
         {/* Header */}
-        {headerEnabled ? (
+        {!headerEnabled ? <Pressable accessibilityLabel={t("kiosk.exit")} onPress={() => setShowExit(true)} style={{ padding: space.md, alignSelf: "flex-end" }}><Text style={{ color: colors.blue }}>{t("kiosk.exit")}</Text></Pressable> : null}
+      {headerEnabled ? (
           <View style={[styles.header, { backgroundColor: headerBgColor }]}>
             <Text style={[styles.headerTitle, { color: headerTextColor }]}>
               {headerTitle || (kiosk as any)?.group?.name || t("kiosk.title")}
@@ -365,6 +350,9 @@ export default function KioskScreen() {
             </View>
           ) : null}
 
+          <Text style={{ color: colors.danger }}>{classPinError}</Text>
+          {selectedClass ? <Pressable disabled={busy} onPress={() => { returnToKiosk(); setSelectedClass(null); setClassReady(false); setPeople([]); }}><Text style={styles.backLinkText}>{t("classes.back")}</Text></Pressable> : null}
+          {pendingPerson ? <View style={styles.inputSection}><Text style={styles.sectionTitle}>{pendingPerson.name}</Text><TextInput accessibilityLabel={t("kiosk.pin")} secureTextEntry style={styles.input} value={cardPin} onChangeText={setCardPin} /><Pressable disabled={busy || !cardPin} onPress={() => void selectPerson(pendingPerson, cardPin)} style={styles.actionButton}><Text>{t("kiosk.verify")}</Text></Pressable><Pressable disabled={busy} onPress={() => setPendingPerson(null)}><Text>{t("common.cancel")}</Text></Pressable></View> : null}
           {kioskConfig?.structured && !selectedClass && classes.length > 0 ? (
             <View style={styles.classGrid}>
               <Text style={[styles.sectionTitle, { color: mainTextColor }]}>
@@ -373,7 +361,7 @@ export default function KioskScreen() {
               {classes.map((cls) => (
                 <Pressable
                   key={cls.id}
-                  onPress={() => setSelectedClass(cls)}
+                  onPress={() => openClass(cls)}
                   style={({ pressed }) => [styles.classCard, pressed && { opacity: 0.8 }]}
                 >
                   <Text style={[styles.className, { color: mainTextColor }]}>{cls.name}</Text>
@@ -383,7 +371,7 @@ export default function KioskScreen() {
             </View>
           ) : null}
 
-          {kioskConfig?.structured && selectedClass && kioskConfig.require_class_pin && !classPinError ? (
+          {kioskConfig?.structured && selectedClass && kioskConfig.require_class_pin && !classReady ? (
             <View style={styles.inputSection}>
               <Text style={[styles.sectionTitle, { color: mainTextColor }]}>
                 {selectedClass.name} — {t("kiosk.enterClassPin") || "Enter class PIN"}
@@ -408,7 +396,7 @@ export default function KioskScreen() {
             </View>
           ) : null}
 
-          {!participant && !successMessage && !kioskConfig?.structured ? (
+          {!participant && !successMessage && (!kioskConfig?.structured || classReady) ? (
             <>
               {kioskConfig?.kiosk_mode === "card" && people.length > 0 ? (
                 <View style={styles.cardGrid}>
@@ -430,10 +418,10 @@ export default function KioskScreen() {
                     >
                       {kioskConfig?.card_display.show_participant_code ? (
                         <Text style={[styles.cardCode, { color: mainTextColor }]}>
-                          {person.group_participant_code}
+                          {person.participant_code}
                         </Text>
                       ) : null}
-                      <Avatar name={person.name} size={cardWidth * 0.35} url={person.photo_url} />
+                      <Avatar name={person.name || ""} size={cardWidth * 0.35} url={person.photo_url} />
                       {kioskConfig?.card_display.show_name ? (
                         <Text numberOfLines={2} style={[styles.cardName, { color: mainTextColor }]}>
                           {person.name}
@@ -452,7 +440,7 @@ export default function KioskScreen() {
                 </View>
               ) : null}
 
-              {kioskConfig?.kiosk_mode === "input" || (kioskConfig?.kiosk_mode === "card" && people.length === 0) ? (
+              {kioskConfig?.kiosk_mode === "input" ? (
                 <View style={styles.inputSection}>
                   <Text style={[styles.sectionTitle, { color: mainTextColor }]}>
                     {kioskConfig?.title || t("kiosk.identify")}
@@ -466,6 +454,7 @@ export default function KioskScreen() {
                       placeholder={kioskConfig?.participant_code_label || t("kiosk.code") || "Code"}
                       placeholderTextColor={colors.placeholder}
                     />
+                    {kioskConfig?.input_fields.some((field) => field === "name" || field === "email") ? <TextInput style={styles.input} accessibilityLabel={t(kioskConfig.input_fields.includes("email") ? "auth.email" : "members.name")} placeholder={t(kioskConfig.input_fields.includes("email") ? "auth.email" : "members.name")} keyboardType={kioskConfig.input_fields.includes("email") ? "email-address" : "default"} autoCapitalize="none" value={secondValue} onChangeText={setSecondValue} /> : null}
                     {kioskConfig?.input_fields.includes("pin") ? (
                       <TextInput
                         style={[styles.input, { color: mainTextColor, borderColor: colors.border }]}
@@ -493,13 +482,13 @@ export default function KioskScreen() {
             <Animated.View style={[styles.identifiedSection, { opacity: fadeAnim }]}>
               <Avatar name={participant.name} size={64} url={participant.photo_url} />
               <Text style={[styles.identifiedName, { color: mainTextColor }]}>{participant.name}</Text>
-              <Text style={styles.identifiedCode}>{participant.group_participant_code}</Text>
+              <Text style={styles.identifiedCode}>{participant.participant_code}</Text>
 
               <View style={styles.actionsRow}>
                 {actions.map((action) => (
                   <Pressable
                     key={action}
-                    onPress={() => void performCardAction(action)}
+                    onPress={() => void perform(action)}
                     disabled={busy}
                     style={({ pressed }) => [
                       styles.actionButton,

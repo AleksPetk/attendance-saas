@@ -34,10 +34,17 @@ export function AttendanceReportPanel({ api, session, locale, t }: { api: ApiCli
   const [exporting, setExporting] = useState<ExportFormat | null>(null);
   const [error, setError] = useState("");
   const requestId = useRef(0);
+  const optionRequestId = useRef(0);
+  const exportLock = useRef(false);
+  const [revision, setRevision] = useState(0);
 
   const loadOptions = useCallback(async (params = "") => {
+    const request = ++optionRequestId.current;
+    setLoadingOptions(true);
+    setOptions((current) => ({ ...current, participants: [], member_groups: [] }));
     try {
       const data = await api.get<ReportOptions>(`${endpoints.attendanceReportOptions()}${params}`);
+      if (request !== optionRequestId.current) return;
       setOptions((current) => ({
         groups: data.groups || current.groups,
         members: data.members || current.members,
@@ -45,9 +52,9 @@ export function AttendanceReportPanel({ api, session, locale, t }: { api: ApiCli
         participants: "participants" in data ? data.participants || [] : current.participants,
       }));
     } catch (caught) {
-      setError(errorMessage(caught, t));
+      if (request === optionRequestId.current) setError(errorMessage(caught, t));
     } finally {
-      setLoadingOptions(false);
+      if (request === optionRequestId.current) setLoadingOptions(false);
     }
   }, [api, t]);
 
@@ -80,15 +87,20 @@ export function AttendanceReportPanel({ api, session, locale, t }: { api: ApiCli
         if (currentRequest === requestId.current) setLoadingReport(false);
       }
     })();
-  }, [api, query, t]);
+    return () => { requestId.current += 1; };
+  }, [api, query, t, revision]);
 
   function clearReport() {
+    setRevision((value) => value + 1);
     requestId.current += 1;
     setReport(null);
     setLoadingReport(false);
   }
 
   function changeMode(next: ReportMode) {
+    if (next === mode) return;
+    optionRequestId.current += 1;
+    setLoadingOptions(false);
     clearReport();
     setMode(next);
     setGroupId("");
@@ -98,6 +110,7 @@ export function AttendanceReportPanel({ api, session, locale, t }: { api: ApiCli
   }
 
   function changePreset(next: DatePreset) {
+    if (next === preset) return;
     clearReport();
     setPreset(next);
     if (next !== "custom") {
@@ -107,7 +120,8 @@ export function AttendanceReportPanel({ api, session, locale, t }: { api: ApiCli
   }
 
   async function exportReport(format: ExportFormat) {
-    if (!report?.sections?.length || !filtersReady) return;
+    if (!report?.sections?.length || !filtersReady || exportLock.current) return;
+    exportLock.current = true;
     setExporting(format);
     setError("");
     try {
@@ -124,6 +138,7 @@ export function AttendanceReportPanel({ api, session, locale, t }: { api: ApiCli
     } catch (caught) {
       setError(errorMessage(caught, t) || t("history.exportFailed"));
     } finally {
+      exportLock.current = false;
       setExporting(null);
     }
   }
@@ -144,10 +159,10 @@ export function AttendanceReportPanel({ api, session, locale, t }: { api: ApiCli
         </View>
         {mode === "group" ? <>
           <View style={width >= 700 ? styles.tabletField : undefined}><SelectField label={t("history.group")} placeholder={t("history.selectGroup")} options={groupOptions} value={groupId} onChange={(next) => { clearReport(); setGroupId(next); setParticipant(""); if (next) void loadOptions(`?source_group_id=${encodeURIComponent(next)}`); }} searchable t={t} /></View>
-          <View style={width >= 700 ? styles.tabletField : undefined}><SelectField label={t("history.participantOptional")} placeholder={t("history.allParticipants")} options={participantOptions} value={participant} onChange={(next) => { clearReport(); setParticipant(next); }} disabled={!groupId} searchable t={t} /></View>
+          <View style={width >= 700 ? styles.tabletField : undefined}><SelectField label={t("history.participantOptional")} placeholder={t("history.allParticipants")} options={participantOptions} value={participant} onChange={(next) => { clearReport(); setParticipant(next); }} disabled={!groupId || loadingOptions} searchable t={t} /></View>
         </> : <>
           <View style={width >= 700 ? styles.tabletField : undefined}><SelectField label={t("history.member")} placeholder={t("history.selectMember")} options={memberOptions} value={memberId} onChange={(next) => { clearReport(); setMemberId(next); setGroupId(""); if (next) void loadOptions(`?member_id=${encodeURIComponent(next)}`); }} searchable t={t} /></View>
-          <View style={width >= 700 ? styles.tabletField : undefined}><SelectField label={t("history.groupOptional")} placeholder={t("history.allMemberGroups")} options={memberGroupOptions} value={groupId} onChange={(next) => { clearReport(); setGroupId(next); }} disabled={!memberId} searchable t={t} /></View>
+          <View style={width >= 700 ? styles.tabletField : undefined}><SelectField label={t("history.groupOptional")} placeholder={t("history.allMemberGroups")} options={memberGroupOptions} value={groupId} onChange={(next) => { clearReport(); setGroupId(next); }} disabled={!memberId || loadingOptions} searchable t={t} /></View>
         </>}
         <View style={styles.fullWidth}><Text style={styles.fieldLabel}>{t("history.dateRange")}</Text><View style={styles.presetGrid}>{(["today", "this_week", "this_month", "custom"] as DatePreset[]).map((value) => { const selected = preset === value; return <Pressable accessibilityRole="radio" accessibilityState={{ checked: selected }} key={value} onPress={() => changePreset(value)} style={[styles.preset, selected && styles.presetActive]}><Text style={[styles.presetText, selected && styles.presetTextActive]}>{t(`history.preset.${value}`)}</Text></Pressable>; })}</View></View>
         {preset === "custom" ? <View style={styles.dateRow}><View style={styles.dateField}><DateField label={t("history.from")} value={dateFrom} onChange={(next) => { clearReport(); setDateFrom(next); }} locale={locale} t={t} /></View><View style={styles.dateField}><DateField label={t("history.to")} value={dateTo} onChange={(next) => { clearReport(); setDateTo(next); }} locale={locale} t={t} /></View></View> : null}

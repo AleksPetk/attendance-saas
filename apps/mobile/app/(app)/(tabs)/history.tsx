@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useFocusEffect } from "expo-router";
 import { ApiError, endpoints, type ApiClient } from "@checkstation/api";
@@ -39,7 +39,9 @@ function ActivityLog({ api, locale, t, view, setView }: { api: ApiClient; locale
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
 
+  const generation = useRef(0);
   const load = useCallback(async (refresh = false, term = appliedSearch) => {
+    const request = ++generation.current;
     if (refresh) setRefreshing(true);
     else setLoading(true);
     setError("");
@@ -50,12 +52,11 @@ function ActivityLog({ api, locale, t, view, setView }: { api: ApiClient; locale
     if (day) params.set("day", day);
     try {
       const data = await api.get<{ items?: HistoryRow[] }>(`${endpoints.history()}?${params.toString()}`);
-      setRows(data.items || []);
+      if (request === generation.current) setRows(data.items || []);
     } catch (caught) {
-      setError(caught instanceof ApiError ? caught.message : t("common.error"));
+      if (request === generation.current) setError(caught instanceof ApiError ? caught.message : t("common.error"));
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (request === generation.current) { setLoading(false); setRefreshing(false); }
     }
   }, [action, api, appliedSearch, day, groupId, t]);
 
@@ -111,5 +112,5 @@ function actionLabel(action: string | undefined, t: (key: string) => string) {
 }
 
 const styles = StyleSheet.create({
-  screen: { padding: 0 }, content: { padding: space.lg, paddingBottom: space.xxxl, gap: space.lg }, loading: { minHeight: 220 }, activityFilters: { gap: space.md }, filterRow: { flexDirection: "row", gap: space.sm }, filterHalf: { flex: 1 }, dayRow: { flexDirection: "row", alignItems: "flex-end", gap: space.sm }, dayField: { flex: 1 }, clearButton: { minHeight: 44, alignItems: "center", justifyContent: "center", paddingHorizontal: space.md, borderRadius: radii.sm, backgroundColor: colors.blueSoft }, clearText: { ...type.captionStrong, color: colors.bluePressed }, timeline: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radii.lg, overflow: "hidden" }, row: { minHeight: 84, flexDirection: "row", alignItems: "flex-start", gap: space.md, padding: space.lg, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border }, main: { flex: 1, gap: 3 }, topLine: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: space.sm }, name: { ...type.bodyStrong, color: colors.text, flexShrink: 1 }, action: { ...type.captionStrong, color: colors.blue }, meta: { ...type.caption, color: colors.textSecondary }, when: { fontSize: 12, color: colors.textMuted },
+  screen: { padding: 0 }, content: { padding: space.lg, paddingBottom: space.xxxl, gap: space.lg, width: "100%", maxWidth: 1120, alignSelf: "center" }, loading: { minHeight: 220 }, activityFilters: { gap: space.md }, filterRow: { flexDirection: "row", gap: space.sm }, filterHalf: { flex: 1 }, dayRow: { flexDirection: "row", alignItems: "flex-end", gap: space.sm }, dayField: { flex: 1 }, clearButton: { minHeight: 44, alignItems: "center", justifyContent: "center", paddingHorizontal: space.md, borderRadius: radii.sm, backgroundColor: colors.blueSoft }, clearText: { ...type.captionStrong, color: colors.bluePressed }, timeline: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radii.lg, overflow: "hidden" }, row: { minHeight: 84, flexDirection: "row", alignItems: "flex-start", gap: space.md, padding: space.lg, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border }, main: { flex: 1, gap: 3 }, topLine: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: space.sm }, name: { ...type.bodyStrong, color: colors.text, flexShrink: 1 }, action: { ...type.captionStrong, color: colors.blue }, meta: { ...type.caption, color: colors.textSecondary }, when: { fontSize: 12, color: colors.textMuted },
 });

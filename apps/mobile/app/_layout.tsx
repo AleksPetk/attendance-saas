@@ -22,6 +22,7 @@ export default function RootLayout() {
         <Stack.Screen name="(auth)/check-email" options={{ headerShown: false }} />
         <Stack.Screen name="(auth)/forgot-password" options={{ headerShown: false }} />
         <Stack.Screen name="(auth)/recover-account" options={{ headerShown: false }} />
+        <Stack.Screen name="(auth)/email-link" options={{ headerShown: false }} />
         <Stack.Screen name="(app)" options={{ headerShown: false }} />
         <Stack.Screen
           name="kiosk/[groupId]"
