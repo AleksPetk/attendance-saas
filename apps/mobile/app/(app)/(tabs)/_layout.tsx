@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import { Redirect, Tabs } from "expo-router";
-import { useWindowDimensions, type ColorValue } from "react-native";
+import { StyleSheet, useWindowDimensions, View, type ColorValue } from "react-native";
 import { canViewGlobalMembers } from "@checkstation/domain";
 import { LoadingState, Screen } from "../../../src/components/ui";
 import { useApp } from "../../../src/lib/AppProvider";
@@ -10,7 +11,10 @@ type TabIconName = keyof typeof Ionicons.glyphMap;
 
 function tabIcon(name: TabIconName, activeName: TabIconName = name) {
   return ({ color, focused, size }: { color: ColorValue; focused: boolean; size: number }) => (
-    <Ionicons color={color} name={focused ? activeName : name} size={size} />
+    <View style={[styles.iconSurface, focused && styles.iconSurfaceActive]}>
+      <Ionicons color={color} name={focused ? activeName : name} size={size} />
+      {focused ? <LinearGradient colors={[colors.blue, colors.cyan]} end={{ x: 1, y: 0 }} start={{ x: 0, y: 0 }} style={styles.activeIndicator} /> : null}
+    </View>
   );
 }
 
@@ -28,11 +32,11 @@ export default function AppTabsLayout() {
         headerShown: false,
         tabBarActiveTintColor: colors.blue,
         tabBarInactiveTintColor: colors.textMuted,
-        tabBarLabelStyle: { fontSize: 12, fontWeight: "600" },
+        tabBarLabelStyle: { fontSize: 12, fontWeight: "600", letterSpacing: 0.1 },
         tabBarPosition: tablet ? "left" : "bottom",
         tabBarStyle: tablet
           ? { width: 220, backgroundColor: colors.surface, borderRightColor: colors.border, paddingTop: 24 }
-          : { backgroundColor: colors.surface, borderTopColor: colors.border, height: 84, paddingTop: 7, paddingBottom: 22, ...shadows.sm },
+          : { backgroundColor: colors.surface, borderTopColor: colors.borderStrong, height: 84, paddingTop: 7, paddingBottom: 22, ...shadows.sm },
       }}
     >
       <Tabs.Screen name="home" options={{ title: t("nav.home"), tabBarIcon: tabIcon("home-outline", "home") }} />
@@ -43,3 +47,9 @@ export default function AppTabsLayout() {
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  iconSurface: { width: 42, height: 31, alignItems: "center", justifyContent: "center", borderRadius: 12 },
+  iconSurfaceActive: { backgroundColor: colors.primarySoft },
+  activeIndicator: { position: "absolute", bottom: -1, width: 22, height: 3, borderRadius: 2 },
+});
