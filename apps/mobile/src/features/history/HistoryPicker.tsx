@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useEffect, useMemo, useState } from "react";
-import { Modal, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { useMemo, useState } from "react";
+import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { colors, radii, shadows, space, touch, type } from "../../theme/tokens";
 import { localIsoDate } from "./report";
 
@@ -24,12 +25,11 @@ export function SelectField({ label, value, placeholder, options, onChange, disa
       <Text numberOfLines={1} style={[styles.selectText, !selected && styles.placeholder]}>{selected?.label || placeholder}</Text>
       <Ionicons color={colors.textMuted} name="chevron-down" size={18} />
     </Pressable>
-    <PickerSheet open={open} title={label} options={options} value={value} searchable={searchable} onClose={() => setOpen(false)} onChange={(next) => { onChange(next); setOpen(false); }} t={t} />
+    {open ? <PickerSheet title={label} options={options} value={value} searchable={searchable} onClose={() => setOpen(false)} onChange={(next) => { onChange(next); setOpen(false); }} t={t} /> : null}
   </View>;
 }
 
-function PickerSheet({ open, title, options, value, searchable, onClose, onChange, t }: {
-  open: boolean;
+function PickerSheet({ title, options, value, searchable, onClose, onChange, t }: {
   title: string;
   options: PickerOption[];
   value: string;
@@ -39,11 +39,8 @@ function PickerSheet({ open, title, options, value, searchable, onClose, onChang
   t: (key: string) => string;
 }) {
   const [query, setQuery] = useState("");
-  useEffect(() => {
-    if (open) setQuery("");
-  }, [open]);
   const filtered = options.filter((option) => `${option.label} ${option.detail || ""}`.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()));
-  return <Modal animationType="slide" onRequestClose={onClose} transparent visible={open}>
+  return <Modal animationType="slide" onRequestClose={onClose} transparent visible>
     <Pressable accessibilityRole="button" onPress={onClose} style={styles.scrim} />
     <SafeAreaView style={styles.sheet}>
       <View style={styles.sheetHandle} />
@@ -65,24 +62,19 @@ export function DateField({ label, value, onChange, t, locale }: { label: string
       <Text style={[styles.selectText, !value && styles.placeholder]}>{value || t("history.selectDate")}</Text>
       <Ionicons color={colors.blue} name="calendar-outline" size={19} />
     </Pressable>
-    <CalendarSheet label={label} locale={locale} open={open} value={value} onChange={(next) => { onChange(next); setOpen(false); }} onClose={() => setOpen(false)} t={t} />
+    {open ? <CalendarSheet label={label} locale={locale} value={value} onChange={(next) => { onChange(next); setOpen(false); }} onClose={() => setOpen(false)} t={t} /> : null}
   </View>;
 }
 
-function CalendarSheet({ label, locale, open, value, onChange, onClose, t }: { label: string; locale: string; open: boolean; value: string; onChange: (value: string) => void; onClose: () => void; t: (key: string) => string }) {
+function CalendarSheet({ label, locale, value, onChange, onClose, t }: { label: string; locale: string; value: string; onChange: (value: string) => void; onClose: () => void; t: (key: string) => string }) {
   const selected = value ? new Date(`${value}T12:00:00`) : new Date();
   const [visibleMonth, setVisibleMonth] = useState(() => new Date(selected.getFullYear(), selected.getMonth(), 1));
-  useEffect(() => {
-    if (!open) return;
-    const next = value ? new Date(`${value}T12:00:00`) : new Date();
-    setVisibleMonth(new Date(next.getFullYear(), next.getMonth(), 1));
-  }, [open, value]);
   const cells = useMemo(() => calendarCells(visibleMonth), [visibleMonth]);
   const weekdays = useMemo(() => {
     const monday = new Date(2024, 0, 1);
     return Array.from({ length: 7 }, (_, index) => new Intl.DateTimeFormat(locale, { weekday: "narrow" }).format(new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + index)));
   }, [locale]);
-  return <Modal animationType="slide" onRequestClose={onClose} transparent visible={open}>
+  return <Modal animationType="slide" onRequestClose={onClose} transparent visible>
     <Pressable accessibilityRole="button" onPress={onClose} style={styles.scrim} />
     <SafeAreaView style={styles.sheet}>
       <View style={styles.sheetHandle} />

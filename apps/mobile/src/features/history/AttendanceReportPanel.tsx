@@ -61,8 +61,6 @@ export function AttendanceReportPanel({ api, session, locale, t }: { api: ApiCli
   useEffect(() => {
     if (!query) {
       requestId.current += 1;
-      setReport(null);
-      setLoadingReport(false);
       return;
     }
     const currentRequest = ++requestId.current;
@@ -84,8 +82,14 @@ export function AttendanceReportPanel({ api, session, locale, t }: { api: ApiCli
     })();
   }, [api, query, t]);
 
-  function changeMode(next: ReportMode) {
+  function clearReport() {
+    requestId.current += 1;
     setReport(null);
+    setLoadingReport(false);
+  }
+
+  function changeMode(next: ReportMode) {
+    clearReport();
     setMode(next);
     setGroupId("");
     setMemberId("");
@@ -94,7 +98,7 @@ export function AttendanceReportPanel({ api, session, locale, t }: { api: ApiCli
   }
 
   function changePreset(next: DatePreset) {
-    setReport(null);
+    clearReport();
     setPreset(next);
     if (next !== "custom") {
       setDateFrom("");
@@ -139,14 +143,14 @@ export function AttendanceReportPanel({ api, session, locale, t }: { api: ApiCli
           <FilterTabs value={mode} onChange={changeMode} options={[{ value: "group", label: t("history.group") }, { value: "member", label: t("history.member") }]} />
         </View>
         {mode === "group" ? <>
-          <View style={width >= 700 ? styles.tabletField : undefined}><SelectField label={t("history.group")} placeholder={t("history.selectGroup")} options={groupOptions} value={groupId} onChange={(next) => { setReport(null); setGroupId(next); setParticipant(""); if (next) void loadOptions(`?source_group_id=${encodeURIComponent(next)}`); }} searchable t={t} /></View>
-          <View style={width >= 700 ? styles.tabletField : undefined}><SelectField label={t("history.participantOptional")} placeholder={t("history.allParticipants")} options={participantOptions} value={participant} onChange={(next) => { setReport(null); setParticipant(next); }} disabled={!groupId} searchable t={t} /></View>
+          <View style={width >= 700 ? styles.tabletField : undefined}><SelectField label={t("history.group")} placeholder={t("history.selectGroup")} options={groupOptions} value={groupId} onChange={(next) => { clearReport(); setGroupId(next); setParticipant(""); if (next) void loadOptions(`?source_group_id=${encodeURIComponent(next)}`); }} searchable t={t} /></View>
+          <View style={width >= 700 ? styles.tabletField : undefined}><SelectField label={t("history.participantOptional")} placeholder={t("history.allParticipants")} options={participantOptions} value={participant} onChange={(next) => { clearReport(); setParticipant(next); }} disabled={!groupId} searchable t={t} /></View>
         </> : <>
-          <View style={width >= 700 ? styles.tabletField : undefined}><SelectField label={t("history.member")} placeholder={t("history.selectMember")} options={memberOptions} value={memberId} onChange={(next) => { setReport(null); setMemberId(next); setGroupId(""); if (next) void loadOptions(`?member_id=${encodeURIComponent(next)}`); }} searchable t={t} /></View>
-          <View style={width >= 700 ? styles.tabletField : undefined}><SelectField label={t("history.groupOptional")} placeholder={t("history.allMemberGroups")} options={memberGroupOptions} value={groupId} onChange={(next) => { setReport(null); setGroupId(next); }} disabled={!memberId} searchable t={t} /></View>
+          <View style={width >= 700 ? styles.tabletField : undefined}><SelectField label={t("history.member")} placeholder={t("history.selectMember")} options={memberOptions} value={memberId} onChange={(next) => { clearReport(); setMemberId(next); setGroupId(""); if (next) void loadOptions(`?member_id=${encodeURIComponent(next)}`); }} searchable t={t} /></View>
+          <View style={width >= 700 ? styles.tabletField : undefined}><SelectField label={t("history.groupOptional")} placeholder={t("history.allMemberGroups")} options={memberGroupOptions} value={groupId} onChange={(next) => { clearReport(); setGroupId(next); }} disabled={!memberId} searchable t={t} /></View>
         </>}
         <View style={styles.fullWidth}><Text style={styles.fieldLabel}>{t("history.dateRange")}</Text><View style={styles.presetGrid}>{(["today", "this_week", "this_month", "custom"] as DatePreset[]).map((value) => { const selected = preset === value; return <Pressable accessibilityRole="radio" accessibilityState={{ checked: selected }} key={value} onPress={() => changePreset(value)} style={[styles.preset, selected && styles.presetActive]}><Text style={[styles.presetText, selected && styles.presetTextActive]}>{t(`history.preset.${value}`)}</Text></Pressable>; })}</View></View>
-        {preset === "custom" ? <View style={styles.dateRow}><View style={styles.dateField}><DateField label={t("history.from")} value={dateFrom} onChange={(next) => { setReport(null); setDateFrom(next); }} locale={locale} t={t} /></View><View style={styles.dateField}><DateField label={t("history.to")} value={dateTo} onChange={(next) => { setReport(null); setDateTo(next); }} locale={locale} t={t} /></View></View> : null}
+        {preset === "custom" ? <View style={styles.dateRow}><View style={styles.dateField}><DateField label={t("history.from")} value={dateFrom} onChange={(next) => { clearReport(); setDateFrom(next); }} locale={locale} t={t} /></View><View style={styles.dateField}><DateField label={t("history.to")} value={dateTo} onChange={(next) => { clearReport(); setDateTo(next); }} locale={locale} t={t} /></View></View> : null}
         {preset === "custom" && dateFrom && dateTo && !customValid ? <Text style={styles.validation}>{t("history.invalidDateRange")}</Text> : null}
       </View>
     </SectionCard>
