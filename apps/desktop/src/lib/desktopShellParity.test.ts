@@ -18,6 +18,9 @@ test("desktop shell uses canonical branding, Dashboard terminology, and Workspac
   assert.match(shell, /topbar-brand-logo/);
   assert.match(shell, /<Brand showMark=\{false\}/);
   assert.match(shell, /<div className="topbar-actions">[\s\S]*<DesktopAnnouncementBell[\s\S]*<BrandMark className="topbar-brand-logo"/);
+  assert.match(shell, /className="topbar-copy"/);
+  assert.match(shell, /className="topbar-eyebrow"/);
+  assert.match(shell, /className="desktop-language-trigger"/);
   assert.match(bell, /endpoints\.announcements\(\)/);
   assert.match(bell, /mark-read\//);
   assert.match(shell, /state: \{ view: "status" \}/);
