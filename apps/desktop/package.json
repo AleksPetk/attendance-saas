@@ -38,13 +38,15 @@
     "productName": "CheckStation",
     "electronVersion": "44.2.0",
     "directories": {
-      "output": "release"
+      "output": "release",
+      "buildResources": "assets"
     },
     "files": [
       "dist/**/*",
       "electron/**/*"
     ],
     "mac": {
+      "icon": "icon.png",
       "target": [
         "dir"
       ],

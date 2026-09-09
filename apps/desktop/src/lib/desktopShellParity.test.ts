@@ -11,9 +11,11 @@ const help = readFileSync(fileURLToPath(new URL("../pages/HelpPage.tsx", import.
 
 test("desktop shell uses canonical branding, Dashboard terminology, and Workspace announcements", () => {
   assert.match(ui, /assets\/brand\/logo-mark\.png/);
+  assert.match(ui, /export function BrandMark/);
   assert.match(shell, /label: t\("dashboard\.title"\)/);
   assert.doesNotMatch(shell, /label: t\("nav\.home"\)/);
   assert.match(shell, /DesktopAnnouncementBell/);
+  assert.match(shell, /topbar-brand-logo/);
   assert.match(bell, /endpoints\.announcements\(\)/);
   assert.match(bell, /mark-read\//);
   assert.match(shell, /state: \{ view: "status" \}/);
