@@ -1,5 +1,5 @@
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes } from "react";
-import checkStationLogo from "../../../../frontend/src/assets/brand/logo-mark.png";
+import checkStationLogo from "../../assets/icon-ui.png";
 
 export function BrandMark({ className = "", decorative = true }: { className?: string; decorative?: boolean }) { return <img className={`brand-logo${className ? ` ${className}` : ""}`} src={checkStationLogo} alt={decorative ? "" : "CheckStation"} width="64" height="64" />; }
 export function Brand({ compact = false }: { compact?: boolean }) { return <div className={`brand${compact ? " brand-compact" : ""}`}><BrandMark /><span><strong>CheckStation</strong>{compact ? null : <small>Workspace</small>}</span></div>; }

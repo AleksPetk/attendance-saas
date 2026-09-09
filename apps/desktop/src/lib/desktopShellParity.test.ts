@@ -10,7 +10,7 @@ const bell = readFileSync(fileURLToPath(new URL("../components/DesktopAnnounceme
 const help = readFileSync(fileURLToPath(new URL("../pages/HelpPage.tsx", import.meta.url)), "utf8");
 
 test("desktop shell uses canonical branding, Dashboard terminology, and Workspace announcements", () => {
-  assert.match(ui, /assets\/brand\/logo-mark\.png/);
+  assert.match(ui, /assets\/icon-ui\.png/);
   assert.match(ui, /export function BrandMark/);
   assert.match(shell, /label: t\("dashboard\.title"\)/);
   assert.doesNotMatch(shell, /label: t\("nav\.home"\)/);
