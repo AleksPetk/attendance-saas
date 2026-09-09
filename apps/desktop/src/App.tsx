@@ -26,7 +26,12 @@ export function App() {
   }
 
   if (authState.status === "kiosk_locked" && authState.session?.kiosk_group_id) {
-    return <Navigate to={`/kiosk/${authState.session.kiosk_group_id}`} replace />;
+    return (
+      <Routes>
+        <Route path="/kiosk/:groupId" element={<KioskPage />} />
+        <Route path="*" element={<Navigate to={`/kiosk/${authState.session.kiosk_group_id}`} replace />} />
+      </Routes>
+    );
   }
 
   if (authState.status === "anonymous" || authState.status === "needs_2fa") {

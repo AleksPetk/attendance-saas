@@ -33,7 +33,7 @@ type KioskClass = { id: number; name: string; participant_count: number };
 
 export function KioskPage() {
   const { groupId = "" } = useParams();
-  const { api, auth, t } = useApp();
+  const { api, auth, locale, t } = useApp();
   const navigate = useNavigate();
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const entered = useRef(false);
@@ -304,7 +304,7 @@ export function KioskPage() {
       {operationalBody}
     </DesktopKioskRenderer>
     {pending ? <DesktopKioskPinDialog title={pending.name} label={t("kiosk.pin")} code={pin} error={message} busy={busy} cancelLabel={t("common.cancel")} confirmLabel={t("kiosk.verify")} onCodeChange={setPin} onCancel={() => { setPending(null); setPin(""); setMessage(""); }} onConfirm={() => void selectPerson(pending, pin)} /> : null}
-    {exitOpen ? <DesktopKioskExitDialog code={exitCode} error={exitError} busy={busy} onCodeChange={setExitCode} onCancel={() => { setExitOpen(false); setExitCode(""); setExitError(""); }} onConfirm={() => void exit()} labels={{ title: t("kiosk.exit"), hint: t("kiosk.exitCodeHint"), code: t("kiosk.exitCode"), show: t("auth.showPassword"), hide: t("auth.hidePassword"), cancel: t("common.cancel"), exit: t("kiosk.exit"), verifying: t("common.loading") }} /> : null}
+    {exitOpen ? <DesktopKioskExitDialog code={exitCode} error={exitError} busy={busy} onCodeChange={setExitCode} onCancel={() => { setExitOpen(false); setExitCode(""); setExitError(""); }} onConfirm={() => void exit()} labels={{ title: t("kiosk.exit"), hint: locale === "ja" ? "このグループのキオスク終了コードを入力して、このアプリのロックを解除してください。" : "Enter this Group's kiosk exit code to unlock this app.", code: t("kiosk.exitCode"), show: t("auth.showPassword"), hide: t("auth.hidePassword"), cancel: t("common.cancel"), exit: t("kiosk.exit"), verifying: t("common.loading") }} /> : null}
   </>;
 }
 

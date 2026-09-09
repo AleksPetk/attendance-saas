@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 const rendererSource = readFileSync(fileURLToPath(new URL("../components/DesktopKioskRenderer.tsx", import.meta.url)), "utf8");
 const pageSource = readFileSync(fileURLToPath(new URL("../pages/KioskPage.tsx", import.meta.url)), "utf8");
 const flowSource = readFileSync(fileURLToPath(new URL("../components/DesktopKioskFlow.tsx", import.meta.url)), "utf8");
+const appSource = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8");
 const styles = readFileSync(fileURLToPath(new URL("../styles.css", import.meta.url)), "utf8");
 
 test("desktop runtime uses the canonical Workspace kiosk render contract", () => {
@@ -45,6 +46,16 @@ test("desktop runtime normalizes and refetches the latest live design", () => {
   assert.match(pageSource, /window\.addEventListener\("focus", refresh\)/);
   assert.match(pageSource, /document\.addEventListener\("visibilitychange", refresh\)/);
   assert.match(pageSource, /<DesktopKioskRenderer design=\{design\}/);
+});
+
+test("a restored kiosk-locked session mounts the kiosk route instead of redirecting to itself", () => {
+  const lockedBranch = appSource.slice(
+    appSource.indexOf('authState.status === "kiosk_locked"'),
+    appSource.indexOf('authState.status === "anonymous"'),
+  );
+  assert.match(lockedBranch, /<Routes>/);
+  assert.match(lockedBranch, /path="\/kiosk\/:groupId" element=\{<KioskPage \/>\}/);
+  assert.match(lockedBranch, /path="\*" element=\{<Navigate/);
 });
 
 test("desktop runtime routes every saved media field through authenticated asset loading", () => {
