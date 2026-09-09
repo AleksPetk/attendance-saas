@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 
 const rendererSource = readFileSync(fileURLToPath(new URL("../components/DesktopKioskRenderer.tsx", import.meta.url)), "utf8");
 const pageSource = readFileSync(fileURLToPath(new URL("../pages/KioskPage.tsx", import.meta.url)), "utf8");
+const flowSource = readFileSync(fileURLToPath(new URL("../components/DesktopKioskFlow.tsx", import.meta.url)), "utf8");
 const styles = readFileSync(fileURLToPath(new URL("../styles.css", import.meta.url)), "utf8");
 
 test("desktop runtime uses the canonical Workspace kiosk render contract", () => {
@@ -23,6 +24,19 @@ test("desktop runtime uses the canonical Workspace kiosk render contract", () =>
   assert.match(styles, /kioskRenderer\.css/);
   assert.match(styles, /kioskFlowStages\.css/);
   assert.doesNotMatch(styles, /\.kiosk-runtime>main/);
+});
+
+test("desktop action, processing, confirmation, PIN, and exit states use Workspace kiosk contracts", () => {
+  assert.match(pageSource, /kiosk-flow kiosk-flow--action/);
+  assert.match(pageSource, /DesktopKioskProcessing/);
+  assert.match(pageSource, /DesktopKioskConfirmation/);
+  assert.match(pageSource, /DesktopKioskPinDialog/);
+  assert.match(pageSource, /DesktopKioskExitDialog/);
+  assert.match(flowSource, /kiosk-confirmation--unified/);
+  assert.match(flowSource, /kiosk-processing--unified/);
+  assert.match(flowSource, /kiosk-modal-backdrop/);
+  assert.match(styles, /confirmationFlow\.css/);
+  assert.match(styles, /processingFlow\.css/);
 });
 
 test("desktop runtime normalizes and refetches the latest live design", () => {

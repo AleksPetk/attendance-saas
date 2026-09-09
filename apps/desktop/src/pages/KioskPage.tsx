@@ -3,8 +3,9 @@ import { useNavigate, useParams } from "react-router-dom";
 import { endpoints } from "@checkstation/api";
 import { normalizeKioskDesignDocument, type ActionType, type KioskDesignDocument } from "@checkstation/domain";
 import { AuthenticatedImage } from "../components/AuthenticatedImage";
-import { DesktopKioskRenderer } from "../components/DesktopKioskRenderer";
-import { Button, Field, Input, Loading, Modal, formatError } from "../components/ui";
+import { DesktopKioskConfirmation, DesktopKioskExitDialog, DesktopKioskPinDialog, DesktopKioskProcessing } from "../components/DesktopKioskFlow";
+import { DesktopKioskRenderer, desktopKioskFlowTemplate, desktopKioskTemplateAccent } from "../components/DesktopKioskRenderer";
+import { Loading, formatError } from "../components/ui";
 import { useApp } from "../lib/AppProvider";
 
 type Person = {
@@ -47,8 +48,10 @@ export function KioskPage() {
   const [message, setMessage] = useState("");
   const [success, setSuccess] = useState("");
   const [busy, setBusy] = useState(false);
+  const [pendingAction, setPendingAction] = useState<ActionType | null>(null);
   const [exitOpen, setExitOpen] = useState(false);
   const [exitCode, setExitCode] = useState("");
+  const [exitError, setExitError] = useState("");
   const [pending, setPending] = useState<Person | null>(null);
   const [classes, setClasses] = useState<KioskClass[]>([]);
   const [selectedClass, setSelectedClass] = useState<KioskClass | null>(null);
@@ -103,6 +106,8 @@ export function KioskPage() {
     require_class_pin: Boolean(saved.require_class_pin),
   };
   const people = (data.people || []) as Person[];
+  const flowFamily = desktopKioskFlowTemplate(design, config.kiosk_mode);
+  const flowAccent = desktopKioskTemplateAccent(flowFamily);
 
   function identity(person: Person) {
     return person.participant_kind === "member"
@@ -154,6 +159,7 @@ export function KioskPage() {
   async function perform(action: ActionType) {
     if (!participant) return;
     setBusy(true);
+    setPendingAction(action);
     setMessage("");
     try {
       const response = await api.post<{ confirmation?: { message?: string; return_delay_seconds?: number }; success_message?: string; allowed_actions?: ActionType[] }>(endpoints.kioskPerform(groupId), {
@@ -169,6 +175,7 @@ export function KioskPage() {
     } catch (caught) {
       setMessage(formatError(caught, t("common.error")));
     } finally {
+      setPendingAction(null);
       setBusy(false);
     }
   }
@@ -205,13 +212,13 @@ export function KioskPage() {
 
   async function exit() {
     setBusy(true);
-    setMessage("");
+    setExitError("");
     try {
       await api.post(endpoints.kioskExit(), { group_id: Number(groupId), exit_code: exitCode });
       await auth.bootstrap();
       navigate("/");
     } catch (caught) {
-      setMessage(formatError(caught, t("common.error")));
+      setExitError(formatError(caught, t("common.error")));
     } finally {
       setBusy(false);
     }
@@ -235,11 +242,9 @@ export function KioskPage() {
       {config.welcome_text && !participant && !success ? <p className="kiosk-welcome">{config.welcome_text}</p> : null}
       {message ? <div className="kiosk-inline-error" role="alert"><strong>{message}</strong></div> : null}
       {success ? (
-        <div className="kiosk-flow kiosk-flow--success kiosk-success">
-          <div className="kiosk-success-icon" aria-hidden="true">✓</div>
-          <p className="kiosk-success-message">{success}</p>
-          <button type="button" className="btn-secondary kiosk-submit" onClick={reset}>{t("kiosk.back")}</button>
-        </div>
+        <DesktopKioskConfirmation family={flowFamily} message={success} accent={flowAccent} />
+      ) : participant && pendingAction ? (
+        <DesktopKioskProcessing family={flowFamily} name={participant.name} accent={flowAccent} />
       ) : participant ? (
         <div className="kiosk-flow kiosk-flow--action">
           <div className="kiosk-participant-summary">
@@ -298,8 +303,8 @@ export function KioskPage() {
     <DesktopKioskRenderer design={design} kioskMode={config.kiosk_mode} exitLabel={t("kiosk.exit")} onExit={() => setExitOpen(true)}>
       {operationalBody}
     </DesktopKioskRenderer>
-    {pending ? <Modal title={pending.name} onClose={() => setPending(null)} actions={<><Button variant="secondary" onClick={() => setPending(null)}>{t("common.cancel")}</Button><Button loading={busy} onClick={() => void selectPerson(pending, pin)}>{t("kiosk.verify")}</Button></>}><Field label={t("kiosk.pin")}><Input autoFocus type="password" value={pin} onChange={(event) => setPin(event.target.value)} /></Field></Modal> : null}
-    {exitOpen ? <Modal title={t("kiosk.exit")} onClose={() => setExitOpen(false)} actions={<><Button variant="secondary" onClick={() => setExitOpen(false)}>{t("common.cancel")}</Button><Button loading={busy} onClick={() => void exit()}>{t("kiosk.exit")}</Button></>}><Field label={t("kiosk.exitCode")}><Input autoFocus type="password" value={exitCode} onChange={(event) => setExitCode(event.target.value)} /></Field></Modal> : null}
+    {pending ? <DesktopKioskPinDialog title={pending.name} label={t("kiosk.pin")} code={pin} error={message} busy={busy} cancelLabel={t("common.cancel")} confirmLabel={t("kiosk.verify")} onCodeChange={setPin} onCancel={() => { setPending(null); setPin(""); setMessage(""); }} onConfirm={() => void selectPerson(pending, pin)} /> : null}
+    {exitOpen ? <DesktopKioskExitDialog code={exitCode} error={exitError} busy={busy} onCodeChange={setExitCode} onCancel={() => { setExitOpen(false); setExitCode(""); setExitError(""); }} onConfirm={() => void exit()} labels={{ title: t("kiosk.exit"), hint: t("kiosk.exitCodeHint"), code: t("kiosk.exitCode"), show: t("auth.showPassword"), hide: t("auth.hidePassword"), cancel: t("common.cancel"), exit: t("kiosk.exit"), verifying: t("common.loading") }} /> : null}
   </>;
 }
 

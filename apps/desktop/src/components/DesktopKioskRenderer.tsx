@@ -27,7 +27,7 @@ export function DesktopKioskRenderer({ children, design, kioskMode, onExit, exit
   const mainImage = useAuthenticatedAsset(design.main_background_image_url);
   const cardTemplate = resolveKioskCardTemplate(config.main);
   const layout = kioskMode === "card" ? cardTemplate.layout : config.main.layout_preset;
-  const flowTemplate = kioskMode === "card" ? cardTemplate.id : config.main.input_template;
+  const flowTemplate = desktopKioskFlowTemplate(design, kioskMode);
   const mainUsesImage = config.main.background.mode === "image" && Boolean(mainImage);
   const overlay = kioskOverlayColor(config.main.overlay);
 
@@ -43,7 +43,7 @@ export function DesktopKioskRenderer({ children, design, kioskMode, onExit, exit
       data-button={config.main.button_preset}
       data-input={config.main.input_preset}
       data-card={config.main.card_preset}
-      style={{ "--kr-accent": templateAccent(flowTemplate) } as CSSProperties}
+      style={{ "--kr-accent": desktopKioskTemplateAccent(flowTemplate) } as CSSProperties}
     >
       <button type="button" className="kr-exit" onClick={onExit} aria-label={exitLabel}>
         {exitLabel}
@@ -176,7 +176,11 @@ function clamp(value: number, minimum: number, maximum: number, fallback: number
   return Number.isFinite(value) ? Math.min(maximum, Math.max(minimum, value)) : fallback;
 }
 
-function templateAccent(template: string) {
+export function desktopKioskFlowTemplate(design: KioskDesignDocument, kioskMode: KioskMode) {
+  return kioskMode === "card" ? resolveKioskCardTemplate(design.config.main).id : design.config.main.input_template;
+}
+
+export function desktopKioskTemplateAccent(template: string) {
   const accents: Record<string, string> = {
     clean: "#2563EB", soft: "#3B82F6", bold: "#0F172A", minimal: "#334155",
     outline: "#2563EB", dark: "#38BDF8", glass: "#2563EB", rounded: "#4F46E5",
