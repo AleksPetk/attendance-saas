@@ -1,4 +1,5 @@
 import { Fragment, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useLocation } from "react-router-dom";
 import { createAppConfig } from "@checkstation/config";
 import { formatDateTime } from "@checkstation/i18n";
 import { Alert, Badge, Button, Card, DataRow, Empty, Input, Loading, Page, PageHeader, Segmented, formatError } from "../components/ui";
@@ -7,7 +8,7 @@ import { useApp } from "../lib/AppProvider";
 type View = "resources" | "faq" | "status";
 
 export function HelpPage() {
-  const { api, locale, t } = useApp(); const [view, setView] = useState<View>("resources"); const [docs, setDocs] = useState<DocumentSummary[]>([]); const [faqs, setFaqs] = useState<Faq[]>([]); const [categories, setCategories] = useState<Array<{ id: string; label: string }>>([]); const [search, setSearch] = useState(""); const [category, setCategory] = useState(""); const [article, setArticle] = useState<Document | null>(null); const [expanded, setExpanded] = useState(""); const [status, setStatus] = useState<StatusSnapshot | null>(null); const [loading, setLoading] = useState(true); const [error, setError] = useState("");
+  const { api, locale, t } = useApp(); const location = useLocation(); const [view, setView] = useState<View>((location.state as { view?: View } | null)?.view || "resources"); const [docs, setDocs] = useState<DocumentSummary[]>([]); const [faqs, setFaqs] = useState<Faq[]>([]); const [categories, setCategories] = useState<Array<{ id: string; label: string }>>([]); const [search, setSearch] = useState(""); const [category, setCategory] = useState(""); const [article, setArticle] = useState<Document | null>(null); const [expanded, setExpanded] = useState(""); const [status, setStatus] = useState<StatusSnapshot | null>(null); const [loading, setLoading] = useState(true); const [error, setError] = useState("");
   const statusBase = useMemo(() => createAppConfig({ apiBaseUrl: import.meta.env.VITE_API_BASE_URL || "https://workspace.checkstation.app/api" }).statusBaseUrl, []);
   const loadContent = useCallback(async () => { setLoading(true); setError(""); try { const [docData, faqData] = await Promise.all([getDocuments(api, locale), getFaq(api, locale, category, search)]); setDocs(docData.documents || []); setFaqs(faqData.entries || []); setCategories(faqData.categories || []); } catch (caught) { setError(formatError(caught, t("help.contentError"))); } finally { setLoading(false); } }, [api, category, locale, search, t]);
   const loadStatus = useCallback(async () => { setLoading(true); setError(""); try { setStatus(await getStatus(statusBase, locale)); } catch (caught) { setError(formatError(caught, t("status.error"))); } finally { setLoading(false); } }, [locale, statusBase, t]);
