@@ -16,6 +16,8 @@ test("desktop shell uses canonical branding, Dashboard terminology, and Workspac
   assert.doesNotMatch(shell, /label: t\("nav\.home"\)/);
   assert.match(shell, /DesktopAnnouncementBell/);
   assert.match(shell, /topbar-brand-logo/);
+  assert.match(shell, /<Brand showMark=\{false\}/);
+  assert.match(shell, /<div className="topbar-actions">[\s\S]*<DesktopAnnouncementBell[\s\S]*<BrandMark className="topbar-brand-logo"/);
   assert.match(bell, /endpoints\.announcements\(\)/);
   assert.match(bell, /mark-read\//);
   assert.match(shell, /state: \{ view: "status" \}/);
