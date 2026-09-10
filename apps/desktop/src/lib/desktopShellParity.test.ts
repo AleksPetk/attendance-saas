@@ -8,6 +8,7 @@ const dashboard = readFileSync(fileURLToPath(new URL("../pages/HomePage.tsx", im
 const ui = readFileSync(fileURLToPath(new URL("../components/ui.tsx", import.meta.url)), "utf8");
 const bell = readFileSync(fileURLToPath(new URL("../components/DesktopAnnouncementBell.tsx", import.meta.url)), "utf8");
 const help = readFileSync(fileURLToPath(new URL("../pages/HelpPage.tsx", import.meta.url)), "utf8");
+const members = readFileSync(fileURLToPath(new URL("../pages/PeoplePage.tsx", import.meta.url)), "utf8");
 
 test("desktop shell uses canonical branding, Dashboard terminology, and Workspace announcements", () => {
   assert.match(ui, /assets\/icon-ui\.png/);
@@ -43,4 +44,16 @@ test("dashboard uses action badges instead of generic activity arrows", () => {
   assert.match(dashboard, /break_start/);
   assert.match(dashboard, /break_end/);
   assert.doesNotMatch(dashboard, /item\.action === "check_in" \? "→"/);
+});
+
+test("members page uses Workspace usage, views, and filter controls without a duplicate page heading", () => {
+  assert.doesNotMatch(members, /<PageHeader/);
+  assert.match(members, /usage_totals\?\.members/);
+  assert.match(members, /limits\?\.members/);
+  assert.match(members, /members\.activeMembers/);
+  assert.match(members, /members\.archivedMembers/);
+  assert.match(members, /value="with_email"/);
+  assert.match(members, /value="without_phone"/);
+  assert.match(members, /value="name_asc"/);
+  assert.match(members, /value="name_desc"/);
 });
