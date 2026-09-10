@@ -93,4 +93,9 @@ test("desktop Groups uses entitlement usage and Workspace filter controls withou
   assert.match(groups, /value="structured_first"/);
   assert.match(groups, /setType\("all"\)/);
   assert.match(groups, /setSort\("newest"\)/);
+  assert.match(groups, /className="groups-card-grid"/);
+  assert.match(groups, /enabledGroupActions\(group\.actions\)/);
+  assert.match(groups, /groupParticipantCounts\(group\)/);
+  assert.match(groups, /groups\.participantComposition/);
+  assert.doesNotMatch(groups, /<DataRow/);
 });

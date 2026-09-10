@@ -2,9 +2,9 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { ApiError, endpoints, fieldErrorsFromBody } from "@checkstation/api";
 import { canManageWorkspace, hasPlanFeature } from "@checkstation/domain";
-import { Alert, Badge, Button, Card, DataRow, Empty, Field, Input, Loading, Modal, Page, Segmented, Select, formatError } from "../components/ui";
+import { Alert, Badge, Button, Card, Empty, Field, Input, Loading, Modal, Page, Segmented, Select, formatError } from "../components/ui";
 import { useApp } from "../lib/AppProvider";
-import { filterAndSortGroups, groupUsageMetrics, type GroupListItem, type GroupSortOrder, type GroupTypeFilter } from "../lib/groups";
+import { enabledGroupActions, filterAndSortGroups, groupParticipantCounts, groupUsageMetrics, type EnabledGroupAction, type GroupListItem, type GroupSortOrder, type GroupTypeFilter } from "../lib/groups";
 
 type Group = GroupListItem & {
   id: number;
@@ -14,6 +14,7 @@ type Group = GroupListItem & {
   member_count?: number;
   group_only_participant_count?: number;
   is_plan_locked?: boolean;
+  readiness?: { setup_complete?: boolean } | null;
 };
 
 export function GroupsPage({ initialCreate = false }: { initialCreate?: boolean } = {}) {
@@ -116,9 +117,57 @@ export function GroupsPage({ initialCreate = false }: { initialCreate?: boolean 
     </Card>
 
     <Alert>{error}</Alert>
-    {loading ? <Loading label={t("groups.loading")} /> : visibleRows.length ? <div className="data-list">{visibleRows.map((group) => <DataRow key={group.id} title={group.name} detail={`${group.participant_count ?? ((group.member_count || 0) + (group.group_only_participant_count || 0))} ${t("groups.participantLabel")}`} badge={<><Badge tone="blue">{t(group.group_type === "structured" ? "groups.structured" : "groups.standard")}</Badge>{group.is_plan_locked ? <Badge tone="warning">{t("groups.planLocked")}</Badge> : status === "archived" ? <Badge>{t("groups.archivedLabel")}</Badge> : null}</>} onClick={() => navigate(`/groups/${group.id}`)} />)}</div> : <Empty title={hasNarrowingFilters ? t("groups.emptyFilteredTitle") : status === "active" ? t("groups.emptyActiveTitle") : t("groups.emptyArchivedTitle")} body={hasNarrowingFilters ? t("groups.emptyFilteredBody") : status === "active" ? t("groups.emptyActiveBody") : t("groups.emptyArchivedBody")} />}
+    {loading ? <Loading label={t("groups.loading")} /> : visibleRows.length ? <div className="groups-card-grid">{visibleRows.map((group) => <GroupResultCard group={group} key={group.id} onOpen={() => navigate(`/groups/${group.id}`)} />)}</div> : <Empty title={hasNarrowingFilters ? t("groups.emptyFilteredTitle") : status === "active" ? t("groups.emptyActiveTitle") : t("groups.emptyArchivedTitle")} body={hasNarrowingFilters ? t("groups.emptyFilteredBody") : status === "active" ? t("groups.emptyActiveBody") : t("groups.emptyArchivedBody")} />}
     {creating ? <GroupCreate structuredAllowed={structuredAllowed} onClose={() => setCreating(false)} onSaved={(group) => { setCreating(false); navigate(`/groups/${group.id}`); }} /> : null}
   </Page>;
+}
+
+function GroupResultCard({ group, onOpen }: { group: Group; onOpen: () => void }) {
+  const { t } = useApp();
+  const structured = group.group_type === "structured";
+  const archived = group.status === "archived";
+  const actions = enabledGroupActions(group.actions);
+  const participants = groupParticipantCounts(group);
+  const statusBadge = archived
+    ? <Badge>{t("groups.archivedLabel")}</Badge>
+    : group.readiness && !group.readiness.setup_complete
+      ? <Badge tone="warning">{t("groups.setupIncomplete")}</Badge>
+      : <Badge tone="green">{t("groups.activeLabel")}</Badge>;
+
+  return <button className={`group-result-card is-${structured ? "structured" : "standard"}${archived ? " is-archived" : ""}`} onClick={onOpen} type="button">
+    <span className="group-result-card-top">
+      <span className="group-result-card-heading">
+        <strong>{group.name}</strong>
+        <span className="group-result-card-meta">
+          <span>{t("groups.groupId", { id: group.id })}</span>
+          <span className="group-result-card-type">{t(structured ? "groups.structuredGroup" : "groups.standardGroup")}</span>
+        </span>
+      </span>
+      <span className="group-result-card-badges">
+        {group.is_plan_locked ? <Badge tone="warning">{t("groups.planLocked")}</Badge> : null}
+        {statusBadge}
+      </span>
+    </span>
+    <span className="group-result-card-actions">
+      <span className="group-result-card-label">{t("groups.attendanceActions")}</span>
+      {actions.length ? <span className="group-result-action-list">{actions.map((action) => <GroupAction action={action} key={action.kind} />)}</span> : <span className="group-result-card-empty">{t("groups.noAttendanceActions")}</span>}
+    </span>
+    <span className="group-result-card-participants">
+      {structured
+        ? t("groups.participantTotal", { count: participants.total })
+        : t("groups.participantComposition", { total: participants.total, members: participants.members, groupOnly: participants.groupOnly })}
+    </span>
+  </button>;
+}
+
+function GroupAction({ action }: { action: EnabledGroupAction }) {
+  const { t } = useApp();
+  const label = action.kind === "check_in"
+    ? t("groups.checkInAction")
+    : action.kind === "check_out"
+      ? t("groups.checkOutAction")
+      : t("groups.breaksAction", { max: action.maxBreaks });
+  return <span className={`group-result-action is-${action.kind.replace("_", "-")}`}>{label}</span>;
 }
 
 function GroupUsage({ label, tone, usage }: { label: string; tone: "standard" | "structured"; usage: ReturnType<typeof groupUsageMetrics> }) {
