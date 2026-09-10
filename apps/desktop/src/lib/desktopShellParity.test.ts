@@ -21,6 +21,11 @@ test("desktop shell uses canonical branding, Dashboard terminology, and Workspac
   assert.match(shell, /className="topbar-copy"/);
   assert.match(shell, /className="topbar-eyebrow"/);
   assert.match(shell, /className="desktop-language-trigger"/);
+  assert.match(shell, /<DesktopLanguageMenu locale=\{locale\} onSelect=\{setLocale\}/);
+  assert.match(shell, /role="menuitemradio"/);
+  assert.match(shell, /window\.addEventListener\("pointerdown"/);
+  assert.match(shell, /event\.key === "Escape"/);
+  assert.doesNotMatch(shell, /onClick=\{\(\) => setLocale\(locale === "en" \? "ja" : "en"\)\}/);
   assert.match(bell, /endpoints\.announcements\(\)/);
   assert.match(bell, /mark-read\//);
   assert.match(shell, /state: \{ view: "status" \}/);

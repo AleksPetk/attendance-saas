@@ -1,3 +1,4 @@
+import { useEffect, useId, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { canManageOwnerAccount, canManageStaffAccounts, canViewBilling, canViewGlobalMembers, workspacePlanKey } from "@checkstation/domain";
 import { Brand, BrandMark, Button, Badge } from "../components/ui";
@@ -17,7 +18,31 @@ export function DesktopShell() {
     { to: "/help", label: t("nav.help"), icon: "help", show: true },
   ];
   const page = items.find((item) => item.to === "/" ? location.pathname === "/" : location.pathname.startsWith(item.to));
-  return <div className="app-shell"><aside className="sidebar"><Brand showMark={false} /><nav className="sidebar-nav">{items.filter((item) => item.show).map((item) => <NavLink className={({ isActive }) => `nav-link${isActive ? " is-active" : ""}`} end={item.to === "/"} key={item.to} to={item.to}><NavIcon name={item.icon} />{item.label}</NavLink>)}</nav><div className="sidebar-footer"><div className="workspace-chip"><strong>{String(session?.workspace?.name || t("app.name"))}</strong><span>{String(session?.workspace?.workspace_id || "")} · {String(session?.role || "")}</span><div className="workspace-plan"><Badge tone="blue">{String(workspacePlanKey(session)).toUpperCase()}</Badge></div></div><div className="sidebar-actions"><Button className="button-sm" disabled={locale === "en"} onClick={() => setLocale("en")} variant="ghost">EN</Button><Button className="button-sm" disabled={locale === "ja"} onClick={() => setLocale("ja")} variant="ghost">JA</Button><Button className="button-sm" onClick={() => void auth.logout()} variant="ghost">{t("nav.logout")}</Button></div></div></aside><main className="desktop-main"><header className="topbar"><div className="topbar-copy"><span className="topbar-eyebrow">{t("app.name").toUpperCase()}</span><h1>{page?.label || t("app.name")}</h1></div><div className="topbar-actions"><button aria-label={locale === "en" ? "日本語" : "English"} className="desktop-language-trigger" onClick={() => setLocale(locale === "en" ? "ja" : "en")} title={locale === "en" ? "日本語" : "English"} type="button"><GlobeIcon /></button><DesktopAnnouncementBell onViewStatus={() => navigate("/help", { state: { view: "status" } })} /><BrandMark className="topbar-brand-logo" decorative={false} /></div></header><Outlet /></main></div>;
+  return <div className="app-shell"><aside className="sidebar"><Brand showMark={false} /><nav className="sidebar-nav">{items.filter((item) => item.show).map((item) => <NavLink className={({ isActive }) => `nav-link${isActive ? " is-active" : ""}`} end={item.to === "/"} key={item.to} to={item.to}><NavIcon name={item.icon} />{item.label}</NavLink>)}</nav><div className="sidebar-footer"><div className="workspace-chip"><strong>{String(session?.workspace?.name || t("app.name"))}</strong><span>{String(session?.workspace?.workspace_id || "")} · {String(session?.role || "")}</span><div className="workspace-plan"><Badge tone="blue">{String(workspacePlanKey(session)).toUpperCase()}</Badge></div></div><div className="sidebar-actions"><Button className="button-sm" disabled={locale === "en"} onClick={() => setLocale("en")} variant="ghost">EN</Button><Button className="button-sm" disabled={locale === "ja"} onClick={() => setLocale("ja")} variant="ghost">JA</Button><Button className="button-sm" onClick={() => void auth.logout()} variant="ghost">{t("nav.logout")}</Button></div></div></aside><main className="desktop-main"><header className="topbar"><div className="topbar-copy"><span className="topbar-eyebrow">{t("app.name").toUpperCase()}</span><h1>{page?.label || t("app.name")}</h1></div><div className="topbar-actions"><DesktopLanguageMenu locale={locale} onSelect={setLocale} /><DesktopAnnouncementBell onViewStatus={() => navigate("/help", { state: { view: "status" } })} /><BrandMark className="topbar-brand-logo" decorative={false} /></div></header><Outlet /></main></div>;
+}
+
+function DesktopLanguageMenu({ locale, onSelect }: { locale: "en" | "ja"; onSelect: (locale: "en" | "ja") => void }) {
+  const [open, setOpen] = useState(false);
+  const menuId = useId();
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const closeOnOutsideClick = (event: PointerEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    window.addEventListener("pointerdown", closeOnOutsideClick);
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      window.removeEventListener("pointerdown", closeOnOutsideClick);
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [open]);
+
+  return <div className="desktop-language-root" ref={rootRef}><button aria-controls={menuId} aria-expanded={open} aria-haspopup="menu" aria-label="Language" className="desktop-language-trigger" onClick={() => setOpen((current) => !current)} title="Language" type="button"><GlobeIcon /></button>{open ? <div aria-label="Language" className="desktop-language-menu" id={menuId} role="menu">{([ ["en", "English"], ["ja", "日本語"] ] as const).map(([code, label]) => { const active = locale === code; return <button aria-checked={active} className={`desktop-language-option${active ? " is-active" : ""}`} key={code} onClick={() => { onSelect(code); setOpen(false); }} role="menuitemradio" type="button"><span>{label}</span>{active ? <span aria-hidden="true" className="desktop-language-check">✓</span> : null}</button>; })}</div> : null}</div>;
 }
 
 function GlobeIcon() {
