@@ -161,6 +161,9 @@ export function workspacePromoRedirectUrl(
   locationOrigin,
   env = import.meta.env,
 ) {
+  // Bare workspace `/` is the SPA entry (login/dashboard), not a promo handoff.
+  const normalized = String(pathname || "").replace(/\/+$/, "") || "/";
+  if (normalized === "/") return "";
   if (!isPromoMarketingPath(pathname)) return "";
   const workspace = configuredWorkspaceOrigin(env);
   const pub = configuredPublicSiteOrigin(env);

@@ -340,6 +340,28 @@ function RedirectIfSignedIn({ session, children }) {
   return children;
 }
 
+/**
+ * Bare workspace host `/` — stay on workspace and send users to login or dashboard
+ * (or locked kiosk). Marketing apex `/` is handled by nginx before the SPA.
+ */
+function WorkspaceRootRedirect({ loadingSession, session }) {
+  const { t } = useTranslation("workspace");
+  if (loadingSession) {
+    return (
+      <div className="page">
+        <LoadingState label={t("loadingWorkspace")} />
+      </div>
+    );
+  }
+  if (session?.workspace?.kiosk_locked) {
+    return <Navigate to={kioskTargetPath(session.workspace)} replace />;
+  }
+  if (session) {
+    return <Navigate to="/dashboard" replace />;
+  }
+  return <Navigate to="/login" replace />;
+}
+
 function KioskLockGate({ loadingSession, session, children }) {
   const { t } = useTranslation("workspace");
   const location = useLocation();
@@ -760,7 +782,10 @@ export default function App() {
       >
         <KioskLockGate loadingSession={loadingSession} session={session}>
         <Routes>
-          <Route path="/" element={<RedirectToPromoLocale logicalPath="/" />} />
+          <Route
+            path="/"
+            element={<WorkspaceRootRedirect loadingSession={loadingSession} session={session} />}
+          />
           <Route path="/features" element={<RedirectToPromoLocale logicalPath="/features" />} />
           <Route
             path="/how-it-works"

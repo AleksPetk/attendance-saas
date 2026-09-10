@@ -146,6 +146,16 @@ describe("siteOrigins", () => {
     );
     assert.equal(
       workspacePromoRedirectUrl(
+        "/features",
+        "",
+        "",
+        "https://workspace.checkstation.app",
+        prodEnv,
+      ),
+      "https://checkstation.app/features",
+    );
+    assert.equal(
+      workspacePromoRedirectUrl(
         "/how-it-works",
         "",
         "",
@@ -173,6 +183,44 @@ describe("siteOrigins", () => {
         prodEnv,
       ),
       "",
+    );
+  });
+
+  it("keeps bare workspace root on the workspace host for SPA login/dashboard routing", () => {
+    assert.equal(
+      workspacePromoRedirectUrl(
+        "/",
+        "",
+        "",
+        "https://workspace.checkstation.app",
+        prodEnv,
+      ),
+      "",
+    );
+    assert.equal(
+      canonicalHostRedirectUrl(
+        "/",
+        "",
+        "",
+        "https://workspace.checkstation.app",
+        prodEnv,
+      ),
+      "",
+    );
+    assert.equal(
+      canonicalHostRedirectUrl(
+        "/features",
+        "",
+        "",
+        "https://workspace.checkstation.app",
+        prodEnv,
+      ),
+      "https://checkstation.app/features",
+    );
+    // Explicit promo handoff helpers may still point at the public origin.
+    assert.equal(
+      resolvePromoHandoffUrl("/", "https://workspace.checkstation.app", prodEnv),
+      "https://checkstation.app/",
     );
   });
 
