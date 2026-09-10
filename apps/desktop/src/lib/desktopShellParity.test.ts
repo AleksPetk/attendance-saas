@@ -10,6 +10,7 @@ const bell = readFileSync(fileURLToPath(new URL("../components/DesktopAnnounceme
 const help = readFileSync(fileURLToPath(new URL("../pages/HelpPage.tsx", import.meta.url)), "utf8");
 const members = readFileSync(fileURLToPath(new URL("../pages/PeoplePage.tsx", import.meta.url)), "utf8");
 const memberDetail = readFileSync(fileURLToPath(new URL("../pages/MemberDetailPage.tsx", import.meta.url)), "utf8");
+const groups = readFileSync(fileURLToPath(new URL("../pages/GroupsPage.tsx", import.meta.url)), "utf8");
 
 test("desktop shell uses canonical branding, Dashboard terminology, and Workspace announcements", () => {
   assert.match(ui, /assets\/icon-ui\.png/);
@@ -80,4 +81,16 @@ test("desktop Edit member uses a compact photo editor and keeps lifecycle action
   assert.match(members, /lifecycle\(member, "archive"\)/);
   assert.match(members, /lifecycle\(member, "restore"\)/);
   assert.match(members, /lifecycle\(member, "permanently-delete"\)/);
+});
+
+test("desktop Groups uses entitlement usage and Workspace filter controls without a duplicate page heading", () => {
+  assert.doesNotMatch(groups, /<PageHeader/);
+  assert.match(groups, /usage_totals\?\.active_standard_groups/);
+  assert.match(groups, /limits\?\.active_structured_groups/);
+  assert.match(groups, /groups\.activeGroups/);
+  assert.match(groups, /groups\.archivedGroups/);
+  assert.match(groups, /value="participants_desc"/);
+  assert.match(groups, /value="structured_first"/);
+  assert.match(groups, /setType\("all"\)/);
+  assert.match(groups, /setSort\("newest"\)/);
 });
