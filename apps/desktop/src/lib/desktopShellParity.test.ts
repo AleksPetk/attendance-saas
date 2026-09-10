@@ -57,3 +57,12 @@ test("members page uses Workspace usage, views, and filter controls without a du
   assert.match(members, /value="name_asc"/);
   assert.match(members, /value="name_desc"/);
 });
+
+test("desktop Add member uses a hidden photo input with an immediate avatar preview", () => {
+  assert.match(members, /className="member-create-photo-button"/);
+  assert.match(members, /photoInputRef\.current\?\.click\(\)/);
+  assert.match(members, /URL\.createObjectURL\(file\)/);
+  assert.match(members, /URL\.revokeObjectURL\(photoPreview\)/);
+  assert.match(members, /className="member-create-photo-input"/);
+  assert.doesNotMatch(members, /<Field error=\{fields\.photo\} label=\{t\("members\.choosePhoto"\)\}><Input/);
+});
