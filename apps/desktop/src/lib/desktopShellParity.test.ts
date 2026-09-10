@@ -26,6 +26,12 @@ test("desktop shell uses canonical branding, Dashboard terminology, and Workspac
   assert.match(shell, /window\.addEventListener\("pointerdown"/);
   assert.match(shell, /event\.key === "Escape"/);
   assert.doesNotMatch(shell, /onClick=\{\(\) => setLocale\(locale === "en" \? "ja" : "en"\)\}/);
+  assert.match(shell, /session\?\.workspace\?\.identity/);
+  assert.match(shell, /entitlements\?\.plan\?\.display_name/);
+  assert.match(shell, /className="sidebar-account-email"/);
+  assert.match(shell, />Sign out<\/button>/);
+  assert.doesNotMatch(shell, /session\?\.workspace\?\.workspace_id/);
+  assert.doesNotMatch(shell, />EN<\/Button>|>JA<\/Button>/);
   assert.match(bell, /endpoints\.announcements\(\)/);
   assert.match(bell, /mark-read\//);
   assert.match(shell, /state: \{ view: "status" \}/);

@@ -1,12 +1,15 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { canManageOwnerAccount, canManageStaffAccounts, canViewBilling, canViewGlobalMembers, workspacePlanKey } from "@checkstation/domain";
-import { Brand, BrandMark, Button, Badge } from "../components/ui";
+import { Brand, BrandMark, Badge } from "../components/ui";
 import { DesktopAnnouncementBell } from "../components/DesktopAnnouncementBell";
 import { useApp } from "../lib/AppProvider";
 
 export function DesktopShell() {
   const { t, auth, authState, locale, setLocale } = useApp(); const location = useLocation(); const navigate = useNavigate(); const session = authState.session;
+  const identity = String(session?.workspace?.identity || session?.actor?.email || "");
+  const role = titleCase(String(session?.role || session?.workspace?.role || ""));
+  const plan = String(session?.workspace?.entitlements?.plan?.display_name || titleCase(workspacePlanKey(session)));
   const items = [
     { to: "/", label: t("dashboard.title"), icon: "home", show: true },
     { to: "/people", label: t("nav.members"), icon: "people", show: canViewGlobalMembers(session) },
@@ -18,7 +21,11 @@ export function DesktopShell() {
     { to: "/help", label: t("nav.help"), icon: "help", show: true },
   ];
   const page = items.find((item) => item.to === "/" ? location.pathname === "/" : location.pathname.startsWith(item.to));
-  return <div className="app-shell"><aside className="sidebar"><Brand showMark={false} /><nav className="sidebar-nav">{items.filter((item) => item.show).map((item) => <NavLink className={({ isActive }) => `nav-link${isActive ? " is-active" : ""}`} end={item.to === "/"} key={item.to} to={item.to}><NavIcon name={item.icon} />{item.label}</NavLink>)}</nav><div className="sidebar-footer"><div className="workspace-chip"><strong>{String(session?.workspace?.name || t("app.name"))}</strong><span>{String(session?.workspace?.workspace_id || "")} · {String(session?.role || "")}</span><div className="workspace-plan"><Badge tone="blue">{String(workspacePlanKey(session)).toUpperCase()}</Badge></div></div><div className="sidebar-actions"><Button className="button-sm" disabled={locale === "en"} onClick={() => setLocale("en")} variant="ghost">EN</Button><Button className="button-sm" disabled={locale === "ja"} onClick={() => setLocale("ja")} variant="ghost">JA</Button><Button className="button-sm" onClick={() => void auth.logout()} variant="ghost">{t("nav.logout")}</Button></div></div></aside><main className="desktop-main"><header className="topbar"><div className="topbar-copy"><span className="topbar-eyebrow">{t("app.name").toUpperCase()}</span><h1>{page?.label || t("app.name")}</h1></div><div className="topbar-actions"><DesktopLanguageMenu locale={locale} onSelect={setLocale} /><DesktopAnnouncementBell onViewStatus={() => navigate("/help", { state: { view: "status" } })} /><BrandMark className="topbar-brand-logo" decorative={false} /></div></header><Outlet /></main></div>;
+  return <div className="app-shell"><aside className="sidebar"><Brand showMark={false} /><nav className="sidebar-nav">{items.filter((item) => item.show).map((item) => <NavLink className={({ isActive }) => `nav-link${isActive ? " is-active" : ""}`} end={item.to === "/"} key={item.to} to={item.to}><NavIcon name={item.icon} />{item.label}</NavLink>)}</nav><div className="sidebar-footer"><div className="sidebar-account-info"><span className="sidebar-account-email">{identity}</span><div className="sidebar-account-role"><span>{role}</span><span aria-hidden="true">·</span><Badge tone="blue">{plan}</Badge></div></div><button className="sidebar-signout" onClick={() => void auth.logout()} type="button">Sign out</button></div></aside><main className="desktop-main"><header className="topbar"><div className="topbar-copy"><span className="topbar-eyebrow">{t("app.name").toUpperCase()}</span><h1>{page?.label || t("app.name")}</h1></div><div className="topbar-actions"><DesktopLanguageMenu locale={locale} onSelect={setLocale} /><DesktopAnnouncementBell onViewStatus={() => navigate("/help", { state: { view: "status" } })} /><BrandMark className="topbar-brand-logo" decorative={false} /></div></header><Outlet /></main></div>;
+}
+
+function titleCase(value: string) {
+  return value ? `${value.charAt(0).toUpperCase()}${value.slice(1).toLowerCase()}` : "";
 }
 
 function DesktopLanguageMenu({ locale, onSelect }: { locale: "en" | "ja"; onSelect: (locale: "en" | "ja") => void }) {
