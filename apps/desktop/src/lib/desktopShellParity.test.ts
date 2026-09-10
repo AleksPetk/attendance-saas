@@ -9,6 +9,7 @@ const ui = readFileSync(fileURLToPath(new URL("../components/ui.tsx", import.met
 const bell = readFileSync(fileURLToPath(new URL("../components/DesktopAnnouncementBell.tsx", import.meta.url)), "utf8");
 const help = readFileSync(fileURLToPath(new URL("../pages/HelpPage.tsx", import.meta.url)), "utf8");
 const members = readFileSync(fileURLToPath(new URL("../pages/PeoplePage.tsx", import.meta.url)), "utf8");
+const memberDetail = readFileSync(fileURLToPath(new URL("../pages/MemberDetailPage.tsx", import.meta.url)), "utf8");
 
 test("desktop shell uses canonical branding, Dashboard terminology, and Workspace announcements", () => {
   assert.match(ui, /assets\/icon-ui\.png/);
@@ -65,4 +66,18 @@ test("desktop Add member uses a hidden photo input with an immediate avatar prev
   assert.match(members, /URL\.revokeObjectURL\(photoPreview\)/);
   assert.match(members, /className="member-create-photo-input"/);
   assert.doesNotMatch(members, /<Field error=\{fields\.photo\} label=\{t\("members\.choosePhoto"\)\}><Input/);
+});
+
+test("desktop Edit member uses a compact photo editor and keeps lifecycle actions on list rows", () => {
+  assert.match(memberDetail, /className="card member-edit-profile"/);
+  assert.match(memberDetail, /className="member-edit-sections"/);
+  assert.match(memberDetail, /className="member-edit-photo-menu"/);
+  assert.match(memberDetail, /members\.changePhoto/);
+  assert.match(memberDetail, /members\.removePhoto/);
+  assert.match(memberDetail, /URL\.createObjectURL\(file\)/);
+  assert.match(memberDetail, /className="member-create-photo-input"/);
+  assert.doesNotMatch(memberDetail, /danger-zone|function mutate/);
+  assert.match(members, /lifecycle\(member, "archive"\)/);
+  assert.match(members, /lifecycle\(member, "restore"\)/);
+  assert.match(members, /lifecycle\(member, "permanently-delete"\)/);
 });
