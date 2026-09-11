@@ -127,6 +127,18 @@ test("desktop Add participant uses canonical Group email and PIN fields", () => 
   assert.doesNotMatch(groupDetail, /name: name\.trim\(\), email: email\.trim\(\)/);
 });
 
+test("desktop Add participant remains open, refreshes, resets, and confirms repeated adds", () => {
+  assert.match(groupDetail, /<ParticipantCreate[\s\S]*onSaved=\{load\}/);
+  assert.match(groupDetail, /submittingRef\.current/);
+  assert.match(groupDetail, /setMemberId\(""\)/);
+  assert.match(groupDetail, /setMemberEmails\(\[""\]\)/);
+  assert.match(groupDetail, /setVisitorName\(""\)/);
+  assert.match(groupDetail, /setVisitorEmails\(\[""\]\)/);
+  assert.match(groupDetail, /await onSaved\(\)/);
+  assert.match(groupDetail, /setTimeout\([\s\S]*1800/);
+  assert.match(groupDetail, /<Alert tone="success">\{success\}<\/Alert>/);
+});
+
 test("desktop Kiosk launch uses server readiness before navigation", () => {
   assert.match(groupDetail, /kioskSettingsReadiness\(next\)/);
   assert.match(groupDetail, /isKioskLaunchBlocked/);
