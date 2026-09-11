@@ -12,6 +12,7 @@ const members = readFileSync(fileURLToPath(new URL("../pages/PeoplePage.tsx", im
 const memberDetail = readFileSync(fileURLToPath(new URL("../pages/MemberDetailPage.tsx", import.meta.url)), "utf8");
 const groups = readFileSync(fileURLToPath(new URL("../pages/GroupsPage.tsx", import.meta.url)), "utf8");
 const groupDetail = readFileSync(fileURLToPath(new URL("../pages/GroupDetailPage.tsx", import.meta.url)), "utf8");
+const kioskSettings = readFileSync(fileURLToPath(new URL("../pages/KioskSettingsPage.tsx", import.meta.url)), "utf8");
 
 test("desktop shell uses canonical branding, Dashboard terminology, and Workspace announcements", () => {
   assert.match(ui, /assets\/icon-ui\.png/);
@@ -135,4 +136,10 @@ test("desktop Kiosk launch uses server readiness before navigation", () => {
   assert.match(groupDetail, /disabled=\{launchBlocked\}/);
   assert.match(groupDetail, /navigate\(`\/kiosk\/\$\{groupId\}`\)/);
   assert.doesNotMatch(groupDetail, /<Button onClick=\{\(\) => navigate\(`\/kiosk\/\$\{groupId\}`\)\}/);
+});
+
+test("desktop Kiosk exit-code editor keeps both inputs aligned in one responsive row", () => {
+  assert.match(kioskSettings, /className="kiosk-exit-format-hint"/);
+  assert.match(kioskSettings, /className="kiosk-exit-inline-fields"/);
+  assert.doesNotMatch(kioskSettings, /className="form-grid"><Field label=\{t\("kiosk\.newExitCode"\)\}/);
 });
