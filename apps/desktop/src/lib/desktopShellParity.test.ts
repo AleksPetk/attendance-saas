@@ -114,3 +114,14 @@ test("desktop Group Configuration uses the canonical email and lifecycle contrac
   assert.match(groupDetail, /groups\.reactivate/);
   assert.doesNotMatch(groupDetail, /className="danger-zone"/);
 });
+
+test("desktop Add participant uses canonical Group email and PIN fields", () => {
+  assert.match(groupDetail, /participationEmailsForNewMember\(selected\)/);
+  assert.match(groupDetail, /memberParticipationPayload\(Number\(memberId\), memberEmails, memberPin\)/);
+  assert.match(groupDetail, /visitorParticipationPayload\(visitorName, visitorEmails, visitorPin\)/);
+  assert.match(groupDetail, /endpoints\.groupAvailableMembers\(groupId\)/);
+  assert.match(groupDetail, /groups\.addAnotherEmail/);
+  assert.match(groupDetail, /MAX_PARTICIPATION_EMAILS/);
+  assert.match(groupDetail, /required=\{group\.participation\.pin_required\}/);
+  assert.doesNotMatch(groupDetail, /name: name\.trim\(\), email: email\.trim\(\)/);
+});
