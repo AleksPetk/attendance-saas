@@ -51,6 +51,7 @@ export const endpoints = {
   groupClassRestore: (groupId: number | string, sectionId: number | string) => `/groups/${groupId}/classes/${sectionId}/restore/`,
   groupClassPermanentDelete: (groupId: number | string, sectionId: number | string) => `/groups/${groupId}/classes/${sectionId}/permanently-delete/`,
   groupEmailSender: (groupId: number | string) => `/groups/${groupId}/email-sender/`,
+  groupEmailSenderTest: (groupId: number | string) => `/groups/${groupId}/email-sender/test/`,
   history: () => "/history/",
   attendanceReportOptions: () => "/history/attendance-report/options/",
   attendanceReport: () => "/history/attendance-report/",

@@ -1,4 +1,5 @@
 import { managementEn, managementJa } from "./management.js";
+import { groupConfigurationEn, groupConfigurationJa } from "./groupConfiguration.js";
 export type AppLocale = "en" | "ja";
 
 export const SUPPORTED_LOCALES: AppLocale[] = ["en", "ja"];
@@ -1155,7 +1156,7 @@ const ja: Dict = {
   "kiosk.savingSettings": "保存中…",
 };
 
-const catalogs: Record<AppLocale, Dict> = { en: { ...en, ...managementEn }, ja: { ...ja, ...managementJa } };
+const catalogs: Record<AppLocale, Dict> = { en: { ...en, ...managementEn, ...groupConfigurationEn }, ja: { ...ja, ...managementJa, ...groupConfigurationJa } };
 
 export function resolveLocale(input?: string | null): AppLocale {
   const raw = String(input || "").toLowerCase();

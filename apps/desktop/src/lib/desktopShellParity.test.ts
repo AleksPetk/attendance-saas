@@ -11,6 +11,7 @@ const help = readFileSync(fileURLToPath(new URL("../pages/HelpPage.tsx", import.
 const members = readFileSync(fileURLToPath(new URL("../pages/PeoplePage.tsx", import.meta.url)), "utf8");
 const memberDetail = readFileSync(fileURLToPath(new URL("../pages/MemberDetailPage.tsx", import.meta.url)), "utf8");
 const groups = readFileSync(fileURLToPath(new URL("../pages/GroupsPage.tsx", import.meta.url)), "utf8");
+const groupDetail = readFileSync(fileURLToPath(new URL("../pages/GroupDetailPage.tsx", import.meta.url)), "utf8");
 
 test("desktop shell uses canonical branding, Dashboard terminology, and Workspace announcements", () => {
   assert.match(ui, /assets\/icon-ui\.png/);
@@ -98,4 +99,18 @@ test("desktop Groups uses entitlement usage and Workspace filter controls withou
   assert.match(groups, /groupParticipantCounts\(group\)/);
   assert.match(groups, /groups\.participantComposition/);
   assert.doesNotMatch(groups, /<DataRow/);
+});
+
+test("desktop Group Configuration uses the canonical email and lifecycle contracts", () => {
+  assert.match(groupDetail, /className="group-configuration-columns"/);
+  assert.match(groupDetail, /endpoints\.groupEmailSender\(groupId\)/);
+  assert.match(groupDetail, /endpoints\.groupEmailSenderTest\(groupId\)/);
+  assert.match(groupDetail, /advanced: \{ forward_emails: savedForwardEmails\(forwardEmails\) \}/);
+  assert.match(groupDetail, /notifications, advanced:/);
+  assert.match(groupDetail, /value="custom_smtp"/);
+  assert.match(groupDetail, /value="gmail"/);
+  assert.match(groupDetail, /value="microsoft"/);
+  assert.match(groupDetail, /value="yahoo"/);
+  assert.match(groupDetail, /groups\.reactivate/);
+  assert.doesNotMatch(groupDetail, /className="danger-zone"/);
 });

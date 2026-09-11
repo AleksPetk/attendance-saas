@@ -5,8 +5,11 @@ import { canLaunchKiosk, canManageGroupConfiguration, hasPlanFeature, isGroupSco
 import { Alert, Badge, Button, Card, DataRow, Empty, Field, Input, Loading, Modal, Page, PageHeader, Segmented, Select, Stat, Switch, TextArea, formatError } from "../components/ui";
 import { useApp } from "../lib/AppProvider";
 import { GroupClassesPanel } from "../components/GroupClassesPanel";
+import { EMPTY_EMAIL_SENDER, blankSenderForm, buildEmailSenderBody, normalizeForwardEmailSlots, savedForwardEmails, senderDraftRequiresTest, senderFormFromApi, senderFromNameOnlyChange, type EmailSenderProvider, type GroupEmailSender, type GroupEmailSenderForm, type SmtpSecurity } from "../lib/groupEmailSender";
 
-type Group = { id: number; name: string; status: string; group_type: string; participant_count: number; member_count: number; group_only_participant_count: number; section_count?: number; is_plan_locked: boolean; actions: { check_in_enabled: boolean; check_out_enabled: boolean; breaks_enabled: boolean; max_breaks: number | null }; participation: { email_required: boolean; pin_required: boolean }; forward_emails: string[]; readiness?: { setup_complete?: boolean }; };
+type NotificationSetting = { send_email: boolean; email_template: string };
+type GroupNotifications = { check_in: NotificationSetting; check_out: NotificationSetting; break: NotificationSetting };
+type Group = { id: number; name: string; status: string; group_type: string; participant_count: number; member_count: number; group_only_participant_count: number; section_count?: number; is_plan_locked: boolean; actions: { check_in_enabled: boolean; check_out_enabled: boolean; breaks_enabled: boolean; max_breaks: number | null }; participation: { email_required: boolean; pin_required: boolean }; notifications?: Partial<GroupNotifications>; advanced?: { email_sender?: Partial<GroupEmailSender>; email_sender_ready?: boolean; forward_emails?: string[] }; forward_emails: string[]; readiness?: { setup_complete?: boolean }; };
 type Participant = { id: number; group_participant_code?: string; member?: { name: string; email?: string }; name?: string; email?: string; effective?: { name?: string; email?: string }; overrides?: { name?: string; email?: string }; participation?: { emails?: string[]; has_pin?: boolean }; participation_emails?: string[]; _kind?: "member" | "visitor" };
 type ClassRow = { id: number; name: string; participant_count?: number; status: string };
 type Tab = "overview" | "participants" | "configuration" | "kiosk";
@@ -14,21 +17,25 @@ type Tab = "overview" | "participants" | "configuration" | "kiosk";
 export function GroupDetailPage() {
   const { id } = useParams(); const { api, authState, t } = useApp(); const navigate = useNavigate();
   const [group, setGroup] = useState<Group | null>(null); const [loading, setLoading] = useState(true); const [error, setError] = useState(""); const [tab, setTab] = useState<Tab>("overview");
+  const [configurationDirty, setConfigurationDirty] = useState(false); const [lifecycleBusy, setLifecycleBusy] = useState(false);
   const canConfigure = canManageGroupConfiguration(authState.session); const canParticipants = canConfigure || isGroupScopedStaff(authState.session);
   const load = useCallback(async () => { if (!id) return; setLoading(true); setError(""); try { setGroup(await api.get<Group>(endpoints.group(id))); } catch (caught) { setError(formatError(caught, t("common.error"))); } finally { setLoading(false); } }, [api, id, t]);
   useEffect(() => { void load(); }, [load]);
   if (loading) return <Page><Loading label={t("groups.loading")} /></Page>;
   if (!group || !id) return <Page><Alert>{error || t("common.error")}</Alert></Page>;
+  const currentGroup = group; const groupId = id;
   const tabs: Array<{ value: Tab; label: string }> = [{ value: "overview", label: t("groups.overview") }, { value: "participants", label: t("groups.participantLabel") }];
   if (canConfigure && !group.is_plan_locked) tabs.push({ value: "configuration", label: t("groups.configuration") });
   if (!group.is_plan_locked && group.status !== "archived") tabs.push({ value: "kiosk", label: t("kiosk.title") });
+  function leaveConfiguration(next: () => void) { if (tab === "configuration" && configurationDirty && !confirm(t("groups.configurationUnsaved"))) return; next(); }
+  async function lifecycle() { if (!confirm(t(currentGroup.status === "archived" ? "groups.restoreHint" : "groups.archiveConfirm"))) return; setLifecycleBusy(true); setError(""); try { await api.post(currentGroup.status === "archived" ? endpoints.groupRestore(groupId) : endpoints.groupArchive(groupId), {}); setConfigurationDirty(false); await load(); } catch (caught) { setError(formatError(caught, t("common.error"))); } finally { setLifecycleBusy(false); } }
   return <Page>
-    <PageHeader eyebrow={t(group.group_type === "structured" ? "groups.structured" : "groups.standard")} title={group.name} actions={<Button variant="secondary" onClick={() => navigate("/groups")}>{t("groups.back")}</Button>} />
+    <PageHeader eyebrow={t(group.group_type === "structured" ? "groups.structured" : "groups.standard")} title={group.name} actions={<>{tab === "configuration" && canConfigure ? <Button variant="danger" loading={lifecycleBusy} onClick={() => void lifecycle()}>{t(group.status === "archived" ? "groups.reactivate" : "groups.archive")}</Button> : null}<Button variant="secondary" onClick={() => leaveConfiguration(() => navigate("/groups"))}>{t("groups.back")}</Button></>} />
     <div className="toolbar"><Badge tone={group.status === "archived" ? "neutral" : "green"}>{t(group.status === "archived" ? "groups.archivedLabel" : "groups.activeLabel")}</Badge>{group.is_plan_locked ? <Badge tone="warning">{t("groups.planLocked")}</Badge> : null}{group.readiness && !group.readiness.setup_complete ? <Badge tone="warning">{t("groups.setupIncomplete")}</Badge> : null}</div>
-    <Segmented value={tab} onChange={setTab} options={tabs} /><Alert>{error}</Alert>
+    <Segmented value={tab} onChange={(next) => leaveConfiguration(() => setTab(next))} options={tabs} /><Alert>{error}</Alert>
     {tab === "overview" ? <Overview group={group} /> : null}
     {tab === "participants" ? <Participants group={group} groupId={id} canManage={canParticipants && !group.is_plan_locked && group.status !== "archived"} /> : null}
-    {tab === "configuration" ? <Configuration group={group} groupId={id} onSaved={load} /> : null}
+    {tab === "configuration" ? <Configuration group={group} groupId={id} onDirtyChange={setConfigurationDirty} onSaved={load} /> : null}
     {tab === "kiosk" ? <KioskManagement group={group} groupId={id} canLaunch={canLaunchKiosk(authState.session)} /> : null}
   </Page>;
 }
@@ -38,7 +45,7 @@ function Overview({ group }: { group: Group }) {
   return <><div className="stats"><Stat label={t("groups.participantLabel")} value={group.participant_count || 0} /><Stat label={t("members.title")} value={group.member_count || 0} tone="cyan" /><Stat label={group.group_type === "structured" ? t("groups.classes") : t("groups.visitors")} value={group.group_type === "structured" ? group.section_count || 0 : group.group_only_participant_count || 0} tone="green" /></div><div className="card-grid"><Card title={t("groups.actions")}><Summary label={t("kiosk.checkIn")} active={group.actions?.check_in_enabled} /><Summary label={t("kiosk.checkOut")} active={group.actions?.check_out_enabled} /><Summary label={t("kiosk.breaks")} active={group.actions?.breaks_enabled} /></Card><Card title={t("groups.participation")}><Summary label={t("groups.requireEmail")} active={group.participation?.email_required} /><Summary label={t("groups.requirePin")} active={group.participation?.pin_required} /></Card></div></>;
 }
 function Summary({ label, active }: { label: string; active?: boolean }) { const { t } = useApp(); return <div className="setting-row"><strong>{label}</strong><Badge tone={active ? "green" : "neutral"}>{t(active ? "security.enabled" : "security.notEnabled")}</Badge></div>; }
-function Toggle({ label, checked, onChange }: { label: string; checked: boolean; onChange: (value: boolean) => void }) { return <div className="setting-row"><strong>{label}</strong><Switch checked={checked} onChange={onChange} label={label} /></div>; }
+function Toggle({ label, checked, onChange, disabled = false }: { label: string; checked: boolean; onChange: (value: boolean) => void; disabled?: boolean }) { return <div className={`setting-row${disabled ? " is-disabled" : ""}`}><strong>{label}</strong><Switch checked={checked} disabled={disabled} onChange={onChange} label={label} /></div>; }
 
 function Participants({ group, groupId, canManage }: { group: Group; groupId: string; canManage: boolean }) {
   const { api, t } = useApp(); const [rows, setRows] = useState<Participant[]>([]); const [classes, setClasses] = useState<ClassRow[]>([]); const [selectedClass, setSelectedClass] = useState(""); const [loading, setLoading] = useState(true); const [error, setError] = useState(""); const [adding, setAdding] = useState(false); const [editing, setEditing] = useState<Participant | null>(null); const [busy, setBusy] = useState(false);
@@ -64,11 +71,136 @@ function ParticipantCreate({ group, groupId, onClose, onSaved }: { group: Group;
   return <Modal title={t("groups.addParticipant")} onClose={onClose} actions={<><Button variant="secondary" onClick={onClose}>{t("common.cancel")}</Button><Button loading={busy} type="submit" form="participant-create">{t("groups.addParticipant")}</Button></>}><form id="participant-create" className="form" onSubmit={submit}><Segmented value={mode} onChange={setMode} options={[{ value: "member", label: t("members.title") }, { value: "visitor", label: t("groups.visitor") }]} />{mode === "member" ? <Field label={t("groups.selectMember")}><Select required value={memberId} onChange={(e) => setMemberId(e.target.value)}><option value="">{t("groups.selectMember")}</option>{available.map((m) => <option key={m.id} value={m.id}>{m.name}{m.email ? ` · ${m.email}` : ""}</option>)}</Select></Field> : <><Field label={t("members.name")}><Input required value={name} onChange={(e) => setName(e.target.value)} /></Field><Field label={t("auth.email")}><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} /></Field></>}<Field label={t("kiosk.pin")} hint={group.participation.pin_required ? t("groups.required") : t("groups.optionalPin")}><Input type="password" value={pin} onChange={(e) => setPin(e.target.value)} /></Field><Alert>{error}</Alert></form></Modal>;
 }
 
-function Configuration({ group, groupId, onSaved }: { group: Group; groupId: string; onSaved: () => Promise<void> }) {
-  const { api, authState, t } = useApp(); const [name, setName] = useState(group.name); const [actions, setActions] = useState(group.actions); const [participation, setParticipation] = useState(group.participation); const [forward, setForward] = useState((group.forward_emails || []).join("\n")); const [busy, setBusy] = useState(false); const [message, setMessage] = useState(""); const [error, setError] = useState(""); const forwardAllowed = hasPlanFeature(authState.session, "group_forward_emails");
-  async function save(event: FormEvent) { event.preventDefault(); setBusy(true); setError(""); setMessage(""); try { await api.patch(endpoints.group(groupId), { name: name.trim(), actions, participation, advanced: { forward_emails: forward.split(/[\n,]/).map((x) => x.trim()).filter(Boolean) } }); setMessage(t("groups.settingsSaved")); await onSaved(); } catch (caught) { setError(formatError(caught, t("common.error"))); } finally { setBusy(false); } }
-  async function lifecycle() { if (!confirm(t(group.status === "archived" ? "groups.restoreHint" : "groups.archiveConfirm"))) return; setBusy(true); try { await api.post(group.status === "archived" ? endpoints.groupRestore(groupId) : endpoints.groupArchive(groupId), {}); await onSaved(); } catch (caught) { setError(formatError(caught, t("common.error"))); } finally { setBusy(false); } }
-  return <form className="section-grid" onSubmit={save}><div className="form"><Alert>{error}</Alert><Alert tone="success">{message}</Alert><Card title={t("groups.groupSection")}><Field label={t("groups.name")}><Input required value={name} onChange={(e) => setName(e.target.value)} /></Field></Card><Card title={t("groups.actions")}><Toggle label={t("kiosk.checkIn")} checked={actions.check_in_enabled} onChange={(v) => setActions({ ...actions, check_in_enabled: v })} /><Toggle label={t("kiosk.checkOut")} checked={actions.check_out_enabled} onChange={(v) => setActions({ ...actions, check_out_enabled: v })} /><Toggle label={t("kiosk.breaks")} checked={actions.breaks_enabled} onChange={(v) => setActions({ ...actions, breaks_enabled: v })} /></Card><Card title={t("groups.participation")}><Toggle label={t("groups.requireEmail")} checked={participation.email_required} onChange={(v) => setParticipation({ ...participation, email_required: v })} /><Toggle label={t("groups.requirePin")} checked={participation.pin_required} onChange={(v) => setParticipation({ ...participation, pin_required: v })} /></Card><Card title={t("groups.notifications")}><Field label={t("groups.forwardEmails")} hint={forwardAllowed ? t("groups.forwardEmailsHint") : t("groups.forwardEmailsLockedHint")}><TextArea disabled={!forwardAllowed} value={forward} onChange={(e) => setForward(e.target.value)} placeholder={t("groups.forwardEmailsPlaceholder")} /></Field></Card><Button type="submit" loading={busy}>{t("groups.saveChanges")}</Button></div><Card className="danger-zone" title={t("groups.dangerZone")} description={t(group.status === "archived" ? "groups.restoreHint" : "groups.archiveHint")}><Button variant="danger" type="button" loading={busy} onClick={() => void lifecycle()}>{t(group.status === "archived" ? "groups.restore" : "groups.archive")}</Button></Card></form>;
+const DEFAULT_NOTIFICATIONS: GroupNotifications = {
+  check_in: { send_email: false, email_template: "{name} checked in at {time}." },
+  check_out: { send_email: false, email_template: "{name} checked out at {time}." },
+  break: { send_email: false, email_template: "{name} started a break at {time}." },
+};
+
+function groupNotifications(group: Group): GroupNotifications {
+  return {
+    check_in: { ...DEFAULT_NOTIFICATIONS.check_in, ...(group.notifications?.check_in || {}) },
+    check_out: { ...DEFAULT_NOTIFICATIONS.check_out, ...(group.notifications?.check_out || {}) },
+    break: { ...DEFAULT_NOTIFICATIONS.break, ...(group.notifications?.break || {}) },
+  };
+}
+
+function mainConfigurationSnapshot(name: string, actions: Group["actions"], participation: Group["participation"], notifications: GroupNotifications, forwardEmails: string[]) {
+  return JSON.stringify({ name: name.trim(), actions, participation, notifications, forward_emails: savedForwardEmails(forwardEmails) });
+}
+
+function Configuration({ group, groupId, onDirtyChange, onSaved }: { group: Group; groupId: string; onDirtyChange: (dirty: boolean) => void; onSaved: () => Promise<void> }) {
+  const { api, authState, t } = useApp();
+  const initialNotifications = groupNotifications(group);
+  const initialForward = normalizeForwardEmailSlots(group.forward_emails || group.advanced?.forward_emails);
+  const [name, setName] = useState(group.name); const [actions, setActions] = useState(group.actions); const [participation, setParticipation] = useState(group.participation); const [notifications, setNotifications] = useState(initialNotifications); const [forwardEmails, setForwardEmails] = useState(initialForward);
+  const [mainBaseline, setMainBaseline] = useState(() => mainConfigurationSnapshot(group.name, group.actions, group.participation, initialNotifications, initialForward));
+  const [sender, setSender] = useState<GroupEmailSender>({ ...EMPTY_EMAIL_SENDER, ...(group.advanced?.email_sender || {}) }); const [senderForm, setSenderForm] = useState<GroupEmailSenderForm>(() => senderFormFromApi(group.advanced?.email_sender)); const [senderLoading, setSenderLoading] = useState(true); const [senderOpen, setSenderOpen] = useState(false); const [forwardOpen, setForwardOpen] = useState(false); const [draftVerified, setDraftVerified] = useState(false); const [testEmail, setTestEmail] = useState(""); const [showPassword, setShowPassword] = useState(false);
+  const [busy, setBusy] = useState(false); const [savingSender, setSavingSender] = useState(false); const [testingSender, setTestingSender] = useState(false); const [message, setMessage] = useState(""); const [senderMessage, setSenderMessage] = useState(""); const [error, setError] = useState("");
+  const forwardAllowed = hasPlanFeature(authState.session, "group_forward_emails");
+  const senderReady = sender.status === "ready";
+  const senderNeedsTest = senderDraftRequiresTest(senderForm, sender);
+  const senderNameOnlyChange = senderFromNameOnlyChange(senderForm, sender);
+  const senderDirty = senderNeedsTest || senderNameOnlyChange;
+  const mainDirty = mainConfigurationSnapshot(name, actions, participation, notifications, forwardEmails) !== mainBaseline;
+
+  useEffect(() => { onDirtyChange(mainDirty || senderDirty); }, [mainDirty, onDirtyChange, senderDirty]);
+  useEffect(() => () => onDirtyChange(false), [onDirtyChange]);
+  useEffect(() => {
+    let active = true;
+    setSenderLoading(true);
+    void api.get<GroupEmailSender>(endpoints.groupEmailSender(groupId)).then((value) => { if (!active) return; const next = { ...EMPTY_EMAIL_SENDER, ...value }; setSender(next); setSenderForm(senderFormFromApi(next)); }).catch((caught) => { if (active) setError(formatError(caught, t("common.error"))); }).finally(() => { if (active) setSenderLoading(false); });
+    return () => { active = false; };
+  }, [api, groupId, t]);
+  useEffect(() => { if (!mainDirty && !senderDirty) return; const beforeUnload = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; }; window.addEventListener("beforeunload", beforeUnload); return () => window.removeEventListener("beforeunload", beforeUnload); }, [mainDirty, senderDirty]);
+
+  function applySender(value: GroupEmailSender) { const next = { ...EMPTY_EMAIL_SENDER, ...value }; setSender(next); setSenderForm(senderFormFromApi(next)); setDraftVerified(false); setShowPassword(false); }
+  function patchSender<K extends keyof GroupEmailSenderForm>(key: K, value: GroupEmailSenderForm[K]) { setSenderForm((current) => ({ ...current, [key]: value })); if (key !== "from_name") setDraftVerified(false); setSenderMessage(""); }
+  function changeProvider(provider: EmailSenderProvider) { if (provider === senderForm.provider) return; if ((sender.configured || senderDirty) && !confirm(t("groups.providerChangeConfirm"))) return; setSenderForm(blankSenderForm(provider)); setDraftVerified(false); setSenderMessage(""); setShowPassword(false); }
+  function changeSecurity(security: SmtpSecurity) { setSenderForm((current) => ({ ...current, smtp_security: security, smtp_port: security === "ssl" && Number(current.smtp_port) === 587 ? 465 : security === "starttls" && Number(current.smtp_port) === 465 ? 587 : current.smtp_port })); setDraftVerified(false); }
+  function setAfterAction(key: keyof GroupNotifications, value: boolean) { if (value && !senderReady) return; setNotifications((current) => ({ ...current, [key]: { ...current[key], send_email: value } })); if (value) setParticipation((current) => ({ ...current, email_required: true })); }
+  function setAfterTemplate(key: keyof GroupNotifications, value: string) { setNotifications((current) => ({ ...current, [key]: { ...current[key], email_template: value } })); }
+  function updateForward(index: number, value: string) { setForwardEmails((current) => current.map((email, itemIndex) => itemIndex === index ? value : email)); }
+  function addForward() { setForwardEmails((current) => current.length >= 3 ? current : [...current, ""]); }
+  function removeForward(index: number) { setForwardEmails((current) => normalizeForwardEmailSlots(current.filter((_, itemIndex) => itemIndex !== index))); }
+
+  async function save(event: FormEvent) {
+    event.preventDefault(); setBusy(true); setError(""); setMessage("");
+    try {
+      const updated = await api.patch<Group>(endpoints.group(groupId), { name: name.trim(), actions, participation, notifications, advanced: { forward_emails: savedForwardEmails(forwardEmails) } });
+      const nextNotifications = groupNotifications(updated); const nextForward = normalizeForwardEmailSlots(updated.forward_emails || updated.advanced?.forward_emails);
+      setName(updated.name); setActions(updated.actions); setParticipation(updated.participation); setNotifications(nextNotifications); setForwardEmails(nextForward); setMainBaseline(mainConfigurationSnapshot(updated.name, updated.actions, updated.participation, nextNotifications, nextForward)); setMessage(t("groups.settingsSaved")); await onSaved();
+    } catch (caught) { setError(formatError(caught, t("common.error"))); } finally { setBusy(false); }
+  }
+  async function testSender() {
+    if (!testEmail) return; setTestingSender(true); setError(""); setSenderMessage("");
+    try { const result = await api.post<{ detail?: string; draft_verified?: boolean; email_sender?: GroupEmailSender }>(endpoints.groupEmailSenderTest(groupId), { to_email: testEmail, ...buildEmailSenderBody(senderForm, sender) }); if (result.email_sender) setSender((current) => ({ ...current, ...result.email_sender })); setDraftVerified(Boolean(result.draft_verified)); setSenderMessage(result.detail || t("groups.senderTestSent")); } catch (caught) { setDraftVerified(false); setError(formatError(caught, t("common.error"))); } finally { setTestingSender(false); }
+  }
+  async function saveSender() {
+    setSavingSender(true); setError(""); setSenderMessage("");
+    try { const updated = await api.put<GroupEmailSender>(endpoints.groupEmailSender(groupId), buildEmailSenderBody(senderForm, sender)); applySender(updated); setSenderMessage(t("groups.senderSaved")); await onSaved(); } catch (caught) { setError(formatError(caught, t("common.error"))); } finally { setSavingSender(false); }
+  }
+
+  const senderStatus = draftVerified ? "verified" : senderNeedsTest ? "draft" : sender.status;
+  const senderStatusLabel = t(`groups.sender${senderStatus === "not_configured" ? "NotConfigured" : senderStatus === "needs_verification" ? "NeedsVerification" : senderStatus === "ready" ? "Ready" : senderStatus === "verified" ? "Verified" : senderStatus === "draft" ? "Draft" : "Error"}`);
+  const senderTone = senderStatus === "ready" || senderStatus === "verified" ? "green" : senderStatus === "error" ? "danger" : "warning";
+  const configuredForwardCount = savedForwardEmails(forwardEmails).length;
+
+  return <form className="group-configuration" onSubmit={save}>
+    <div className="group-configuration-feedback"><Alert>{error}</Alert><Alert tone="success">{message}</Alert></div>
+    <div className="group-configuration-save"><Button type="submit" loading={busy} disabled={!mainDirty}>{t("groups.saveChanges")}</Button></div>
+    <div className="group-configuration-columns">
+      <div className="group-configuration-column">
+        <Card title={t("groups.groupSection")}><Field label={t("groups.name")}><Input required value={name} onChange={(event) => setName(event.target.value)} /></Field></Card>
+        <Card title={t("groups.actions")}><Toggle label={t("kiosk.checkIn")} checked={actions.check_in_enabled} onChange={(value) => setActions({ ...actions, check_in_enabled: value })} /><Toggle label={t("kiosk.checkOut")} checked={actions.check_out_enabled} onChange={(value) => setActions({ ...actions, check_out_enabled: value })} /><Toggle label={t("kiosk.breaks")} checked={actions.breaks_enabled} onChange={(value) => setActions({ ...actions, breaks_enabled: value })} /></Card>
+        <Card title={t("groups.participation")}><Toggle label={t("groups.requireEmail")} checked={participation.email_required} onChange={(value) => setParticipation({ ...participation, email_required: value })} /><Toggle label={t("groups.requirePin")} checked={participation.pin_required} onChange={(value) => setParticipation({ ...participation, pin_required: value })} /></Card>
+      </div>
+      <div className="group-configuration-column">
+        <Card title={t("groups.afterAction")} description={t("groups.afterActionHint")}>
+          {!senderReady ? <p className="configuration-hint">{t("groups.afterActionBlocked")}</p> : null}
+          {!actions.check_in_enabled && !actions.check_out_enabled && !actions.breaks_enabled ? <p className="configuration-hint">{t("groups.afterActionEnableHint")}</p> : <div className="after-action-settings">
+            {actions.check_in_enabled ? <AfterActionSetting disabled={!senderReady} label={t("groups.afterCheckIn")} setting={notifications.check_in} onEnable={(value) => setAfterAction("check_in", value)} onTemplate={(value) => setAfterTemplate("check_in", value)} /> : null}
+            {actions.check_out_enabled ? <AfterActionSetting disabled={!senderReady} label={t("groups.afterCheckOut")} setting={notifications.check_out} onEnable={(value) => setAfterAction("check_out", value)} onTemplate={(value) => setAfterTemplate("check_out", value)} /> : null}
+            {actions.breaks_enabled ? <AfterActionSetting disabled={!senderReady} label={t("groups.afterBreak")} setting={notifications.break} onEnable={(value) => setAfterAction("break", value)} onTemplate={(value) => setAfterTemplate("break", value)} /> : null}
+          </div>}
+        </Card>
+        <Card title={t("groups.advancedEmail")} description={t("groups.advancedEmailHint")}>
+          <ConfigurationDisclosure label={t("groups.emailSender")} summary={senderLoading ? t("groups.senderLoading") : senderStatusLabel} open={senderOpen} onToggle={() => setSenderOpen((open) => !open)}>
+            {senderLoading ? <Loading label={t("groups.senderLoading")} /> : <div className="email-sender-form">
+              <div className="email-sender-status"><Field label={t("groups.provider")}><Select value={senderForm.provider} onChange={(event) => changeProvider(event.target.value as EmailSenderProvider)}><option value="custom_smtp">{t("groups.providerCustomSmtp")}</option><option value="gmail">{t("groups.providerGmail")}</option><option value="microsoft">{t("groups.providerMicrosoft")}</option><option value="yahoo">{t("groups.providerYahoo")}</option></Select></Field><div><span className="field-label">{t("groups.senderStatus")}</span><Badge tone={senderTone}>{senderStatusLabel}</Badge></div></div>
+              <p className="configuration-hint">{t(senderForm.provider === "gmail" ? "groups.gmailHint" : senderForm.provider === "microsoft" ? "groups.microsoftHint" : senderForm.provider === "yahoo" ? "groups.yahooHint" : "groups.customSmtpHint")}</p>
+              {senderForm.provider === "custom_smtp" ? <><Field label={t("groups.smtpHost")}><Input autoComplete="off" value={senderForm.smtp_host} onChange={(event) => patchSender("smtp_host", event.target.value)} /></Field><div className="email-sender-grid"><Field label={t("groups.smtpPort")}><Input min={1} max={65535} type="number" value={senderForm.smtp_port} onChange={(event) => patchSender("smtp_port", event.target.value)} /></Field><Field label={t("groups.smtpSecurity")}><Select value={senderForm.smtp_security} onChange={(event) => changeSecurity(event.target.value as SmtpSecurity)}><option value="ssl">{t("groups.smtpSecuritySsl")}</option><option value="starttls">{t("groups.smtpSecurityStarttls")}</option><option value="none">{t("groups.smtpSecurityNone")}</option></Select></Field></div><Field label={t("groups.smtpUsername")}><Input autoComplete="off" value={senderForm.smtp_username} onChange={(event) => patchSender("smtp_username", event.target.value)} /></Field><SenderPasswordField configured={sender.password_configured && sender.provider === "custom_smtp"} form={senderForm} label={t("groups.smtpPassword")} setShow={setShowPassword} show={showPassword} t={t} onChange={(value) => patchSender("smtp_password", value)} onReplace={() => patchSender("change_password", true)} /><div className="email-sender-grid"><Field label={t("groups.fromEmail")} hint={t("groups.fromEmailHint")}><Input type="email" value={senderForm.from_email} onChange={(event) => patchSender("from_email", event.target.value)} /></Field><Field label={t("groups.fromName")}><Input value={senderForm.from_name} onChange={(event) => patchSender("from_name", event.target.value)} /></Field></div></> : <GuidedSenderFields form={senderForm} sender={sender} showPassword={showPassword} setShowPassword={setShowPassword} t={t} patch={patchSender} />}
+              <div className="email-sender-test-row"><Field label={t("groups.testRecipient")}><Input type="email" value={testEmail} onChange={(event) => setTestEmail(event.target.value)} /></Field><Button type="button" variant="secondary" disabled={!testEmail} loading={testingSender} onClick={() => void testSender()}>{t("groups.sendTest")}</Button></div>
+              <Alert tone="info">{senderMessage}</Alert><div className="email-sender-save"><Button type="button" disabled={!senderDirty || (!draftVerified && !(senderNameOnlyChange && senderReady))} loading={savingSender} onClick={() => void saveSender()}>{t("groups.saveSender")}</Button></div>
+            </div>}
+          </ConfigurationDisclosure>
+          <ConfigurationDisclosure label={t("groups.forwardEmails")} summary={!forwardAllowed ? t("groups.forwardLocked") : configuredForwardCount ? t("groups.forwardConfigured", { count: configuredForwardCount }) : t("groups.forwardNone")} open={forwardOpen} onToggle={() => setForwardOpen((open) => !open)}>
+            <div className="forward-email-settings"><p className="configuration-hint">{t(forwardAllowed ? "groups.forwardEmailsHint" : "groups.forwardEmailsLockedHint")}</p>{forwardEmails.map((email, index) => <Field key={index} label={forwardEmails.length > 1 ? t("groups.forwardEmailNumbered", { number: index + 1 }) : t("groups.forwardEmail")}><div className="forward-email-row"><Input disabled={!forwardAllowed} type="email" value={email} onChange={(event) => updateForward(index, event.target.value)} placeholder={t("groups.forwardEmailsPlaceholder")} />{index > 0 ? <Button type="button" variant="ghost" onClick={() => removeForward(index)}>{t("groups.removeEmail")}</Button> : null}</div></Field>)}{forwardAllowed && forwardEmails.length < 3 ? <Button type="button" variant="secondary" className="button-sm" onClick={addForward}>{t("groups.addAnotherForwardEmail")}</Button> : null}</div>
+          </ConfigurationDisclosure>
+        </Card>
+      </div>
+    </div>
+  </form>;
+}
+
+function AfterActionSetting({ disabled, label, setting, onEnable, onTemplate }: { disabled: boolean; label: string; setting: NotificationSetting; onEnable: (value: boolean) => void; onTemplate: (value: string) => void }) {
+  const { t } = useApp();
+  return <div className={`after-action-setting${disabled ? " is-disabled" : ""}`}><Toggle label={label} checked={setting.send_email} disabled={disabled} onChange={onEnable} />{setting.send_email && !disabled ? <Field label={t("groups.emailMessage")} hint={t("groups.emailMessageHint")}><TextArea rows={2} value={setting.email_template} onChange={(event) => onTemplate(event.target.value)} /></Field> : null}</div>;
+}
+
+function ConfigurationDisclosure({ label, summary, open, onToggle, children }: { label: string; summary: string; open: boolean; onToggle: () => void; children: React.ReactNode }) {
+  const { t } = useApp();
+  return <section className={`configuration-disclosure${open ? " is-open" : ""}`}><button aria-expanded={open} className="configuration-disclosure-toggle" onClick={onToggle} type="button"><span><strong>{label}</strong><small>{summary}</small></span><span>{t(open ? "groups.hide" : "groups.show")}</span></button>{open ? <div className="configuration-disclosure-body">{children}</div> : null}</section>;
+}
+
+function SenderPasswordField({ configured, form, label, show, setShow, onChange, onReplace, t }: { configured: boolean; form: GroupEmailSenderForm; label: string; show: boolean; setShow: (show: boolean) => void; onChange: (value: string) => void; onReplace: () => void; t: (key: string, vars?: Record<string, string | number>) => string }) {
+  return <Field label={label}>{configured && !form.change_password ? <div className="configured-password-row"><span>{t("groups.passwordConfigured")}</span><Button type="button" className="button-sm" variant="secondary" onClick={onReplace}>{t("groups.changePassword")}</Button></div> : <div className="sender-password-input"><Input autoComplete="new-password" type={show ? "text" : "password"} value={form.smtp_password} onChange={(event) => onChange(event.target.value)} /><button aria-label={t(show ? "auth.hidePassword" : "auth.showPassword")} onClick={() => setShow(!show)} type="button">{show ? "◉" : "○"}</button></div>}</Field>;
+}
+
+function GuidedSenderFields({ form, sender, showPassword, setShowPassword, t, patch }: { form: GroupEmailSenderForm; sender: GroupEmailSender; showPassword: boolean; setShowPassword: (show: boolean) => void; t: (key: string, vars?: Record<string, string | number>) => string; patch: <K extends keyof GroupEmailSenderForm>(key: K, value: GroupEmailSenderForm[K]) => void }) {
+  const addressKey = form.provider === "gmail" ? "gmail_address" : form.provider === "microsoft" ? "microsoft_email" : "yahoo_email";
+  const label = t(form.provider === "gmail" ? "groups.gmailAddress" : form.provider === "microsoft" ? "groups.microsoftEmail" : "groups.yahooEmail");
+  return <><Field label={label}><Input autoComplete="off" type="email" value={String(form[addressKey])} onChange={(event) => patch(addressKey, event.target.value)} /></Field><SenderPasswordField configured={sender.password_configured && sender.provider === form.provider} form={form} label={t(form.provider === "microsoft" ? "groups.smtpPassword" : "groups.appPassword")} show={showPassword} setShow={setShowPassword} t={t} onChange={(value) => patch("smtp_password", value)} onReplace={() => patch("change_password", true)} /><Field label={t("groups.fromName")}><Input value={form.from_name} onChange={(event) => patch("from_name", event.target.value)} /></Field></>;
 }
 
 function KioskManagement({ group, groupId, canLaunch }: { group: Group; groupId: string; canLaunch: boolean }) {
