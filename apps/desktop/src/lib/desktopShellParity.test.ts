@@ -125,3 +125,14 @@ test("desktop Add participant uses canonical Group email and PIN fields", () => 
   assert.match(groupDetail, /required=\{group\.participation\.pin_required\}/);
   assert.doesNotMatch(groupDetail, /name: name\.trim\(\), email: email\.trim\(\)/);
 });
+
+test("desktop Kiosk launch uses server readiness before navigation", () => {
+  assert.match(groupDetail, /kioskSettingsReadiness\(next\)/);
+  assert.match(groupDetail, /isKioskLaunchBlocked/);
+  assert.match(groupDetail, /await loadSettings\(\)/);
+  assert.match(groupDetail, /groups\.kioskNeedsAttention/);
+  assert.match(groupDetail, /groups\.openKioskSettings/);
+  assert.match(groupDetail, /disabled=\{launchBlocked\}/);
+  assert.match(groupDetail, /navigate\(`\/kiosk\/\$\{groupId\}`\)/);
+  assert.doesNotMatch(groupDetail, /<Button onClick=\{\(\) => navigate\(`\/kiosk\/\$\{groupId\}`\)\}/);
+});
