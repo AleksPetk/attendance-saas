@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react
 import { endpoints } from "@checkstation/api";
 import { hasPlanFeature } from "@checkstation/domain";
 import { formatDateTime } from "@checkstation/i18n";
-import { Alert, Badge, Button, Card, DataRow, Empty, Field, Input, Loading, Page, PageHeader, Segmented, Select, formatError } from "../components/ui";
+import { ActionBadge, Alert, Button, Card, Empty, Field, Input, Loading, Page, PageHeader, Segmented, Select, formatError } from "../components/ui";
 import { downloadDesktopApiFile, useApp } from "../lib/AppProvider";
 
 type View = "activity" | "report";
@@ -24,7 +24,22 @@ function ActivityLog() {
   useEffect(() => { void api.get<Group[]>(`${endpoints.groups()}?status=active`).then(setGroups).catch(() => undefined); }, [api]);
   useEffect(() => { void load(); }, [load]);
   function clear() { setSearch(""); setAction(""); setGroupId(""); setDay(""); }
-  return <><Card title={t("history.filters")}><form className="form" onSubmit={(e) => { e.preventDefault(); void load(); }}><div className="form-grid"><Field label={t("history.group")}><Select value={groupId} onChange={(e) => setGroupId(e.target.value)}><option value="">{t("history.allGroups")}</option>{groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}</Select></Field><Field label={t("history.action")}><Select value={action} onChange={(e) => setAction(e.target.value)}><option value="">{t("history.anyAction")}</option><option value="check_in">{t("history.checkedIn")}</option><option value="check_out">{t("history.checkedOut")}</option><option value="break_start">{t("history.breakStarted")}</option><option value="break_end">{t("history.breakEnded")}</option></Select></Field><Field label={t("history.search")}><Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t("history.searchPlaceholder")} /></Field><Field label={t("history.day")}><Input type="date" value={day} onChange={(e) => setDay(e.target.value)} /></Field></div><div className="toolbar"><Button type="submit" variant="secondary">{t("history.searchAction")}</Button><Button type="button" variant="secondary" onClick={clear}>{t("history.clearFilters")}</Button></div></form></Card><Alert>{error}</Alert>{loading ? <Loading label={t("history.loading")} /> : rows.length ? <div className="data-list">{rows.map((row) => { const actionKey = row.action || row.action_type || ""; return <DataRow key={row.id} avatar={<span className="activity-icon">{actionKey === "check_in" ? "→" : actionKey === "check_out" ? "←" : "↔"}</span>} title={row.person?.name || row.participant_name_snapshot || t("common.unknown")} detail={[row.group_name || row.group_name_snapshot, row.class_name, row.source].filter(Boolean).join(" · ")} meta={row.performed_at ? formatDateTime(row.performed_at, locale) : ""} badge={<Badge tone="blue">{actionLabel(actionKey, t)}</Badge>} />; })}</div> : <Empty title={t("history.emptyTitle")} body={t("history.emptyBody")} />}</>;
+  return <><Card title={t("history.filters")}><form className="form" onSubmit={(e) => { e.preventDefault(); void load(); }}><div className="form-grid"><Field label={t("history.group")}><Select value={groupId} onChange={(e) => setGroupId(e.target.value)}><option value="">{t("history.allGroups")}</option>{groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}</Select></Field><Field label={t("history.action")}><Select value={action} onChange={(e) => setAction(e.target.value)}><option value="">{t("history.anyAction")}</option><option value="check_in">{t("history.checkedIn")}</option><option value="check_out">{t("history.checkedOut")}</option><option value="break_start">{t("history.breakStarted")}</option><option value="break_end">{t("history.breakEnded")}</option></Select></Field><Field label={t("history.search")}><Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t("history.searchPlaceholder")} /></Field><Field label={t("history.day")}><Input type="date" value={day} onChange={(e) => setDay(e.target.value)} /></Field></div><div className="toolbar"><Button type="submit" variant="secondary">{t("history.searchAction")}</Button><Button type="button" variant="secondary" onClick={clear}>{t("history.clearFilters")}</Button></div></form></Card><Alert>{error}</Alert>{loading ? <Loading label={t("history.loading")} /> : rows.length ? <div className="desktop-history-list">{rows.map((row) => <ActivityRow key={row.id} row={row} locale={locale} t={t} />)}</div> : <Empty title={t("history.emptyTitle")} body={t("history.emptyBody")} />}</>;
+}
+
+function ActivityRow({ row, locale, t }: { row: Activity; locale: "en" | "ja"; t: (key: string) => string }) {
+  const action = row.action || row.action_type || "";
+  const visual = historyActionVisual(action);
+  const name = row.person?.name || row.participant_name_snapshot || t("common.unknown");
+  const context = [row.group_name || row.group_name_snapshot, row.class_name, row.source].filter(Boolean).join(" · ");
+  return <article className={`desktop-history-row is-${visual.tone}`}>
+    <span aria-hidden="true" className={`desktop-history-action-icon is-${visual.tone}`}>{visual.glyph}</span>
+    <div className="desktop-history-main">
+      <div className="desktop-history-title"><strong title={name}>{name}</strong><ActionBadge action={action} label={actionLabel(action, t)} /></div>
+      {context ? <p title={context}>{context}</p> : null}
+    </div>
+    {row.performed_at ? <time className="desktop-history-when" dateTime={row.performed_at}>{formatDateTime(row.performed_at, locale)}</time> : null}
+  </article>;
 }
 
 function AttendanceReport() {
@@ -43,3 +58,10 @@ function AttendanceReport() {
 function ReportResults({ report }: { report: Report }) { const { t } = useApp(); return <Card title={report.report_by === "member" ? report.member_name || t("history.attendanceReport") : report.group_name || t("history.attendanceReport")} description={report.date_label}><div className="report-table">{(report.sections || []).map((section) => <section key={section.date}><h3>{section.label}</h3>{section.rows.map((row) => <div className="report-row" key={`${section.date}-${row.participant_key}`}><strong>{row.name}</strong>{row.group_name ? <span>{row.group_name}</span> : null}{row.class_name ? <span>{row.class_name}</span> : null}{(report.columns || []).map((column) => <span key={column.key}><small>{column.label}</small>{row.cells[column.key] || "—"}</span>)}</div>)}</section>)}</div></Card>; }
 function reportQuery({ mode, groupId, memberId, participant, preset, from, to }: { mode: string; groupId: string; memberId: string; participant: string; preset: string; from: string; to: string }) { const q = new URLSearchParams({ report_by: mode, preset }); if (mode === "member") { q.set("member_id", memberId); if (groupId) q.set("source_group_id", groupId); } else { q.set("source_group_id", groupId); const [kind,id] = participant.split(":"); if (kind && id) { q.set("participant_kind", kind); q.set("participant_id", id); } } try { q.set("timezone", Intl.DateTimeFormat().resolvedOptions().timeZone); } catch { /* no timezone */ } if (preset === "custom") { q.set("date_from", from); q.set("date_to", to); } return q.toString(); }
 function actionLabel(action: string, t: (key: string) => string) { if (action === "check_in") return t("history.checkedIn"); if (action === "check_out") return t("history.checkedOut"); if (action === "break_start") return t("history.breakStarted"); if (action === "break_end") return t("history.breakEnded"); return action.replaceAll("_", " ") || t("history.action"); }
+function historyActionVisual(action: string) {
+  if (action === "check_in") return { tone: "check-in", glyph: "↘" };
+  if (action === "check_out") return { tone: "check-out", glyph: "↗" };
+  if (action === "break_start") return { tone: "break-start", glyph: "Ⅱ" };
+  if (action === "break_end") return { tone: "break-end", glyph: "▶" };
+  return { tone: "default", glyph: "•" };
+}

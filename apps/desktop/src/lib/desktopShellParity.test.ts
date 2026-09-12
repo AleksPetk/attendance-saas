@@ -13,6 +13,7 @@ const memberDetail = readFileSync(fileURLToPath(new URL("../pages/MemberDetailPa
 const groups = readFileSync(fileURLToPath(new URL("../pages/GroupsPage.tsx", import.meta.url)), "utf8");
 const groupDetail = readFileSync(fileURLToPath(new URL("../pages/GroupDetailPage.tsx", import.meta.url)), "utf8");
 const kioskSettings = readFileSync(fileURLToPath(new URL("../pages/KioskSettingsPage.tsx", import.meta.url)), "utf8");
+const history = readFileSync(fileURLToPath(new URL("../pages/HistoryPage.tsx", import.meta.url)), "utf8");
 
 test("desktop shell uses canonical branding, Dashboard terminology, and Workspace announcements", () => {
   assert.match(ui, /assets\/icon-ui\.png/);
@@ -48,6 +49,17 @@ test("dashboard uses action badges instead of generic activity arrows", () => {
   assert.match(dashboard, /break_start/);
   assert.match(dashboard, /break_end/);
   assert.doesNotMatch(dashboard, /item\.action === "check_in" \? "→"/);
+});
+
+test("desktop History uses the canonical action mapping in a scan-friendly activity list", () => {
+  assert.match(history, /className="desktop-history-list"/);
+  assert.match(history, /<ActionBadge action=\{action\}/);
+  assert.match(history, /action === "check_in"/);
+  assert.match(history, /action === "check_out"/);
+  assert.match(history, /action === "break_start"/);
+  assert.match(history, /action === "break_end"/);
+  assert.match(history, /className="desktop-history-when"/);
+  assert.doesNotMatch(history, /<Badge tone="blue">\{actionLabel/);
 });
 
 test("members page uses Workspace usage, views, and filter controls without a duplicate page heading", () => {
