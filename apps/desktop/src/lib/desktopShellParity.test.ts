@@ -52,6 +52,7 @@ test("dashboard uses action badges instead of generic activity arrows", () => {
 });
 
 test("desktop History uses the canonical action mapping in a scan-friendly activity list", () => {
+  assert.doesNotMatch(history, /<PageHeader/);
   assert.match(history, /className="desktop-history-list"/);
   assert.match(history, /<ActionBadge action=\{action\}/);
   assert.match(history, /action === "check_in"/);

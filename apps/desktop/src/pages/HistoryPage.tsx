@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react
 import { endpoints } from "@checkstation/api";
 import { hasPlanFeature } from "@checkstation/domain";
 import { formatDateTime } from "@checkstation/i18n";
-import { ActionBadge, Alert, Button, Card, Empty, Field, Input, Loading, Page, PageHeader, Segmented, Select, formatError } from "../components/ui";
+import { ActionBadge, Alert, Button, Card, Empty, Field, Input, Loading, Page, Segmented, Select, formatError } from "../components/ui";
 import { downloadDesktopApiFile, useApp } from "../lib/AppProvider";
 
 type View = "activity" | "report";
@@ -15,7 +15,7 @@ type Report = { report_by: string; member_name?: string; group_name?: string; da
 
 export function HistoryPage() {
   const { t } = useApp(); const [view, setView] = useState<View>("activity");
-  return <Page><PageHeader title={t("history.title")} description={t(view === "activity" ? "history.description" : "history.reportDescription")} /><Segmented value={view} onChange={setView} options={[{ value: "activity", label: t("history.activityLog") }, { value: "report", label: t("history.attendanceReport") }]} />{view === "activity" ? <ActivityLog /> : <AttendanceReport />}</Page>;
+  return <Page><Segmented value={view} onChange={setView} options={[{ value: "activity", label: t("history.activityLog") }, { value: "report", label: t("history.attendanceReport") }]} />{view === "activity" ? <ActivityLog /> : <AttendanceReport />}</Page>;
 }
 
 function ActivityLog() {
