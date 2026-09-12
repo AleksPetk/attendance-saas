@@ -28,6 +28,9 @@ test("desktop shell uses canonical branding, Dashboard terminology, and Workspac
   assert.match(shell, /className="topbar-eyebrow"/);
   assert.match(shell, /className="desktop-language-trigger"/);
   assert.match(shell, /className=\{`desktop-refresh-trigger/);
+  assert.match(shell, /<div className="topbar-actions"><button aria-label="Refresh"[\s\S]*<DesktopLanguageMenu[\s\S]*<DesktopAnnouncementBell[\s\S]*<BrandMark/);
+  assert.match(shell, /M20 11a8 8 0 1 0-2\.34 5\.66/);
+  assert.doesNotMatch(shell, /M4 17v-5h5/);
   assert.match(shell, /window\.location\.reload\(\)/);
   assert.match(shell, /disabled=\{refreshing\}/);
   assert.match(shell, /title="Refresh"/);
