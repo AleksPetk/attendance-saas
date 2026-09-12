@@ -14,6 +14,7 @@ const groups = readFileSync(fileURLToPath(new URL("../pages/GroupsPage.tsx", imp
 const groupDetail = readFileSync(fileURLToPath(new URL("../pages/GroupDetailPage.tsx", import.meta.url)), "utf8");
 const kioskSettings = readFileSync(fileURLToPath(new URL("../pages/KioskSettingsPage.tsx", import.meta.url)), "utf8");
 const history = readFileSync(fileURLToPath(new URL("../pages/HistoryPage.tsx", import.meta.url)), "utf8");
+const staff = readFileSync(fileURLToPath(new URL("../pages/StaffPage.tsx", import.meta.url)), "utf8");
 
 test("desktop shell uses canonical branding, Dashboard terminology, and Workspace announcements", () => {
   assert.match(ui, /assets\/icon-ui\.png/);
@@ -70,6 +71,21 @@ test("desktop History uses the canonical action mapping in a scan-friendly activ
   assert.match(history, /action === "break_end"/);
   assert.match(history, /className="desktop-history-when"/);
   assert.doesNotMatch(history, /<Badge tone="blue">\{actionLabel/);
+});
+
+test("desktop Staff uses Workspace entitlements and organized account cards", () => {
+  assert.doesNotMatch(staff, /<PageHeader/);
+  assert.match(staff, /usage_totals\?\.workspace_admins/);
+  assert.match(staff, /limits\?\.workspace_admins/);
+  assert.match(staff, /usage_totals\?\.workspace_staff/);
+  assert.match(staff, /limits\?\.workspace_staff/);
+  assert.match(staff, /workspace\?\.workspace_id/);
+  assert.match(staff, /navigator\.clipboard\.writeText\(workspaceId\)/);
+  assert.match(staff, /staff\.activeAdmins/);
+  assert.match(staff, /staff\.inactiveStaff/);
+  assert.match(staff, /groupAccess\.slice\(0, 3\)/);
+  assert.match(staff, /className="staff-account-card"/);
+  assert.doesNotMatch(staff, /group_access\?\.map\(\(g\) => g\.name\)\.join/);
 });
 
 test("members page uses Workspace usage, views, and filter controls without a duplicate page heading", () => {
