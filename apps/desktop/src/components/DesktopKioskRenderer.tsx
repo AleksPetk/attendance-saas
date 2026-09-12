@@ -11,6 +11,8 @@ type Props = {
   kioskMode: KioskMode;
   onExit: () => void;
   exitLabel: string;
+  showExit?: boolean;
+  respectSectionEnabled?: boolean;
 };
 
 /**
@@ -20,7 +22,7 @@ type Props = {
  * renderer: the shared kiosk styles use it to apply saved layout, card, input,
  * and flow presets. Media is resolved through Electron's authenticated bridge.
  */
-export function DesktopKioskRenderer({ children, design, kioskMode, onExit, exitLabel }: Props) {
+export function DesktopKioskRenderer({ children, design, kioskMode, onExit, exitLabel, showExit = true, respectSectionEnabled = false }: Props) {
   const { config } = design;
   const headerLogo = useAuthenticatedAsset(design.header_logo_url);
   const footerLogo = useAuthenticatedAsset(design.footer_logo_url);
@@ -45,13 +47,11 @@ export function DesktopKioskRenderer({ children, design, kioskMode, onExit, exit
       data-card={config.main.card_preset}
       style={{ "--kr-accent": desktopKioskTemplateAccent(flowTemplate) } as CSSProperties}
     >
-      <button type="button" className="kr-exit" onClick={onExit} aria-label={exitLabel}>
-        {exitLabel}
-      </button>
+      {showExit ? <button type="button" className="kr-exit" onClick={onExit} aria-label={exitLabel}>{exitLabel}</button> : null}
       <header
         className="kr-header"
         data-kr-header-align={safeAlignment(config.header.alignment, "left")}
-        style={sectionStyle(config.header.background)}
+        style={{ ...sectionStyle(config.header.background), display: respectSectionEnabled && !config.header.enabled ? "none" : undefined }}
       >
         <div className="kr-header-inner">
           {headerLogo ? (
@@ -97,7 +97,7 @@ export function DesktopKioskRenderer({ children, design, kioskMode, onExit, exit
       <footer
         className="kr-footer"
         data-kr-footer-layout={footerLayout(Boolean(footerLogo), Boolean(footerLine(config.footer.text.lines)), config.footer.logo?.alignment)}
-        style={sectionStyle(config.footer.background)}
+        style={{ ...sectionStyle(config.footer.background), display: respectSectionEnabled && !config.footer.enabled ? "none" : undefined }}
       >
         <div className="kr-footer-inner">
           {footerLogo ? (

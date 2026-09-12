@@ -50,13 +50,13 @@ export function App() {
   return (
     <Routes>
       <Route path="/kiosk/:groupId" element={<KioskPage />} />
+      <Route path="/groups/:id/kiosk-design" element={<KioskDesignPage />} />
       <Route element={<DesktopShell />}>
         <Route path="/" element={<HomePage />} />
         <Route path="/groups" element={<GroupsPage />} />
         <Route path="/groups/new" element={<GroupsPage initialCreate />} />
         <Route path="/groups/:id" element={<GroupDetailPage />} />
         <Route path="/groups/:id/kiosk-settings" element={<KioskSettingsPage />} />
-        <Route path="/groups/:id/kiosk-design" element={<KioskDesignPage />} />
         <Route path="/people" element={<PeoplePage />} />
         <Route path="/people/:id" element={<MemberDetailPage />} />
         <Route path="/people/new" element={<PeoplePage initialCreate />} />

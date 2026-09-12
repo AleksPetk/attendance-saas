@@ -9,6 +9,10 @@ export function useAuthenticatedAsset(src?: string | null) {
     let objectUrl = "";
     setResolved("");
     if (!src) return () => { active = false; };
+    if (src.startsWith("blob:") || src.startsWith("data:")) {
+      setResolved(src);
+      return () => { active = false; };
+    }
     void loadDesktopApiAsset(src).then((url) => {
       objectUrl = url.startsWith("blob:") ? url : "";
       if (active) setResolved(url);
