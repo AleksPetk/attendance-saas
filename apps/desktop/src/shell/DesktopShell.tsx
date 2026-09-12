@@ -7,6 +7,7 @@ import { useApp } from "../lib/AppProvider";
 
 export function DesktopShell() {
   const { t, auth, authState, locale, setLocale } = useApp(); const location = useLocation(); const navigate = useNavigate(); const session = authState.session;
+  const [refreshing, setRefreshing] = useState(false);
   const identity = String(session?.workspace?.identity || session?.actor?.email || "");
   const role = titleCase(String(session?.role || session?.workspace?.role || ""));
   const plan = String(session?.workspace?.entitlements?.plan?.display_name || titleCase(workspacePlanKey(session)));
@@ -21,7 +22,13 @@ export function DesktopShell() {
     { to: "/help", label: t("nav.help"), icon: "help", show: true },
   ];
   const page = items.find((item) => item.to === "/" ? location.pathname === "/" : location.pathname.startsWith(item.to));
-  return <div className="app-shell"><aside className="sidebar"><Brand showMark={false} /><nav className="sidebar-nav">{items.filter((item) => item.show).map((item) => <NavLink className={({ isActive }) => `nav-link${isActive ? " is-active" : ""}`} end={item.to === "/"} key={item.to} to={item.to}><NavIcon name={item.icon} />{item.label}</NavLink>)}</nav><div className="sidebar-footer"><div className="sidebar-account-info"><span className="sidebar-account-email">{identity}</span><div className="sidebar-account-role"><span>{role}</span><span aria-hidden="true">·</span><Badge tone="blue">{plan}</Badge></div></div><button className="sidebar-signout" onClick={() => void auth.logout()} type="button">Sign out</button></div></aside><main className="desktop-main"><header className="topbar"><div className="topbar-copy"><span className="topbar-eyebrow">{t("app.name").toUpperCase()}</span><h1>{page?.label || t("app.name")}</h1></div><div className="topbar-actions"><DesktopLanguageMenu locale={locale} onSelect={setLocale} /><DesktopAnnouncementBell onViewStatus={() => navigate("/help", { state: { view: "status" } })} /><BrandMark className="topbar-brand-logo" decorative={false} /></div></header><Outlet /></main></div>;
+  function refreshCurrentPage() {
+    if (refreshing) return;
+    setRefreshing(true);
+    window.setTimeout(() => window.location.reload(), 50);
+    window.setTimeout(() => setRefreshing(false), 1500);
+  }
+  return <div className="app-shell"><aside className="sidebar"><Brand showMark={false} /><nav className="sidebar-nav">{items.filter((item) => item.show).map((item) => <NavLink className={({ isActive }) => `nav-link${isActive ? " is-active" : ""}`} end={item.to === "/"} key={item.to} to={item.to}><NavIcon name={item.icon} />{item.label}</NavLink>)}</nav><div className="sidebar-footer"><div className="sidebar-account-info"><span className="sidebar-account-email">{identity}</span><div className="sidebar-account-role"><span>{role}</span><span aria-hidden="true">·</span><Badge tone="blue">{plan}</Badge></div></div><button className="sidebar-signout" onClick={() => void auth.logout()} type="button">Sign out</button></div></aside><main className="desktop-main"><header className="topbar"><div className="topbar-copy"><span className="topbar-eyebrow">{t("app.name").toUpperCase()}</span><h1>{page?.label || t("app.name")}</h1></div><div className="topbar-actions"><DesktopLanguageMenu locale={locale} onSelect={setLocale} /><button aria-label="Refresh" className={`desktop-refresh-trigger${refreshing ? " is-refreshing" : ""}`} disabled={refreshing} onClick={refreshCurrentPage} title="Refresh" type="button"><RefreshIcon /></button><DesktopAnnouncementBell onViewStatus={() => navigate("/help", { state: { view: "status" } })} /><BrandMark className="topbar-brand-logo" decorative={false} /></div></header><Outlet /></main></div>;
 }
 
 function titleCase(value: string) {
@@ -54,6 +61,10 @@ function DesktopLanguageMenu({ locale, onSelect }: { locale: "en" | "ja"; onSele
 
 function GlobeIcon() {
   return <svg aria-hidden="true" fill="none" height="24" viewBox="0 0 24 24" width="24"><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18" /></svg>;
+}
+
+function RefreshIcon() {
+  return <svg aria-hidden="true" fill="none" height="24" viewBox="0 0 24 24" width="24"><path d="M20 7v5h-5" /><path d="M4 17v-5h5" /><path d="M6.1 8.2A7 7 0 0 1 18.5 6L20 8" /><path d="M17.9 15.8A7 7 0 0 1 5.5 18L4 16" /></svg>;
 }
 
 function NavIcon({ name }: { name: string }) {

@@ -27,6 +27,10 @@ test("desktop shell uses canonical branding, Dashboard terminology, and Workspac
   assert.match(shell, /className="topbar-copy"/);
   assert.match(shell, /className="topbar-eyebrow"/);
   assert.match(shell, /className="desktop-language-trigger"/);
+  assert.match(shell, /className=\{`desktop-refresh-trigger/);
+  assert.match(shell, /window\.location\.reload\(\)/);
+  assert.match(shell, /disabled=\{refreshing\}/);
+  assert.match(shell, /title="Refresh"/);
   assert.match(shell, /<DesktopLanguageMenu locale=\{locale\} onSelect=\{setLocale\}/);
   assert.match(shell, /role="menuitemradio"/);
   assert.match(shell, /window\.addEventListener\("pointerdown"/);
@@ -46,7 +50,7 @@ test("desktop shell uses canonical branding, Dashboard terminology, and Workspac
 
 test("dashboard uses action badges instead of generic activity arrows", () => {
   assert.doesNotMatch(dashboard, /<PageHeader/);
-  assert.match(dashboard, /t\("common\.retry"\)/);
+  assert.doesNotMatch(dashboard, /t\("common\.retry"\)/);
   assert.match(dashboard, /<ActionBadge action=\{item\.action\}/);
   assert.match(dashboard, /break_start/);
   assert.match(dashboard, /break_end/);
