@@ -45,6 +45,8 @@ test("desktop shell uses canonical branding, Dashboard terminology, and Workspac
 });
 
 test("dashboard uses action badges instead of generic activity arrows", () => {
+  assert.doesNotMatch(dashboard, /<PageHeader/);
+  assert.match(dashboard, /t\("common\.retry"\)/);
   assert.match(dashboard, /<ActionBadge action=\{item\.action\}/);
   assert.match(dashboard, /break_start/);
   assert.match(dashboard, /break_end/);
