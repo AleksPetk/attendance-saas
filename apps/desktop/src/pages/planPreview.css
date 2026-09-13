@@ -1,0 +1,688 @@
+/* Canonical Workspace template styles scoped so other desktop pages are untouched. */
+@scope (.desktop-plan-preview) {
+.account-plan-options {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 0.35rem;
+}
+
+.account-plan-options-upgrade {
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 900px) {
+  .account-plan-options-upgrade {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.account-plan-options-downgrade {
+  margin-top: 0.85rem;
+}
+
+@media (min-width: 720px) {
+  .account-plan-options:not(.account-plan-options-upgrade):not(.account-plan-options-downgrade) {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.account-plan-option {
+  display: grid;
+  gap: 0.55rem;
+  align-content: start;
+  padding: 0.85rem 0.95rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-muted);
+}
+
+.account-plan-option.is-current {
+  border-color: rgba(15, 23, 42, 0.35);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.08);
+}
+
+.account-plan-option.is-recommended {
+  border-color: color-mix(in srgb, var(--brand, #0f766e) 45%, var(--border));
+  background: color-mix(in srgb, var(--brand, #0f766e) 6%, var(--surface));
+}
+
+.account-plan-option.is-scheduled {
+  border-style: dashed;
+}
+
+.account-plan-option-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.35rem 0.75rem;
+}
+
+.account-plan-option-header h4 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.account-plan-option-badge {
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.account-plan-option-badge-recommended {
+  color: var(--brand, #0f766e);
+}
+
+.account-plan-option-badge-scheduled {
+  color: var(--text-muted);
+}
+
+.account-plan-option-price {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.account-plan-option-period {
+  margin: -0.25rem 0 0;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.account-plan-option-list-price {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  text-decoration: line-through;
+}
+
+.account-plan-option-promo-note,
+.account-plan-option-renews {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+@media (max-width: 719px) {
+  .account-plan-option .btn-primary,
+  .account-plan-option .btn-secondary {
+    width: 100%;
+  }
+
+  .account-schedule-change-actions,
+  .account-upgrade-preview-actions {
+    display: grid;
+    gap: 0.5rem;
+  }
+
+  .account-schedule-change-actions .btn-primary,
+  .account-schedule-change-actions .btn-secondary,
+  .account-upgrade-preview-actions .btn-primary,
+  .account-upgrade-preview-actions .btn-secondary {
+    width: 100%;
+  }
+}
+
+.account-plan-option .btn-primary,
+.account-plan-option .btn-secondary {
+  justify-self: start;
+}
+
+.account-plan-option:is(
+  .pricing-template-spring,
+  .pricing-template-summer,
+  .pricing-template-winter
+) {
+  border-color: var(--season-account-border);
+  color: var(--season-account-text);
+  background: var(--season-account-background);
+  box-shadow: 0 8px 20px var(--season-account-shadow);
+}
+
+.account-plan-option:is(
+  .pricing-template-spring,
+  .pricing-template-summer,
+  .pricing-template-winter
+):is(.is-current, .is-recommended) {
+  border-color: var(--season-account-featured-border);
+  background: var(--season-account-featured-background);
+}
+
+.account-plan-option:is(
+  .pricing-template-spring,
+  .pricing-template-summer,
+  .pricing-template-winter
+) :is(.account-plan-option-price, .account-plan-option-header h4) {
+  color: var(--season-account-heading);
+}
+
+.account-plan-option:is(
+  .pricing-template-spring,
+  .pricing-template-summer,
+  .pricing-template-winter
+) .account-plan-option-badge-recommended {
+  color: var(--season-account-accent);
+}
+
+.account-plan-option:is(
+  .pricing-template-spring,
+  .pricing-template-summer,
+  .pricing-template-winter
+) .btn-primary {
+  border-color: var(--season-account-cta-border);
+  background: var(--season-account-cta-gradient);
+  box-shadow: 0 8px 18px var(--season-account-cta-shadow);
+}
+
+.account-plan-option:is(
+  .pricing-template-spring,
+  .pricing-template-summer,
+  .pricing-template-winter
+) .btn-secondary {
+  border-color: var(--season-account-secondary-border);
+  color: var(--season-account-secondary-text);
+  background: var(--season-account-secondary-background);
+}
+
+.account-plan-option.pricing-template-spring {
+  --season-account-border: rgba(196, 103, 139, 0.32);
+  --season-account-featured-border: rgba(181, 75, 121, 0.62);
+  --season-account-text: #6d4559;
+  --season-account-heading: #5c2944;
+  --season-account-accent: #b34c7d;
+  --season-account-shadow: rgba(113, 52, 78, 0.07);
+  --season-account-cta-border: #d06d94;
+  --season-account-cta-gradient: linear-gradient(135deg, #d85f91, #f0a17d);
+  --season-account-cta-shadow: rgba(194, 77, 123, 0.18);
+  --season-account-secondary-border: rgba(181, 75, 121, 0.4);
+  --season-account-secondary-text: #7a3456;
+  --season-account-secondary-background: rgba(255, 250, 252, 0.84);
+  --season-account-background:
+    radial-gradient(ellipse at 96% 8%, rgba(218, 139, 178, 0.16) 0 6%, transparent 6.8%),
+    linear-gradient(150deg, #fffdfd, #fff6f9);
+  --season-account-featured-background:
+    radial-gradient(ellipse at 96% 8%, rgba(218, 139, 178, 0.23) 0 7%, transparent 7.8%),
+    linear-gradient(150deg, #fffdfd, #ffeff5);
+}
+
+.account-plan-option.pricing-template-summer {
+  --season-account-border: rgba(22, 155, 181, 0.32);
+  --season-account-featured-border: rgba(13, 133, 166, 0.62);
+  --season-account-text: #365b64;
+  --season-account-heading: #164e63;
+  --season-account-accent: #147f9d;
+  --season-account-shadow: rgba(15, 93, 111, 0.07);
+  --season-account-cta-border: #198fae;
+  --season-account-cta-gradient: linear-gradient(135deg, #187bbb, #25c5c4);
+  --season-account-cta-shadow: rgba(20, 123, 165, 0.18);
+  --season-account-secondary-border: rgba(13, 133, 166, 0.4);
+  --season-account-secondary-text: #12657a;
+  --season-account-secondary-background: rgba(255, 253, 247, 0.84);
+  --season-account-background:
+    radial-gradient(circle at 96% 7%, rgba(247, 185, 58, 0.18) 0 8%, transparent 8.8%),
+    linear-gradient(150deg, #fffdf7, #fff8e9);
+  --season-account-featured-background:
+    radial-gradient(circle at 96% 7%, rgba(247, 185, 58, 0.26) 0 9%, transparent 9.8%),
+    linear-gradient(150deg, #fffdf6, #fff2d9);
+}
+
+.account-plan-option.pricing-template-winter {
+  --season-account-border: rgba(72, 135, 181, 0.32);
+  --season-account-featured-border: rgba(35, 103, 156, 0.62);
+  --season-account-text: #405a70;
+  --season-account-heading: #153b60;
+  --season-account-accent: #226f9f;
+  --season-account-shadow: rgba(25, 67, 105, 0.07);
+  --season-account-cta-border: #2879ad;
+  --season-account-cta-gradient: linear-gradient(135deg, #123d77, #36bdd5);
+  --season-account-cta-shadow: rgba(21, 78, 124, 0.18);
+  --season-account-secondary-border: rgba(35, 103, 156, 0.4);
+  --season-account-secondary-text: #244f72;
+  --season-account-secondary-background: rgba(248, 253, 255, 0.86);
+  --season-account-background:
+    repeating-linear-gradient(135deg, rgba(69, 139, 190, 0.03) 0 1px, transparent 1px 22px),
+    linear-gradient(150deg, #ffffff, #eff8fd);
+  --season-account-featured-background:
+    repeating-linear-gradient(135deg, rgba(69, 139, 190, 0.045) 0 1px, transparent 1px 20px),
+    linear-gradient(150deg, #ffffff, #e6f5fc);
+}
+
+.account-plan-option:is(
+  .pricing-template-halloween,
+  .pricing-template-christmas_new_year,
+  .pricing-template-black_friday
+) {
+  border-color: var(--event-account-border);
+  color: var(--event-account-text);
+  background: var(--event-account-background);
+  box-shadow: 0 9px 22px var(--event-account-shadow);
+}
+
+.account-plan-option:is(
+  .pricing-template-halloween,
+  .pricing-template-christmas_new_year,
+  .pricing-template-black_friday
+):is(.is-current, .is-recommended) {
+  border-color: var(--event-account-featured-border);
+  background: var(--event-account-featured-background);
+}
+
+.account-plan-option:is(
+  .pricing-template-halloween,
+  .pricing-template-christmas_new_year,
+  .pricing-template-black_friday
+) :is(.account-plan-option-price, .account-plan-option-header h4) {
+  color: var(--event-account-heading);
+}
+
+.account-plan-option:is(
+  .pricing-template-halloween,
+  .pricing-template-christmas_new_year,
+  .pricing-template-black_friday
+) :is(
+  .account-plan-option-period,
+  .account-plan-option-list-price,
+  .account-plan-option-promo-note,
+  .account-plan-option-renews,
+  .account-plan-option-badge
+) {
+  color: var(--event-account-muted);
+}
+
+.account-plan-option:is(
+  .pricing-template-halloween,
+  .pricing-template-christmas_new_year,
+  .pricing-template-black_friday
+) .account-plan-option-badge-recommended {
+  color: var(--event-account-accent);
+}
+
+.account-plan-option:is(
+  .pricing-template-halloween,
+  .pricing-template-christmas_new_year,
+  .pricing-template-black_friday
+) .btn-primary {
+  border-color: var(--event-account-cta-border);
+  color: var(--event-account-cta-text);
+  background: var(--event-account-cta-gradient);
+  box-shadow: 0 9px 20px var(--event-account-cta-shadow);
+}
+
+.account-plan-option:is(
+  .pricing-template-halloween,
+  .pricing-template-christmas_new_year,
+  .pricing-template-black_friday
+) .btn-secondary {
+  border-color: var(--event-account-secondary-border);
+  color: var(--event-account-secondary-text);
+  background: var(--event-account-secondary-background);
+}
+
+.account-plan-option.pricing-template-halloween {
+  --event-account-border: rgba(232, 113, 35, 0.4);
+  --event-account-featured-border: rgba(176, 91, 225, 0.72);
+  --event-account-text: #eee5f4;
+  --event-account-heading: #fff8ef;
+  --event-account-muted: #c9b9d5;
+  --event-account-accent: #ff9a3c;
+  --event-account-shadow: rgba(19, 7, 29, 0.2);
+  --event-account-cta-border: #e8792d;
+  --event-account-cta-text: #ffffff;
+  --event-account-cta-gradient: linear-gradient(135deg, #f97316, #8b3bd1);
+  --event-account-cta-shadow: rgba(151, 49, 174, 0.28);
+  --event-account-secondary-border: rgba(232, 113, 35, 0.45);
+  --event-account-secondary-text: #ffd7b5;
+  --event-account-secondary-background: rgba(55, 27, 69, 0.84);
+  --event-account-background:
+    radial-gradient(circle at 96% 7%, rgba(255, 171, 71, 0.16) 0 8%, transparent 8.8%),
+    linear-gradient(150deg, #100b17, #21112c);
+  --event-account-featured-background:
+    radial-gradient(circle at 96% 7%, rgba(255, 171, 71, 0.24) 0 9%, transparent 9.8%),
+    linear-gradient(150deg, #120b1b, #2a1237);
+}
+
+.account-plan-option.pricing-template-christmas_new_year {
+  --event-account-border: rgba(211, 173, 72, 0.42);
+  --event-account-featured-border: rgba(202, 51, 65, 0.72);
+  --event-account-text: #edf7f1;
+  --event-account-heading: #fffdf5;
+  --event-account-muted: #c1d4c8;
+  --event-account-accent: #e2b751;
+  --event-account-shadow: rgba(5, 46, 34, 0.19);
+  --event-account-cta-border: #d0a542;
+  --event-account-cta-text: #ffffff;
+  --event-account-cta-gradient: linear-gradient(135deg, #a51f32, #d2a544 58%, #176b50);
+  --event-account-cta-shadow: rgba(156, 48, 52, 0.25);
+  --event-account-secondary-border: rgba(211, 173, 72, 0.45);
+  --event-account-secondary-text: #f8e2a9;
+  --event-account-secondary-background: rgba(19, 69, 50, 0.84);
+  --event-account-background:
+    radial-gradient(circle, rgba(255, 255, 255, 0.14) 0 1px, transparent 1.5px) 0 0 / 26px 26px,
+    linear-gradient(150deg, #08241b, #103a2a);
+  --event-account-featured-background:
+    radial-gradient(circle, rgba(239, 198, 89, 0.18) 0 1px, transparent 1.5px) 0 0 / 24px 24px,
+    linear-gradient(150deg, #08261c, #124531);
+}
+
+.account-plan-option.pricing-template-black_friday {
+  --event-account-border: rgba(255, 255, 255, 0.2);
+  --event-account-featured-border: rgba(44, 205, 255, 0.88);
+  --event-account-text: #f3f5f7;
+  --event-account-heading: #ffffff;
+  --event-account-muted: #c4cad1;
+  --event-account-accent: #50d7ff;
+  --event-account-shadow: rgba(0, 0, 0, 0.27);
+  --event-account-cta-border: #31cfff;
+  --event-account-cta-text: #ffffff;
+  --event-account-cta-gradient: linear-gradient(135deg, #0b79ee, #20c9f2 52%, #754dff);
+  --event-account-cta-shadow: rgba(24, 169, 234, 0.31);
+  --event-account-secondary-border: rgba(55, 205, 255, 0.46);
+  --event-account-secondary-text: #d9f6ff;
+  --event-account-secondary-background: rgba(23, 28, 34, 0.9);
+  --event-account-background:
+    repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.025) 0 1px, transparent 1px 17px),
+    linear-gradient(150deg, #050607, #14171b);
+  --event-account-featured-background:
+    repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.04) 0 1px, transparent 1px 15px),
+    radial-gradient(circle at 96% 4%, rgba(38, 200, 255, 0.18), transparent 32%),
+    linear-gradient(150deg, #030405, #15191e);
+}
+
+.account-plan-option.pricing-template-autumn {
+  border-color: rgba(174, 92, 38, 0.32);
+  background:
+    radial-gradient(circle at 100% 0%, rgba(232, 170, 82, 0.14), transparent 42%),
+    linear-gradient(150deg, #fffdf8, #fff7ea);
+  box-shadow: 0 8px 20px rgba(111, 57, 24, 0.07);
+}
+
+.account-plan-option.pricing-template-autumn.is-current,
+.account-plan-option.pricing-template-autumn.is-recommended {
+  border-color: rgba(166, 83, 39, 0.62);
+  background:
+    radial-gradient(circle at 100% 0%, rgba(232, 170, 82, 0.2), transparent 44%),
+    linear-gradient(150deg, #fffdf8, #fff2df);
+}
+
+.account-plan-option.pricing-template-autumn .account-plan-option-price,
+.account-plan-option.pricing-template-autumn .account-plan-option-header h4 {
+  color: #532b1a;
+}
+
+.account-plan-option.pricing-template-autumn .account-plan-option-badge-recommended {
+  color: #a04d22;
+}
+
+.account-plan-option.pricing-template-autumn .btn-primary {
+  border-color: #a65327;
+  background: linear-gradient(135deg, #8e3f1d, #c76a28);
+  box-shadow: 0 8px 18px rgba(142, 63, 29, 0.18);
+}
+
+.account-plan-option.pricing-template-autumn .btn-secondary {
+  border-color: rgba(166, 83, 39, 0.42);
+  color: #73381d;
+  background: rgba(255, 253, 248, 0.82);
+}
+
+/* Promotional Text styles are intentionally independent from pricing-card templates. */
+:is(.pricing-promotional-text, .account-promotional-text).promotional-text-style-normal {
+  font-family: inherit;
+  font-style: normal;
+}
+
+:is(.pricing-promotional-text, .account-promotional-text).promotional-text-style-spring {
+  color: #c25787;
+  font-family: "Merriweather", Georgia, serif;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  text-shadow: 0 8px 26px rgba(205, 93, 143, 0.2);
+}
+
+:is(.pricing-promotional-text, .account-promotional-text).promotional-text-style-summer {
+  color: #087f9c;
+  font-family: "Poppins", sans-serif;
+  font-weight: 800;
+  text-shadow: 0 8px 26px rgba(20, 170, 190, 0.2);
+}
+
+:is(.pricing-promotional-text, .account-promotional-text).promotional-text-style-autumn {
+  color: #b85a1b;
+  font-family: "Merriweather", Georgia, serif;
+  font-weight: 700;
+  text-shadow: 0 8px 26px rgba(190, 91, 24, 0.22);
+}
+
+:is(.pricing-promotional-text, .account-promotional-text).promotional-text-style-winter {
+  color: #236c9c;
+  font-family: "Poppins", sans-serif;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  text-shadow: 0 8px 28px rgba(66, 177, 215, 0.24);
+}
+
+:is(.pricing-promotional-text, .account-promotional-text).promotional-text-style-halloween {
+  color: #873bd0;
+  font-family: "Poppins", sans-serif;
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  text-shadow:
+    0 0 18px rgba(139, 59, 209, 0.25),
+    0 8px 28px rgba(249, 115, 22, 0.2);
+}
+
+:is(.pricing-promotional-text, .account-promotional-text).promotional-text-style-christmas_new_year {
+  color: #a52334;
+  font-family: "Merriweather", Georgia, serif;
+  font-weight: 700;
+  text-shadow:
+    0 0 16px rgba(210, 165, 68, 0.2),
+    0 8px 28px rgba(21, 107, 79, 0.16);
+}
+
+:is(.pricing-promotional-text, .account-promotional-text).promotional-text-style-black_friday {
+  color: #101317;
+  font-family: "Poppins", sans-serif;
+  font-weight: 800;
+  letter-spacing: 0.015em;
+  text-transform: uppercase;
+  text-shadow:
+    0 0 16px rgba(35, 198, 255, 0.23),
+    0 9px 28px rgba(2, 8, 14, 0.2);
+}
+
+:is(.pricing-promotional-text, .account-promotional-text).promotional-text-style-luxury_gold {
+  color: #a67c25;
+  font-family: "Merriweather", Georgia, serif;
+  font-weight: 700;
+  letter-spacing: 0.012em;
+  text-shadow:
+    0 1px 0 rgba(255, 242, 177, 0.5),
+    0 8px 24px rgba(5, 20, 42, 0.22);
+}
+
+:is(.pricing-promotional-text, .account-promotional-text).promotional-text-style-cyberpunk {
+  color: #00aeca;
+  font-family: "Poppins", "Arial Narrow", sans-serif;
+  font-weight: 800;
+  font-style: italic;
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
+  text-shadow:
+    -2px 0 0 rgba(10, 223, 255, 0.42),
+    2px 0 0 rgba(225, 33, 193, 0.36),
+    0 0 22px rgba(91, 47, 255, 0.3);
+}
+
+:is(.pricing-promotional-text, .account-promotional-text).promotional-text-style-retro_sale {
+  color: #b3302f;
+  font-family: "Arial Black", "Poppins", sans-serif;
+  font-weight: 800;
+  letter-spacing: -0.015em;
+  text-transform: uppercase;
+  text-shadow:
+    3px 3px 0 #d7a72f,
+    6px 6px 0 rgba(118, 39, 28, 0.2);
+}
+
+:is(.pricing-promotional-text, .account-promotional-text).promotional-text-style-dark_fantasy {
+  color: #66707a;
+  font-family: "Merriweather", Georgia, serif;
+  font-weight: 700;
+  letter-spacing: 0.015em;
+  text-transform: uppercase;
+  text-shadow:
+    1px 1px 0 rgba(255, 255, 255, 0.24),
+    2px 3px 0 rgba(64, 10, 18, 0.24),
+    0 9px 22px rgba(13, 16, 20, 0.24);
+}
+
+:is(.pricing-promotional-text, .account-promotional-text).promotional-text-style-editorial {
+  color: #17191c;
+  font-family: "Merriweather", Georgia, serif;
+  font-weight: 400;
+  letter-spacing: -0.045em;
+  line-height: 1.08;
+  text-shadow: none;
+}
+
+:is(.pricing-promotional-text, .account-promotional-text).promotional-text-style-impact_sale {
+  color: #d51f2b;
+  font-family: Impact, Haettenschweiler, "Arial Narrow Bold", sans-serif;
+  font-weight: 800;
+  letter-spacing: 0.018em;
+  line-height: 0.98;
+  text-transform: uppercase;
+  -webkit-text-stroke: 1px rgba(10, 10, 12, 0.86);
+  text-shadow:
+    4px 4px 0 #111216,
+    7px 7px 0 rgba(213, 31, 43, 0.18);
+}
+
+:is(.pricing-promotional-text, .account-promotional-text).promotional-text-style-arcade {
+  color: #1689ff;
+  font-family: "Courier New", Courier, monospace;
+  font-weight: 800;
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+  text-shadow:
+    2px 2px 0 #7446e8,
+    4px 4px 0 rgba(142, 222, 47, 0.72),
+    7px 7px 0 rgba(29, 32, 52, 0.12);
+}
+
+@supports ((background-clip: text) or (-webkit-background-clip: text)) {
+  :is(.pricing-promotional-text, .account-promotional-text).promotional-text-style-spring {
+    background: linear-gradient(100deg, #b84f82, #dc82a8 55%, #9b83cf);
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  :is(.pricing-promotional-text, .account-promotional-text).promotional-text-style-summer {
+    background: linear-gradient(100deg, #147db1, #1cb9c4 62%, #e0a92d);
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  :is(.pricing-promotional-text, .account-promotional-text).promotional-text-style-autumn {
+    background: linear-gradient(100deg, #9b421e, #db7a29 58%, #e5aa36);
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  :is(.pricing-promotional-text, .account-promotional-text).promotional-text-style-winter {
+    background: linear-gradient(100deg, #174c7b, #2d89ba 58%, #67cee2);
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  :is(.pricing-promotional-text, .account-promotional-text).promotional-text-style-halloween {
+    background: linear-gradient(100deg, #7029ba, #a94cbd 52%, #f47a1f);
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  :is(.pricing-promotional-text, .account-promotional-text).promotional-text-style-christmas_new_year {
+    background: linear-gradient(100deg, #9e2234, #cf9f35 52%, #176c50);
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  :is(.pricing-promotional-text, .account-promotional-text).promotional-text-style-black_friday {
+    background: linear-gradient(100deg, #050607, #363d45 46%, #0eaee8 52%, #050607 64%);
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  :is(.pricing-promotional-text, .account-promotional-text).promotional-text-style-luxury_gold {
+    background: linear-gradient(100deg, #07172f, #b78b2f 38%, #f0d37c 54%, #8b651d 72%, #080d16);
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  :is(.pricing-promotional-text, .account-promotional-text).promotional-text-style-cyberpunk {
+    background: linear-gradient(100deg, #00dff5, #267dff 42%, #cf32d6 68%, #ff3cac);
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  :is(.pricing-promotional-text, .account-promotional-text).promotional-text-style-retro_sale {
+    background: linear-gradient(100deg, #a9292a, #d24a36 42%, #f1dfae 54%, #c29426 72%, #9c2926);
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  :is(.pricing-promotional-text, .account-promotional-text).promotional-text-style-dark_fantasy {
+    background: linear-gradient(100deg, #252a2f, #aeb5b9 38%, #5d656c 58%, #741e28 76%, #252a2f);
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  :is(.pricing-promotional-text, .account-promotional-text).promotional-text-style-impact_sale {
+    background: linear-gradient(100deg, #cf1724 0 38%, #ffffff 39% 48%, #111216 49% 55%, #e12631 56% 100%);
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  :is(.pricing-promotional-text, .account-promotional-text).promotional-text-style-arcade {
+    background: linear-gradient(100deg, #087df2, #4267ff 40%, #814de8 68%, #8dde2f);
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+}
+
+}
+/* Workspace card and admin-selected promotion styles; isolated to Plan preview. */
+.desktop-plan-preview { --surface:var(--surface-1,#fff); --surface-muted:var(--surface-3,#f8fafc); --text-secondary:var(--text-2); --text-muted:var(--muted); --brand:var(--primary,#2563eb); --radius-md:16px; display:grid; gap:20px; min-width:0; }
+.desktop-plan-grid,.desktop-plan-usage { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; }
+.desktop-plan-preview .account-plan-option { padding:24px; min-width:0; }
+.desktop-plan-preview .account-plan-option-header h4 { font-size:19px; }
+.desktop-plan-preview .account-plan-option-price { font-size:30px; margin-top:12px; }
+.desktop-plan-preview .account-plan-option-badge { white-space:normal; }
+.desktop-plan-preview .desktop-plan-purchase:disabled { width:100%; margin-top:14px; background:#e2e8f0; color:#64748b; border:1px solid var(--border); box-shadow:none; cursor:not-allowed; opacity:1; }
+.desktop-plan-usage-item { padding:16px; border:1px solid var(--border); border-radius:12px; }
+.desktop-plan-usage-item>div { display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px; font-size:14px; }
+.desktop-plan-usage-item span,.desktop-plan-usage-item small,.desktop-plan-summary { color:var(--muted); }
+.desktop-plan-usage-item progress { display:block; width:100%; height:6px; margin-top:12px; border:0; border-radius:99px; overflow:hidden; }
+.desktop-plan-usage-item progress::-webkit-progress-bar { background:#e2e8f0; }
+.desktop-plan-usage-item progress::-webkit-progress-value { background:linear-gradient(90deg,var(--primary,#2563eb),var(--cyan,#22d3ee)); border-radius:99px; }
+.desktop-plan-preview .account-promotional-text { margin:0 0 18px; font-weight:750; font-size:22px; overflow-wrap:anywhere; }
+@media(max-width:960px) { .desktop-plan-grid,.desktop-plan-usage { grid-template-columns:1fr; } }
