@@ -4,6 +4,7 @@ import { ApiError, endpoints, fieldErrorsFromBody } from "@checkstation/api";
 import { canLaunchKiosk, canManageGroupConfiguration, hasPlanFeature, isGroupScopedStaff } from "@checkstation/domain";
 import { Alert, Badge, Button, Card, DataRow, Empty, Field, Input, Loading, Modal, Page, PageHeader, Segmented, Select, Stat, Switch, TextArea, formatError } from "../components/ui";
 import { useApp } from "../lib/AppProvider";
+import { useDesktopGuidedGroupTab } from "../tutorials/DesktopGuidedHelp";
 import { GroupClassesPanel } from "../components/GroupClassesPanel";
 import { EMPTY_EMAIL_SENDER, blankSenderForm, buildEmailSenderBody, normalizeForwardEmailSlots, savedForwardEmails, senderDraftRequiresTest, senderFormFromApi, senderFromNameOnlyChange, type EmailSenderProvider, type GroupEmailSender, type GroupEmailSenderForm, type SmtpSecurity } from "../lib/groupEmailSender";
 import { MAX_PARTICIPATION_EMAILS, addParticipationEmailSlot, memberParticipationPayload, participationEmailsForNewMember, removeParticipationEmailSlot, visitorParticipationPayload, type AvailableGroupMember } from "../lib/groupParticipantForm";
@@ -17,6 +18,7 @@ type ClassRow = { id: number; name: string; participant_count?: number; status: 
 type Tab = "overview" | "participants" | "configuration" | "kiosk";
 
 export function GroupDetailPage() {
+  const guidedTab = useDesktopGuidedGroupTab();
   const { id } = useParams(); const { api, authState, t } = useApp(); const navigate = useNavigate();
   const [group, setGroup] = useState<Group | null>(null); const [loading, setLoading] = useState(true); const [error, setError] = useState(""); const [tab, setTab] = useState<Tab>("overview");
   const [configurationDirty, setConfigurationDirty] = useState(false); const [lifecycleBusy, setLifecycleBusy] = useState(false);
@@ -29,16 +31,17 @@ export function GroupDetailPage() {
   const tabs: Array<{ value: Tab; label: string }> = [{ value: "overview", label: t("groups.overview") }, { value: "participants", label: t("groups.participantLabel") }];
   if (canConfigure && !group.is_plan_locked) tabs.push({ value: "configuration", label: t("groups.configuration") });
   if (!group.is_plan_locked && group.status !== "archived") tabs.push({ value: "kiosk", label: t("kiosk.title") });
+  const displayedTab = tabs.some(item => item.value === guidedTab) ? guidedTab as Tab : tab;
   function leaveConfiguration(next: () => void) { if (tab === "configuration" && configurationDirty && !confirm(t("groups.configurationUnsaved"))) return; next(); }
   async function lifecycle() { if (!confirm(t(currentGroup.status === "archived" ? "groups.restoreHint" : "groups.archiveConfirm"))) return; setLifecycleBusy(true); setError(""); try { await api.post(currentGroup.status === "archived" ? endpoints.groupRestore(groupId) : endpoints.groupArchive(groupId), {}); setConfigurationDirty(false); await load(); } catch (caught) { setError(formatError(caught, t("common.error"))); } finally { setLifecycleBusy(false); } }
   return <Page>
     <PageHeader eyebrow={t(group.group_type === "structured" ? "groups.structured" : "groups.standard")} title={group.name} actions={<>{tab === "configuration" && canConfigure ? <Button variant="danger" loading={lifecycleBusy} onClick={() => void lifecycle()}>{t(group.status === "archived" ? "groups.reactivate" : "groups.archive")}</Button> : null}<Button variant="secondary" onClick={() => leaveConfiguration(() => navigate("/groups"))}>{t("groups.back")}</Button></>} />
     <div className="toolbar"><Badge tone={group.status === "archived" ? "neutral" : "green"}>{t(group.status === "archived" ? "groups.archivedLabel" : "groups.activeLabel")}</Badge>{group.is_plan_locked ? <Badge tone="warning">{t("groups.planLocked")}</Badge> : null}{group.readiness && !group.readiness.setup_complete ? <Badge tone="warning">{t("groups.setupIncomplete")}</Badge> : null}</div>
-    <Segmented value={tab} onChange={(next) => leaveConfiguration(() => setTab(next))} options={tabs} /><Alert>{error}</Alert>
-    {tab === "overview" ? <Overview group={group} /> : null}
-    {tab === "participants" ? <Participants group={group} groupId={id} canManage={canParticipants && !group.is_plan_locked && group.status !== "archived"} /> : null}
-    {tab === "configuration" ? <Configuration group={group} groupId={id} onDirtyChange={setConfigurationDirty} onSaved={load} /> : null}
-    {tab === "kiosk" ? <KioskManagement group={group} groupId={id} canConfigure={canConfigure} canLaunch={canLaunchKiosk(authState.session)} /> : null}
+    <Segmented value={displayedTab} onChange={(next) => leaveConfiguration(() => setTab(next))} options={tabs} /><Alert>{error}</Alert>
+    {displayedTab === "overview" ? <Overview group={group} /> : null}
+    {displayedTab === "participants" ? <Participants group={group} groupId={id} canManage={canParticipants && !group.is_plan_locked && group.status !== "archived"} /> : null}
+    {displayedTab === "configuration" ? <Configuration group={group} groupId={id} onDirtyChange={setConfigurationDirty} onSaved={load} /> : null}
+    {displayedTab === "kiosk" ? <KioskManagement group={group} groupId={id} canConfigure={canConfigure} canLaunch={canLaunchKiosk(authState.session)} /> : null}
   </Page>;
 }
 

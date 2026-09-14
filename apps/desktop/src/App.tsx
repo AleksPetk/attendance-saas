@@ -18,6 +18,7 @@ import { AuthAccountFlowPage } from "./pages/AuthAccountFlowPage";
 import { KioskSettingsPage } from "./pages/KioskSettingsPage";
 import { KioskDesignPage } from "./pages/KioskDesignPage";
 import { EmailLinkPage } from "./pages/EmailLinkPage";
+import { DesktopGuidedHelpProvider } from "./tutorials/DesktopGuidedHelp";
 
 export function App() {
   const { ready, authState, t } = useApp();
@@ -48,7 +49,7 @@ export function App() {
   }
 
   return (
-    <Routes>
+    <DesktopGuidedHelpProvider><Routes>
       <Route path="/kiosk/:groupId" element={<KioskPage />} />
       <Route path="/groups/:id/kiosk-design" element={<KioskDesignPage />} />
       <Route element={<DesktopShell />}>
@@ -69,6 +70,6 @@ export function App() {
         <Route path="/email-link" element={<EmailLinkPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+    </Routes></DesktopGuidedHelpProvider>
   );
 }
