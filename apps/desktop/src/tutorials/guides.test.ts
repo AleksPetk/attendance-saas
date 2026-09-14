@@ -32,6 +32,14 @@ test("replay and skip do not erase completed guides or confuse browser state", (
   assert.equal(completionPath(dismissalId), "/tutorial/modules/desktop-auto-onboarding-dismissed-v1/complete/");
   assert.equal(statePath, "/tutorial/state/");
 });
+test("Staff tutorial routes follow the same staff_management entitlement as navigation", () => {
+  const basicOwner = { role: "owner", workspace: { entitlements: { features: { staff_management: false } } } } as any;
+  const plusOwner = { role: "owner", workspace: { entitlements: { features: { staff_management: true } } } } as any;
+  const basicSteps = guides.flatMap((guide) => availableSteps(guide, basicOwner));
+  const plusSteps = guides.flatMap((guide) => availableSteps(guide, plusOwner));
+  assert.equal(basicSteps.some((step) => step.route === "/staff"), false);
+  assert.equal(plusSteps.some((step) => step.route === "/staff"), true);
+});
 test("Staff is not directed toward unavailable account, plan, staff, or management features", () => {
   const steps = guides.flatMap(g => availableSteps(g, staff));
   assert.ok(steps.length);

@@ -152,6 +152,12 @@ export class AuthController {
     return this.applySession(session).session!;
   }
 
+  /** Re-read the shared workspace snapshot, including entitlements and capacity-resolution state. */
+  async refreshWorkspace(): Promise<WorkspaceSession> {
+    const session = await this.api.get<WorkspaceSession>(endpoints.workspace());
+    return this.applySession(session).session!;
+  }
+
   async logout(): Promise<void> {
     try {
       await this.api.post(endpoints.logout(), {});

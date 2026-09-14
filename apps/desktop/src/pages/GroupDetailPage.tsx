@@ -9,6 +9,7 @@ import { GroupClassesPanel } from "../components/GroupClassesPanel";
 import { EMPTY_EMAIL_SENDER, blankSenderForm, buildEmailSenderBody, normalizeForwardEmailSlots, savedForwardEmails, senderDraftRequiresTest, senderFormFromApi, senderFromNameOnlyChange, type EmailSenderProvider, type GroupEmailSender, type GroupEmailSenderForm, type SmtpSecurity } from "../lib/groupEmailSender";
 import { MAX_PARTICIPATION_EMAILS, addParticipationEmailSlot, memberParticipationPayload, participationEmailsForNewMember, removeParticipationEmailSlot, visitorParticipationPayload, type AvailableGroupMember } from "../lib/groupParticipantForm";
 import { groupLaunchIssueKeys, isKioskLaunchBlocked, kioskSettingsReadiness, type GroupLaunchReadiness, type KioskSettingsReadiness } from "../lib/kioskLaunchReadiness";
+import { isPlanResourceLocked } from "../lib/planCapacity";
 
 type NotificationSetting = { send_email: boolean; email_template: string };
 type GroupNotifications = { check_in: NotificationSetting; check_out: NotificationSetting; break: NotificationSetting };
@@ -20,12 +21,13 @@ type Tab = "overview" | "participants" | "configuration" | "kiosk";
 export function GroupDetailPage() {
   const guidedTab = useDesktopGuidedGroupTab();
   const { id } = useParams(); const { api, authState, t } = useApp(); const navigate = useNavigate();
-  const [group, setGroup] = useState<Group | null>(null); const [loading, setLoading] = useState(true); const [error, setError] = useState(""); const [tab, setTab] = useState<Tab>("overview");
+  const [group, setGroup] = useState<Group | null>(null); const [loading, setLoading] = useState(true); const [error, setError] = useState(""); const [planLockedDenied, setPlanLockedDenied] = useState(false); const [tab, setTab] = useState<Tab>("overview");
   const [configurationDirty, setConfigurationDirty] = useState(false); const [lifecycleBusy, setLifecycleBusy] = useState(false);
   const canConfigure = canManageGroupConfiguration(authState.session); const canParticipants = canConfigure || isGroupScopedStaff(authState.session);
-  const load = useCallback(async () => { if (!id) return; setLoading(true); setError(""); try { setGroup(await api.get<Group>(endpoints.group(id))); } catch (caught) { setError(formatError(caught, t("common.error"))); } finally { setLoading(false); } }, [api, id, t]);
+  const load = useCallback(async () => { if (!id) return; setLoading(true); setError(""); setPlanLockedDenied(false); try { setGroup(await api.get<Group>(endpoints.group(id))); } catch (caught) { setGroup(null); if (isPlanResourceLocked(caught)) setPlanLockedDenied(true); else setError(formatError(caught, t("common.error"))); } finally { setLoading(false); } }, [api, id, t]);
   useEffect(() => { void load(); }, [load]);
   if (loading) return <Page><Loading label={t("groups.loading")} /></Page>;
+  if (planLockedDenied) return <Page><section className="plan-locked-banner" role="alert"><Badge tone="warning">{t("groups.planLocked")}</Badge><strong>{t("groups.detail.planLockedTitle")}</strong><p>{t("groups.detail.planLockedHint")}</p><Button onClick={() => navigate("/groups")} variant="secondary">{t("groups.back")}</Button></section></Page>;
   if (!group || !id) return <Page><Alert>{error || t("common.error")}</Alert></Page>;
   const currentGroup = group; const groupId = id;
   const tabs: Array<{ value: Tab; label: string }> = [{ value: "overview", label: t("groups.overview") }, { value: "participants", label: t("groups.participantLabel") }];

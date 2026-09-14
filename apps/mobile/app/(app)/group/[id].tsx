@@ -1,12 +1,33 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert as NativeAlert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
-import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from "expo-router";
 import { ApiError, endpoints, fieldErrorsFromBody } from "@checkstation/api";
-import { canLaunchKiosk, canManageGroupConfiguration, isGroupScopedStaff, hasPlanFeature } from "@checkstation/domain";
+import {
+  MAX_PARTICIPATION_EMAILS,
+  addParticipationEmailSlot,
+  canLaunchKiosk,
+  canManageGroupConfiguration,
+  groupLaunchIssueKeys,
+  hasPlanFeature,
+  isGroupScopedStaff,
+  isKioskLaunchBlocked,
+  isPlanResourceLocked,
+  kioskSettingsReadiness,
+  memberParticipationPayload,
+  normalizeForwardEmailSlots,
+  normalizeParticipationEmailSlots,
+  participationEmailsForNewMember,
+  removeParticipationEmailSlot,
+  savedForwardEmails,
+  visitorParticipationPayload,
+  type GroupLaunchReadiness,
+  type KioskSettingsReadiness,
+} from "@checkstation/domain";
 import { Alert, Button, Field, LoadingState, Screen } from "../../../src/components/ui";
 import { PageHeader, SectionCard, StatusPill } from "../../../src/components/mobile";
 import { GroupClasses } from "../../../src/components/GroupClasses";
 import { AvatarRow } from "../../../src/components/Avatar";
+import { GroupEmailSender } from "../../../src/components/GroupEmailSender";
 import { useApp } from "../../../src/lib/AppProvider";
 import { colors, space, type } from "../../../src/theme/tokens";
 import type { TextInput } from "react-native";
@@ -14,9 +35,9 @@ import type { TextInput } from "react-native";
 type GroupActions = { check_in_enabled: boolean; check_out_enabled: boolean; breaks_enabled: boolean; max_breaks: number | null };
 type GroupParticipation = { email_required: boolean; pin_required: boolean };
 type GroupNotifications = { check_in: { send_email: boolean; email_template: string }; check_out: { send_email: boolean; email_template: string }; break: { send_email: boolean; email_template: string } };
-type GroupReadiness = { setup_complete: boolean; operational_ready: boolean; missing_email_count: number; missing_pin_count: number };
+type GroupReadiness = GroupLaunchReadiness & { operational_ready: boolean; missing_email_count: number; missing_pin_count: number };
 type GroupStructured = { require_class_pin: boolean; active_section_count: number; participant_count: number } | null;
-type Group = { id: number; name: string; status: string; group_type: string; participant_count: number; member_count: number; group_only_participant_count: number; is_plan_locked: boolean; require_class_pin: boolean; actions: GroupActions; participation: GroupParticipation; notifications: GroupNotifications; readiness: GroupReadiness; structured: GroupStructured; created_at: string; updated_at: string; archived_at: string | null; forward_emails: string[]; email_sender_ready: boolean; kiosk_available: boolean };
+type Group = { id: number; name: string; status: string; group_type: string; participant_count: number; member_count: number; group_only_participant_count: number; is_plan_locked: boolean; require_class_pin: boolean; actions: GroupActions; participation: GroupParticipation; notifications?: Partial<GroupNotifications>; readiness: GroupReadiness; structured: GroupStructured; created_at: string; updated_at: string; archived_at: string | null; forward_emails: string[]; advanced?: { forward_emails?: string[]; email_sender_ready?: boolean }; email_sender_ready: boolean; kiosk_available: boolean };
 
 type Participant = { id: number; group_participant_code: string; member?: { id: number; name: string; email: string; photo_url: string | null }; name?: string; email?: string; override_name?: string; override_email?: string; participation_emails?: string[]; has_pin: boolean; photo_url?: string | null; status: string; overrides?: { name: string; email: string; has_photo: boolean; photo_url: string | null; has_pin: boolean }; effective?: { name: string; email: string; has_photo: boolean; photo_url: string | null; has_pin: boolean }; participation?: { email: string; emails: string[]; has_pin: boolean; missing_required_fields: string[]; complete: boolean }; setup?: { email: string; emails: string[]; has_pin: boolean; missing_required_fields: string[]; complete: boolean }; _kind?: "member" | "visitor" };
 type AvailableMember = { id: number; name: string; email: string; photo_url: string | null; suggested_participation_email: string };
@@ -28,10 +49,14 @@ export default function GroupDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { api, authState, t } = useApp();
   const router = useRouter();
+  const navigation = useNavigation();
+  const allowNavigation = useRef(false);
   const [group, setGroup] = useState<Group | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const [planLockedDenied, setPlanLockedDenied] = useState(false);
   const [activeSection, setActiveSection] = useState<ActiveSection>("overview");
+  const [configurationDirty, setConfigurationDirty] = useState(false);
   const canConfigure = canManageGroupConfiguration(authState.session);
   const canParticipants = canConfigure || isGroupScopedStaff(authState.session);
   const canKiosk = canLaunchKiosk(authState.session);
@@ -39,15 +64,31 @@ export default function GroupDetailScreen() {
   const forwardEmailsAccess = hasPlanFeature(authState.session, "group_forward_emails");
 
   const load = useCallback(async () => {
-    setLoading(true); setError("");
+    setLoading(true); setError(""); setPlanLockedDenied(false);
     try { setGroup(await api.get<Group>(endpoints.group(id))); }
-    catch (caught) { setError(caught instanceof ApiError ? caught.message : t("common.error")); }
+    catch (caught) {
+      setGroup(null);
+      if (isPlanResourceLocked(caught)) setPlanLockedDenied(true);
+      else setError(caught instanceof ApiError ? caught.message : t("common.error"));
+    }
     finally { setLoading(false); }
   }, [api, id, t]);
 
   useFocusEffect(useCallback(() => { void load(); }, [load]));
+  useEffect(() => navigation.addListener("beforeRemove", (event) => {
+    if (!configurationDirty || allowNavigation.current) {
+      allowNavigation.current = false;
+      return;
+    }
+    event.preventDefault();
+    NativeAlert.alert(t("groups.configuration"), t("groups.configurationUnsaved") || "Discard unsaved changes?", [
+      { text: t("common.cancel"), style: "cancel" },
+      { text: t("common.confirm"), style: "destructive", onPress: () => { allowNavigation.current = true; navigation.dispatch(event.data.action); } },
+    ]);
+  }), [configurationDirty, navigation, t]);
 
   if (loading) return <Screen><LoadingState label={t("groups.loading")} /></Screen>;
+  if (planLockedDenied) return <Screen style={styles.lockedScreen}><Alert variant="warning" message={`${t("groups.detail.planLockedTitle")}\n${t("groups.detail.planLockedHint")}`} /><Button label={t("groups.back")} variant="secondary" onPress={() => router.back()} /></Screen>;
   if (!group) return <Screen><Alert message={error || t("common.error")} /></Screen>;
 
   const locked = group.is_plan_locked;
@@ -64,6 +105,16 @@ export default function GroupDetailScreen() {
   }
   if (!locked && !archived) {
     sections.push({ key: "kiosk", label: "Kiosk" });
+  }
+  function selectSection(next: ActiveSection) {
+    if (activeSection !== "configuration" || !configurationDirty) {
+      setActiveSection(next);
+      return;
+    }
+    NativeAlert.alert(t("groups.configuration"), t("groups.configurationUnsaved") || "Discard unsaved changes?", [
+      { text: t("common.cancel"), style: "cancel" },
+      { text: t("common.confirm"), style: "destructive", onPress: () => { setConfigurationDirty(false); setActiveSection(next); } },
+    ]);
   }
 
   return (
@@ -84,7 +135,7 @@ export default function GroupDetailScreen() {
               accessibilityRole="tab"
               accessibilityState={{ selected: activeSection === s.key }}
               key={s.key}
-              onPress={() => setActiveSection(s.key)}
+              onPress={() => selectSection(s.key)}
               style={({ pressed }) => [styles.detailTab, activeSection === s.key && styles.detailTabActive, pressed && styles.tabPressed]}
             >
               <Text adjustsFontSizeToFit minimumFontScale={0.82} numberOfLines={1} style={[styles.detailTabText, activeSection === s.key && styles.detailTabTextActive]}>
@@ -103,7 +154,7 @@ export default function GroupDetailScreen() {
         )}
 
         {activeSection === "configuration" && canConfigure && !locked && (
-          <ConfigurationSection groupId={id} group={group} api={api} t={t} structuredAccess={structuredAccess} forwardEmailsAccess={forwardEmailsAccess} onSaved={() => void load()} />
+          <ConfigurationSection groupId={id} group={group} api={api} t={t} structuredAccess={structuredAccess} forwardEmailsAccess={forwardEmailsAccess} onDirtyChange={setConfigurationDirty} onSaved={() => void load()} />
         )}
 
         {activeSection === "kiosk" && !locked && !archived && (
@@ -241,7 +292,7 @@ function PeopleSection({ groupId, group, api, t, canConfigure }: { groupId: stri
           api={api}
           t={t}
           onClose={() => setShowAddSheet(false)}
-          onSaved={() => { setShowAddSheet(false); void loadParticipants(); void (async () => { /* parent reloads via useFocusEffect */ })(); }}
+          onSaved={() => { void loadParticipants(); }}
         />
       ) : null}
 
@@ -265,11 +316,11 @@ function AddParticipantSheet({ groupId, group, api, t, onClose, onSaved }: { gro
   const [availableMembers, setAvailableMembers] = useState<AvailableMember[]>([]);
   const [selectedMemberId, setSelectedMemberId] = useState<number | null>(null);
   const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
   const [participationEmails, setParticipationEmails] = useState<string[]>([""]);
   const [pin, setPin] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -279,24 +330,24 @@ function AddParticipantSheet({ groupId, group, api, t, onClose, onSaved }: { gro
   }, [api, groupId, mode]);
 
   async function submit() {
-    setBusy(true); setError(""); setFieldErrors({});
+    setBusy(true); setError(""); setSuccess(""); setFieldErrors({});
     try {
       if (mode === "member") {
         if (!selectedMemberId) { setError(t("groups.selectMember") || "Select a member"); setBusy(false); return; }
-        const payload: Record<string, unknown> = { member_id: selectedMemberId };
-        const validEmails = participationEmails.filter(Boolean);
-        if (validEmails.length) payload.participation_emails = validEmails;
-        if (pin.trim()) payload.participation_pin = pin.trim();
-        await api.post(endpoints.groupMemberships(groupId), payload);
+        await api.post(endpoints.groupMemberships(groupId), memberParticipationPayload(selectedMemberId, participationEmails, pin));
+        setSelectedMemberId(null);
+        setParticipationEmails([""]);
+        setPin("");
+        const next = await api.get(endpoints.groupAvailableMembers(groupId)) as AvailableMember[];
+        setAvailableMembers(next);
       } else {
-        const payload: Record<string, unknown> = { name: name.trim() };
-        if (email.trim()) payload.email = email.trim();
-        const validEmails = participationEmails.filter(Boolean);
-        if (validEmails.length) payload.participation_emails = validEmails;
-        if (pin.trim()) payload.participation_pin = pin.trim();
-        await api.post(endpoints.groupParticipants(groupId), payload);
+        await api.post(endpoints.groupParticipants(groupId), visitorParticipationPayload(name, participationEmails, pin));
+        setName("");
+        setParticipationEmails([""]);
+        setPin("");
       }
       onSaved();
+      setSuccess(t("groups.participantAdded") || "Participant added");
     } catch (caught) {
       if (caught instanceof ApiError) {
         const fields = fieldErrorsFromBody(caught.data);
@@ -319,6 +370,7 @@ function AddParticipantSheet({ groupId, group, api, t, onClose, onSaved }: { gro
       </View>
 
       <Alert message={error} />
+      <Alert message={success} variant="success" />
 
       {mode === "member" ? (
         <View style={styles.form}>
@@ -326,28 +378,28 @@ function AddParticipantSheet({ groupId, group, api, t, onClose, onSaved }: { gro
           <ScrollView style={styles.memberList}>
             {availableMembers.map((m) => (
               <View key={m.id} style={[styles.memberOption, selectedMemberId === m.id && styles.memberOptionSelected]}>
-                <Text style={[styles.memberOptionText, selectedMemberId === m.id && styles.memberOptionTextSelected]} onPress={() => setSelectedMemberId(m.id)}>{m.name} ({m.email})</Text>
+                <Text style={[styles.memberOptionText, selectedMemberId === m.id && styles.memberOptionTextSelected]} onPress={() => { setSelectedMemberId(m.id); setParticipationEmails(participationEmailsForNewMember(m)); setPin(""); setSuccess(""); }}>{m.name} ({m.email})</Text>
               </View>
             ))}
             {availableMembers.length === 0 ? <Text style={styles.emptyText}>{t("groups.noAvailableMembers") || "No members available"}</Text> : null}
           </ScrollView>
+          <ParticipationEmailsField emails={participationEmails} required={group.participation.email_required} error={fieldErrors.participation_emails || fieldErrors.participation_email} onChange={setParticipationEmails} t={t} />
           <Field label={t("kiosk.pin") || "PIN"} value={pin} onChangeText={setPin} secureTextEntry placeholder={t("groups.optionalPin") || "Optional PIN"} />
-          {group.participation.email_required ? <ParticipationEmailsField emails={participationEmails} onChange={setParticipationEmails} t={t} /> : null}
-          <Button label={busy ? (t("groups.saving") || "Saving...") : (t("groups.add") || "Add")} loading={busy} disabled={busy} onPress={() => void submit()} />
+          <Button label={busy ? (t("groups.saving") || "Saving...") : (t("groups.add") || "Add")} loading={busy} disabled={busy || !selectedMemberId} onPress={() => void submit()} />
         </View>
       ) : (
         <View style={styles.form}>
           <Field autoFocus error={fieldErrors.name} label={t("members.name")} value={name} onChangeText={setName} />
-          <Field autoCapitalize="none" keyboardType="email-address" label={t("auth.email")} value={email} onChangeText={setEmail} />
+          <ParticipationEmailsField emails={participationEmails} required={group.participation.email_required} error={fieldErrors.participation_emails || fieldErrors.email} onChange={setParticipationEmails} t={t} />
           <Field label={t("kiosk.pin") || "PIN"} value={pin} onChangeText={setPin} secureTextEntry placeholder={t("groups.optionalPin") || "Optional PIN"} />
-          <Button label={busy ? (t("groups.saving") || "Saving...") : (t("groups.add") || "Add")} loading={busy} disabled={busy} onPress={() => void submit()} />
+          <Button label={busy ? (t("groups.saving") || "Saving...") : (t("groups.add") || "Add")} loading={busy} disabled={busy || !name.trim()} onPress={() => void submit()} />
         </View>
       )}
     </View>
   );
 }
 
-function ParticipationEmailsField({ emails, onChange, t }: { emails: string[]; onChange: (emails: string[]) => void; t: (key: string, vars?: Record<string, string | number>) => string }) {
+function ParticipationEmailsField({ emails, onChange, t, required = false, error }: { emails: string[]; onChange: (emails: string[]) => void; t: (key: string, vars?: Record<string, string | number>) => string; required?: boolean; error?: string }) {
   const update = (index: number, value: string) => {
     const next = [...emails];
     next[index] = value;
@@ -357,9 +409,13 @@ function ParticipationEmailsField({ emails, onChange, t }: { emails: string[]; o
     <View>
       <Text style={styles.formLabel}>{t("groups.participationEmails") || "Notification emails"}</Text>
       {emails.map((email, i) => (
-        <Field key={i} autoCapitalize="none" keyboardType="email-address" label={`${t("auth.email")} ${i + 1}`} value={email} onChangeText={(v) => update(i, v)} />
+        <View key={i} style={styles.participationEmailRow}>
+          <Field containerStyle={styles.forwardEmailField} error={i === 0 ? error : undefined} autoCapitalize="none" keyboardType="email-address" label={`${t("auth.email")} ${i + 1}`} value={email} onChangeText={(v) => update(i, v)} />
+          {i > 0 ? <Pressable onPress={() => onChange(removeParticipationEmailSlot(emails, i))}><Text style={styles.removeEmailText}>{t("common.remove")}</Text></Pressable> : null}
+        </View>
       ))}
-      {emails.length < 3 ? <Text style={styles.addEmailLink} onPress={() => onChange([...emails, ""])}>{t("groups.addEmail") || "+ Add email"}</Text> : null}
+      {required ? <Text style={styles.settingHint}>{t("groups.required")}</Text> : null}
+      {emails.length < MAX_PARTICIPATION_EMAILS ? <Text style={styles.addEmailLink} onPress={() => onChange(addParticipationEmailSlot(emails))}>{t("groups.addAnotherEmail") || "+ Add email"}</Text> : null}
     </View>
   );
 }
@@ -367,8 +423,7 @@ function ParticipationEmailsField({ emails, onChange, t }: { emails: string[]; o
 function EditParticipantSheet({ participant, groupId, group, api, t, onClose, onSaved }: { participant: Participant; groupId: string; group: Group; api: any; t: (key: string, vars?: Record<string, string | number>) => string; onClose: () => void; onSaved: () => void }) {
   const isVisitor = (participant as any)._kind === "visitor";
   const [name, setName] = useState(isVisitor ? participant.name || "" : participant.override_name || "");
-  const [email, setEmail] = useState(isVisitor ? participant.email || "" : participant.override_email || "");
-  const [participationEmails, setParticipationEmails] = useState<string[]>(participant.participation_emails || [""]);
+  const [participationEmails, setParticipationEmails] = useState<string[]>(normalizeParticipationEmailSlots(participant.participation?.emails || participant.participation_emails));
   const [pin, setPin] = useState("");
   const [clearPin, setClearPin] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -398,21 +453,12 @@ function EditParticipantSheet({ participant, groupId, group, api, t, onClose, on
   async function save() {
     setBusy(true); setError(""); setFieldErrors({});
     try {
-      const payload: Record<string, unknown> = {};
-      if (isVisitor) {
-        payload.name = name.trim();
-        payload.email = email.trim();
-      } else {
-        payload.override_name = name.trim();
-        payload.override_email = email.trim();
-      }
-      const validEmails = participationEmails.map((email) => email.trim()).filter(Boolean);
-      payload.participation_emails = validEmails;
-      if (pin.trim()) payload.participation_pin = pin.trim();
-      if (clearPin) payload.clear_participation_pin = true;
-
-      if (isVisitor) await api.patch(endpoints.groupParticipant(groupId, participant.id), payload);
-      else await api.patch(endpoints.groupMembership(groupId, participant.id), payload);
+      const formData = new FormData();
+      formData.append(isVisitor ? "name" : "override_name", name.trim());
+      formData.append("participation_emails", JSON.stringify(participationEmails.map((email) => email.trim()).filter(Boolean)));
+      if (pin.trim()) formData.append("participation_pin", pin.trim());
+      if (clearPin) formData.append("clear_participation_pin", "true");
+      await api.request(isVisitor ? endpoints.groupParticipant(groupId, participant.id) : endpoints.groupMembership(groupId, participant.id), { method: "PATCH", formData });
       onSaved();
     } catch (caught) {
       if (caught instanceof ApiError) {
@@ -432,19 +478,13 @@ function EditParticipantSheet({ participant, groupId, group, api, t, onClose, on
       <Alert message={error} />
       <View style={styles.form}>
         {isVisitor ? (
-          <>
-            <Field autoFocus error={fieldErrors.name} label={t("members.name")} value={name} onChangeText={setName} />
-            <Field autoCapitalize="none" error={fieldErrors.email} keyboardType="email-address" label={t("auth.email")} value={email} onChangeText={setEmail} />
-          </>
+          <Field autoFocus error={fieldErrors.name} label={t("members.name")} value={name} onChangeText={setName} />
         ) : (
-          <>
-            <Field autoFocus error={fieldErrors.override_name} label={`${t("members.name")} (${t("groups.override") || "override"})`} value={name} onChangeText={setName} hint={t("groups.overrideHint") || "Leave empty to use Member profile"} />
-            <Field autoCapitalize="none" error={fieldErrors.override_email} keyboardType="email-address" label={`${t("auth.email")} (${t("groups.override") || "override"})`} value={email} onChangeText={setEmail} hint={t("groups.overrideHint") || "Leave empty to use Member profile"} />
-          </>
+          <Field autoFocus error={fieldErrors.override_name} label={`${t("members.name")} (${t("groups.override") || "override"})`} value={name} onChangeText={setName} hint={t("groups.overrideHint") || "Leave empty to use Member profile"} />
         )}
-        <ParticipationEmailsField emails={participationEmails} onChange={setParticipationEmails} t={t} />
+        <ParticipationEmailsField emails={participationEmails} required={group.participation.email_required} error={fieldErrors.participation_emails || fieldErrors.participation_email} onChange={setParticipationEmails} t={t} />
         <Field label={t("groups.newPin") || "New PIN"} value={pin} onChangeText={setPin} secureTextEntry placeholder={t("groups.optionalPin") || "Leave empty to keep current"} />
-        {participant.has_pin ? (
+        {participant.participation?.has_pin || participant.has_pin ? (
           <View style={styles.clearRow}>
             <Text style={styles.clearToggle} onPress={() => setClearPin(!clearPin)}>{clearPin ? "✓ " : ""}{t("groups.clearPin") || "Clear PIN"}</Text>
           </View>
@@ -456,17 +496,53 @@ function EditParticipantSheet({ participant, groupId, group, api, t, onClose, on
   );
 }
 
-function ConfigurationSection({ groupId, group, api, t, structuredAccess, forwardEmailsAccess, onSaved }: { groupId: string; group: Group; api: any; t: (key: string, vars?: Record<string, string | number>) => string; structuredAccess: boolean; forwardEmailsAccess: boolean; onSaved: () => void }) {
+const DEFAULT_NOTIFICATIONS: GroupNotifications = {
+  check_in: { send_email: false, email_template: "{name} checked in at {time}." },
+  check_out: { send_email: false, email_template: "{name} checked out at {time}." },
+  break: { send_email: false, email_template: "{name} started a break at {time}." },
+};
+function resolvedNotifications(group: Group): GroupNotifications {
+  return {
+    check_in: { ...DEFAULT_NOTIFICATIONS.check_in, ...(group.notifications?.check_in || {}) },
+    check_out: { ...DEFAULT_NOTIFICATIONS.check_out, ...(group.notifications?.check_out || {}) },
+    break: { ...DEFAULT_NOTIFICATIONS.break, ...(group.notifications?.break || {}) },
+  };
+}
+
+function ConfigurationSection({ groupId, group, api, t, structuredAccess, forwardEmailsAccess, onDirtyChange, onSaved }: { groupId: string; group: Group; api: any; t: (key: string, vars?: Record<string, string | number>) => string; structuredAccess: boolean; forwardEmailsAccess: boolean; onDirtyChange: (dirty: boolean) => void; onSaved: () => void }) {
   const [name, setName] = useState(group.name);
   const [actions, setActions] = useState(group.actions);
   const [participation, setParticipation] = useState(group.participation);
+  const [notifications, setNotifications] = useState<GroupNotifications>(() => resolvedNotifications(group));
+  const [senderReady, setSenderReady] = useState(Boolean(group.email_sender_ready || group.advanced?.email_sender_ready));
+  const [senderDirty, setSenderDirty] = useState(false);
   const [requireClassPin, setRequireClassPin] = useState(group.require_class_pin);
-  const [forwardEmails, setForwardEmails] = useState<string[]>(group.forward_emails?.length ? [...group.forward_emails] : [""]);
+  const [forwardEmails, setForwardEmails] = useState<string[]>(() => normalizeForwardEmailSlots(group.forward_emails || group.advanced?.forward_emails));
+  const [baseline, setBaseline] = useState(() => JSON.stringify({
+    name: group.name.trim(), actions: group.actions, participation: group.participation,
+    notifications: resolvedNotifications(group), requireClassPin: group.require_class_pin,
+    forwardEmails: savedForwardEmails(group.forward_emails || group.advanced?.forward_emails || []),
+  }));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [archiving, setArchiving] = useState(false);
+  const snapshot = useMemo(() => JSON.stringify({
+    name: name.trim(), actions, participation, notifications, requireClassPin,
+    forwardEmails: savedForwardEmails(forwardEmails),
+  }), [actions, forwardEmails, name, notifications, participation, requireClassPin]);
+  const dirty = snapshot !== baseline;
+  useEffect(() => { onDirtyChange(dirty || senderDirty); return () => onDirtyChange(false); }, [dirty, onDirtyChange, senderDirty]);
+
+  function setNotification(action: keyof GroupNotifications, enabled: boolean) {
+    if (enabled && !senderReady) {
+      NativeAlert.alert(t("groups.notifications"), t("groups.afterActionBlocked"));
+      return;
+    }
+    setNotifications((current) => ({ ...current, [action]: { ...current[action], send_email: enabled } }));
+    if (enabled) setParticipation((current) => ({ ...current, email_required: true }));
+  }
 
   async function save() {
     setBusy(true); setError(""); setSuccess(""); setFieldErrors({});
@@ -476,21 +552,26 @@ function ConfigurationSection({ groupId, group, api, t, structuredAccess, forwar
       return;
     }
     try {
-      const payload: Record<string, unknown> = {};
-      if (name.trim() !== group.name) payload.name = name.trim();
-      payload.actions = {
+      const nextActions = {
         check_in_enabled: actions.check_in_enabled,
         check_out_enabled: actions.check_out_enabled,
         breaks_enabled: actions.breaks_enabled,
-        max_breaks: actions.breaks_enabled ? actions.max_breaks : null,
+        max_breaks: actions.breaks_enabled ? Math.min(3, Math.max(1, Number(actions.max_breaks) || 1)) : null,
       };
-      payload.participation = {
-        email_required: participation.email_required,
-        pin_required: participation.pin_required,
+      const payload: Record<string, unknown> = {
+        name: name.trim(),
+        actions: nextActions,
+        participation,
+        notifications,
+        advanced: { forward_emails: forwardEmailsAccess ? savedForwardEmails(forwardEmails) : savedForwardEmails(group.forward_emails || group.advanced?.forward_emails || []) },
       };
       if (group.group_type === "structured" && structuredAccess) payload.require_class_pin = requireClassPin;
-      if (forwardEmailsAccess) payload.forward_emails = forwardEmails.map((email) => email.trim()).filter(Boolean);
-      await api.patch(endpoints.group(groupId), payload);
+      const updated = await api.patch(endpoints.group(groupId), payload) as Group;
+      const nextNotifications = resolvedNotifications(updated);
+      const nextForward = normalizeForwardEmailSlots(updated.forward_emails || updated.advanced?.forward_emails);
+      setName(updated.name); setActions(updated.actions); setParticipation(updated.participation);
+      setNotifications(nextNotifications); setForwardEmails(nextForward); setRequireClassPin(updated.require_class_pin);
+      setBaseline(JSON.stringify({ name: updated.name.trim(), actions: updated.actions, participation: updated.participation, notifications: nextNotifications, requireClassPin: updated.require_class_pin, forwardEmails: savedForwardEmails(nextForward) }));
       setSuccess(t("groups.settingsSaved"));
       onSaved();
     } catch (caught) {
@@ -573,7 +654,18 @@ function ConfigurationSection({ groupId, group, api, t, structuredAccess, forwar
         </View>
       </SectionCard>
 
-      <SectionCard title={t("groups.notifications")} description={forwardEmailsAccess ? t("groups.forwardEmailsHint") : t("groups.notificationsHint")}>
+      <SectionCard title={t("groups.afterAction")} description={t("groups.afterActionHint")}>
+        {!senderReady ? <Text style={styles.settingHint}>{t("groups.afterActionBlocked")}</Text> : null}
+        <View style={styles.settingsList}>
+          {actions.check_in_enabled ? <NotificationSetting label={t("groups.afterCheckIn")} value={notifications.check_in} disabled={!senderReady} onEnabled={(value) => setNotification("check_in", value)} onMessage={(value) => setNotifications((current) => ({ ...current, check_in: { ...current.check_in, email_template: value } }))} t={t} /> : null}
+          {actions.check_out_enabled ? <NotificationSetting label={t("groups.afterCheckOut")} value={notifications.check_out} disabled={!senderReady} onEnabled={(value) => setNotification("check_out", value)} onMessage={(value) => setNotifications((current) => ({ ...current, check_out: { ...current.check_out, email_template: value } }))} t={t} /> : null}
+          {actions.breaks_enabled ? <NotificationSetting label={t("groups.afterBreak")} value={notifications.break} disabled={!senderReady} onEnabled={(value) => setNotification("break", value)} onMessage={(value) => setNotifications((current) => ({ ...current, break: { ...current.break, email_template: value } }))} t={t} /> : null}
+        </View>
+      </SectionCard>
+
+      <GroupEmailSender groupId={groupId} onReadyChange={setSenderReady} onDirtyChange={setSenderDirty} />
+
+      <SectionCard title={t("groups.forwardEmails")} description={forwardEmailsAccess ? t("groups.forwardEmailsHint") : t("groups.notificationsHint")}>
         {forwardEmailsAccess ? (
           <View style={styles.forwardEmailList}>
             {forwardEmails.map((email, index) => (
@@ -590,13 +682,13 @@ function ConfigurationSection({ groupId, group, api, t, structuredAccess, forwar
                   value={email}
                 />
                 {forwardEmails.length > 1 ? (
-                  <Pressable accessibilityLabel={`${t("groups.remove")} ${index + 1}`} accessibilityRole="button" hitSlop={8} onPress={() => setForwardEmails((current) => current.filter((_, itemIndex) => itemIndex !== index))} style={({ pressed }) => [styles.removeEmail, pressed && styles.tabPressed]}>
+                  <Pressable accessibilityLabel={`${t("groups.remove")} ${index + 1}`} accessibilityRole="button" hitSlop={8} onPress={() => setForwardEmails((current) => normalizeForwardEmailSlots(current.filter((_, itemIndex) => itemIndex !== index)))} style={({ pressed }) => [styles.removeEmail, pressed && styles.tabPressed]}>
                     <Text style={styles.removeEmailText}>{t("groups.remove")}</Text>
                   </Pressable>
                 ) : null}
               </View>
             ))}
-            {forwardEmails.length < 3 ? (
+            {forwardEmails.length < MAX_PARTICIPATION_EMAILS ? (
               <Pressable accessibilityRole="button" onPress={() => setForwardEmails((current) => [...current, ""])} style={({ pressed }) => [styles.addEmailButton, pressed && styles.tabPressed]}>
                 <Text style={styles.addEmailButtonText}>{t("groups.addAnotherForwardEmail")}</Text>
               </Pressable>
@@ -610,7 +702,7 @@ function ConfigurationSection({ groupId, group, api, t, structuredAccess, forwar
         )}
       </SectionCard>
 
-      <Button label={busy ? t("groups.savingChanges") : t("groups.saveChanges")} loading={busy} disabled={busy || archiving} onPress={() => void save()} />
+      <Button label={busy ? t("groups.savingChanges") : t("groups.saveChanges")} loading={busy} disabled={busy || archiving || !dirty} onPress={() => void save()} />
 
       <View style={styles.dangerZone}>
         <Text style={styles.dangerTitle}>{t("groups.dangerZone")}</Text>
@@ -630,7 +722,14 @@ function ConfigurationSection({ groupId, group, api, t, structuredAccess, forwar
   );
 }
 
-function SettingSwitch({ label, hint, value, onValueChange }: { label: string; hint?: string; value: boolean; onValueChange: (value: boolean) => void }) {
+function NotificationSetting({ label, value, disabled, onEnabled, onMessage, t }: { label: string; value: { send_email: boolean; email_template: string }; disabled: boolean; onEnabled: (enabled: boolean) => void; onMessage: (message: string) => void; t: (key: string) => string }) {
+  return <View style={styles.notificationSetting}>
+    <SettingSwitch label={label} value={value.send_email} disabled={disabled} onValueChange={onEnabled} />
+    {value.send_email ? <Field multiline label={t("groups.emailMessage")} hint={t("groups.emailMessageHint")} value={value.email_template} onChangeText={onMessage} /> : null}
+  </View>;
+}
+
+function SettingSwitch({ label, hint, value, onValueChange, disabled = false }: { label: string; hint?: string; value: boolean; onValueChange: (value: boolean) => void; disabled?: boolean }) {
   return (
     <View style={styles.settingRow}>
       <View style={styles.settingCopy}>
@@ -639,6 +738,7 @@ function SettingSwitch({ label, hint, value, onValueChange }: { label: string; h
       </View>
       <Switch
         accessibilityLabel={label}
+        disabled={disabled}
         ios_backgroundColor={colors.borderStrong}
         onValueChange={onValueChange}
         trackColor={{ false: colors.borderStrong, true: colors.blue }}
@@ -650,10 +750,26 @@ function SettingSwitch({ label, hint, value, onValueChange }: { label: string; h
 }
 
 function KioskSection({ groupId, group, api, t, canKiosk, canConfigure, router }: { groupId: string; group: Group; api: any; t: (key: string, vars?: Record<string, string | number>) => string; canKiosk: boolean; canConfigure: boolean; router: any }) {
+  const [readiness, setReadiness] = useState<KioskSettingsReadiness | null>(null);
+  const [loading, setLoading] = useState(canConfigure);
+  const [error, setError] = useState("");
+  const load = useCallback(async () => {
+    if (!canConfigure) { setLoading(false); return; }
+    setLoading(true); setError("");
+    try { setReadiness(kioskSettingsReadiness(await api.get(endpoints.kioskSettings(groupId)))); }
+    catch (caught) { setReadiness(null); setError(caught instanceof Error ? caught.message : t("common.error")); }
+    finally { setLoading(false); }
+  }, [api, canConfigure, groupId, t]);
+  useFocusEffect(useCallback(() => { void load(); }, [load]));
+  const blocked = isKioskLaunchBlocked({ groupReadiness: group.readiness, canInspectKioskSettings: canConfigure, settingsLoading: loading, kioskReadiness: readiness });
+  const issues = groupLaunchIssueKeys(group.readiness).map((issue) => t(issue.key, issue.count == null ? undefined : { count: issue.count }));
+  if (!issues.length && readiness?.ready === false) issues.push(...readiness.issues);
   return (
     <SectionCard title="Kiosk">
+      <Alert message={error} />
+      {blocked && issues.length ? <View style={styles.readinessIssues}><Text style={styles.settingLabel}>{t("groups.kioskNeedsAttention")}</Text>{issues.map((issue) => <Text key={issue} style={styles.settingHint}>• {issue}</Text>)}</View> : null}
       {canKiosk ? (
-        <Button label={t("kiosk.open")} onPress={() => router.push(`/kiosk/${groupId}`)} />
+        <Button disabled={blocked} label={t("groups.launchKiosk")} onPress={() => { if (!blocked) router.push(`/kiosk/${groupId}`); }} />
       ) : null}
       {canConfigure ? (
         <View style={{ marginTop: space.sm }}>
@@ -675,6 +791,7 @@ function Info({ label, value }: { label: string; value: string }) {
 
 const styles = StyleSheet.create({
   screen: { padding: 0 },
+  lockedScreen: { gap: space.md, justifyContent: "center" },
   content: { padding: space.lg, paddingBottom: space.xxxl, gap: space.lg },
   headerMeta: { flexDirection: "row", flexWrap: "wrap", gap: space.sm, marginTop: -space.sm },
   detailTabs: { flexDirection: "row", padding: 3, borderRadius: 10, backgroundColor: colors.surfaceSubtle },
@@ -718,6 +835,7 @@ const styles = StyleSheet.create({
   choiceTextActive: { color: colors.bluePressed },
   forwardEmailList: { gap: space.md },
   forwardEmailRow: { flexDirection: "row", alignItems: "flex-end", gap: space.sm },
+  participationEmailRow: { flexDirection: "row", alignItems: "flex-end", gap: space.sm },
   forwardEmailField: { flex: 1 },
   removeEmail: { minHeight: 44, justifyContent: "center", paddingHorizontal: space.xs, marginBottom: 1 },
   removeEmailText: { ...type.captionStrong, color: colors.dangerText },
@@ -740,4 +858,6 @@ const styles = StyleSheet.create({
   memberOptionTextSelected: { color: colors.blue, fontWeight: "600" },
   emptyText: { ...type.caption, color: colors.textMuted, paddingVertical: space.lg, textAlign: "center" },
   addEmailLink: { ...type.captionStrong, color: colors.blue, marginTop: space.xs },
+  notificationSetting: { paddingHorizontal: space.lg, paddingVertical: space.xs, gap: space.sm, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
+  readinessIssues: { gap: space.xs, marginBottom: space.md },
 });

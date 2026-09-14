@@ -1,4 +1,4 @@
-import { canManageOwnerAccount, canManageStaffAccounts, canViewBilling, canViewGlobalMembers, canManageWorkspace } from "@checkstation/domain";
+import { canAccessStaffManagement, canManageOwnerAccount, canManageStaffAccounts, canViewBilling, canViewGlobalMembers, canManageWorkspace } from "@checkstation/domain";
 import type { WorkspaceSession } from "@checkstation/domain";
 export type Copy = [string, string];
 export type Step = { title: Copy; body: Copy; route: string; selector: string; tab?: number; reveal?: "member-edit" | "email-sender"; access?: "members" | "staff" | "account" | "plan" | "configure" };
@@ -70,7 +70,7 @@ export const guides: Guide[] = [
   { id: "account", title: ["Account & Security", "アカウントとセキュリティ"], description: ["Recovery, sign-in methods, 2FA, and Plan.", "復旧・ログイン方法・二要素認証・プラン。"], minutes: 3, steps: account },
 ];
 export function availableSteps(guide: Guide, session: WorkspaceSession | null | undefined) {
-  const access = { members: canViewGlobalMembers(session), staff: canManageStaffAccounts(session), account: canManageOwnerAccount(session), plan: canViewBilling(session), configure: canManageWorkspace(session) };
+  const access = { members: canViewGlobalMembers(session), staff: canAccessStaffManagement(session, canManageStaffAccounts(session)), account: canManageOwnerAccount(session), plan: canViewBilling(session), configure: canManageWorkspace(session) };
   return guide.steps.filter(item => !item.access || access[item.access]);
 }
 export const completionId = (id: string) => "desktop-guide-" + id + "-v1";

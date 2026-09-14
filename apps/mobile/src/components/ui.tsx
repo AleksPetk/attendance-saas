@@ -17,6 +17,7 @@ import {
 import { colors, radii, shadows, space, touch, type } from "../theme/tokens";
 
 const wordmarkSource = require("../../../../frontend/src/assets/brand/logo-text.png");
+const googleMarkSource = require("../../../../frontend/src/assets/auth/google-g.png");
 
 export function Screen({ children, style }: { children: React.ReactNode; style?: StyleProp<ViewStyle> }) {
   return <View style={[styles.screen, style]}>{children}</View>;
@@ -242,11 +243,15 @@ export function OAuthProviderButtons({
   return (
     <View style={styles.oauthStack}>
       <Pressable accessibilityRole="button" onPress={notifyUnavailable} style={({ pressed }) => [styles.oauthButton, pressed && styles.oauthPressed]}>
-        <Ionicons color={colors.blue} name="logo-google" size={21} />
+        <View style={styles.oauthIcon}>
+          <Image accessibilityIgnoresInvertColors resizeMode="contain" source={googleMarkSource} style={styles.googleMark} />
+        </View>
         <Text style={styles.oauthLabel}>{googleLabel}</Text>
       </Pressable>
       <Pressable accessibilityRole="button" onPress={notifyUnavailable} style={({ pressed }) => [styles.oauthButton, pressed && styles.oauthPressed]}>
-        <Ionicons color={colors.text} name="logo-apple" size={21} />
+        <View style={styles.oauthIcon}>
+          <Ionicons color={colors.text} name="logo-apple" size={21} />
+        </View>
         <Text style={styles.oauthLabel}>{appleLabel}</Text>
       </Pressable>
     </View>
@@ -360,7 +365,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: space.sm,
   },
-  buttonLabel: { ...type.bodyStrong, color: colors.surface },
+  buttonLabel: { ...type.bodyStrong, color: colors.surface, textAlign: "center", flexShrink: 1 },
   buttonLabelSecondary: { color: colors.text },
   disabled: { opacity: 0.55, shadowOpacity: 0, elevation: 0 },
   field: { gap: space.sm },
@@ -409,6 +414,8 @@ const styles = StyleSheet.create({
   passwordToggle: { width: 44, height: 44, alignItems: "center", justifyContent: "center", borderRadius: radii.sm },
   passwordTogglePressed: { backgroundColor: colors.surfaceMuted },
   oauthStack: { gap: space.sm },
+  oauthIcon: { width: 24, height: 24, alignItems: "center", justifyContent: "center" },
+  googleMark: { width: 21, height: 22 },
   oauthButton: { minHeight: 46, borderWidth: 1, borderColor: colors.borderStrong, borderRadius: radii.sm, backgroundColor: colors.surface, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: space.sm },
   oauthPressed: { backgroundColor: colors.surfaceMuted },
   oauthLabel: { ...type.bodyStrong, color: colors.text },

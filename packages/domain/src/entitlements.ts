@@ -50,6 +50,45 @@ export function hasPlanFeature(
   return Boolean(features[featureKey]);
 }
 
+export function workspacePlanDisplayName(session: WorkspaceSession | null | undefined): string {
+  return entitlementsFromSession(session)?.plan?.display_name || "Basic";
+}
+
+/** Limit from the workspace entitlement snapshot. Null when the backend did not send a numeric cap. */
+export function planLimitValue(
+  session: WorkspaceSession | null | undefined,
+  limitKey: string,
+): number | null {
+  const limits = entitlementsFromSession(session)?.limits;
+  if (!limits || !(limitKey in limits)) return null;
+  const value = limits[limitKey];
+  return typeof value === "number" ? value : null;
+}
+
+/** True only when the shared backend snapshot says this category still needs a one-time decision. */
+export function selectionRequired(
+  session: WorkspaceSession | null | undefined,
+  kind: string,
+): boolean {
+  return Boolean(entitlementsFromSession(session)?.selection_required?.[kind]);
+}
+
+/** Role can manage staff AND the current entitlement snapshot includes staff_management. */
+export function canAccessStaffManagement(
+  session: WorkspaceSession | null | undefined,
+  roleCanManageStaff: boolean,
+): boolean {
+  return Boolean(roleCanManageStaff) && hasPlanFeature(session, "staff_management");
+}
+
+/** Show Staff nav as a locked affordance when the role could manage staff but the plan does not include it. */
+export function shouldShowLockedStaffNav(
+  session: WorkspaceSession | null | undefined,
+  roleCanManageStaff: boolean,
+): boolean {
+  return Boolean(roleCanManageStaff) && !hasPlanFeature(session, "staff_management");
+}
+
 export function isOwner(session: WorkspaceSession | null | undefined): boolean {
   return session?.role === "owner";
 }

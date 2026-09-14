@@ -1,7 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { Redirect, Tabs } from "expo-router";
-import { StyleSheet, useWindowDimensions, View, type ColorValue } from "react-native";
+import { StyleSheet, View, type ColorValue } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { canViewGlobalMembers } from "@checkstation/domain";
 import { LoadingState, Screen } from "../../../src/components/ui";
 import { useApp } from "../../../src/lib/AppProvider";
@@ -20,23 +21,21 @@ function tabIcon(name: TabIconName, activeName: TabIconName = name) {
 
 export default function AppTabsLayout() {
   const { ready, authState, t } = useApp();
-  const { width } = useWindowDimensions();
-  if (!ready) return <Screen><LoadingState label={t("common.loading")} /></Screen>;
+  const insets = useSafeAreaInsets();
+  if (!ready) return <Screen style={{ paddingTop: insets.top, paddingBottom: insets.bottom }}><LoadingState label={t("common.loading")} /></Screen>;
   if (authState.status !== "authenticated") return <Redirect href="/(auth)/sign-in" />;
 
-  const tablet = width >= 768;
   const showMembers = canViewGlobalMembers(authState.session);
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
+        sceneStyle: { paddingTop: insets.top, paddingLeft: insets.left, paddingRight: insets.right },
         tabBarActiveTintColor: colors.bluePressed,
         tabBarInactiveTintColor: colors.textMuted,
         tabBarLabelStyle: { fontSize: 12, fontWeight: "600", letterSpacing: 0.1 },
-        tabBarPosition: tablet ? "left" : "bottom",
-        tabBarStyle: tablet
-          ? { width: 220, backgroundColor: colors.surface, borderRightColor: colors.border, paddingTop: 24 }
-          : { backgroundColor: colors.surfaceSubtle, borderTopColor: colors.infoBorder, height: 84, paddingTop: 7, paddingBottom: 22, ...shadows.sm },
+        tabBarPosition: "bottom",
+        tabBarStyle: { backgroundColor: colors.surfaceSubtle, borderTopColor: colors.infoBorder, paddingTop: 7, ...shadows.sm },
       }}
     >
       <Tabs.Screen name="home" options={{ title: t("nav.home"), tabBarIcon: tabIcon("home-outline", "home") }} />

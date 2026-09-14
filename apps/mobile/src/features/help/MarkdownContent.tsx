@@ -5,7 +5,7 @@ import { classifyContentHref, stripLeadingDocumentTitle } from "./markdown";
 
 const INLINE_TOKEN = /(`[^`\n]+`|\[[^\]\n]+\]\([^)\n]+\)|\*\*[^*\n]+\*\*|\*[^*\n]+\*)/g;
 
-function Inline({ text, onDocument }: { text: string; onDocument: (slug: string) => void }) {
+function Inline({ text, onDocument, onExternal }: { text: string; onDocument: (slug: string) => void; onExternal?: (href: string) => void }) {
   const nodes: ReactNode[] = [];
   let cursor = 0;
   let index = 0;
@@ -21,7 +21,7 @@ function Inline({ text, onDocument }: { text: string; onDocument: (slug: string)
       const label = link?.[1] || token;
       const target = classifyContentHref(link?.[2] || "");
       if (target.kind === "internal-document") nodes.push(<Text accessibilityRole="link" key={key} onPress={() => onDocument(target.slug)} style={styles.link}>{label}</Text>);
-      else if (target.kind === "external") nodes.push(<Text accessibilityRole="link" key={key} onPress={() => void Linking.openURL(target.href)} style={styles.link}>{label}</Text>);
+      else if (target.kind === "external") nodes.push(<Text accessibilityRole="link" key={key} onPress={() => onExternal ? onExternal(target.href) : void Linking.openURL(target.href)} style={styles.link}>{label}</Text>);
       else nodes.push(label);
     }
     cursor = (match.index ?? 0) + token.length;
@@ -32,14 +32,14 @@ function Inline({ text, onDocument }: { text: string; onDocument: (slug: string)
 
 function cells(line: string) { return line.trim().replace(/^\||\|$/g, "").split("|").map((cell) => cell.trim()); }
 
-export function MarkdownContent({ markdown, title = "", onDocument }: { markdown: string; title?: string; onDocument: (slug: string) => void }) {
+export function MarkdownContent({ markdown, title = "", onDocument, onExternal }: { markdown: string; title?: string; onDocument: (slug: string) => void; onExternal?: (href: string) => void }) {
   const lines = stripLeadingDocumentTitle(markdown, title).replace(/\r\n/g, "\n").split("\n");
   const blocks: ReactNode[] = [];
   let paragraph: string[] = [];
   const flush = () => {
     if (!paragraph.length) return;
     const value = paragraph.join(" "); paragraph = [];
-    blocks.push(<Text key={`p-${blocks.length}`} style={styles.paragraph}><Inline onDocument={onDocument} text={value} /></Text>);
+    blocks.push(<Text key={`p-${blocks.length}`} style={styles.paragraph}><Inline onDocument={onDocument} onExternal={onExternal} text={value} /></Text>);
   };
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index];
@@ -56,12 +56,12 @@ export function MarkdownContent({ markdown, title = "", onDocument }: { markdown
       blocks.push(<ScrollView horizontal key={`table-${blocks.length}`}><View style={styles.table}>{[headers, ...rows].map((row, rowIndex) => <View key={rowIndex} style={[styles.tableRow, rowIndex === 0 && styles.tableHead]}>{headers.map((_, cellIndex) => <Text key={cellIndex} style={[styles.tableCell, rowIndex === 0 && styles.strong]}>{row[cellIndex] || ""}</Text>)}</View>)}</View></ScrollView>); continue;
     }
     const heading = /^(#{1,4})\s+(.+)$/.exec(line);
-    if (heading) { flush(); blocks.push(<Text accessibilityRole="header" key={`h-${blocks.length}`} style={heading[1].length <= 2 ? styles.heading : styles.subheading}><Inline onDocument={onDocument} text={heading[2]} /></Text>); continue; }
+    if (heading) { flush(); blocks.push(<Text accessibilityRole="header" key={`h-${blocks.length}`} style={heading[1].length <= 2 ? styles.heading : styles.subheading}><Inline onDocument={onDocument} onExternal={onExternal} text={heading[2]} /></Text>); continue; }
     if (/^(-{3,}|\*{3,}|_{3,})\s*$/.test(line)) { flush(); blocks.push(<View key={`hr-${blocks.length}`} style={styles.rule} />); continue; }
     const quote = /^>\s?(.+)$/.exec(line);
-    if (quote) { flush(); blocks.push(<View key={`q-${blocks.length}`} style={styles.quote}><Text style={styles.paragraph}><Inline onDocument={onDocument} text={quote[1]} /></Text></View>); continue; }
+    if (quote) { flush(); blocks.push(<View key={`q-${blocks.length}`} style={styles.quote}><Text style={styles.paragraph}><Inline onDocument={onDocument} onExternal={onExternal} text={quote[1]} /></Text></View>); continue; }
     const item = /^\s*(?:[-*]|\d+\.)\s+(.+)$/.exec(line);
-    if (item) { flush(); blocks.push(<View key={`li-${blocks.length}`} style={styles.listRow}><Text style={styles.bullet}>•</Text><Text style={styles.listText}><Inline onDocument={onDocument} text={item[1]} /></Text></View>); continue; }
+    if (item) { flush(); blocks.push(<View key={`li-${blocks.length}`} style={styles.listRow}><Text style={styles.bullet}>•</Text><Text style={styles.listText}><Inline onDocument={onDocument} onExternal={onExternal} text={item[1]} /></Text></View>); continue; }
     paragraph.push(line.trim());
   }
   flush();

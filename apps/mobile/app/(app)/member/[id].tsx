@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import { Alert as NativeAlert, ScrollView, StyleSheet, Text, View } from "react-native";
 import { endpoints } from "@checkstation/api";
-import { canManageWorkspace, canViewGlobalMembers } from "@checkstation/domain";
+import { canManageWorkspace, canViewGlobalMembers, isPlanResourceLocked } from "@checkstation/domain";
 import { Alert, Button, LoadingState, Screen, TextLink } from "../../../src/components/ui";
 import { PageHeader, SectionCard, StatusPill } from "../../../src/components/mobile";
 import { Avatar } from "../../../src/components/Avatar";
@@ -13,10 +13,11 @@ import { colors, space, type } from "../../../src/theme/tokens";
 type Member = MemberRecord & { full_name?: string; check_in_identifier?: string };
 export default function MemberDetailScreen() {
   const router = useRouter(); const [editing, setEditing] = useState(false); const [busy, setBusy] = useState(false);
-  const { id } = useLocalSearchParams<{ id: string }>(); const { api, authState, t } = useApp(); const [member, setMember] = useState<Member | null>(null); const [loading, setLoading] = useState(true); const [error, setError] = useState("");
-  useEffect(() => { let cancelled = false; void api.get<Member>(endpoints.member(id)).then((value) => { if (!cancelled) setMember(value); }).catch((caught) => { if (!cancelled) setError(caught instanceof Error ? caught.message : t("common.error")); }).finally(() => { if (!cancelled) setLoading(false); }); return () => { cancelled = true; }; }, [api, id, t]);
+  const { id } = useLocalSearchParams<{ id: string }>(); const { api, authState, t } = useApp(); const [member, setMember] = useState<Member | null>(null); const [loading, setLoading] = useState(true); const [error, setError] = useState(""); const [planLocked, setPlanLocked] = useState(false);
+  useEffect(() => { let cancelled = false; void api.get<Member>(endpoints.member(id)).then((value) => { if (!cancelled) setMember(value); }).catch((caught) => { if (cancelled) return; if (isPlanResourceLocked(caught)) setPlanLocked(true); else setError(caught instanceof Error ? caught.message : t("common.error")); }).finally(() => { if (!cancelled) setLoading(false); }); return () => { cancelled = true; }; }, [api, id, t]);
   if (!canViewGlobalMembers(authState.session)) return <Redirect href="/(app)/(tabs)/home" />;
   if (loading) return <Screen><LoadingState label={t("members.loading")} /></Screen>;
+  if (planLocked) return <Screen style={styles.screen}><View style={styles.content}><PageHeader title={t("members.detail.unavailable")} description={t("members.detail.lockedMessage")} /><Button label={t("members.detail.back")} onPress={() => router.replace("/(app)/(tabs)/people")} variant="secondary" /></View></Screen>;
   async function mutate(action: "archive" | "restore" | "permanently-delete") {
     setBusy(true); setError("");
     try {

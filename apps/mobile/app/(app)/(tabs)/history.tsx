@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { LinearGradient } from "expo-linear-gradient";
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { useFocusEffect } from "expo-router";
 import { ApiError, endpoints, type ApiClient } from "@checkstation/api";
 import { formatDateTime, type AppLocale } from "@checkstation/i18n";
@@ -9,6 +9,7 @@ import { ActionIcon, EmptyPanel, PageHeader, SearchField, SectionCard } from "..
 import { AttendanceReportPanel } from "../../../src/features/history/AttendanceReportPanel";
 import { DateField, SelectField, type PickerOption } from "../../../src/features/history/HistoryPicker";
 import { useApp } from "../../../src/lib/AppProvider";
+import { topComfortGap } from "../../../src/components/safeArea";
 import { colors, radii, space, type } from "../../../src/theme/tokens";
 
 type HistoryView = "activity" | "report";
@@ -36,6 +37,8 @@ function HistoryHeader({ view, setView, t }: { view: HistoryView; setView: (view
 }
 
 function ActivityLog({ api, locale, t, view, setView }: { api: ApiClient; locale: AppLocale; t: (key: string, vars?: Record<string, string | number>) => string; view: HistoryView; setView: (view: HistoryView) => void }) {
+  const { width } = useWindowDimensions();
+  const tablet = width >= 700;
   const [rows, setRows] = useState<HistoryRow[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
   const [search, setSearch] = useState("");
@@ -107,7 +110,10 @@ function ActivityLog({ api, locale, t, view, setView }: { api: ApiClient; locale
       </View>
     </SectionCard>
     <Alert message={error} />
-    {loading ? <View style={styles.loading}><LoadingState label={t("history.loading")} /></View> : rows.length === 0 ? <EmptyPanel body={t("history.emptyBody")} icon="time-outline" title={t("history.emptyTitle")} /> : <View style={styles.timeline}>{rows.map((row) => <View key={row.id} style={styles.row}><ActionIcon action={row.action} /><View style={styles.main}><View style={styles.topLine}><Text numberOfLines={1} style={styles.name}>{row.person?.name || t("common.unknown")}</Text><Text style={styles.action}>{actionLabel(row.action, t)}</Text></View><Text numberOfLines={1} style={styles.meta}>{row.group_name || ""}{row.class_name ? ` · ${row.class_name}` : ""}{row.source ? ` · ${row.source}` : ""}</Text><Text style={styles.when}>{row.performed_at ? formatDateTime(row.performed_at, locale) : ""}</Text></View></View>)}</View>}
+    {loading ? <View style={styles.loading}><LoadingState label={t("history.loading")} /></View> : rows.length === 0 ? <EmptyPanel body={t("history.emptyBody")} icon="time-outline" title={t("history.emptyTitle")} /> : <View style={styles.timeline}>{rows.map((row) => {
+      const identifier = [row.person?.email, row.person?.check_in_identifier].filter(Boolean).join(" · ");
+      return <View key={row.id} style={[styles.row, actionRowStyle(row.action)]}><ActionIcon action={row.action} /><View style={styles.main}><View style={styles.topLine}><Text numberOfLines={1} style={styles.name}>{row.person?.name || t("common.unknown")}</Text><ActionBadge action={row.action} label={actionLabel(row.action, t)} /></View>{tablet && identifier ? <Text numberOfLines={1} style={styles.identifier}>{identifier}</Text> : null}<Text numberOfLines={1} style={styles.meta}>{row.group_name || ""}{row.class_name ? ` · ${row.class_name}` : ""}{row.source ? ` · ${row.source}` : ""}</Text><Text style={styles.when}>{row.performed_at ? formatDateTime(row.performed_at, locale) : ""}</Text></View></View>;
+    })}</View>}
   </ScrollView>;
 }
 
@@ -119,6 +125,20 @@ function actionLabel(action: string | undefined, t: (key: string) => string) {
   return action?.replace(/_/g, " ") || t("history.action");
 }
 
+function ActionBadge({ action, label }: { action?: string; label: string }) {
+  const background = action === "check_in" ? styles.actionCheckIn : action === "check_out" ? styles.actionCheckOut : action === "break_start" ? styles.actionBreakStart : action === "break_end" ? styles.actionBreakEnd : styles.actionDefault;
+  const text = action === "check_in" ? styles.actionTextCheckIn : action === "check_out" ? styles.actionTextCheckOut : action === "break_start" ? styles.actionTextBreakStart : action === "break_end" ? styles.actionTextBreakEnd : styles.actionTextDefault;
+  return <View style={[styles.actionBadge, background]}><Text style={[styles.actionBadgeText, text]}>{label}</Text></View>;
+}
+
+function actionRowStyle(action?: string) {
+  if (action === "check_in") return styles.rowCheckIn;
+  if (action === "check_out") return styles.rowCheckOut;
+  if (action === "break_start") return styles.rowBreakStart;
+  if (action === "break_end") return styles.rowBreakEnd;
+  return undefined;
+}
+
 const styles = StyleSheet.create({
-  screen: { padding: 0 }, content: { padding: space.lg, paddingBottom: space.xxxl, gap: space.lg, width: "100%", maxWidth: 1120, alignSelf: "center" }, viewSwitcher: { width: "100%", maxWidth: 352, flexDirection: "row", gap: space.xs, padding: space.xs, borderWidth: 1, borderColor: colors.borderStrong, borderRadius: radii.md, backgroundColor: colors.surfaceSubtle }, viewTab: { flex: 1, minWidth: 0, borderRadius: radii.sm }, viewTabActive: { shadowColor: colors.blue, shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.28, shadowRadius: 2, elevation: 2 }, viewTabPressed: { opacity: 0.78 }, viewTabSurface: { minHeight: 40, paddingHorizontal: space.sm, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "transparent", borderRadius: radii.sm }, viewTabInactive: { backgroundColor: colors.surfaceMuted }, viewTabText: { ...type.captionStrong, color: colors.navy, textAlign: "center" }, viewTabTextActive: { color: colors.surface }, loading: { minHeight: 220 }, activityFilters: { gap: space.md }, filterRow: { flexDirection: "row", gap: space.sm }, filterHalf: { flex: 1 }, dayRow: { flexDirection: "row", alignItems: "flex-end", gap: space.sm }, dayField: { flex: 1 }, clearButton: { minHeight: 44, alignItems: "center", justifyContent: "center", paddingHorizontal: space.md, borderRadius: radii.sm, backgroundColor: colors.blueSoft }, clearText: { ...type.captionStrong, color: colors.bluePressed }, timeline: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radii.lg, overflow: "hidden" }, row: { minHeight: 84, flexDirection: "row", alignItems: "flex-start", gap: space.md, padding: space.lg, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border }, main: { flex: 1, gap: 3 }, topLine: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: space.sm }, name: { ...type.bodyStrong, color: colors.text, flexShrink: 1 }, action: { ...type.captionStrong, color: colors.blue }, meta: { ...type.caption, color: colors.textSecondary }, when: { fontSize: 12, color: colors.textMuted },
+  screen: { padding: 0 }, content: { padding: space.lg, paddingTop: topComfortGap, paddingBottom: space.xxxl, gap: space.lg, width: "100%", maxWidth: 1120, alignSelf: "center" }, viewSwitcher: { width: "100%", maxWidth: 352, flexDirection: "row", gap: space.xs, padding: space.xs, borderWidth: 1, borderColor: colors.borderStrong, borderRadius: radii.md, backgroundColor: colors.surfaceSubtle }, viewTab: { flex: 1, minWidth: 0, borderRadius: radii.sm }, viewTabActive: { shadowColor: colors.blue, shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.28, shadowRadius: 2, elevation: 2 }, viewTabPressed: { opacity: 0.78 }, viewTabSurface: { minHeight: 40, paddingHorizontal: space.sm, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "transparent", borderRadius: radii.sm }, viewTabInactive: { backgroundColor: colors.surfaceMuted }, viewTabText: { ...type.captionStrong, color: colors.navy, textAlign: "center" }, viewTabTextActive: { color: colors.surface }, loading: { minHeight: 220 }, activityFilters: { gap: space.md }, filterRow: { flexDirection: "row", gap: space.sm }, filterHalf: { flex: 1 }, dayRow: { flexDirection: "row", alignItems: "flex-end", gap: space.sm }, dayField: { flex: 1 }, clearButton: { minHeight: 44, alignItems: "center", justifyContent: "center", paddingHorizontal: space.md, borderRadius: radii.sm, backgroundColor: colors.blueSoft }, clearText: { ...type.captionStrong, color: colors.bluePressed }, timeline: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radii.lg, overflow: "hidden" }, row: { minHeight: 84, flexDirection: "row", alignItems: "flex-start", gap: space.md, padding: space.lg, borderLeftWidth: 3, borderLeftColor: "transparent", borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border }, rowCheckIn: { borderLeftColor: colors.green }, rowCheckOut: { borderLeftColor: colors.blue }, rowBreakStart: { borderLeftColor: colors.warningText }, rowBreakEnd: { borderLeftColor: colors.cyan }, main: { flex: 1, gap: 3 }, topLine: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: space.sm }, name: { ...type.bodyStrong, color: colors.text, flexShrink: 1 }, actionBadge: { borderRadius: radii.pill, paddingHorizontal: space.sm, paddingVertical: 3 }, actionBadgeText: { ...type.captionStrong }, actionCheckIn: { backgroundColor: colors.successSoft }, actionTextCheckIn: { color: colors.successText }, actionCheckOut: { backgroundColor: colors.blueSoft }, actionTextCheckOut: { color: colors.bluePressed }, actionBreakStart: { backgroundColor: colors.warningSoft }, actionTextBreakStart: { color: colors.warningText }, actionBreakEnd: { backgroundColor: colors.cyanSoft }, actionTextBreakEnd: { color: colors.textSecondary }, actionDefault: { backgroundColor: colors.surfaceMuted }, actionTextDefault: { color: colors.textSecondary }, identifier: { ...type.caption, color: colors.bluePressed }, meta: { ...type.caption, color: colors.textSecondary }, when: { fontSize: 12, color: colors.textMuted },
 });

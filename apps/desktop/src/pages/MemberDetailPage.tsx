@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { ApiError, endpoints, fieldErrorsFromBody } from "@checkstation/api";
 import { canManageWorkspace, canViewGlobalMembers } from "@checkstation/domain";
 import { Alert, Badge, Button, Card, Field, Input, Loading, Page, PageHeader, TextArea, formatError } from "../components/ui";
 import { AuthenticatedImage } from "../components/AuthenticatedImage";
 import { useApp } from "../lib/AppProvider";
+import { isPlanResourceLocked } from "../lib/planCapacity";
 
 type Member = {
   id: number;
@@ -33,6 +34,7 @@ const emptyValues: MemberValues = { name: "", email: "", phone: "", date_of_birt
 
 export function MemberDetailPage() {
   const { id = "" } = useParams();
+  const navigate = useNavigate();
   const { api, authState, t } = useApp();
   const [member, setMember] = useState<Member | null>(null);
   const [values, setValues] = useState<MemberValues>(emptyValues);
@@ -43,17 +45,21 @@ export function MemberDetailPage() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [planLockedDenied, setPlanLockedDenied] = useState(false);
   const [fields, setFields] = useState<Record<string, string>>({});
   const canManage = canManageWorkspace(authState.session);
 
   const load = useCallback(async () => {
     setLoading(true);
+    setPlanLockedDenied(false);
     try {
       const value = await api.get<Member>(endpoints.member(id));
       setMember(value);
       setValues(valuesFromMember(value));
     } catch (caught) {
-      setError(formatError(caught, t("common.error")));
+      setMember(null);
+      if (isPlanResourceLocked(caught)) setPlanLockedDenied(true);
+      else setError(formatError(caught, t("common.error")));
     } finally {
       setLoading(false);
     }
@@ -131,6 +137,7 @@ export function MemberDetailPage() {
   }
 
   if (loading) return <Page><Loading label={t("members.loading")} /></Page>;
+  if (planLockedDenied) return <Page><section className="plan-locked-banner" role="status"><Badge tone="warning">{t("members.planLocked")}</Badge><strong>{t("members.detail.unavailable")}</strong><p>{t("members.detail.lockedMessage")}</p><Button onClick={() => navigate("/people")} variant="secondary">{t("members.detail.back")}</Button></section></Page>;
   if (!member) return <Page><Alert>{error}</Alert></Page>;
 
   if (editing) {

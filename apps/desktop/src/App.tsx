@@ -1,4 +1,5 @@
 import { Navigate, Route, Routes } from "react-router-dom";
+import { canAccessStaffManagement, canManageStaffAccounts } from "@checkstation/domain";
 import { useApp } from "./lib/AppProvider";
 import { DesktopShell } from "./shell/DesktopShell";
 import { SignInPage } from "./pages/SignInPage";
@@ -19,6 +20,14 @@ import { KioskSettingsPage } from "./pages/KioskSettingsPage";
 import { KioskDesignPage } from "./pages/KioskDesignPage";
 import { EmailLinkPage } from "./pages/EmailLinkPage";
 import { DesktopGuidedHelpProvider } from "./tutorials/DesktopGuidedHelp";
+
+function StaffRoute() {
+  const { authState } = useApp();
+  if (!canAccessStaffManagement(authState.session, canManageStaffAccounts(authState.session))) {
+    return <Navigate to="/" replace />;
+  }
+  return <StaffPage />;
+}
 
 export function App() {
   const { ready, authState, t } = useApp();
@@ -65,7 +74,7 @@ export function App() {
         <Route path="/account" element={<AccountPage />} />
         <Route path="/security" element={<SecurityPage />} />
         <Route path="/plan" element={<PlanPage />} />
-        <Route path="/staff" element={<StaffPage />} />
+        <Route path="/staff" element={<StaffRoute />} />
         <Route path="/help" element={<HelpPage />} />
         <Route path="/email-link" element={<EmailLinkPage />} />
       </Route>

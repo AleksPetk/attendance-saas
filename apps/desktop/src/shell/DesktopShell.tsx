@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { canManageOwnerAccount, canManageStaffAccounts, canViewBilling, canViewGlobalMembers, workspacePlanKey } from "@checkstation/domain";
+import { canAccessStaffManagement, canManageOwnerAccount, canManageStaffAccounts, canViewBilling, canViewGlobalMembers, shouldShowLockedStaffNav, workspacePlanKey } from "@checkstation/domain";
 import { Brand, BrandMark, Badge } from "../components/ui";
 import { DesktopAnnouncementBell } from "../components/DesktopAnnouncementBell";
 import { useApp } from "../lib/AppProvider";
@@ -11,24 +11,29 @@ export function DesktopShell() {
   const identity = String(session?.workspace?.identity || session?.actor?.email || "");
   const role = titleCase(String(session?.role || session?.workspace?.role || ""));
   const plan = String(session?.workspace?.entitlements?.plan?.display_name || titleCase(workspacePlanKey(session)));
+  const roleCanManageStaff = canManageStaffAccounts(session);
+  const staffUnlocked = canAccessStaffManagement(session, roleCanManageStaff);
+  const staffLocked = shouldShowLockedStaffNav(session, roleCanManageStaff);
   const items = [
-    { to: "/", label: t("dashboard.title"), icon: "home", show: true },
-    { to: "/people", label: t("nav.members"), icon: "people", show: canViewGlobalMembers(session) },
-    { to: "/groups", label: t("nav.groups"), icon: "groups", show: true },
-    { to: "/history", label: t("nav.history"), icon: "history", show: true },
-    { to: "/staff", label: t("nav.staff"), icon: "staff", show: canManageStaffAccounts(session) },
-    { to: "/account", label: t("nav.account"), icon: "account", show: canManageOwnerAccount(session) },
-    { to: "/plan", label: t("nav.plan"), icon: "plan", show: canViewBilling(session) },
-    { to: "/help", label: t("nav.help"), icon: "help", show: true },
+    { to: "/", label: t("dashboard.title"), icon: "home", show: true, locked: false },
+    { to: "/people", label: t("nav.members"), icon: "people", show: canViewGlobalMembers(session), locked: false },
+    { to: "/groups", label: t("nav.groups"), icon: "groups", show: true, locked: false },
+    { to: "/history", label: t("nav.history"), icon: "history", show: true, locked: false },
+    { to: "/staff", label: t("nav.staff"), icon: "staff", show: staffUnlocked || staffLocked, locked: staffLocked && !staffUnlocked },
+    { to: "/account", label: t("nav.account"), icon: "account", show: canManageOwnerAccount(session), locked: false },
+    { to: "/plan", label: t("nav.plan"), icon: "plan", show: canViewBilling(session), locked: false },
+    { to: "/help", label: t("nav.help"), icon: "help", show: true, locked: false },
   ];
   const page = items.find((item) => item.to === "/" ? location.pathname === "/" : location.pathname.startsWith(item.to));
   function refreshCurrentPage() {
     if (refreshing) return;
     setRefreshing(true);
-    window.setTimeout(() => window.location.reload(), 50);
-    window.setTimeout(() => setRefreshing(false), 1500);
+    void auth.refreshWorkspace().catch(() => undefined).finally(() => {
+      window.setTimeout(() => window.location.reload(), 50);
+      window.setTimeout(() => setRefreshing(false), 1500);
+    });
   }
-  return <div className="app-shell"><aside className="sidebar"><Brand showMark={false} /><nav className="sidebar-nav">{items.filter((item) => item.show).map((item) => <NavLink className={({ isActive }) => `nav-link${isActive ? " is-active" : ""}`} end={item.to === "/"} key={item.to} to={item.to}><NavIcon name={item.icon} />{item.label}</NavLink>)}</nav><div className="sidebar-footer"><div className="sidebar-account-info"><span className="sidebar-account-email">{identity}</span><div className="sidebar-account-role"><span>{role}</span><span aria-hidden="true">·</span><Badge tone="blue">{plan}</Badge></div></div><button className="sidebar-signout" onClick={() => void auth.logout()} type="button">Sign out</button></div></aside><main className="desktop-main"><header className="topbar"><div className="topbar-copy"><span className="topbar-eyebrow">{t("app.name").toUpperCase()}</span><h1>{page?.label || t("app.name")}</h1></div><div className="topbar-actions"><button aria-label="Refresh" className={`desktop-refresh-trigger${refreshing ? " is-refreshing" : ""}`} disabled={refreshing} onClick={refreshCurrentPage} title="Refresh" type="button"><RefreshIcon /></button><DesktopLanguageMenu locale={locale} onSelect={setLocale} /><DesktopAnnouncementBell onViewStatus={() => navigate("/help", { state: { view: "status" } })} /><BrandMark className="topbar-brand-logo" decorative={false} /></div></header><Outlet /></main></div>;
+  return <div className="app-shell"><aside className="sidebar"><Brand showMark={false} /><nav className="sidebar-nav">{items.filter((item) => item.show).map((item) => item.locked ? <button aria-disabled="true" className="nav-link is-plan-locked" key={item.to} title={t("nav.staffLockedHint")} type="button"><NavIcon name={item.icon} />{item.label}<span aria-label={t("common.upgradeRequired")} className="nav-lock-badge">{t("common.locked")}</span></button> : <NavLink className={({ isActive }) => `nav-link${isActive ? " is-active" : ""}`} end={item.to === "/"} key={item.to} to={item.to}><NavIcon name={item.icon} />{item.label}</NavLink>)}</nav><div className="sidebar-footer"><div className="sidebar-account-info"><span className="sidebar-account-email">{identity}</span><div className="sidebar-account-role"><span>{role}</span><span aria-hidden="true">·</span><Badge tone="blue">{plan}</Badge></div></div><button className="sidebar-signout" onClick={() => void auth.logout()} type="button">Sign out</button></div></aside><main className="desktop-main"><header className="topbar"><div className="topbar-copy"><span className="topbar-eyebrow">{t("app.name").toUpperCase()}</span><h1>{page?.label || t("app.name")}</h1></div><div className="topbar-actions"><button aria-label="Refresh" className={`desktop-refresh-trigger${refreshing ? " is-refreshing" : ""}`} disabled={refreshing} onClick={refreshCurrentPage} title="Refresh" type="button"><RefreshIcon /></button><DesktopLanguageMenu locale={locale} onSelect={setLocale} /><DesktopAnnouncementBell onViewStatus={() => navigate("/help", { state: { view: "status" } })} /><BrandMark className="topbar-brand-logo" decorative={false} /></div></header><Outlet /></main></div>;
 }
 
 function titleCase(value: string) {

@@ -73,19 +73,26 @@ export default function SignInScreen() {
     }
   }
 
+  async function cancelTwoFactor() {
+    if (busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      await auth.logout();
+      setTwoFactorValue("");
+      setUseRecoveryCode(false);
+    } catch (caught) {
+      setError(signInErrorMessage(caught, "owner", t));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const twoFactor = authState.status === "needs_2fa";
   return (
     <AuthScreen
       title={twoFactor ? t("auth.twoFactorTitle") : t("auth.ownerTitle")}
       lead={twoFactor ? t("auth.twoFactorLead") : undefined}
-      footnote={!twoFactor ? (
-        <View style={styles.footnoteRow}>
-          <Text style={styles.footnoteText}>{t("auth.staffPrompt")} </Text>
-          <TextLink label={t("auth.staffSignIn")} onPress={() => router.push("/(auth)/staff-sign-in")} />
-          <Text style={styles.footnoteText}> · {t("auth.newHere")} </Text>
-          <TextLink label={t("auth.createAccount")} onPress={() => router.push("/(auth)/register")} />
-        </View>
-      ) : undefined}
     >
       {twoFactor ? (
         <View style={styles.form}>
@@ -106,6 +113,7 @@ export default function SignInScreen() {
           <Alert message={error} />
           <Button label={useRecoveryCode ? t("auth.useAuthenticator") : t("auth.useRecovery")} onPress={() => { setUseRecoveryCode((current) => !current); setTwoFactorValue(""); setError(""); requestAnimationFrame(() => twoFactorRef.current?.focus()); }} variant="secondary" />
           <Button disabled={busy} label={busy ? t("auth.signingIn") : t("auth.verify")} loading={busy} onPress={() => void onTwoFactor()} />
+          <Button disabled={busy} label={t("common.cancel")} onPress={() => void cancelTwoFactor()} variant="secondary" />
         </View>
       ) : (
         <View style={styles.form}>
@@ -121,6 +129,8 @@ export default function SignInScreen() {
           </View>
           <View style={styles.divider}><View style={styles.dividerLine} /><Text style={styles.dividerText}>{t("auth.or")}</Text><View style={styles.dividerLine} /></View>
           <OAuthProviderButtons appleLabel={t("auth.continueApple")} dialogBody={t("auth.oauthComingBody")} dialogTitle={t("auth.oauthComingTitle")} googleLabel={t("auth.continueGoogle")} okLabel={t("common.ok")} />
+          <Button label={t("auth.staffSignIn")} onPress={() => router.push("/(auth)/staff-sign-in")} variant="secondary" />
+          <Button label={t("auth.createAccount")} onPress={() => router.push("/(auth)/register")} variant="secondary" />
         </View>
       )}
     </AuthScreen>
@@ -129,7 +139,5 @@ export default function SignInScreen() {
 
 const styles = StyleSheet.create({
   form: { gap: space.lg }, fields: { gap: space.lg }, recoveryLinks: { alignItems: "center", gap: 2 },
-  footnoteRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "center" },
-  footnoteText: { ...type.caption, color: colors.textMuted },
   divider: { flexDirection: "row", alignItems: "center", gap: space.md }, dividerLine: { height: StyleSheet.hairlineWidth, flex: 1, backgroundColor: colors.border }, dividerText: { ...type.caption, color: colors.textMuted },
 });

@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { ApiError, endpoints, fieldErrorsFromBody } from "@checkstation/api";
-import { canManageWorkspace, hasPlanFeature } from "@checkstation/domain";
+import { canManageOwnerAccount, canManageWorkspace, hasPlanFeature, planLimitValue, selectionRequired, workspacePlanDisplayName } from "@checkstation/domain";
+import { PlanCapacityNotice, PlanLockSelectionPanel } from "../components/PlanCapacityResolution";
 import { Alert, Badge, Button, Card, Empty, Field, Input, Loading, Modal, Page, Segmented, Select, formatError } from "../components/ui";
 import { useApp } from "../lib/AppProvider";
 import { enabledGroupActions, filterAndSortGroups, groupParticipantCounts, groupUsageMetrics, type EnabledGroupAction, type GroupListItem, type GroupSortOrder, type GroupTypeFilter } from "../lib/groups";
+import { ACTIVE_STANDARD_GROUPS, ARCHIVED_GROUPS, groupCapacityNotice, isPlanLocked, partitionByPlanLock } from "../lib/planCapacity";
 
 type Group = GroupListItem & {
   id: number;
@@ -29,8 +31,14 @@ export function GroupsPage({ initialCreate = false }: { initialCreate?: boolean 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [creating, setCreating] = useState(initialCreate);
+  const [selectionOpen, setSelectionOpen] = useState(false);
   const canManage = canManageWorkspace(authState.session);
   const structuredAllowed = hasPlanFeature(authState.session, "structured_groups");
+  const owner = canManageOwnerAccount(authState.session);
+  const selectionKind = status === "archived" ? ARCHIVED_GROUPS : ACTIVE_STANDARD_GROUPS;
+  const mustSelect = owner && selectionRequired(authState.session, selectionKind);
+  const planName = workspacePlanDisplayName(authState.session);
+  const selectionLimit = planLimitValue(authState.session, selectionKind);
 
   const load = useCallback(async (searchValue: string) => {
     setLoading(true);
@@ -48,11 +56,15 @@ export function GroupsPage({ initialCreate = false }: { initialCreate?: boolean 
   }, [api, status, t]);
 
   useEffect(() => { void load(appliedSearch); }, [appliedSearch, load]);
+  useEffect(() => { setSelectionOpen(false); }, [status]);
 
   const entitlements = authState.session?.workspace?.entitlements;
   const standardUsage = groupUsageMetrics(entitlements?.usage_totals?.active_standard_groups ?? entitlements?.usage?.active_standard_groups, entitlements?.limits?.active_standard_groups);
   const structuredUsage = groupUsageMetrics(entitlements?.usage_totals?.active_structured_groups ?? entitlements?.usage?.active_structured_groups, entitlements?.limits?.active_structured_groups);
   const visibleRows = filterAndSortGroups(rows, { type, sort }) as Group[];
+  const { available: availableGroups, locked: lockedGroups } = partitionByPlanLock(visibleRows);
+  const showPlanSections = availableGroups.length > 0 && lockedGroups.length > 0;
+  const selectionNotice = groupCapacityNotice(t, { archived: status === "archived", planName, limit: selectionLimit });
   const hasChangedControls = Boolean(appliedSearch) || type !== "all" || sort !== "newest";
   const hasNarrowingFilters = Boolean(appliedSearch) || type !== "all";
 
@@ -70,14 +82,27 @@ export function GroupsPage({ initialCreate = false }: { initialCreate?: boolean 
     else void load("");
   }
 
+  if (selectionOpen && mustSelect) {
+    return <Page>
+      <PlanLockSelectionPanel
+        description={t(status === "archived" ? "groups.planSelection.panelDescriptionArchived" : "groups.planSelection.panelDescriptionActive")}
+        kind={selectionKind}
+        onCancel={() => setSelectionOpen(false)}
+        onResolved={async () => { setSelectionOpen(false); await load(appliedSearch); }}
+        title={t(status === "archived" ? "groups.planSelection.chooseArchived" : "groups.planSelection.chooseButton")}
+      />
+    </Page>;
+  }
+
   return <Page>
     <div className="groups-controls-head">
       {standardUsage || structuredUsage ? <section aria-label={t("groups.usageLabel")} aria-live="polite" className="groups-usage">
         <GroupUsage label={t("groups.standardGroups")} tone="standard" usage={standardUsage} />
         <GroupUsage label={t("groups.structuredGroups")} tone="structured" usage={structuredUsage} />
       </section> : <span />}
-      {canManage && status === "active" ? <Button onClick={() => setCreating(true)}>{t("groups.create")}</Button> : null}
+      {canManage && status === "active" && !mustSelect ? <Button onClick={() => setCreating(true)}>{t("groups.create")}</Button> : null}
     </div>
+    {mustSelect ? <PlanCapacityNotice actionLabel={t("groups.planSelection.chooseButton")} hint={t("groups.planSelection.hint")} notice={selectionNotice} onChoose={() => setSelectionOpen(true)} title={t("groups.planSelection.needsDecision")} /> : null}
 
     <div className="groups-status-switch">
       <Segmented label={t("groups.viewsLabel")} onChange={setStatus} options={[{ value: "active", label: t("groups.activeGroups") }, { value: "archived", label: t("groups.archivedGroups") }]} value={status} />
@@ -117,15 +142,28 @@ export function GroupsPage({ initialCreate = false }: { initialCreate?: boolean 
     </Card>
 
     <Alert>{error}</Alert>
-    {loading ? <Loading label={t("groups.loading")} /> : visibleRows.length ? <div className="groups-card-grid">{visibleRows.map((group) => <GroupResultCard group={group} key={group.id} onOpen={() => navigate(`/groups/${group.id}`)} />)}</div> : <Empty title={hasNarrowingFilters ? t("groups.emptyFilteredTitle") : status === "active" ? t("groups.emptyActiveTitle") : t("groups.emptyArchivedTitle")} body={hasNarrowingFilters ? t("groups.emptyFilteredBody") : status === "active" ? t("groups.emptyActiveBody") : t("groups.emptyArchivedBody")} />}
+    {loading ? <Loading label={t("groups.loading")} /> : visibleRows.length ? showPlanSections ? <div className="groups-list-sections">
+      <GroupPlanSection count={typeof selectionLimit === "number" ? t("groups.count.availableOfLimit", { available: availableGroups.length, limit: selectionLimit }) : String(availableGroups.length)} groups={availableGroups} locked={false} onOpen={(group) => navigate(`/groups/${group.id}`)} structuredAllowed={structuredAllowed} title={t("groups.sections.available")} />
+      <GroupPlanSection count={t(lockedGroups.length === 1 ? "groups.count.locked" : "groups.count.lockedPlural", { count: lockedGroups.length })} groups={lockedGroups} locked onOpen={(group) => navigate(`/groups/${group.id}`)} structuredAllowed={structuredAllowed} title={t("groups.sections.locked")} />
+    </div> : <div className="groups-card-grid">{visibleRows.map((group) => <GroupResultCard group={group} key={group.id} onOpen={() => navigate(`/groups/${group.id}`)} structuredAllowed={structuredAllowed} />)}</div> : <Empty title={hasNarrowingFilters ? t("groups.emptyFilteredTitle") : status === "active" ? t("groups.emptyActiveTitle") : t("groups.emptyArchivedTitle")} body={hasNarrowingFilters ? t("groups.emptyFilteredBody") : status === "active" ? t("groups.emptyActiveBody") : t("groups.emptyArchivedBody")} />}
     {creating ? <GroupCreate structuredAllowed={structuredAllowed} onClose={() => setCreating(false)} onSaved={(group) => { setCreating(false); navigate(`/groups/${group.id}`); }} /> : null}
   </Page>;
 }
 
-function GroupResultCard({ group, onOpen }: { group: Group; onOpen: () => void }) {
+function GroupPlanSection({ title, count, groups, locked, structuredAllowed, onOpen }: { title: string; count: string; groups: Group[]; locked: boolean; structuredAllowed: boolean; onOpen: (group: Group) => void }) {
+  return <section aria-label={title} className={`groups-plan-section${locked ? " is-locked" : ""}`}>
+    <header className="groups-plan-section-heading"><h3>{title}</h3><p>{count}</p></header>
+    <div className="groups-card-grid">{groups.map((group) => <GroupResultCard group={group} key={group.id} onOpen={() => onOpen(group)} structuredAllowed={structuredAllowed} />)}</div>
+  </section>;
+}
+
+function GroupResultCard({ group, onOpen, structuredAllowed }: { group: Group; onOpen: () => void; structuredAllowed: boolean }) {
   const { t } = useApp();
   const structured = group.group_type === "structured";
   const archived = group.status === "archived";
+  const planLocked = isPlanLocked(group);
+  const structuredFeatureLocked = structured && !structuredAllowed;
+  const openable = !planLocked;
   const actions = enabledGroupActions(group.actions);
   const participants = groupParticipantCounts(group);
   const statusBadge = archived
@@ -134,7 +172,7 @@ function GroupResultCard({ group, onOpen }: { group: Group; onOpen: () => void }
       ? <Badge tone="warning">{t("groups.setupIncomplete")}</Badge>
       : <Badge tone="green">{t("groups.activeLabel")}</Badge>;
 
-  return <button className={`group-result-card is-${structured ? "structured" : "standard"}${archived ? " is-archived" : ""}`} onClick={onOpen} type="button">
+  const card = <>
     <span className="group-result-card-top">
       <span className="group-result-card-heading">
         <strong>{group.name}</strong>
@@ -144,7 +182,8 @@ function GroupResultCard({ group, onOpen }: { group: Group; onOpen: () => void }
         </span>
       </span>
       <span className="group-result-card-badges">
-        {group.is_plan_locked ? <Badge tone="warning">{t("groups.planLocked")}</Badge> : null}
+        {planLocked ? <Badge tone="warning">{t("groups.planLocked")}</Badge> : null}
+        {structuredFeatureLocked ? <Badge tone="warning">{t("groups.businessFeature")}</Badge> : null}
         {statusBadge}
       </span>
     </span>
@@ -157,7 +196,11 @@ function GroupResultCard({ group, onOpen }: { group: Group; onOpen: () => void }
         ? t("groups.participantTotal", { count: participants.total })
         : t("groups.participantComposition", { total: participants.total, members: participants.members, groupOnly: participants.groupOnly })}
     </span>
-  </button>;
+    {planLocked ? <span className="plan-locked-copy">{structuredFeatureLocked ? t("groups.upgradeForStructured") : t("groups.planLockedCopy")}</span> : null}
+  </>;
+  const className = `group-result-card is-${structured ? "structured" : "standard"}${archived ? " is-archived" : ""}${planLocked ? " is-plan-locked" : ""}`;
+  if (!openable) return <article aria-disabled="true" className={className}>{card}</article>;
+  return <button className={className} onClick={onOpen} type="button">{card}</button>;
 }
 
 function GroupAction({ action }: { action: EnabledGroupAction }) {

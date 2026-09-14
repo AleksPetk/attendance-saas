@@ -1,13 +1,19 @@
+import { View } from "react-native";
 import { Redirect, Stack } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApp } from "../../src/lib/AppProvider";
+import { MobileGuidedHelp } from "../../src/tutorials/MobileGuidedHelp";
 import { colors } from "../../src/theme/tokens";
 
 export default function AppGroupLayout() {
   const { authState, t } = useApp();
+  const insets = useSafeAreaInsets();
   if (authState.status !== "authenticated" && authState.status !== "kiosk_locked") return <Redirect href="/(auth)/sign-in" />;
+  const sceneStyle = { backgroundColor: colors.bg, paddingBottom: insets.bottom, paddingLeft: insets.left, paddingRight: insets.right };
   return (
-    <Stack screenOptions={{ headerBackTitle: t("common.back"), headerStyle: { backgroundColor: colors.surface }, headerTintColor: colors.blue, headerTitleStyle: { color: colors.text }, contentStyle: { backgroundColor: colors.bg } }}>
-      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+    <View style={{ flex: 1 }}>
+    <Stack screenOptions={{ headerBackTitle: t("common.back"), headerStyle: { backgroundColor: colors.surface }, headerTintColor: colors.blue, headerTitleStyle: { color: colors.text }, contentStyle: sceneStyle }}>
+      <Stack.Screen name="(tabs)" options={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }} />
       <Stack.Screen name="account" options={{ title: t("nav.account") }} />
       <Stack.Screen name="security" options={{ title: t("nav.security") }} />
       <Stack.Screen name="plan" options={{ title: t("nav.plan") }} />
@@ -22,5 +28,7 @@ export default function AppGroupLayout() {
       <Stack.Screen name="group/[id]/kiosk-settings" options={{ title: t("kiosk.settings") }} />
       <Stack.Screen name="group/[id]/kiosk-design" options={{ title: t("kiosk.design") || "Kiosk design" }} />
     </Stack>
+    {authState.status === "authenticated" ? <MobileGuidedHelp autoStart /> : null}
+    </View>
   );
 }

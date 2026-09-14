@@ -1,6 +1,8 @@
 import { managementEn, managementJa } from "./management.js";
 import { groupConfigurationEn, groupConfigurationJa } from "./groupConfiguration.js";
 import { groupParticipantsEn, groupParticipantsJa } from "./groupParticipants.js";
+import { planCapacityEn, planCapacityJa } from "./planCapacity.js";
+import { tutorialsEn, tutorialsJa } from "./tutorials.js";
 export type AppLocale = "en" | "ja";
 
 export const SUPPORTED_LOCALES: AppLocale[] = ["en", "ja"];
@@ -29,6 +31,7 @@ const en: Dict = {
   "auth.createAccount": "Create account",
   "auth.ownerPrompt": "Workspace owner?",
   "auth.customerLogin": "Customer login",
+  "auth.backToCustomerLogin": "Back to customer login",
   "auth.customerTab": "Customer",
   "auth.staffTab": "Staff",
   "auth.signInType": "Sign-in type",
@@ -672,6 +675,7 @@ const ja: Dict = {
   "auth.createAccount": "アカウントを作成",
   "auth.ownerPrompt": "ワークスペースオーナーですか？",
   "auth.customerLogin": "お客様ログイン",
+  "auth.backToCustomerLogin": "お客様ログインに戻る",
   "auth.customerTab": "お客様",
   "auth.staffTab": "スタッフ",
   "auth.signInType": "サインインの種類",
@@ -1293,7 +1297,7 @@ const ja: Dict = {
   "kiosk.noConfirmationActions": "メッセージをカスタマイズするには、グループ設定でアクションを有効にしてください。",
 };
 
-const catalogs: Record<AppLocale, Dict> = { en: { ...en, ...managementEn, ...groupConfigurationEn, ...groupParticipantsEn }, ja: { ...ja, ...managementJa, ...groupConfigurationJa, ...groupParticipantsJa } };
+const catalogs: Record<AppLocale, Dict> = { en: { ...en, ...managementEn, ...groupConfigurationEn, ...groupParticipantsEn, ...planCapacityEn, ...tutorialsEn }, ja: { ...ja, ...managementJa, ...groupConfigurationJa, ...groupParticipantsJa, ...planCapacityJa, ...tutorialsJa } };
 
 export function resolveLocale(input?: string | null): AppLocale {
   const raw = String(input || "").toLowerCase();

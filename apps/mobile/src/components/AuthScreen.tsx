@@ -18,7 +18,7 @@ export function AuthScreen({ title, lead, children, footnote }: { title: string;
   const { width } = useWindowDimensions();
   const { locale, setLocale, t } = useApp();
   return (
-    <SafeAreaView edges={["top", "bottom"]} style={styles.safeArea}>
+    <SafeAreaView edges={["top", "bottom", "left", "right"]} style={styles.safeArea}>
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.keyboardView}>
         <ScrollView
           contentContainerStyle={styles.scrollContent}
@@ -55,7 +55,7 @@ export function AuthScreen({ title, lead, children, footnote }: { title: string;
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: colors.bg },
   keyboardView: { flex: 1 },
-  scrollContent: { flexGrow: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: space.lg, paddingVertical: space.xl },
+  scrollContent: { flexGrow: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: space.lg, paddingTop: space.md, paddingBottom: space.xl },
   authWrap: { width: "100%", maxWidth: layout.authMaxWidth, gap: space.md },
   authCard: { marginBottom: 0, padding: space.xl, gap: space.lg },
   authCardTablet: { padding: space.xxl },

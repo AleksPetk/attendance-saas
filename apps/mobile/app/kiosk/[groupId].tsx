@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Animated, Dimensions, Pressable, SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
+import { Animated, Dimensions, Pressable, ScrollView, StatusBar, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { endpoints } from "@checkstation/api";
@@ -97,6 +98,7 @@ export default function KioskScreen() {
   const { api, auth, t } = useApp();
   const router = useRouter();
   const { width, height } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const landscape = width > height;
 
   const [loading, setLoading] = useState(true);
@@ -304,7 +306,7 @@ export default function KioskScreen() {
 
   if (loading) {
     return (
-      <View style={{ flex: 1, backgroundColor: bgColor }}>
+      <View style={{ flex: 1, backgroundColor: bgColor, paddingTop: insets.top, paddingBottom: insets.bottom }}>
         <LoadingState label={t("common.loading")} />
       </View>
     );
@@ -313,7 +315,7 @@ export default function KioskScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: bgColor }}>
       <StatusBar barStyle="light-content" hidden />
-      <SafeAreaView style={{ flex: 1 }}>
+      <View style={{ flex: 1, paddingTop: insets.top, paddingBottom: insets.bottom, paddingLeft: insets.left, paddingRight: insets.right }}>
         {/* Header */}
         {!headerEnabled ? <Pressable accessibilityLabel={t("kiosk.exit")} onPress={() => setShowExit(true)} style={{ padding: space.md, alignSelf: "flex-end" }}><Text style={{ color: colors.blue }}>{t("kiosk.exit")}</Text></Pressable> : null}
       {headerEnabled && visualDesign ? (
@@ -563,7 +565,7 @@ export default function KioskScreen() {
             </View>
           </View>
         ) : null}
-      </SafeAreaView>
+      </View>
     </View>
   );
 }

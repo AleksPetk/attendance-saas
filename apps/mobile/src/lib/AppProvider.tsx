@@ -14,6 +14,8 @@ type AppContextValue = {
   setLocale: (locale: AppLocale) => void;
   t: (key: string, vars?: Record<string, string | number>) => string;
   ready: boolean;
+  revision: number;
+  refreshWorkspace: () => Promise<void>;
 };
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -21,6 +23,7 @@ const AppContext = createContext<AppContextValue | null>(null);
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [locale, setLocale] = useState<AppLocale>(resolveLocale());
   const [ready, setReady] = useState(false);
+  const [revision, setRevision] = useState(0);
   const [authState, setAuthState] = useState<AuthState>({
     status: "unknown",
     session: null,
@@ -45,6 +48,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [auth]);
 
   const t = useMemo(() => createTranslator(locale), [locale]);
+  const refreshWorkspace = useMemo(() => async () => {
+    await auth.refreshWorkspace();
+    setRevision((current) => current + 1);
+  }, [auth]);
 
   const value: AppContextValue = {
     api,
@@ -54,6 +61,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setLocale,
     t,
     ready,
+    revision,
+    refreshWorkspace,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

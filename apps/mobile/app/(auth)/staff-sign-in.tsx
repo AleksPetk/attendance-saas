@@ -1,12 +1,12 @@
 import { useRef, useState } from "react";
-import { Keyboard, StyleSheet, Text, TextInput, View } from "react-native";
+import { Keyboard, StyleSheet, TextInput, View } from "react-native";
 import { Redirect, router } from "expo-router";
 import { ApiError } from "@checkstation/api";
 import { AuthScreen } from "../../src/components/AuthScreen";
-import { Alert, Button, Field, PasswordVisibilityButton, TextLink } from "../../src/components/ui";
+import { Alert, Button, Field, PasswordVisibilityButton } from "../../src/components/ui";
 import { signInErrorMessage } from "../../src/lib/authErrors";
 import { useApp } from "../../src/lib/AppProvider";
-import { colors, space, type } from "../../src/theme/tokens";
+import { space } from "../../src/theme/tokens";
 
 export default function StaffSignInScreen() {
   const { auth, authState, t } = useApp();
@@ -43,18 +43,19 @@ export default function StaffSignInScreen() {
   }
 
   return (
-    <AuthScreen title={t("auth.staffTitle")} lead={t("auth.staffLead")} footnote={<View style={styles.footnoteRow}><Text style={styles.footnoteText}>{t("auth.ownerPrompt")} </Text><TextLink label={t("auth.customerLogin")} onPress={() => router.replace("/(auth)/sign-in")} /></View>}>
+    <AuthScreen title={t("auth.staffTitle")} lead={t("auth.staffLead")}>
       <View style={styles.form}>
         <Field ref={workspaceIdRef} autoCapitalize="characters" autoCorrect={false} hint={t("auth.workspaceIdHint")} label={t("auth.workspaceId")} onChangeText={(value) => { setWorkspaceId(value); clearErrorOnEdit(); }} onSubmitEditing={() => usernameRef.current?.focus()} returnKeyType="next" spellCheck={false} submitBehavior="submit" value={workspaceId} />
         <Field ref={usernameRef} autoCapitalize="none" autoComplete="username" autoCorrect={false} importantForAutofill="yes" label={t("auth.username")} onChangeText={(value) => { setUsername(value); clearErrorOnEdit(); }} onSubmitEditing={() => passwordRef.current?.focus()} returnKeyType="next" spellCheck={false} submitBehavior="submit" textContentType="username" value={username} />
         <Field ref={passwordRef} autoCapitalize="none" autoComplete="current-password" autoCorrect={false} importantForAutofill="yes" label={t("auth.password")} onChangeText={(value) => { setPassword(value); clearErrorOnEdit(); }} onSubmitEditing={() => void onSignIn()} returnKeyType="go" rightAccessory={<PasswordVisibilityButton visible={passwordVisible} onPress={togglePasswordVisibility} showLabel={t("auth.showPassword")} hideLabel={t("auth.hidePassword")} />} secureTextEntry={!passwordVisible} spellCheck={false} submitBehavior="blurAndSubmit" textContentType="password" value={password} />
         <Alert message={error} />
         <Button disabled={busy} label={busy ? t("auth.signingIn") : t("auth.enterWorkspace")} loading={busy} onPress={() => void onSignIn()} />
+        <Button label={t("auth.backToCustomerLogin")} onPress={() => router.replace("/(auth)/sign-in")} variant="secondary" />
       </View>
     </AuthScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  form: { gap: space.lg }, footnoteRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "center" }, footnoteText: { ...type.caption, color: colors.textMuted },
+  form: { gap: space.lg },
 });

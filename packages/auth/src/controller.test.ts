@@ -63,4 +63,33 @@ describe("AuthController", () => {
     assert.equal(api.jar.cookieHeader(), "");
     assert.equal(auth.getState().status, "anonymous");
   });
+
+  it("refreshWorkspace replaces entitlements from the shared workspace snapshot", async () => {
+    let calls = 0;
+    const fakeFetch: typeof fetch = async (input) => {
+      const path = new URL(String(input)).pathname;
+      if (!path.endsWith("/workspace/")) throw new Error(`Unexpected request: ${path}`);
+      calls += 1;
+      const selectionRequired = calls === 1;
+      return new Response(JSON.stringify({
+        role: "owner",
+        workspace: {
+          entitlements: {
+            plan: { key: "basic", display_name: "Basic" },
+            limits: { members: 25 },
+            selection_required: { members: selectionRequired },
+          },
+        },
+      }), { status: 200, headers: { "content-type": "application/json" } });
+    };
+    const api = new ApiClient(createAppConfig({ apiBaseUrl: "https://workspace.checkstation.app/api" }), undefined, { fetchImpl: fakeFetch });
+    const auth = new AuthController(api);
+    await api.init();
+    const first = await auth.refreshWorkspace();
+    assert.equal(first.workspace?.entitlements?.selection_required?.members, true);
+    const second = await auth.refreshWorkspace();
+    assert.equal(second.workspace?.entitlements?.limits?.members, 25);
+    assert.equal(second.workspace?.entitlements?.selection_required?.members, false);
+    assert.equal(auth.getState().session?.workspace?.entitlements?.selection_required?.members, false);
+  });
 });

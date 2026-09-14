@@ -1,10 +1,12 @@
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
+import { SafeAreaProvider, initialWindowMetrics } from "react-native-safe-area-context";
 import { AppProvider } from "../src/lib/AppProvider";
 import { colors } from "../src/theme/tokens";
 
 export default function RootLayout() {
   return (
+    <SafeAreaProvider initialMetrics={initialWindowMetrics}>
     <AppProvider>
       <StatusBar style="dark" />
       <Stack
@@ -30,5 +32,6 @@ export default function RootLayout() {
         />
       </Stack>
     </AppProvider>
+    </SafeAreaProvider>
   );
 }
