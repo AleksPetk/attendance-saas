@@ -33,6 +33,7 @@ class GroupEmailSenderSerializer(serializers.Serializer):
     yahoo_email = serializers.EmailField(required=False, allow_blank=True)
     from_email = serializers.EmailField(required=False, allow_blank=True)
     from_name = serializers.CharField(required=False, allow_blank=True, max_length=150)
+    saved_sender_id = serializers.IntegerField(required=False, allow_null=True, min_value=1)
 
 
 class GroupEmailSenderTestSerializer(serializers.Serializer):
@@ -71,6 +72,7 @@ class GroupEmailSenderTestSerializer(serializers.Serializer):
     yahoo_email = serializers.EmailField(required=False, allow_blank=True)
     from_email = serializers.EmailField(required=False, allow_blank=True)
     from_name = serializers.CharField(required=False, allow_blank=True, max_length=150)
+    saved_sender_id = serializers.IntegerField(required=False, allow_null=True, min_value=1)
 
     def draft_payload(self):
         data = self.validated_data
@@ -87,6 +89,7 @@ class GroupEmailSenderTestSerializer(serializers.Serializer):
             "yahoo_email",
             "from_email",
             "from_name",
+            "saved_sender_id",
         )
         draft = {key: data[key] for key in draft_keys if key in data}
         # A draft attempt is explicit when provider or any secret/config field is sent.

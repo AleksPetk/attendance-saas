@@ -92,6 +92,7 @@ class GroupEmailSenderView(GroupScopedEmailSenderMixin, APIView):
                 yahoo_email=data.get("yahoo_email"),
                 smtp_password=data.get("smtp_password") or None,
                 change_password=bool(data.get("change_password")),
+                saved_sender_id=data.get("saved_sender_id"),
             )
         except DjangoValidationError as exc:
             detail = getattr(exc, "message_dict", None) or {"detail": exc.messages}

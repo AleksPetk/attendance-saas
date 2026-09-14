@@ -4397,6 +4397,58 @@ button.person-main:hover .person-copy strong { color: var(--blue); }
   margin-top: var(--space-2);
 }
 
+.email-sender-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.saved-sender-list {
+  display: grid;
+  gap: 0.65rem;
+  margin-top: var(--space-3);
+}
+
+.saved-sender-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: 0.7rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 0.7rem;
+  background: var(--surface);
+}
+
+.saved-sender-copy {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.saved-sender-name {
+  font-weight: 650;
+}
+
+.saved-sender-meta {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  overflow-wrap: anywhere;
+}
+
+.saved-sender-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  justify-content: flex-end;
+}
+
+.saved-sender-name-field {
+  display: grid;
+  gap: 0.35rem;
+  margin-top: 0.85rem;
+}
+
 .email-sender-help-link {
   justify-self: start;
   font-size: 0.9rem;

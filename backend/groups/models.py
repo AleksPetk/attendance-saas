@@ -1186,4 +1186,5 @@ from groups.email_sender_models import (  # noqa: E402,F401
     GroupEmailDelivery,
     GroupEmailOutboxJob,
     GroupEmailSender,
+    SavedEmailSender,
 )

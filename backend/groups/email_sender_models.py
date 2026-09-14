@@ -7,6 +7,7 @@ Customer Group after-action attendance emails use GroupEmailSender.
 
 from django.core.exceptions import ValidationError
 from django.db import models
+from django.db.models.functions import Lower
 from django.utils import timezone
 
 from core.crypto import decrypt_secret, encrypt_secret
@@ -180,6 +181,98 @@ class GroupEmailSender(models.Model):
                 "Email sender organization must match the Group's organization."
             )
         self.organization_id = group_org
+
+
+class SavedEmailSender(models.Model):
+    """
+    Workspace-owned reusable sender template.
+
+    A template is never linked to a Group. Import copies configuration into a
+    Group sender draft; Save sender stores an independent copy, including the
+    encrypted credential. Deleting a template must not change any Group.
+    """
+
+    organization = models.ForeignKey(
+        "organizations.Organization",
+        on_delete=models.PROTECT,
+        related_name="saved_email_senders",
+    )
+    name = models.CharField(max_length=80)
+    provider = models.CharField(
+        max_length=40,
+        choices=EmailSenderProviderKind.choices,
+        default=EmailSenderProviderKind.CUSTOM_SMTP,
+    )
+    smtp_host = models.CharField(max_length=255, blank=True, default="")
+    smtp_port = models.PositiveIntegerField(null=True, blank=True)
+    smtp_security = models.CharField(
+        max_length=20,
+        choices=SmtpSecurity.choices,
+        blank=True,
+        default="",
+    )
+    smtp_username = models.CharField(max_length=255, blank=True, default="")
+    smtp_password_encrypted = models.TextField(blank=True, default="")
+    from_email = models.EmailField(blank=True, default="")
+    from_name = models.CharField(max_length=150, blank=True, default="")
+    provider_settings = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["name", "id"]
+        indexes = [
+            models.Index(fields=["organization", "name"]),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                Lower("name"),
+                "organization",
+                name="unique_saved_email_sender_name_per_organization",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(provider__in=EmailSenderProviderKind.values),
+                name="groups_saved_email_sender_provider_valid",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(smtp_security="")
+                    | models.Q(smtp_security__in=SmtpSecurity.values)
+                ),
+                name="groups_saved_email_sender_smtp_security_valid",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.name} ({self.provider})"
+
+    @property
+    def password_configured(self):
+        return bool(self.smtp_password_encrypted)
+
+    def set_smtp_password(self, plaintext):
+        self.smtp_password_encrypted = encrypt_secret(plaintext)
+
+    def copy_encrypted_password(self, encrypted):
+        """Store an independent ciphertext copy. Does not keep a template link."""
+        self.smtp_password_encrypted = encrypted or ""
+
+    def get_smtp_password(self):
+        if not self.smtp_password_encrypted:
+            return ""
+        return decrypt_secret(self.smtp_password_encrypted)
+
+    def save(self, *args, **kwargs):
+        self.name = (self.name or "").strip()
+        self.smtp_host = (self.smtp_host or "").strip()
+        self.smtp_username = (self.smtp_username or "").strip()
+        self.from_email = (self.from_email or "").strip().lower()
+        from groups.email_providers.smtp_destination import sanitize_email_header_value
+
+        self.from_name = sanitize_email_header_value(self.from_name or "", max_length=150)
+        if not isinstance(self.provider_settings, dict):
+            self.provider_settings = {}
+        super().save(*args, **kwargs)
 
 
 class GroupEmailDelivery(models.Model):

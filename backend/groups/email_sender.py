@@ -39,6 +39,7 @@ from groups.email_sender_models import (
     GroupEmailSender,
 )
 from groups.forward_emails import unique_after_action_recipients
+from groups.saved_email_senders import copied_saved_sender_secret
 from groups.notification_email_render import render_after_action_notification
 from groups.participation_emails import (
     participation_emails_for_membership,
@@ -348,6 +349,24 @@ def _finalize_verified_sender_save(
     return sender
 
 
+def _credential_ready(sender, copied_secret):
+    return bool(sender.password_configured or copied_secret)
+
+
+def _apply_copied_secret(sender, copied_secret, *, password_provided, connection_changed):
+    """
+    Copy a template ciphertext onto this Group sender.
+
+    A replacement password wins. The copy is independent: the Group row stores
+    the ciphertext itself and does not reference the template.
+    """
+    if password_provided or not copied_secret:
+        return connection_changed
+    secret_changed = sender.smtp_password_encrypted != copied_secret
+    sender.smtp_password_encrypted = copied_secret
+    return connection_changed or secret_changed
+
+
 def save_group_email_sender(
     *,
     group,
@@ -363,6 +382,7 @@ def save_group_email_sender(
     yahoo_email=None,
     smtp_password=None,
     change_password=False,
+    saved_sender_id=None,
     request=None,
 ):
     sender = get_group_email_sender(group)
@@ -388,6 +408,13 @@ def save_group_email_sender(
         raise ValidationError(
             {"smtp_password": f"Enter a new {_password_field_label(provider)}."}
         )
+    copied_secret = ""
+    if saved_sender_id and not password_provided:
+        copied_secret = copied_saved_sender_secret(
+            organization=group.organization,
+            saved_sender_id=saved_sender_id,
+            provider=provider,
+        )
 
     if provider == EmailSenderProviderKind.GMAIL:
         if gmail_address is None and from_email is not None:
@@ -396,13 +423,14 @@ def save_group_email_sender(
             sender.from_email if gmail_address is None else gmail_address
         )
         merged_from_name = sender.from_name if from_name is None else from_name
-        require_password = password_provided or not sender.password_configured
+        credential_ready = _credential_ready(sender, copied_secret)
+        require_password = password_provided or not credential_ready
         cleaned = validate_gmail_fields(
             gmail_address=merged_address,
             password=(
                 smtp_password
                 if password_provided
-                else ("x" if sender.password_configured else "")
+                else ("x" if credential_ready else "")
             ),
             require_password=require_password,
         )
@@ -432,6 +460,12 @@ def save_group_email_sender(
         sender.provider_settings = {}
         if password_provided:
             sender.set_smtp_password(smtp_password)
+        connection_changed = _apply_copied_secret(
+            sender,
+            copied_secret,
+            password_provided=password_provided,
+            connection_changed=connection_changed,
+        )
 
         return _finalize_verified_sender_save(
             sender,
@@ -449,13 +483,14 @@ def save_group_email_sender(
             sender.from_email if microsoft_email is None else microsoft_email
         )
         merged_from_name = sender.from_name if from_name is None else from_name
-        require_password = password_provided or not sender.password_configured
+        credential_ready = _credential_ready(sender, copied_secret)
+        require_password = password_provided or not credential_ready
         cleaned = validate_microsoft_fields(
             microsoft_email=merged_address,
             password=(
                 smtp_password
                 if password_provided
-                else ("x" if sender.password_configured else "")
+                else ("x" if credential_ready else "")
             ),
             require_password=require_password,
         )
@@ -487,6 +522,12 @@ def save_group_email_sender(
         sender.provider_settings = {}
         if password_provided:
             sender.set_smtp_password(smtp_password)
+        connection_changed = _apply_copied_secret(
+            sender,
+            copied_secret,
+            password_provided=password_provided,
+            connection_changed=connection_changed,
+        )
 
         return _finalize_verified_sender_save(
             sender,
@@ -502,13 +543,14 @@ def save_group_email_sender(
             yahoo_email = from_email
         merged_address = sender.from_email if yahoo_email is None else yahoo_email
         merged_from_name = sender.from_name if from_name is None else from_name
-        require_password = password_provided or not sender.password_configured
+        credential_ready = _credential_ready(sender, copied_secret)
+        require_password = password_provided or not credential_ready
         cleaned = validate_yahoo_fields(
             yahoo_email=merged_address,
             password=(
                 smtp_password
                 if password_provided
-                else ("x" if sender.password_configured else "")
+                else ("x" if credential_ready else "")
             ),
             require_password=require_password,
         )
@@ -538,6 +580,12 @@ def save_group_email_sender(
         sender.provider_settings = {}
         if password_provided:
             sender.set_smtp_password(smtp_password)
+        connection_changed = _apply_copied_secret(
+            sender,
+            copied_secret,
+            password_provided=password_provided,
+            connection_changed=connection_changed,
+        )
 
         return _finalize_verified_sender_save(
             sender,
@@ -556,7 +604,8 @@ def save_group_email_sender(
     merged_from_email = sender.from_email if from_email is None else from_email
     merged_from_name = sender.from_name if from_name is None else from_name
 
-    require_password = password_provided or not sender.password_configured
+    credential_ready = _credential_ready(sender, copied_secret)
+    require_password = password_provided or not credential_ready
     cleaned = validate_smtp_fields(
         host=merged_host,
         port=merged_port,
@@ -565,7 +614,7 @@ def save_group_email_sender(
         password=(
             smtp_password
             if password_provided
-            else ("x" if sender.password_configured else "")
+            else ("x" if credential_ready else "")
         ),
         from_email=merged_from_email,
         require_password=require_password,
@@ -592,6 +641,12 @@ def save_group_email_sender(
     sender.provider_settings = {}
     if password_provided:
         sender.set_smtp_password(smtp_password)
+    connection_changed = _apply_copied_secret(
+        sender,
+        copied_secret,
+        password_provided=password_provided,
+        connection_changed=connection_changed,
+    )
 
     return _finalize_verified_sender_save(
         sender,
@@ -618,6 +673,7 @@ def build_draft_email_sender(
     yahoo_email=None,
     smtp_password=None,
     change_password=False,
+    saved_sender_id=None,
 ):
     """
     Build an in-memory sender for draft testing without mutating the saved row.
@@ -652,6 +708,13 @@ def build_draft_email_sender(
         draft.smtp_password_encrypted = existing.smtp_password_encrypted
 
     password_provided = bool(change_password or smtp_password)
+    if saved_sender_id and not password_provided:
+        # Template credential wins over the Group's stored secret for this draft.
+        draft.smtp_password_encrypted = copied_saved_sender_secret(
+            organization=group.organization,
+            saved_sender_id=saved_sender_id,
+            provider=provider,
+        )
     if change_password and not smtp_password:
         raise ValidationError(
             {"smtp_password": f"Enter a new {_password_field_label(provider)}."}

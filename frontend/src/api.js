@@ -303,6 +303,11 @@ export const api = {
     request(`/api/groups/${groupId}/email-sender/`, { method: "PUT", json }),
   testGroupEmailSender: (_auth, groupId, json) =>
     request(`/api/groups/${groupId}/email-sender/test/`, { method: "POST", json }),
+  listSavedEmailSenders: () => request("/api/saved-email-senders/"),
+  createSavedEmailSender: (_auth, json) =>
+    request("/api/saved-email-senders/", { method: "POST", json }),
+  deleteSavedEmailSender: (_auth, id) =>
+    request(`/api/saved-email-senders/${id}/`, { method: "DELETE" }),
   archiveGroup: (_auth, id) => request(`/api/groups/${id}/`, { method: "DELETE" }),
   restoreGroup: (_auth, id) => request(`/api/groups/${id}/restore/`, { method: "POST" }),
   permanentlyDeleteGroup: (_auth, id) =>

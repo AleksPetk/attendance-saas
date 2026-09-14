@@ -22,6 +22,10 @@ from groups.views import (
     SectionParticipantListCreateView,
 )
 from groups.email_sender_views import GroupEmailSenderTestView, GroupEmailSenderView
+from groups.saved_email_sender_views import (
+    SavedEmailSenderDetailView,
+    SavedEmailSenderListCreateView,
+)
 
 router = DefaultRouter()
 router.register("groups", GroupViewSet, basename="group")
@@ -121,6 +125,16 @@ urlpatterns = [
         "groups/<int:group_pk>/email-sender/test/",
         GroupEmailSenderTestView.as_view(),
         name="group-email-sender-test",
+    ),
+    path(
+        "saved-email-senders/",
+        SavedEmailSenderListCreateView.as_view(),
+        name="saved-email-sender-list",
+    ),
+    path(
+        "saved-email-senders/<int:pk>/",
+        SavedEmailSenderDetailView.as_view(),
+        name="saved-email-sender-detail",
     ),
 ]
 urlpatterns += router.urls

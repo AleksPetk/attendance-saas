@@ -30,6 +30,15 @@ import {
   canUseGroupForwardEmails,
 } from "./workspaceEntitlements.js";
 import { groupEmailTutorialPanels } from "./groupEmailTutorial.js";
+import {
+  SAVED_SENDERS_PICKER,
+  applySavedSenderImport,
+  attachImportedCredential,
+  buildSavedSenderCreateBody,
+  isSavedSenderNameConflict,
+  savedSenderDisplayAddress,
+  senderCredentialIsConfigured,
+} from "./savedEmailSenders.js";
 
 const PROVIDER_CUSTOM_SMTP = "custom_smtp";
 const PROVIDER_GMAIL = "gmail";
@@ -144,6 +153,17 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
   const [saving, setSaving] = useState(false);
   const [savingSender, setSavingSender] = useState(false);
   const [testingSender, setTestingSender] = useState(false);
+  const [senderPanel, setSenderPanel] = useState("form");
+  const [savedSenders, setSavedSenders] = useState([]);
+  const [savedSendersLoading, setSavedSendersLoading] = useState(false);
+  const [importedSavedSenderId, setImportedSavedSenderId] = useState(null);
+  const [importedPasswordConfigured, setImportedPasswordConfigured] = useState(false);
+  const [saveTemplateOpen, setSaveTemplateOpen] = useState(false);
+  const [templateName, setTemplateName] = useState("");
+  const [savingTemplate, setSavingTemplate] = useState(false);
+  const [pendingTemplateReplace, setPendingTemplateReplace] = useState("");
+  const [pendingTemplateDelete, setPendingTemplateDelete] = useState(null);
+  const [deletingTemplate, setDeletingTemplate] = useState(false);
   const [pendingProvider, setPendingProvider] = useState("");
   const [showAppPasswordGuide, setShowAppPasswordGuide] = useState(false);
   const [showMicrosoftGuide, setShowMicrosoftGuide] = useState(false);
@@ -200,6 +220,64 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
     setDraftVerified(false);
     setDraftStatus("");
     setDraftError("");
+    setImportedSavedSenderId(null);
+    setImportedPasswordConfigured(false);
+    setSenderPanel("form");
+  }
+
+  function credentialConfigured(provider) {
+    return senderCredentialIsConfigured({
+      emailSender,
+      provider,
+      changePassword: senderForm.change_password,
+      importedSavedSenderId,
+      importedPasswordConfigured,
+    });
+  }
+
+  function beginPasswordChange() {
+    setImportedSavedSenderId(null);
+    setImportedPasswordConfigured(false);
+    patchSender("change_password", true);
+  }
+
+  async function loadSavedSenders() {
+    setSavedSendersLoading(true);
+    try {
+      const result = await api.listSavedEmailSenders(session);
+      setSavedSenders(result.data?.results || []);
+    } catch (loadError) {
+      setError(localizedErrorMessage(loadError, t));
+    } finally {
+      setSavedSendersLoading(false);
+    }
+  }
+
+  function providerLabel(provider) {
+    if (provider === PROVIDER_GMAIL) return t("editor.providerGmail");
+    if (provider === PROVIDER_MICROSOFT) return t("editor.providerMicrosoft");
+    if (provider === PROVIDER_YAHOO) return t("editor.providerYahoo");
+    return t("editor.providerCustomSmtp");
+  }
+
+  function onProviderSelect(nextValue) {
+    if (nextValue === SAVED_SENDERS_PICKER) {
+      setSenderPanel("saved");
+      loadSavedSenders();
+      return;
+    }
+    setSenderPanel("form");
+    requestProviderChange(nextValue);
+  }
+
+  function importSavedSender(sender) {
+    const imported = applySavedSenderImport(sender);
+    setSenderForm(imported.form);
+    setImportedSavedSenderId(imported.importedSavedSenderId);
+    setImportedPasswordConfigured(imported.passwordConfigured);
+    setSenderPanel("form");
+    clearDraftVerification();
+    setSenderMessage("");
   }
 
   function clearDraftVerification() {
@@ -216,6 +294,7 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
   }
 
   function senderDraftIsDirty() {
+    if (importedSavedSenderId) return true;
     if (senderForm.provider !== emailSender.provider) return true;
     if (senderForm.change_password || senderForm.smtp_password) return true;
     if (senderForm.provider === PROVIDER_GMAIL) {
@@ -302,7 +381,11 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
       body.change_password = true;
       body.smtp_password = senderForm.smtp_password;
     }
-    return body;
+    return attachImportedCredential(body, {
+      importedSavedSenderId,
+      smtpPassword: senderForm.smtp_password,
+      changePassword: senderForm.change_password,
+    });
   }
 
   function canSaveSender() {
@@ -495,6 +578,8 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
       setPendingProvider(nextProvider);
       return;
     }
+    setImportedSavedSenderId(null);
+    setImportedPasswordConfigured(false);
     setSenderForm(blankFormForProvider(nextProvider));
     clearDraftVerification();
     setSenderMessage("");
@@ -504,6 +589,8 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
     if (!pendingProvider) {
       return;
     }
+    setImportedSavedSenderId(null);
+    setImportedPasswordConfigured(false);
     setSenderForm(blankFormForProvider(pendingProvider));
     setPendingProvider("");
     clearDraftVerification();
@@ -645,6 +732,53 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
       }
     } finally {
       setTestingSender(false);
+    }
+  }
+
+  async function submitSavedSender(name, replace = false) {
+    setSavingTemplate(true);
+    setError("");
+    try {
+      const body = buildSavedSenderCreateBody({
+        name,
+        senderForm,
+        importedSavedSenderId,
+        sourceGroupId: groupId,
+        emailSender,
+        replace,
+      });
+      await api.createSavedEmailSender(session, body);
+      setSaveTemplateOpen(false);
+      setPendingTemplateReplace("");
+      setTemplateName("");
+      setSenderMessage(t("editor.savedSenderSaved"));
+      if (senderPanel === "saved") {
+        await loadSavedSenders();
+      }
+    } catch (saveError) {
+      if (isSavedSenderNameConflict(saveError) && !replace) {
+        setSaveTemplateOpen(false);
+        setPendingTemplateReplace(name);
+        return;
+      }
+      setError(localizedErrorMessage(saveError, t));
+    } finally {
+      setSavingTemplate(false);
+    }
+  }
+
+  async function confirmDeleteSavedSender() {
+    if (!pendingTemplateDelete) return;
+    setDeletingTemplate(true);
+    setError("");
+    try {
+      await api.deleteSavedEmailSender(session, pendingTemplateDelete.id);
+      setPendingTemplateDelete(null);
+      await loadSavedSenders();
+    } catch (deleteError) {
+      setError(localizedErrorMessage(deleteError, t));
+    } finally {
+      setDeletingTemplate(false);
     }
   }
 
@@ -1019,13 +1153,14 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
                     >
                       <Field label={t("editor.provider")}>
                         <select
-                          value={senderForm.provider}
-                          onChange={(event) => requestProviderChange(event.target.value)}
+                          value={senderPanel === "saved" ? SAVED_SENDERS_PICKER : senderForm.provider}
+                          onChange={(event) => onProviderSelect(event.target.value)}
                         >
                           <option value={PROVIDER_CUSTOM_SMTP}>{t("editor.providerCustomSmtp")}</option>
                           <option value={PROVIDER_GMAIL}>{t("editor.providerGmail")}</option>
                           <option value={PROVIDER_MICROSOFT}>{t("editor.providerMicrosoft")}</option>
                           <option value={PROVIDER_YAHOO}>{t("editor.providerYahoo")}</option>
+                          <option value={SAVED_SENDERS_PICKER}>{t("editor.savedSendersOption")}</option>
                         </select>
                       </Field>
                       <div className="email-sender-badge">
@@ -1035,6 +1170,47 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
                         </StatusBadge>
                       </div>
                     </div>
+                    {senderPanel === "saved" ? (
+                      <div className="saved-sender-list">
+                        {savedSendersLoading ? (
+                          <p className="hint">{t("common:loading")}</p>
+                        ) : savedSenders.length === 0 ? (
+                          <p className="hint">{t("editor.noSavedSenders")}</p>
+                        ) : (
+                          savedSenders.map((sender) => {
+                            const address = savedSenderDisplayAddress(sender);
+                            return (
+                              <div className="saved-sender-row" key={sender.id}>
+                                <div className="saved-sender-copy">
+                                  <span className="saved-sender-name">{sender.name}</span>
+                                  <span className="saved-sender-meta">
+                                    {providerLabel(sender.provider)}
+                                    {address ? ` · ${address}` : ""}
+                                  </span>
+                                </div>
+                                <div className="saved-sender-actions">
+                                  <button
+                                    type="button"
+                                    className="btn-secondary btn-sm"
+                                    onClick={() => importSavedSender(sender)}
+                                  >
+                                    {t("editor.importSavedSender")}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="btn-danger btn-sm"
+                                    onClick={() => setPendingTemplateDelete(sender)}
+                                  >
+                                    {t("common:delete")}
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    ) : (
+                    <>
                     {isGmail ? (
                       <p className="hint">{t("editor.gmailHint")}</p>
                     ) : isMicrosoft ? (
@@ -1082,15 +1258,13 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
                           />
                         </Field>
                         <Field label={t("editor.appPassword")}>
-                          {emailSender.password_configured &&
-                          emailSender.provider === PROVIDER_GMAIL &&
-                          !senderForm.change_password ? (
+                          {credentialConfigured(PROVIDER_GMAIL) ? (
                             <div className="password-configured-row">
                               <span className="hint">{t("editor.configured")}</span>
                               <button
                                 type="button"
                                 className="btn-link btn-sm"
-                                onClick={() => patchSender("change_password", true)}
+                                onClick={beginPasswordChange}
                               >
                                 {t("editor.changeAppPassword")}
                               </button>
@@ -1155,15 +1329,13 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
                           label={t("editor.passwordAppPassword")}
                           hint={t("editor.microsoftPasswordHint")}
                         >
-                          {emailSender.password_configured &&
-                          emailSender.provider === PROVIDER_MICROSOFT &&
-                          !senderForm.change_password ? (
+                          {credentialConfigured(PROVIDER_MICROSOFT) ? (
                             <div className="password-configured-row">
                               <span className="hint">{t("editor.configured")}</span>
                               <button
                                 type="button"
                                 className="btn-link btn-sm"
-                                onClick={() => patchSender("change_password", true)}
+                                onClick={beginPasswordChange}
                               >
                                 {t("editor.changePassword")}
                               </button>
@@ -1228,15 +1400,13 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
                           label={t("editor.appPassword")}
                           hint={t("editor.yahooAppPasswordHint")}
                         >
-                          {emailSender.password_configured &&
-                          emailSender.provider === PROVIDER_YAHOO &&
-                          !senderForm.change_password ? (
+                          {credentialConfigured(PROVIDER_YAHOO) ? (
                             <div className="password-configured-row">
                               <span className="hint">{t("editor.configured")}</span>
                               <button
                                 type="button"
                                 className="btn-link btn-sm"
-                                onClick={() => patchSender("change_password", true)}
+                                onClick={beginPasswordChange}
                               >
                                 {t("editor.changeAppPassword")}
                               </button>
@@ -1339,15 +1509,13 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
                           />
                         </Field>
                         <Field label={t("editor.password")}>
-                          {emailSender.password_configured &&
-                          emailSender.provider === PROVIDER_CUSTOM_SMTP &&
-                          !senderForm.change_password ? (
+                          {credentialConfigured(PROVIDER_CUSTOM_SMTP) ? (
                             <div className="password-configured-row">
                               <span className="hint">{t("editor.configured")}</span>
                               <button
                                 type="button"
                                 className="btn-link btn-sm"
-                                onClick={() => patchSender("change_password", true)}
+                                onClick={beginPasswordChange}
                               >
                                 {t("editor.changePassword")}
                               </button>
@@ -1422,7 +1590,20 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
                       >
                         {savingSender ? t("editor.saving") : t("editor.saveSender")}
                       </button>
+                      <button
+                        type="button"
+                        className="btn-secondary"
+                        disabled={savingTemplate}
+                        onClick={() => {
+                          setTemplateName(senderForm.from_name || "");
+                          setSaveTemplateOpen(true);
+                        }}
+                      >
+                        {t("editor.saveAsSavedSender")}
+                      </button>
                     </div>
+                    </>
+                    )}
                       </>
                     )}
                   </div>
@@ -1520,6 +1701,71 @@ export default function GroupEditorScreen({ session, groupId, onNavigate }) {
           danger
           onCancel={() => setPendingProvider("")}
           onConfirm={confirmProviderChange}
+        />
+      ) : null}
+      {saveTemplateOpen ? (
+        <div
+          className="confirm-modal-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="save-saved-sender-title"
+        >
+          <form
+            className="confirm-modal"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const name = templateName.trim();
+              if (!name || savingTemplate) return;
+              submitSavedSender(name, false);
+            }}
+          >
+            <h2 id="save-saved-sender-title">{t("editor.saveSavedSenderTitle")}</h2>
+            <p>{t("editor.saveSavedSenderBody")}</p>
+            <label className="saved-sender-name-field">
+              <span className="field-label">{t("editor.savedSenderName")}</span>
+              <input
+                value={templateName}
+                onChange={(event) => setTemplateName(event.target.value)}
+                maxLength={80}
+                autoFocus
+                required
+              />
+            </label>
+            <div className="confirm-modal-actions">
+              <button
+                type="button"
+                className="btn-secondary"
+                disabled={savingTemplate}
+                onClick={() => setSaveTemplateOpen(false)}
+              >
+                {t("common:cancel")}
+              </button>
+              <button type="submit" className="btn-primary" disabled={savingTemplate || !templateName.trim()}>
+                {savingTemplate ? t("editor.saving") : t("common:save")}
+              </button>
+            </div>
+          </form>
+        </div>
+      ) : null}
+      {pendingTemplateReplace ? (
+        <ConfirmDialog
+          title={t("editor.replaceSavedSenderTitle")}
+          body={t("editor.replaceSavedSenderBody", { name: pendingTemplateReplace })}
+          confirmLabel={t("editor.replaceSavedSenderConfirm")}
+          busy={savingTemplate}
+          onCancel={() => setPendingTemplateReplace("")}
+          onConfirm={() => submitSavedSender(pendingTemplateReplace, true)}
+        />
+      ) : null}
+      {pendingTemplateDelete ? (
+        <ConfirmDialog
+          title={t("editor.deleteSavedSenderTitle")}
+          body={t("editor.deleteSavedSenderBody", { name: pendingTemplateDelete.name })}
+          confirmLabel={t("common:delete")}
+          danger
+          busy={deletingTemplate}
+          onCancel={() => setPendingTemplateDelete(null)}
+          onConfirm={confirmDeleteSavedSender}
         />
       ) : null}
       {showAppPasswordGuide ? (
