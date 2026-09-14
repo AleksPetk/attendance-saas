@@ -5,6 +5,7 @@ import { canManageOwnerAccount, canManageWorkspace, hasPlanFeature, planLimitVal
 import { PlanCapacityNotice, PlanLockSelectionPanel } from "../components/PlanCapacityResolution";
 import { Alert, Badge, Button, Card, Empty, Field, Input, Loading, Modal, Page, Segmented, Select, formatError } from "../components/ui";
 import { useApp } from "../lib/AppProvider";
+import { useForegroundRefresh } from "../lib/useForegroundRefresh";
 import { enabledGroupActions, filterAndSortGroups, groupParticipantCounts, groupUsageMetrics, type EnabledGroupAction, type GroupListItem, type GroupSortOrder, type GroupTypeFilter } from "../lib/groups";
 import { ACTIVE_STANDARD_GROUPS, ARCHIVED_GROUPS, groupCapacityNotice, isPlanLocked, partitionByPlanLock } from "../lib/planCapacity";
 
@@ -40,8 +41,8 @@ export function GroupsPage({ initialCreate = false }: { initialCreate?: boolean 
   const planName = workspacePlanDisplayName(authState.session);
   const selectionLimit = planLimitValue(authState.session, selectionKind);
 
-  const load = useCallback(async (searchValue: string) => {
-    setLoading(true);
+  const load = useCallback(async (searchValue: string, silent = false) => {
+    if (!silent) setLoading(true);
     setError("");
     const query = new URLSearchParams({ status });
     if (searchValue.trim()) query.set("search", searchValue.trim());
@@ -51,11 +52,12 @@ export function GroupsPage({ initialCreate = false }: { initialCreate?: boolean 
     } catch (caught) {
       setError(formatError(caught, t("common.error")));
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [api, status, t]);
 
   useEffect(() => { void load(appliedSearch); }, [appliedSearch, load]);
+  useForegroundRefresh(() => load(appliedSearch, true));
   useEffect(() => { setSelectionOpen(false); }, [status]);
 
   const entitlements = authState.session?.workspace?.entitlements;

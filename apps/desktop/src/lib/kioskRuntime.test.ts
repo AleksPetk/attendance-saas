@@ -43,8 +43,7 @@ test("desktop action, processing, confirmation, PIN, and exit states use Workspa
 test("desktop runtime normalizes and refetches the latest live design", () => {
   assert.match(pageSource, /normalizeKioskDesignDocument\(data\.visual_design\)/);
   assert.match(pageSource, /api\.get<Record<string, any>>\(endpoints\.kiosk\(groupId\)\)/);
-  assert.match(pageSource, /window\.addEventListener\("focus", refresh\)/);
-  assert.match(pageSource, /document\.addEventListener\("visibilitychange", refresh\)/);
+  assert.match(pageSource, /useForegroundRefresh\(\(\) => load\(\)\)/);
   assert.match(pageSource, /<DesktopKioskRenderer design=\{design\}/);
 });
 

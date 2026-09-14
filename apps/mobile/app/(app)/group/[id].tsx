@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert as NativeAlert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
+import { Alert as NativeAlert, Keyboard, Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
 import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from "expo-router";
+import { usePreventRemove } from "expo-router/react-navigation";
 import { ApiError, endpoints, fieldErrorsFromBody } from "@checkstation/api";
 import {
   MAX_PARTICIPATION_EMAILS,
   addParticipationEmailSlot,
   canLaunchKiosk,
   canManageGroupConfiguration,
-  groupLaunchIssueKeys,
+  groupSetupIssueSummary,
   hasPlanFeature,
   isGroupScopedStaff,
   isKioskLaunchBlocked,
@@ -26,11 +27,13 @@ import {
 import { Alert, Button, Field, LoadingState, Screen } from "../../../src/components/ui";
 import { PageHeader, SectionCard, StatusPill } from "../../../src/components/mobile";
 import { GroupClasses } from "../../../src/components/GroupClasses";
-import { AvatarRow } from "../../../src/components/Avatar";
+import { Avatar } from "../../../src/components/Avatar";
+import { Ionicons } from "@expo/vector-icons";
 import { GroupEmailSender } from "../../../src/components/GroupEmailSender";
 import { useApp } from "../../../src/lib/AppProvider";
 import { colors, space, type } from "../../../src/theme/tokens";
 import type { TextInput } from "react-native";
+import { useConfigurationAutosave, type FlushConfiguration } from "../../../src/lib/useConfigurationAutosave";
 
 type GroupActions = { check_in_enabled: boolean; check_out_enabled: boolean; breaks_enabled: boolean; max_breaks: number | null };
 type GroupParticipation = { email_required: boolean; pin_required: boolean };
@@ -50,13 +53,30 @@ export default function GroupDetailScreen() {
   const { api, authState, t } = useApp();
   const router = useRouter();
   const navigation = useNavigation();
-  const allowNavigation = useRef(false);
+  const scrollRef = useRef<ScrollView>(null);
+  const contentRef = useRef<View>(null);
+  const scrollToParticipantSection = useCallback((section: View | null) => {
+    requestAnimationFrame(() => {
+      if (!section || !contentRef.current) return;
+      section.measureLayout(contentRef.current, (_x, y) => {
+        scrollRef.current?.scrollTo({ y: Math.max(0, y - space.lg), animated: true });
+      }, () => {});
+    });
+  }, []);
   const [group, setGroup] = useState<Group | null>(null);
+  const [setupKioskReadiness, setSetupKioskReadiness] = useState<KioskSettingsReadiness | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [planLockedDenied, setPlanLockedDenied] = useState(false);
   const [activeSection, setActiveSection] = useState<ActiveSection>("overview");
-  const [configurationDirty, setConfigurationDirty] = useState(false);
+  const configurationFlush = useRef<FlushConfiguration | null>(null);
+  const leavingConfiguration = useRef(false);
+  const [flushingNavigation, setFlushingNavigation] = useState(false);
+  const registerConfigurationFlush = useCallback((flush: FlushConfiguration | null) => { configurationFlush.current = flush; }, []);
+  const flushConfiguration = useCallback(async () => {
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    return configurationFlush.current ? configurationFlush.current() : true;
+  }, []);
   const canConfigure = canManageGroupConfiguration(authState.session);
   const canParticipants = canConfigure || isGroupScopedStaff(authState.session);
   const canKiosk = canLaunchKiosk(authState.session);
@@ -65,27 +85,45 @@ export default function GroupDetailScreen() {
 
   const load = useCallback(async () => {
     setLoading(true); setError(""); setPlanLockedDenied(false);
-    try { setGroup(await api.get<Group>(endpoints.group(id))); }
+    try {
+      const latest = await api.get<Group>(endpoints.group(id));
+      setGroup(latest);
+      setSetupKioskReadiness(canConfigure && !latest.is_plan_locked && latest.status !== "archived"
+        ? kioskSettingsReadiness(await api.get(endpoints.kioskSettings(id)).catch(() => null)) : null);
+    }
     catch (caught) {
       setGroup(null);
       if (isPlanResourceLocked(caught)) setPlanLockedDenied(true);
       else setError(caught instanceof ApiError ? caught.message : t("common.error"));
     }
     finally { setLoading(false); }
-  }, [api, id, t]);
+  }, [api, id, t, canConfigure]);
 
-  useFocusEffect(useCallback(() => { void load(); }, [load]));
-  useEffect(() => navigation.addListener("beforeRemove", (event) => {
-    if (!configurationDirty || allowNavigation.current) {
-      allowNavigation.current = false;
-      return;
-    }
-    event.preventDefault();
-    NativeAlert.alert(t("groups.configuration"), t("groups.configurationUnsaved") || "Discard unsaved changes?", [
-      { text: t("common.cancel"), style: "cancel" },
-      { text: t("common.confirm"), style: "destructive", onPress: () => { allowNavigation.current = true; navigation.dispatch(event.data.action); } },
-    ]);
-  }), [configurationDirty, navigation, t]);
+  const refreshSetup = useCallback(async () => {
+    try {
+      const latest = await api.get<Group>(endpoints.group(id));
+      setGroup(latest);
+      setSetupKioskReadiness(canConfigure && !latest.is_plan_locked && latest.status !== "archived"
+        ? kioskSettingsReadiness(await api.get(endpoints.kioskSettings(id)).catch(() => null)) : null);
+    } catch { /* Keep existing page/error handling; do not interrupt an open form. */ }
+  }, [api, id, canConfigure]);
+
+  useFocusEffect(useCallback(() => {
+    // A locale/focus refresh must not unmount and discard an autosaving draft.
+    if (configurationFlush.current) void refreshSetup();
+    else void load();
+  }, [load, refreshSetup]));
+  useEffect(() => { if (activeSection !== "overview") void refreshSetup(); }, [activeSection, refreshSetup]);
+  // Register with Expo Router's native-stack context before a native Back/swipe.
+  // Replay only the prevented action; issuing router.back() here would double-pop.
+  usePreventRemove(activeSection === "configuration", ({ data }) => {
+    if (leavingConfiguration.current) return;
+    leavingConfiguration.current = true;
+    setFlushingNavigation(true);
+    void flushConfiguration().then((saved) => {
+      if (saved) { Keyboard.dismiss(); navigation.dispatch(data.action); }
+    }).finally(() => { leavingConfiguration.current = false; setFlushingNavigation(false); });
+  });
 
   if (loading) return <Screen><LoadingState label={t("groups.loading")} /></Screen>;
   if (planLockedDenied) return <Screen style={styles.lockedScreen}><Alert variant="warning" message={`${t("groups.detail.planLockedTitle")}\n${t("groups.detail.planLockedHint")}`} /><Button label={t("groups.back")} variant="secondary" onPress={() => router.back()} /></Screen>;
@@ -95,6 +133,7 @@ export default function GroupDetailScreen() {
   const archived = group.status === "archived";
   const structured = group.group_type === "structured";
   const incomplete = !locked && !archived && group.readiness && !group.readiness.setup_complete;
+  const setupSummary = !locked && !archived ? groupSetupIssueSummary(group.readiness, setupKioskReadiness, t) : "";
 
   const sections: Array<{ key: ActiveSection; label: string }> = [
     { key: "overview", label: t("groups.overview") || "Overview" },
@@ -106,28 +145,34 @@ export default function GroupDetailScreen() {
   if (!locked && !archived) {
     sections.push({ key: "kiosk", label: "Kiosk" });
   }
-  function selectSection(next: ActiveSection) {
-    if (activeSection !== "configuration" || !configurationDirty) {
+  async function selectSection(next: ActiveSection) {
+    if (activeSection !== "configuration" || next === activeSection) {
       setActiveSection(next);
       return;
     }
-    NativeAlert.alert(t("groups.configuration"), t("groups.configurationUnsaved") || "Discard unsaved changes?", [
-      { text: t("common.cancel"), style: "cancel" },
-      { text: t("common.confirm"), style: "destructive", onPress: () => { setConfigurationDirty(false); setActiveSection(next); } },
-    ]);
+    if (leavingConfiguration.current) return;
+    leavingConfiguration.current = true;
+    setFlushingNavigation(true);
+    try { if (await flushConfiguration()) { Keyboard.dismiss(); setActiveSection(next); } }
+    finally { leavingConfiguration.current = false; setFlushingNavigation(false); }
   }
 
   return (
     <Screen style={styles.screen}>
-      <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive" contentContainerStyle={styles.content}>
+      <ScrollView ref={scrollRef} automaticallyAdjustKeyboardInsets={activeSection === "people" || activeSection === "configuration"} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive">
+        <View ref={contentRef} collapsable={false} pointerEvents={flushingNavigation ? "none" : "auto"} style={styles.content}>
         <PageHeader title={group.name} />
         <Alert message={error} />
 
         <View style={styles.headerMeta}>
           <StatusPill label={structured ? t("groups.structured") : t("groups.standard")} tone="blue" />
           <StatusPill label={archived ? t("groups.archivedLabel") : t("groups.activeLabel")} tone={archived ? "neutral" : "green"} />
-          {locked ? <StatusPill label={t("groups.planLocked")} tone="warning" /> : incomplete ? <StatusPill label={t("groups.setupIncomplete")} tone="warning" /> : null}
+          {locked ? <StatusPill label={t("groups.planLocked")} tone="warning" /> : incomplete || setupSummary ? <StatusPill label={t("groups.setupIncomplete")} tone="warning" /> : null}
         </View>
+
+        {setupSummary ? <View accessibilityLiveRegion="polite" style={styles.setupSummary}>
+          <Text style={styles.setupSummaryText}>{setupSummary}</Text>
+        </View> : null}
 
         <View accessibilityRole="tablist" style={styles.detailTabs}>
           {sections.map((s) => (
@@ -150,16 +195,17 @@ export default function GroupDetailScreen() {
         )}
 
         {activeSection === "people" && (
-          structured ? <GroupClasses groupId={id} canManage={canConfigure && !locked && !archived && structuredAccess} renderParticipants={(section) => <PeopleSection key={section.id} groupId={`${id}/classes/${section.id}`} group={group} api={api} t={t} canConfigure={canParticipants && !locked && !archived && section.status === "active"} />} /> : <PeopleSection groupId={id} group={group} api={api} t={t} canConfigure={canParticipants && !locked && !archived} />
+          structured ? <GroupClasses groupId={id} canManage={canConfigure && !locked && !archived && structuredAccess} renderParticipants={(section) => <PeopleSection key={section.id} groupId={`${id}/classes/${section.id}`} group={group} api={api} t={t} scrollToSection={scrollToParticipantSection} onReadinessChange={refreshSetup} canConfigure={canParticipants && !locked && !archived && section.status === "active"} />} /> : <PeopleSection groupId={id} group={group} api={api} t={t} scrollToSection={scrollToParticipantSection} onReadinessChange={refreshSetup} canConfigure={canParticipants && !locked && !archived} />
         )}
 
         {activeSection === "configuration" && canConfigure && !locked && (
-          <ConfigurationSection groupId={id} group={group} api={api} t={t} structuredAccess={structuredAccess} forwardEmailsAccess={forwardEmailsAccess} onDirtyChange={setConfigurationDirty} onSaved={() => void load()} />
+          <ConfigurationSection groupId={id} group={group} api={api} t={t} structuredAccess={structuredAccess} forwardEmailsAccess={forwardEmailsAccess} onFlushReady={registerConfigurationFlush} onSaved={() => void refreshSetup()} />
         )}
 
         {activeSection === "kiosk" && !locked && !archived && (
           <KioskSection groupId={id} group={group} api={api} t={t} canKiosk={canKiosk} canConfigure={canConfigure} router={router} />
         )}
+        </View>
       </ScrollView>
     </Screen>
   );
@@ -229,13 +275,25 @@ function OverviewSection({ group, t }: { group: Group; t: (key: string, vars?: R
   );
 }
 
-function PeopleSection({ groupId, group, api, t, canConfigure }: { groupId: string; group: Group; api: any; t: (key: string, vars?: Record<string, string | number>) => string; canConfigure: boolean }) {
+function PeopleSection({ groupId, group, api, t, canConfigure, scrollToSection, onReadinessChange }: { groupId: string; group: Group; api: any; t: (key: string, vars?: Record<string, string | number>) => string; canConfigure: boolean; scrollToSection: (section: View | null) => void; onReadinessChange: () => Promise<void> }) {
+  const editRef = useRef<View>(null);
+  const addRef = useRef<View>(null);
+  const scrollToAddPending = useRef(false);
+  const scrollToEditPending = useRef(false);
+  const listRef = useRef<View>(null);
+  const returnToList = useRef(false);
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [showAddSheet, setShowAddSheet] = useState(false);
   const [editingParticipant, setEditingParticipant] = useState<Participant | null>(null);
   const structured = group.group_type === "structured";
+  function closeEdit() {
+    Keyboard.dismiss();
+    setEditingParticipant(null);
+    returnToList.current = true;
+    scrollToSection(listRef.current);
+  }
 
   const loadParticipants = useCallback(async () => {
     setLoading(true); setError("");
@@ -246,9 +304,10 @@ function PeopleSection({ groupId, group, api, t, canConfigure }: { groupId: stri
       ]);
       setParticipants([...memberships.map((m: Participant) => ({ ...m, _kind: "member" as const })),
         ...visitors.map((v: Participant) => ({ ...v, _kind: "visitor" as const }))]);
+      void onReadinessChange();
     } catch (caught) { setError(caught instanceof Error ? caught.message : t("common.error")); }
     finally { setLoading(false); }
-  }, [api, groupId, t]);
+  }, [api, groupId, t, onReadinessChange]);
 
   useFocusEffect(useCallback(() => { void loadParticipants(); }, [loadParticipants]));
 
@@ -256,6 +315,9 @@ function PeopleSection({ groupId, group, api, t, canConfigure }: { groupId: stri
 
   return (
     <>
+      <View ref={listRef} collapsable={false} onLayout={() => {
+        if (returnToList.current) { returnToList.current = false; scrollToSection(listRef.current); }
+      }}>
       <SectionCard
         title={t("groups.participantLabel") || "People"}
         description={t("groups.participants", { count: participants.length })}
@@ -266,26 +328,58 @@ function PeopleSection({ groupId, group, api, t, canConfigure }: { groupId: stri
         ) : (
           participants.map((p) => (
             <View key={`${p._kind}-${p.id}`} style={styles.participantRow}>
-              <AvatarRow
+              <Avatar
                 name={p.effective?.name || p.name || p.member?.name || ""}
-                subtitle={`${p.group_participant_code}${p._kind === "visitor" ? ` · ${t("groups.visitor") || "Visitor"}` : ""}`}
                 url={p.effective?.photo_url || p.photo_url || p.member?.photo_url}
                 size={40}
               />
+              <View style={styles.participantCopy}>
+                <Text style={styles.participantName}>{p.effective?.name || p.name || p.member?.name || ""}</Text>
+                <Text style={styles.participantCode}>{p.group_participant_code}{p._kind === "visitor" ? ` · ${t("groups.visitor") || "Visitor"}` : ""}</Text>
+              </View>
               {canConfigure && p.status === "active" ? (
-                <View style={styles.participantActions}>
-                  <Text style={styles.actionLink} onPress={() => setEditingParticipant(p)}>{t("common.edit") || "Edit"}</Text>
-                </View>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`${t("common.edit")} ${p.effective?.name || p.name || p.member?.name || ""}`}
+                  onPress={() => {
+                    Keyboard.dismiss();
+                    scrollToEditPending.current = true;
+                    setEditingParticipant(p);
+                    // The same participant can be opened again without a new layout.
+                    if (editingParticipant === p) {
+                      scrollToEditPending.current = false;
+                      scrollToSection(editRef.current);
+                    }
+                  }}
+                  style={({ pressed }) => [styles.participantEdit, pressed && { backgroundColor: colors.blueSoft }]}
+                >
+                  <Ionicons name="create-outline" size={22} color={colors.primary} />
+                </Pressable>
               ) : null}
             </View>
           ))
         )}
       </SectionCard>
+      </View>
       {canConfigure ? (
-        <Button label={t("groups.addParticipant") || "Add participant"} onPress={() => setShowAddSheet(true)} variant="secondary" />
+        <Button label={t("groups.addParticipant") || "Add participant"} onPress={() => {
+          Keyboard.dismiss();
+          if (showAddSheet) {
+            scrollToSection(addRef.current);
+          } else {
+            scrollToAddPending.current = true;
+            setShowAddSheet(true);
+          }
+        }} variant="secondary" />
       ) : null}
 
       {showAddSheet ? (
+        <View ref={addRef} collapsable={false} onLayout={() => {
+          if (scrollToAddPending.current) {
+            scrollToAddPending.current = false;
+            scrollToSection(addRef.current);
+          }
+        }}>
         <AddParticipantSheet
           groupId={groupId}
           group={group}
@@ -294,18 +388,26 @@ function PeopleSection({ groupId, group, api, t, canConfigure }: { groupId: stri
           onClose={() => setShowAddSheet(false)}
           onSaved={() => { void loadParticipants(); }}
         />
+        </View>
       ) : null}
 
       {editingParticipant ? (
+        <View key={`${editingParticipant._kind}-${editingParticipant.id}`} ref={editRef} collapsable={false} onLayout={() => {
+          if (scrollToEditPending.current) {
+            scrollToEditPending.current = false;
+            scrollToSection(editRef.current);
+          }
+        }}>
         <EditParticipantSheet
           participant={editingParticipant}
           groupId={groupId}
           group={group}
           api={api}
           t={t}
-          onClose={() => setEditingParticipant(null)}
-          onSaved={() => { setEditingParticipant(null); void loadParticipants(); }}
+          onClose={closeEdit}
+          onSaved={() => { closeEdit(); void loadParticipants(); }}
         />
+        </View>
       ) : null}
     </>
   );
@@ -389,7 +491,7 @@ function AddParticipantSheet({ groupId, group, api, t, onClose, onSaved }: { gro
         </View>
       ) : (
         <View style={styles.form}>
-          <Field autoFocus error={fieldErrors.name} label={t("members.name")} value={name} onChangeText={setName} />
+          <Field error={fieldErrors.name} label={t("members.name")} value={name} onChangeText={setName} />
           <ParticipationEmailsField emails={participationEmails} required={group.participation.email_required} error={fieldErrors.participation_emails || fieldErrors.email} onChange={setParticipationEmails} t={t} />
           <Field label={t("kiosk.pin") || "PIN"} value={pin} onChangeText={setPin} secureTextEntry placeholder={t("groups.optionalPin") || "Optional PIN"} />
           <Button label={busy ? (t("groups.saving") || "Saving...") : (t("groups.add") || "Add")} loading={busy} disabled={busy || !name.trim()} onPress={() => void submit()} />
@@ -478,9 +580,9 @@ function EditParticipantSheet({ participant, groupId, group, api, t, onClose, on
       <Alert message={error} />
       <View style={styles.form}>
         {isVisitor ? (
-          <Field autoFocus error={fieldErrors.name} label={t("members.name")} value={name} onChangeText={setName} />
+          <Field error={fieldErrors.name} label={t("members.name")} value={name} onChangeText={setName} />
         ) : (
-          <Field autoFocus error={fieldErrors.override_name} label={`${t("members.name")} (${t("groups.override") || "override"})`} value={name} onChangeText={setName} hint={t("groups.overrideHint") || "Leave empty to use Member profile"} />
+          <Field error={fieldErrors.override_name} label={`${t("members.name")} (${t("groups.override") || "override"})`} value={name} onChangeText={setName} hint={t("groups.overrideHint") || "Leave empty to use Member profile"} />
         )}
         <ParticipationEmailsField emails={participationEmails} required={group.participation.email_required} error={fieldErrors.participation_emails || fieldErrors.participation_email} onChange={setParticipationEmails} t={t} />
         <Field label={t("groups.newPin") || "New PIN"} value={pin} onChangeText={setPin} secureTextEntry placeholder={t("groups.optionalPin") || "Leave empty to keep current"} />
@@ -509,13 +611,12 @@ function resolvedNotifications(group: Group): GroupNotifications {
   };
 }
 
-function ConfigurationSection({ groupId, group, api, t, structuredAccess, forwardEmailsAccess, onDirtyChange, onSaved }: { groupId: string; group: Group; api: any; t: (key: string, vars?: Record<string, string | number>) => string; structuredAccess: boolean; forwardEmailsAccess: boolean; onDirtyChange: (dirty: boolean) => void; onSaved: () => void }) {
+function ConfigurationSection({ groupId, group, api, t, structuredAccess, forwardEmailsAccess, onFlushReady, onSaved }: { groupId: string; group: Group; api: any; t: (key: string, vars?: Record<string, string | number>) => string; structuredAccess: boolean; forwardEmailsAccess: boolean; onFlushReady: (flush: FlushConfiguration | null) => void; onSaved: () => void }) {
   const [name, setName] = useState(group.name);
   const [actions, setActions] = useState(group.actions);
   const [participation, setParticipation] = useState(group.participation);
   const [notifications, setNotifications] = useState<GroupNotifications>(() => resolvedNotifications(group));
   const [senderReady, setSenderReady] = useState(Boolean(group.email_sender_ready || group.advanced?.email_sender_ready));
-  const [senderDirty, setSenderDirty] = useState(false);
   const [requireClassPin, setRequireClassPin] = useState(group.require_class_pin);
   const [forwardEmails, setForwardEmails] = useState<string[]>(() => normalizeForwardEmailSlots(group.forward_emails || group.advanced?.forward_emails));
   const [baseline, setBaseline] = useState(() => JSON.stringify({
@@ -533,7 +634,10 @@ function ConfigurationSection({ groupId, group, api, t, structuredAccess, forwar
     forwardEmails: savedForwardEmails(forwardEmails),
   }), [actions, forwardEmails, name, notifications, participation, requireClassPin]);
   const dirty = snapshot !== baseline;
-  useEffect(() => { onDirtyChange(dirty || senderDirty); return () => onDirtyChange(false); }, [dirty, onDirtyChange, senderDirty]);
+  const currentSnapshot = useRef(snapshot);
+  currentSnapshot.current = snapshot;
+  const autosave = useConfigurationAutosave({ snapshot, dirty, immediateKey: JSON.stringify({ actions, participation, requireClassPin, enabled: Object.values(notifications).map((n) => n.send_email), emailSlots: forwardEmails.length }), save });
+  useEffect(() => { onFlushReady(autosave.flush); return () => onFlushReady(null); }, [autosave.flush, onFlushReady]);
 
   function setNotification(action: keyof GroupNotifications, enabled: boolean) {
     if (enabled && !senderReady) {
@@ -544,12 +648,13 @@ function ConfigurationSection({ groupId, group, api, t, structuredAccess, forwar
     if (enabled) setParticipation((current) => ({ ...current, email_required: true }));
   }
 
-  async function save() {
+  async function save(): Promise<boolean> {
     setBusy(true); setError(""); setSuccess(""); setFieldErrors({});
     if (!name.trim()) {
       setFieldErrors({ name: t("groups.nameRequired") });
+      setError(t("groups.nameRequired"));
       setBusy(false);
-      return;
+      return false;
     }
     try {
       const nextActions = {
@@ -569,17 +674,21 @@ function ConfigurationSection({ groupId, group, api, t, structuredAccess, forwar
       const updated = await api.patch(endpoints.group(groupId), payload) as Group;
       const nextNotifications = resolvedNotifications(updated);
       const nextForward = normalizeForwardEmailSlots(updated.forward_emails || updated.advanced?.forward_emails);
-      setName(updated.name); setActions(updated.actions); setParticipation(updated.participation);
-      setNotifications(nextNotifications); setForwardEmails(nextForward); setRequireClassPin(updated.require_class_pin);
+      // Apply backend-normalized values, but never overwrite newer local edits.
+      if (currentSnapshot.current === snapshot) {
+        setName(updated.name); setActions(updated.actions); setParticipation(updated.participation);
+        setNotifications(nextNotifications); setForwardEmails(nextForward); setRequireClassPin(updated.require_class_pin);
+      }
       setBaseline(JSON.stringify({ name: updated.name.trim(), actions: updated.actions, participation: updated.participation, notifications: nextNotifications, requireClassPin: updated.require_class_pin, forwardEmails: savedForwardEmails(nextForward) }));
-      setSuccess(t("groups.settingsSaved"));
       onSaved();
+      return true;
     } catch (caught) {
       if (caught instanceof ApiError) {
         const fields = fieldErrorsFromBody(caught.data);
         setFieldErrors(fields);
-        if (!Object.values(fields).some(Boolean)) setError(caught.message);
+        setError(caught.message);
       } else setError(t("common.error"));
+      return false;
     } finally { setBusy(false); }
   }
 
@@ -590,6 +699,7 @@ function ConfigurationSection({ groupId, group, api, t, structuredAccess, forwar
       [
         { text: t("common.cancel") || "Cancel", style: "cancel" },
         { text: t("groups.archive") || "Archive", style: "destructive", onPress: async () => {
+          if (!(await autosave.flush())) return;
           setArchiving(true);
           try { await api.post(endpoints.groupArchive(groupId), {}); onSaved(); }
           catch (caught) { setError(caught instanceof ApiError ? caught.message : t("common.error")); }
@@ -609,11 +719,11 @@ function ConfigurationSection({ groupId, group, api, t, structuredAccess, forwar
   return (
     <>
       <Alert message={error} />
-      <Alert message={success} variant="success" />
+      <Text accessibilityLiveRegion="polite" style={styles.settingHint}>{autosave.status === "saving" ? t("groups.savingChanges") : autosave.status === "saved" ? t("common.saved") : ""}</Text>
 
       <SectionCard title={t("groups.groupSection")} description={t("groups.groupSectionHint")}>
         <View style={styles.form}>
-          <Field error={fieldErrors.name} label={t("groups.name")} value={name} onChangeText={setName} returnKeyType="done" />
+          <Field error={fieldErrors.name} label={t("groups.name")} value={name} onChangeText={setName} returnKeyType="done" onBlur={() => void autosave.flush()} />
           <View style={styles.readOnlyRow}>
             <View style={styles.settingCopy}>
               <Text style={styles.settingLabel}>{t("groups.groupType")}</Text>
@@ -657,13 +767,13 @@ function ConfigurationSection({ groupId, group, api, t, structuredAccess, forwar
       <SectionCard title={t("groups.afterAction")} description={t("groups.afterActionHint")}>
         {!senderReady ? <Text style={styles.settingHint}>{t("groups.afterActionBlocked")}</Text> : null}
         <View style={styles.settingsList}>
-          {actions.check_in_enabled ? <NotificationSetting label={t("groups.afterCheckIn")} value={notifications.check_in} disabled={!senderReady} onEnabled={(value) => setNotification("check_in", value)} onMessage={(value) => setNotifications((current) => ({ ...current, check_in: { ...current.check_in, email_template: value } }))} t={t} /> : null}
-          {actions.check_out_enabled ? <NotificationSetting label={t("groups.afterCheckOut")} value={notifications.check_out} disabled={!senderReady} onEnabled={(value) => setNotification("check_out", value)} onMessage={(value) => setNotifications((current) => ({ ...current, check_out: { ...current.check_out, email_template: value } }))} t={t} /> : null}
-          {actions.breaks_enabled ? <NotificationSetting label={t("groups.afterBreak")} value={notifications.break} disabled={!senderReady} onEnabled={(value) => setNotification("break", value)} onMessage={(value) => setNotifications((current) => ({ ...current, break: { ...current.break, email_template: value } }))} t={t} /> : null}
+          {actions.check_in_enabled ? <NotificationSetting label={t("groups.afterCheckIn")} value={notifications.check_in} disabled={!senderReady} onEnabled={(value) => setNotification("check_in", value)} onMessage={(value) => setNotifications((current) => ({ ...current, check_in: { ...current.check_in, email_template: value } }))} onBlur={() => void autosave.flush()} t={t} /> : null}
+          {actions.check_out_enabled ? <NotificationSetting label={t("groups.afterCheckOut")} value={notifications.check_out} disabled={!senderReady} onEnabled={(value) => setNotification("check_out", value)} onMessage={(value) => setNotifications((current) => ({ ...current, check_out: { ...current.check_out, email_template: value } }))} onBlur={() => void autosave.flush()} t={t} /> : null}
+          {actions.breaks_enabled ? <NotificationSetting label={t("groups.afterBreak")} value={notifications.break} disabled={!senderReady} onEnabled={(value) => setNotification("break", value)} onMessage={(value) => setNotifications((current) => ({ ...current, break: { ...current.break, email_template: value } }))} onBlur={() => void autosave.flush()} t={t} /> : null}
         </View>
       </SectionCard>
 
-      <GroupEmailSender groupId={groupId} onReadyChange={setSenderReady} onDirtyChange={setSenderDirty} />
+      <GroupEmailSender groupId={groupId} onReadyChange={setSenderReady} />
 
       <SectionCard title={t("groups.forwardEmails")} description={forwardEmailsAccess ? t("groups.forwardEmailsHint") : t("groups.notificationsHint")}>
         {forwardEmailsAccess ? (
@@ -675,6 +785,7 @@ function ConfigurationSection({ groupId, group, api, t, structuredAccess, forwar
                   autoCorrect={false}
                   containerStyle={styles.forwardEmailField}
                   error={index === 0 ? fieldErrors.forward_emails : undefined}
+                  onBlur={() => void autosave.flush()}
                   keyboardType="email-address"
                   label={forwardEmails.length > 1 ? t("groups.forwardEmailNumbered", { number: index + 1 }) : t("groups.forwardEmail")}
                   onChangeText={(value) => setForwardEmails((current) => current.map((item, itemIndex) => itemIndex === index ? value : item))}
@@ -702,7 +813,6 @@ function ConfigurationSection({ groupId, group, api, t, structuredAccess, forwar
         )}
       </SectionCard>
 
-      <Button label={busy ? t("groups.savingChanges") : t("groups.saveChanges")} loading={busy} disabled={busy || archiving || !dirty} onPress={() => void save()} />
 
       <View style={styles.dangerZone}>
         <Text style={styles.dangerTitle}>{t("groups.dangerZone")}</Text>
@@ -722,10 +832,10 @@ function ConfigurationSection({ groupId, group, api, t, structuredAccess, forwar
   );
 }
 
-function NotificationSetting({ label, value, disabled, onEnabled, onMessage, t }: { label: string; value: { send_email: boolean; email_template: string }; disabled: boolean; onEnabled: (enabled: boolean) => void; onMessage: (message: string) => void; t: (key: string) => string }) {
+function NotificationSetting({ label, value, disabled, onEnabled, onMessage, onBlur, t }: { label: string; value: { send_email: boolean; email_template: string }; disabled: boolean; onEnabled: (enabled: boolean) => void; onMessage: (message: string) => void; onBlur: () => void; t: (key: string) => string }) {
   return <View style={styles.notificationSetting}>
     <SettingSwitch label={label} value={value.send_email} disabled={disabled} onValueChange={onEnabled} />
-    {value.send_email ? <Field multiline label={t("groups.emailMessage")} hint={t("groups.emailMessageHint")} value={value.email_template} onChangeText={onMessage} /> : null}
+    {value.send_email ? <Field multiline label={t("groups.emailMessage")} hint={t("groups.emailMessageHint")} value={value.email_template} onChangeText={onMessage} onBlur={onBlur} /> : null}
   </View>;
 }
 
@@ -762,12 +872,9 @@ function KioskSection({ groupId, group, api, t, canKiosk, canConfigure, router }
   }, [api, canConfigure, groupId, t]);
   useFocusEffect(useCallback(() => { void load(); }, [load]));
   const blocked = isKioskLaunchBlocked({ groupReadiness: group.readiness, canInspectKioskSettings: canConfigure, settingsLoading: loading, kioskReadiness: readiness });
-  const issues = groupLaunchIssueKeys(group.readiness).map((issue) => t(issue.key, issue.count == null ? undefined : { count: issue.count }));
-  if (!issues.length && readiness?.ready === false) issues.push(...readiness.issues);
   return (
     <SectionCard title="Kiosk">
       <Alert message={error} />
-      {blocked && issues.length ? <View style={styles.readinessIssues}><Text style={styles.settingLabel}>{t("groups.kioskNeedsAttention")}</Text>{issues.map((issue) => <Text key={issue} style={styles.settingHint}>• {issue}</Text>)}</View> : null}
       {canKiosk ? (
         <Button disabled={blocked} label={t("groups.launchKiosk")} onPress={() => { if (!blocked) router.push(`/kiosk/${groupId}`); }} />
       ) : null}
@@ -794,6 +901,8 @@ const styles = StyleSheet.create({
   lockedScreen: { gap: space.md, justifyContent: "center" },
   content: { padding: space.lg, paddingBottom: space.xxxl, gap: space.lg },
   headerMeta: { flexDirection: "row", flexWrap: "wrap", gap: space.sm, marginTop: -space.sm },
+  setupSummary: { backgroundColor: "#FFFBEB", borderColor: "#FDE68A", borderWidth: 1, borderRadius: 10, paddingHorizontal: space.md, paddingVertical: space.sm, gap: 2, marginTop: -space.sm, marginBottom: -space.sm },
+  setupSummaryText: { ...type.caption, color: colors.text, flexShrink: 1 },
   detailTabs: { flexDirection: "row", padding: 3, borderRadius: 10, backgroundColor: colors.surfaceSubtle },
   detailTab: { flex: 1, minWidth: 0, minHeight: 40, alignItems: "center", justifyContent: "center", borderRadius: 8, paddingHorizontal: 3 },
   detailTabActive: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
@@ -812,8 +921,11 @@ const styles = StyleSheet.create({
   info: { minHeight: 44, justifyContent: "center", borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
   infoLabel: { ...type.caption, color: colors.textMuted },
   infoValue: { ...type.bodyStrong, color: colors.text, textTransform: "capitalize" },
-  participantRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: space.sm, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
-  participantActions: { flexDirection: "row", gap: space.md },
+  participantRow: { flexDirection: "row", alignItems: "center", gap: space.md, minHeight: 64, paddingVertical: space.sm, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
+  participantCopy: { flex: 1, minWidth: 0, gap: space.xs },
+  participantName: { ...type.bodyStrong, color: colors.text, flexShrink: 1 },
+  participantCode: { ...type.caption, color: colors.textMuted, flexShrink: 1 },
+  participantEdit: { width: 44, height: 44, flexShrink: 0, alignItems: "center", justifyContent: "center", borderRadius: 10, backgroundColor: colors.primarySoft },
   actionLink: { ...type.captionStrong, color: colors.blue },
   sheet: { backgroundColor: colors.surface, borderRadius: 14, borderWidth: 1, borderColor: colors.border, padding: space.lg, gap: space.md },
   sheetHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },

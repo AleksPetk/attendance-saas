@@ -32,7 +32,8 @@ test("desktop shell uses canonical branding, Dashboard terminology, and Workspac
   assert.match(shell, /<div className="topbar-actions"><button aria-label="Refresh"[\s\S]*<DesktopLanguageMenu[\s\S]*<DesktopAnnouncementBell[\s\S]*<BrandMark/);
   assert.match(shell, /M20 11a8 8 0 1 0-2\.34 5\.66/);
   assert.doesNotMatch(shell, /M4 17v-5h5/);
-  assert.match(shell, /window\.location\.reload\(\)/);
+  assert.doesNotMatch(shell, /window\.location\.reload\(\)/);
+  assert.match(shell, /desktopRefresh.refresh\(\)/);
   assert.match(shell, /disabled=\{refreshing\}/);
   assert.match(shell, /title="Refresh"/);
   assert.match(shell, /<DesktopLanguageMenu locale=\{locale\} onSelect=\{setLocale\}/);
@@ -181,8 +182,10 @@ test("desktop Kiosk launch uses server readiness before navigation", () => {
   assert.match(groupDetail, /kioskSettingsReadiness\(next\)/);
   assert.match(groupDetail, /isKioskLaunchBlocked/);
   assert.match(groupDetail, /await loadSettings\(\)/);
-  assert.match(groupDetail, /groups\.kioskNeedsAttention/);
-  assert.match(groupDetail, /groups\.openKioskSettings/);
+  assert.match(groupDetail, /groupSetupIssueSummary/);
+  assert.match(groupDetail, /className="group-setup-summary"/);
+  assert.doesNotMatch(groupDetail, /className="kiosk-readiness-warning"/);
+  assert.match(groupDetail, /navigate\(`\/groups\/\$\{groupId\}\/kiosk-settings`\)/);
   assert.match(groupDetail, /disabled=\{launchBlocked\}/);
   assert.match(groupDetail, /navigate\(`\/kiosk\/\$\{groupId\}`\)/);
   assert.doesNotMatch(groupDetail, /<Button onClick=\{\(\) => navigate\(`\/kiosk\/\$\{groupId\}`\)\}/);

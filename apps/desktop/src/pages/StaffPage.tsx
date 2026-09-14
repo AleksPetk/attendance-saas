@@ -3,6 +3,7 @@ import { ApiError, endpoints, fieldErrorsFromBody } from "@checkstation/api";
 import { canManageStaffAccounts, hasPlanFeature } from "@checkstation/domain";
 import { Alert, Badge, Button, Card, Field, Input, Loading, Modal, Page, Segmented, Switch, formatError } from "../components/ui";
 import { useApp } from "../lib/AppProvider";
+import { useForegroundRefresh } from "../lib/useForegroundRefresh";
 import { memberUsageMetrics } from "../lib/members";
 
 type Staff = { id: number; username: string; email?: string; role: "staff" | "admin"; status: "active" | "inactive"; is_plan_locked?: boolean; group_access?: Array<{ group_id: number; name: string }> };
@@ -11,8 +12,9 @@ type Editor = { mode: "create" } | { mode: "edit" | "password" | "access"; staff
 
 export function StaffPage() {
   const { api, authState, t } = useApp(); const allowed = canManageStaffAccounts(authState.session) && hasPlanFeature(authState.session, "staff_management"); const [rows, setRows] = useState<Staff[]>([]); const [search, setSearch] = useState(""); const [loading, setLoading] = useState(true); const [busy, setBusy] = useState(false); const [error, setError] = useState(""); const [editor, setEditor] = useState<Editor | null>(null); const [copied, setCopied] = useState(false);
-  const load = useCallback(async () => { if (!allowed) return; setLoading(true); setError(""); try { const data = await api.get<Staff[] | { results: Staff[] }>(endpoints.workspaceStaff()); setRows(Array.isArray(data) ? data : data.results || []); } catch (caught) { setError(formatError(caught, t("common.error"))); } finally { setLoading(false); } }, [allowed, api, t]);
+  const load = useCallback(async (silent = false) => { if (!allowed) return; if (!silent) setLoading(true); setError(""); try { const data = await api.get<Staff[] | { results: Staff[] }>(endpoints.workspaceStaff()); setRows(Array.isArray(data) ? data : data.results || []); } catch (caught) { setError(formatError(caught, t("common.error"))); } finally { if (!silent) setLoading(false); } }, [allowed, api, t]);
   useEffect(() => { void load(); }, [load]);
+  useForegroundRefresh(() => load(true));
   async function lifecycle(staff: Staff, remove = false) { const copy = t(remove ? "staff.deleteConfirm" : "staff.statusConfirm", { name: staff.username }); if (!confirm(copy)) return; setBusy(true); setError(""); try { if (remove) await api.delete(endpoints.workspaceStaffAccount(staff.id)); else await api.patch(endpoints.workspaceStaffAccount(staff.id), { status: staff.status === "active" ? "inactive" : "active" }); await load(); } catch (caught) { setError(formatError(caught, t("common.error"))); } finally { setBusy(false); } }
   if (!allowed) return <Page><Alert tone="warning">{t("staff.planRequired")}</Alert></Page>;
   const entitlements = authState.session?.workspace?.entitlements;

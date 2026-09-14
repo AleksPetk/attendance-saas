@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useForegroundRefresh } from "../lib/useForegroundRefresh";
 import { endpoints } from "@checkstation/api";
 import { hasPlanFeature } from "@checkstation/domain";
 import { formatDateTime } from "@checkstation/i18n";
@@ -20,9 +21,10 @@ export function HistoryPage() {
 
 function ActivityLog() {
   const { api, locale, t } = useApp(); const [rows, setRows] = useState<Activity[]>([]); const [groups, setGroups] = useState<Group[]>([]); const [search, setSearch] = useState(""); const [action, setAction] = useState(""); const [groupId, setGroupId] = useState(""); const [day, setDay] = useState(""); const [loading, setLoading] = useState(true); const [error, setError] = useState("");
-  const load = useCallback(async () => { setLoading(true); setError(""); const q = new URLSearchParams(); if (search.trim()) q.set("search", search.trim()); if (action) q.set("action", action); if (groupId) q.set("group_id", groupId); if (day) q.set("day", day); try { const data = await api.get<{ items?: Activity[] }>(`${endpoints.history()}?${q}`); setRows(data.items || []); } catch (caught) { setError(formatError(caught, t("common.error"))); } finally { setLoading(false); } }, [action, api, day, groupId, search, t]);
+  const load = useCallback(async (silent = false) => { if (!silent) setLoading(true); setError(""); const q = new URLSearchParams(); if (search.trim()) q.set("search", search.trim()); if (action) q.set("action", action); if (groupId) q.set("group_id", groupId); if (day) q.set("day", day); try { const data = await api.get<{ items?: Activity[] }>(`${endpoints.history()}?${q}`); setRows(data.items || []); } catch (caught) { setError(formatError(caught, t("common.error"))); } finally { if (!silent) setLoading(false); } }, [action, api, day, groupId, search, t]);
   useEffect(() => { void api.get<Group[]>(`${endpoints.groups()}?status=active`).then(setGroups).catch(() => undefined); }, [api]);
   useEffect(() => { void load(); }, [load]);
+  useForegroundRefresh(() => load(true));
   function clear() { setSearch(""); setAction(""); setGroupId(""); setDay(""); }
   return <><Card title={t("history.filters")}><form className="form" onSubmit={(e) => { e.preventDefault(); void load(); }}><div className="form-grid"><Field label={t("history.group")}><Select value={groupId} onChange={(e) => setGroupId(e.target.value)}><option value="">{t("history.allGroups")}</option>{groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}</Select></Field><Field label={t("history.action")}><Select value={action} onChange={(e) => setAction(e.target.value)}><option value="">{t("history.anyAction")}</option><option value="check_in">{t("history.checkedIn")}</option><option value="check_out">{t("history.checkedOut")}</option><option value="break_start">{t("history.breakStarted")}</option><option value="break_end">{t("history.breakEnded")}</option></Select></Field><Field label={t("history.search")}><Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t("history.searchPlaceholder")} /></Field><Field label={t("history.day")}><Input type="date" value={day} onChange={(e) => setDay(e.target.value)} /></Field></div><div className="toolbar"><Button type="submit" variant="secondary">{t("history.searchAction")}</Button><Button type="button" variant="secondary" onClick={clear}>{t("history.clearFilters")}</Button></div></form></Card><Alert>{error}</Alert>{loading ? <Loading label={t("history.loading")} /> : rows.length ? <div className="desktop-history-list">{rows.map((row) => <ActivityRow key={row.id} row={row} locale={locale} t={t} />)}</div> : <Empty title={t("history.emptyTitle")} body={t("history.emptyBody")} />}</>;
 }
@@ -48,6 +50,15 @@ function AttendanceReport() {
   useEffect(() => { void loadOptions(); }, [loadOptions]);
   const query = useMemo(() => reportQuery({ mode, groupId, memberId, participant, preset, from, to }), [from, groupId, memberId, mode, participant, preset, to]);
   const ready = Boolean((mode === "group" ? groupId : memberId) && preset && (preset !== "custom" || (from && to && from <= to)));
+  const currentQuery = useRef(query);
+  currentQuery.current = query;
+  useForegroundRefresh(async () => {
+    if (!ready || loading) return;
+    try {
+      const latest = await api.get<Report>(`${endpoints.attendanceReport()}?${query}`);
+      if (currentQuery.current === query) setReport(latest);
+    } catch (caught) { if (currentQuery.current === query) setError(formatError(caught, t("common.error"))); }
+  });
   useEffect(() => { if (!ready) { setReport(null); return; } let active = true; setLoading(true); setError(""); void api.get<Report>(`${endpoints.attendanceReport()}?${query}`).then((data) => { if (active) setReport(data); }).catch((caught) => { if (active) setError(formatError(caught, t("common.error"))); }).finally(() => { if (active) setLoading(false); }); return () => { active = false; }; }, [api, query, ready, t]);
   function changeMode(next: "group" | "member") { setMode(next); setGroupId(""); setMemberId(""); setParticipant(""); setReport(null); }
   async function exportReport(format: "pdf" | "xlsx" | "csv") { setExporting(format); setError(""); try { await downloadDesktopApiFile(`${endpoints.attendanceReportExport()}?${query}&export_format=${format}`, `attendance-report.${format}`); } catch (caught) { setError(formatError(caught, t("history.exportFailed"))); } finally { setExporting(""); } }

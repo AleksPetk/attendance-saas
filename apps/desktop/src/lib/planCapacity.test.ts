@@ -63,6 +63,7 @@ test("desktop capacity resolution reuses the browser plan-lock selection endpoin
   assert.match(panel, /selected_ids: selectedIds/);
   assert.match(panel, /setSelectedIds\(\[\]\)/);
   assert.match(panel, /auth\.refreshWorkspace\(\)/);
-  assert.match(shell, /auth\.refreshWorkspace\(\)/);
+  assert.match(shell, /desktopRefresh.refresh\(\)/);
+  assert.match(readFileSync(new URL("./AppProvider.tsx", import.meta.url), "utf8"), /auth\.refreshWorkspace\(\)/);
   assert.doesNotMatch(`${groups}\n${members}\n${panel}`, /limit:\s*(2|10)\b/);
 });

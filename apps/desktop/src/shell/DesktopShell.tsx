@@ -4,6 +4,7 @@ import { canAccessStaffManagement, canManageOwnerAccount, canManageStaffAccounts
 import { Brand, BrandMark, Badge } from "../components/ui";
 import { DesktopAnnouncementBell } from "../components/DesktopAnnouncementBell";
 import { useApp } from "../lib/AppProvider";
+import { desktopRefresh } from "../lib/foregroundRefresh";
 
 export function DesktopShell() {
   const { t, auth, authState, locale, setLocale } = useApp(); const location = useLocation(); const navigate = useNavigate(); const session = authState.session;
@@ -28,10 +29,7 @@ export function DesktopShell() {
   function refreshCurrentPage() {
     if (refreshing) return;
     setRefreshing(true);
-    void auth.refreshWorkspace().catch(() => undefined).finally(() => {
-      window.setTimeout(() => window.location.reload(), 50);
-      window.setTimeout(() => setRefreshing(false), 1500);
-    });
+    void desktopRefresh.refresh().finally(() => setRefreshing(false));
   }
   return <div className="app-shell"><aside className="sidebar"><Brand showMark={false} /><nav className="sidebar-nav">{items.filter((item) => item.show).map((item) => item.locked ? <button aria-disabled="true" className="nav-link is-plan-locked" key={item.to} title={t("nav.staffLockedHint")} type="button"><NavIcon name={item.icon} />{item.label}<span aria-label={t("common.upgradeRequired")} className="nav-lock-badge">{t("common.locked")}</span></button> : <NavLink className={({ isActive }) => `nav-link${isActive ? " is-active" : ""}`} end={item.to === "/"} key={item.to} to={item.to}><NavIcon name={item.icon} />{item.label}</NavLink>)}</nav><div className="sidebar-footer"><div className="sidebar-account-info"><span className="sidebar-account-email">{identity}</span><div className="sidebar-account-role"><span>{role}</span><span aria-hidden="true">·</span><Badge tone="blue">{plan}</Badge></div></div><button className="sidebar-signout" onClick={() => void auth.logout()} type="button">Sign out</button></div></aside><main className="desktop-main"><header className="topbar"><div className="topbar-copy"><span className="topbar-eyebrow">{t("app.name").toUpperCase()}</span><h1>{page?.label || t("app.name")}</h1></div><div className="topbar-actions"><button aria-label="Refresh" className={`desktop-refresh-trigger${refreshing ? " is-refreshing" : ""}`} disabled={refreshing} onClick={refreshCurrentPage} title="Refresh" type="button"><RefreshIcon /></button><DesktopLanguageMenu locale={locale} onSelect={setLocale} /><DesktopAnnouncementBell onViewStatus={() => navigate("/help", { state: { view: "status" } })} /><BrandMark className="topbar-brand-logo" decorative={false} /></div></header><Outlet /></main></div>;
 }

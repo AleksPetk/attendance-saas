@@ -3,9 +3,12 @@ import { ApiClient, CookieJar, TransportApiClient } from "@checkstation/api";
 import { AuthController, type AuthState } from "@checkstation/auth";
 import { createAppConfig } from "@checkstation/config";
 import { createTranslator, resolveLocale, type AppLocale } from "@checkstation/i18n";
+import { desktopRefresh, installForegroundRefresh } from "./foregroundRefresh";
+import { useForegroundRefresh } from "./useForegroundRefresh";
 
 type DesktopBridge = {
   platform: string;
+  startupReady?: () => void;
   initSession: () => Promise<void>;
   clearSession: () => Promise<void>;
   http: (req: {
@@ -95,6 +98,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [auth]);
 
   const t = useMemo(() => createTranslator(locale), [locale]);
+  useForegroundRefresh(async () => {
+    if (authState.status === "authenticated") await auth.refreshWorkspace();
+  });
+  useEffect(() => installForegroundRefresh(window, document, () => desktopRefresh.refresh()), []);
   return (
     <AppContext.Provider value={{ api, auth, authState, locale, setLocale, t, ready }}>
       {children}

@@ -12,7 +12,7 @@ const login = readFileSync(new URL("../pages/SignInPage.tsx", import.meta.url), 
 
 test("Account uses canonical account state and removes duplicate heading and language settings", () => {
   assert.match(account, /endpoints\.account\(\)/);
-  assert.match(account, /window\.addEventListener\("focus"/);
+  assert.match(account, /useForegroundRefresh/);
   assert.doesNotMatch(account, /PageHeader|setLocale|more\.language/);
   assert.match(account, /accountPrimaryEmail|accountBackupEmailRemove/);
   assert.match(account, /AccountSecurity account=\{account\}/);

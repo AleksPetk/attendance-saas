@@ -2,12 +2,13 @@ const { app, BrowserWindow, shell, ipcMain, dialog } = require("electron");
 const fs = require("fs");
 const path = require("path");
 const { createSessionApi } = require("./sessionApi.cjs");
+const { createStartupWindows } = require("./startup.cjs");
 
 const isDev = !app.isPackaged;
 const sessionApi = createSessionApi();
 
 function createWindow() {
-  const win = new BrowserWindow({
+  const win = createStartupWindows({ BrowserWindow, mainOptions: {
     width: 1280,
     height: 840,
     minWidth: 960,
@@ -19,6 +20,10 @@ function createWindow() {
       nodeIntegration: false,
       sandbox: true,
     },
+  }, loadMain: (window) => isDev
+    ? window.loadURL("http://127.0.0.1:5174")
+    : window.loadFile(path.join(__dirname, "../dist/index.html")),
+  onFailure: () => dialog.showErrorBox("CheckStation", "CheckStation couldn’t start. Please quit and reopen the app."),
   });
 
   win.webContents.setWindowOpenHandler(({ url }) => {
@@ -26,11 +31,6 @@ function createWindow() {
     return { action: "deny" };
   });
 
-  if (isDev) {
-    win.loadURL("http://127.0.0.1:5174");
-  } else {
-    win.loadFile(path.join(__dirname, "../dist/index.html"));
-  }
 }
 
 app.whenReady().then(() => {

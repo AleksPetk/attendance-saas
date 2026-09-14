@@ -1,4 +1,5 @@
 import { Navigate, Route, Routes } from "react-router-dom";
+import { useEffect } from "react";
 import { canAccessStaffManagement, canManageStaffAccounts } from "@checkstation/domain";
 import { useApp } from "./lib/AppProvider";
 import { DesktopShell } from "./shell/DesktopShell";
@@ -31,6 +32,15 @@ function StaffRoute() {
 
 export function App() {
   const { ready, authState, t } = useApp();
+  useEffect(() => {
+    if (!ready || authState.status === "unknown") return;
+    // Signal after React has committed and route redirects have had a paint frame.
+    let nextFrame = 0;
+    const frame = requestAnimationFrame(() => {
+      nextFrame = requestAnimationFrame(() => window.checkstationDesktop?.startupReady?.());
+    });
+    return () => { cancelAnimationFrame(frame); cancelAnimationFrame(nextFrame); };
+  }, [ready, authState.status]);
   if (!ready || authState.status === "unknown") {
     return <div style={{ padding: 24 }}>{t("common.loading")}</div>;
   }

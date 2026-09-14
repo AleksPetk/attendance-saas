@@ -7,6 +7,7 @@ import { DesktopKioskConfirmation, DesktopKioskExitDialog, DesktopKioskPinDialog
 import { DesktopKioskRenderer, desktopKioskFlowTemplate, desktopKioskTemplateAccent } from "../components/DesktopKioskRenderer";
 import { Loading, formatError } from "../components/ui";
 import { useApp } from "../lib/AppProvider";
+import { useForegroundRefresh } from "../lib/useForegroundRefresh";
 
 type Person = {
   membership_id?: number;
@@ -80,18 +81,12 @@ export function KioskPage() {
 
   useEffect(() => {
     void load(true);
-    const refresh = () => {
-      if (document.visibilityState === "visible") void load();
-    };
-    window.addEventListener("focus", refresh);
-    document.addEventListener("visibilitychange", refresh);
     return () => {
-      window.removeEventListener("focus", refresh);
-      document.removeEventListener("visibilitychange", refresh);
       requestSequence.current += 1;
       if (timer.current) clearTimeout(timer.current);
     };
   }, [load]);
+  useForegroundRefresh(() => load());
 
   const design = useMemo<KioskDesignDocument>(() => normalizeKioskDesignDocument(data.visual_design), [data.visual_design]);
   const saved = (data.kiosk_settings || data.kiosk || {}) as Partial<KioskConfig>;

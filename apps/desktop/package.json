@@ -43,10 +43,11 @@
     },
     "files": [
       "dist/**/*",
-      "electron/**/*"
+      "electron/**/*",
+      "assets/app-icon.png"
     ],
     "mac": {
-      "icon": "icon.png",
+      "icon": "app-icon.png",
       "target": [
         "dir"
       ],

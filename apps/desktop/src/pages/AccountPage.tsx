@@ -3,6 +3,7 @@ import { endpoints } from "@checkstation/api";
 import { canManageOwnerAccount } from "@checkstation/domain";
 import { Alert, Badge, Button, Card, DataRow, Field, Input, Loading, Modal, Page, formatError } from "../components/ui";
 import { useApp } from "../lib/AppProvider";
+import { useForegroundRefresh } from "../lib/useForegroundRefresh";
 import { AccountSecurity, type SecurityAccount } from "../components/AccountSecurity";
 
 type Account = SecurityAccount & { email?: string; email_verified?: boolean; pending_primary_email?: string | null; backup_email_status?: string; backup_email?: string | null; pending_backup_email?: string | null };
@@ -12,7 +13,7 @@ export function AccountPage() {
   const { api, authState, t } = useApp(); const allowed = canManageOwnerAccount(authState.session); const [account, setAccount] = useState<Account | null>(null); const [loading, setLoading] = useState(true); const [error, setError] = useState(""); const [action, setAction] = useState<EmailAction | null>(null); const [busy, setBusy] = useState(false); const [message, setMessage] = useState("");
   const load = useCallback(async () => { if (!allowed) return; setLoading(true); setError(""); try { setAccount(await api.get<Account>(endpoints.account())); } catch (caught) { setError(formatError(caught, t("common.error"))); } finally { setLoading(false); } }, [allowed, api, t]);
   useEffect(() => { void load(); }, [load]);
-  useEffect(() => { const refresh = () => { if (allowed) void api.get<Account>(endpoints.account()).then(setAccount).catch((caught) => setError(formatError(caught, t("common.error")))); }; window.addEventListener("focus", refresh); return () => window.removeEventListener("focus", refresh); }, [allowed, api, t]);
+  useForegroundRefresh(async () => { if (!allowed) return; try { setAccount(await api.get<Account>(endpoints.account())); } catch (caught) { setError(formatError(caught, t("common.error"))); } });
   async function pending(kind: "primary" | "backup", operation: "resend" | "cancel") { setBusy(true); setError(""); try { const path = kind === "primary" ? operation === "resend" ? endpoints.accountPrimaryEmailResend() : endpoints.accountPrimaryEmailCancel() : operation === "resend" ? endpoints.accountBackupEmailResend() : endpoints.accountBackupEmailCancel(); await api.post(path, {}); setMessage(operation === "resend" ? t("account.verificationSent") : t("manage.saved")); await load(); } catch (caught) { setError(formatError(caught, t("common.error"))); } finally { setBusy(false); } }
   if (!allowed) return <Page><Alert tone="warning">{t("more.staffRoleDescription")}</Alert></Page>;
   if (loading) return <Page><Loading label={t("account.loading")} /></Page>;

@@ -36,6 +36,19 @@ export function groupLaunchIssueKeys(readiness?: GroupLaunchReadiness | null) {
   return issues.length ? issues : [{ key: "groups.setupIncomplete" }];
 }
 
+/** Display only: use the Workspace count reasons and server-provided kiosk issues. */
+export function groupSetupIssueSummary(
+  readiness: GroupLaunchReadiness | null | undefined,
+  kioskReadiness: KioskSettingsReadiness | null | undefined,
+  translate: (key: string, vars?: Record<string, string | number>) => string,
+) {
+  const reasons = groupLaunchIssueKeys(readiness).map(({ key, count }) =>
+    translate(key, count == null ? undefined : { count }),
+  );
+  if (kioskReadiness?.ready === false) reasons.push(...kioskReadiness.issues);
+  return [...new Set(reasons)].join(" · ");
+}
+
 export function isKioskLaunchBlocked({
   groupReadiness,
   canInspectKioskSettings,

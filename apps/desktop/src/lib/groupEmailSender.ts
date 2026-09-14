@@ -1,2 +1,2 @@
-export type { EmailSenderProvider, SmtpSecurity, GroupEmailSender, GroupEmailSenderForm } from "@checkstation/domain";
-export { EMAIL_SENDER_PROVIDERS, EMPTY_EMAIL_SENDER, senderFormFromApi, blankSenderForm, senderDraftRequiresTest, senderFromNameOnlyChange, buildEmailSenderBody, normalizeForwardEmailSlots, savedForwardEmails } from "@checkstation/domain";
+export type { EmailSenderProvider, SmtpSecurity, GroupEmailSender, GroupEmailSenderForm, SavedEmailSender } from "@checkstation/domain";
+export { EMAIL_SENDER_PROVIDERS, EMPTY_EMAIL_SENDER, SAVED_SENDERS_PICKER, applySavedSenderImport, blankSenderForm, buildEmailSenderBody, buildGroupSenderSaveBody, buildSavedSenderCreateBody, isSavedSenderNameConflict, retainGroupDraftAfterTemplateDelete, savedSenderDisplayAddress, savedSendersFromList, senderCredentialIsConfigured, senderDraftRequiresTest, senderFormFromApi, senderFromNameOnlyChange, normalizeForwardEmailSlots, savedForwardEmails } from "@checkstation/domain";

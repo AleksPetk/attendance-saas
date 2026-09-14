@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Redirect, useFocusEffect } from "expo-router";
-import { Alert as NativeAlert, RefreshControl, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
+import { Alert as NativeAlert, Pressable, RefreshControl, ScrollView, StyleSheet, Switch, Text, View, useWindowDimensions } from "react-native";
 import { ApiError, endpoints, fieldErrorsFromBody } from "@checkstation/api";
 import { canAccessStaffManagement, canManageStaffAccounts, memberUsageMetrics } from "@checkstation/domain";
-import { Alert, Button, Field, LoadingState, Screen, SegmentedControl, TextLink } from "../../src/components/ui";
-import { AddButton, PageHeader, SearchField, SectionCard, StatusPill } from "../../src/components/mobile";
+import { Alert, Button, Field, LoadingState, Screen, SegmentedControl } from "../../src/components/ui";
+import { AddButton, PageHeader, SearchField, StatusPill } from "../../src/components/mobile";
 import { CapacityMeter } from "../../src/components/CapacityMeter";
 import { ManagementSheet } from "../../src/components/ManagementSheet";
 import { useApp } from "../../src/lib/AppProvider";
@@ -15,6 +15,8 @@ type Access = { group_id: number; name: string; group_type: string; assigned: bo
 type Editor = { mode: "create" } | { mode: "edit" | "password" | "access"; staff: Staff };
 
 export default function StaffScreen() {
+  const { width } = useWindowDimensions();
+  const wide = width >= 700;
   const { api, authState, t } = useApp();
   const session = authState.session;
   const allowed = canAccessStaffManagement(session, canManageStaffAccounts(session));
@@ -65,10 +67,10 @@ export default function StaffScreen() {
     { unlimited: hasLimit(entitlements?.limits, "workspace_staff") && staffLimit == null },
   );
   const sections = ([
-    { status: "active", role: "admin", statusLabel: t("members.active"), roleLabel: t("staff.admin") },
-    { status: "active", role: "staff", statusLabel: t("members.active"), roleLabel: t("nav.staff") },
-    { status: "inactive", role: "admin", statusLabel: t("staff.inactive"), roleLabel: t("staff.admin") },
-    { status: "inactive", role: "staff", statusLabel: t("staff.inactive"), roleLabel: t("nav.staff") },
+    { status: "active", role: "admin", title: t("staff.activeAdmins") },
+    { status: "active", role: "staff", title: t("staff.activeStaff") },
+    { status: "inactive", role: "admin", title: t("staff.inactiveAdmins") },
+    { status: "inactive", role: "staff", title: t("staff.inactiveStaff") },
   ] as const).map((section) => ({
     ...section,
     rows: filtered.filter((row) => row.status === section.status && row.role === section.role),
@@ -76,7 +78,7 @@ export default function StaffScreen() {
   return <Screen style={styles.screen}>
     <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={loading} onRefresh={() => void load()} />}>
       <PageHeader title={t("nav.staff")} description={t("staff.description")} action={<AddButton label={t("staff.create")} onPress={() => setEditor({ mode: "create" })} />} />
-      {session?.workspace?.workspace_id ? <SectionCard>
+      {session?.workspace?.workspace_id ? <View>
         <View style={styles.workspaceIdCard}>
           <View style={styles.copy}>
             <Text style={styles.workspaceIdLabel}>{t("staff.workspaceId")}</Text>
@@ -84,46 +86,62 @@ export default function StaffScreen() {
             <Text style={styles.meta}>{t("staff.workspaceIdHint")}</Text>
           </View>
         </View>
-      </SectionCard> : null}
+      </View> : null}
       {adminUsage || staffUsage ? <View accessibilityLabel={t("staff.usageLabel")} style={styles.usage}>
-        {adminUsage ? <CapacityMeter
+        {adminUsage ? <View style={wide ? styles.usageHalf : styles.usageFull}><CapacityMeter
           count={adminUsage.count}
           label={t("staff.admins")}
           limit={adminUsage.limit}
           remainingLabel={adminUsage.remaining == null ? undefined : t("staff.usageSummary", { count: adminUsage.count, remaining: adminUsage.remaining })}
           unlimitedLabel={t("members.unlimited")}
-        /> : null}
-        {staffUsage ? <CapacityMeter
+        /></View> : null}
+        {staffUsage ? <View style={wide ? styles.usageHalf : styles.usageFull}><CapacityMeter
           count={staffUsage.count}
           label={t("nav.staff")}
           limit={staffUsage.limit}
           remainingLabel={staffUsage.remaining == null ? undefined : t("staff.usageSummary", { count: staffUsage.count, remaining: staffUsage.remaining })}
           unlimitedLabel={t("members.unlimited")}
-        /> : null}
+        /></View> : null}
       </View> : null}
       <SearchField value={search} onChangeText={setSearch} placeholder={t("staff.search")} />
       <Alert message={error} />
       {loading && !rows.length ? <LoadingState label={t("staff.loading")} /> : null}
       {!loading && !filtered.length ? <Text style={styles.meta}>{t("staff.emptyTitle")}</Text> : null}
-      {!loading && filtered.length ? <View style={styles.accountGroups}>{sections.map((section) => <View key={`${section.status}-${section.role}`} style={styles.accountSection}>
-        <Text style={styles.sectionLabel}>{section.statusLabel}</Text>
-        <SectionCard title={section.roleLabel}>
-          {section.rows.length ? section.rows.map((staff, index) => <View key={staff.id} style={[styles.account, index > 0 && styles.accountBorder]}>
-            <View style={styles.heading}><View style={styles.copy}><Text style={styles.name}>{staff.username}</Text><Text style={styles.meta}>{staff.email || t("staff.noEmail")}</Text></View>{staff.is_plan_locked ? <StatusPill label={t("members.planLocked")} tone="warning" /> : null}</View>
-            {staff.role === "staff" ? <Text style={styles.meta}>{staff.group_access?.map((group) => group.name).join(", ") || t("staff.noGroupAccess")}</Text> : null}
-            <View style={styles.actions}>
-              <Button variant="secondary" disabled={busy} label={t("staff.edit")} onPress={() => setEditor({ mode: "edit", staff })} />
-              {staff.role === "staff" ? <Button variant="secondary" disabled={busy} label={t("staff.groupAccess")} onPress={() => setEditor({ mode: "access", staff })} /> : null}
-              <Button variant="secondary" disabled={busy} label={t("staff.resetPassword")} onPress={() => setEditor({ mode: "password", staff })} />
-              <Button variant="secondary" disabled={busy} label={t(staff.status === "active" ? "staff.deactivate" : "staff.activate")} onPress={() => confirm(staff)} />
-              {staff.status === "inactive" ? <TextLink disabled={busy} label={t("staff.delete")} onPress={() => confirm(staff, true)} /> : null}
+      {!loading && filtered.length ? <View style={styles.accountGroups}>{sections.filter((section) => section.rows.length > 0).map((section) => <View key={`${section.status}-${section.role}`} style={styles.accountSection}>
+        <Text accessibilityRole="header" style={styles.sectionLabel}>{section.title} ({section.rows.length})</Text>
+        <View style={styles.accountGrid}>
+          {section.rows.map((staff) => <View key={staff.id} style={[styles.account, wide && styles.accountHalf]}>
+            <View style={styles.accountIdentity}><Text style={styles.name}>{staff.username}</Text><Text style={styles.meta}>{staff.email || t("staff.noEmail")}</Text></View>
+            <View style={styles.badges}>
+              <StatusPill label={t(staff.role === "admin" ? "staff.admin" : "nav.staff")} tone="blue" />
+              <StatusPill label={t(staff.status === "active" ? "members.active" : "staff.inactive")} tone={staff.status === "active" ? "green" : "neutral"} />
+              {staff.is_plan_locked ? <StatusPill label={t("members.planLocked")} tone="warning" /> : null}
             </View>
-          </View>) : <Text style={styles.meta}>{t("staff.emptySection")}</Text>}
-        </SectionCard>
+            {staff.role === "staff" ? <View style={styles.badges}>
+              {staff.group_access?.length ? <>
+                {staff.group_access.slice(0, 2).map((group) => <Text key={group.group_id} numberOfLines={1} style={styles.groupChip}>{group.name}</Text>)}
+                {staff.group_access.length > 2 ? <Text style={styles.meta}>{t("staff.moreGroups", { count: staff.group_access.length - 2 })}</Text> : null}
+              </> : <Text style={styles.meta}>{t("staff.noGroupAccess")}</Text>}
+            </View> : null}
+            <View style={styles.actions}>
+              <AccountAction disabled={busy} label={t("staff.edit")} onPress={() => setEditor({ mode: "edit", staff })} />
+              {staff.role === "staff" ? <AccountAction disabled={busy} label={t("staff.groupAccess")} onPress={() => setEditor({ mode: "access", staff })} /> : null}
+              <AccountAction disabled={busy} label={t("staff.resetPassword")} onPress={() => setEditor({ mode: "password", staff })} />
+              <AccountAction disabled={busy} emphasis={staff.status === "inactive" ? "positive" : undefined} label={t(staff.status === "active" ? "staff.deactivate" : "staff.activate")} onPress={() => confirm(staff)} />
+              {staff.status === "inactive" ? <AccountAction disabled={busy} emphasis="danger" label={t("staff.delete")} onPress={() => confirm(staff, true)} /> : null}
+            </View>
+          </View>)}
+        </View>
       </View>)}</View> : null}
     </ScrollView>
     {editor ? <StaffEditor editor={editor} onClose={() => setEditor(null)} onSaved={() => { setEditor(null); void load(); }} /> : null}
   </Screen>;
+}
+
+function AccountAction({ label, onPress, disabled, emphasis }: { label: string; onPress: () => void; disabled: boolean; emphasis?: "positive" | "danger" }) {
+  return <Pressable accessibilityRole="button" accessibilityState={{ disabled }} disabled={disabled} onPress={onPress} style={({ pressed }) => [styles.actionButton, emphasis === "positive" && styles.actionPositive, emphasis === "danger" && styles.actionDanger, pressed && !disabled && { backgroundColor: colors.surfaceSubtle }, disabled && { opacity: 0.5 }]}>
+    <Text style={[styles.actionLabel, emphasis === "positive" && { color: colors.primary }, emphasis === "danger" && { color: colors.dangerText }]}>{label}</Text>
+  </Pressable>;
 }
 
 function StaffEditor({ editor, onClose, onSaved }: { editor: Editor; onClose: () => void; onSaved: () => void }) {
@@ -194,15 +212,25 @@ const styles = StyleSheet.create({
   workspaceIdCard: { borderRadius: 12, backgroundColor: colors.blueSoft, padding: space.md },
   workspaceIdLabel: { ...type.captionStrong, color: colors.textSecondary },
   workspaceId: { ...type.title, color: colors.bluePressed, letterSpacing: 1.2, marginVertical: space.xs },
-  usage: { gap: space.md },
-  accountGroups: { gap: space.xl },
+  usage: { flexDirection: "row", flexWrap: "wrap", gap: space.md },
+  usageHalf: { flex: 1, minWidth: 0 },
+  usageFull: { width: "100%" },
+  accountGroups: { gap: space.lg },
   accountSection: { gap: space.sm },
-  sectionLabel: { ...type.eyebrow, color: colors.textSecondary },
-  account: { paddingVertical: space.sm },
-  accountBorder: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border, marginTop: space.md, paddingTop: space.lg },
+  sectionLabel: { ...type.bodyStrong, color: colors.textSecondary },
+  accountGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", gap: space.md, alignItems: "flex-start" },
+  account: { width: "100%", padding: space.md, borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, gap: space.sm },
+  accountHalf: { width: "48%" },
+  accountIdentity: { gap: space.xs },
+  badges: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: space.sm },
+  groupChip: { ...type.caption, color: colors.textSecondary, backgroundColor: colors.surfaceSubtle, paddingHorizontal: space.sm, paddingVertical: space.xs, borderRadius: 8, maxWidth: "100%", flexShrink: 1 },
   heading: { flexDirection: "row", alignItems: "center", gap: space.md, paddingVertical: space.sm },
   copy: { flex: 1 },
   name: { ...type.bodyStrong, color: colors.text },
   meta: { ...type.caption, color: colors.textMuted },
-  actions: { gap: space.sm, marginTop: space.lg },
+  actions: { flexDirection: "row", flexWrap: "wrap", gap: space.sm, paddingTop: space.sm, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
+  actionButton: { minHeight: 44, maxWidth: "100%", flexShrink: 1, paddingHorizontal: space.md, paddingVertical: space.sm, borderWidth: 1, borderColor: colors.borderStrong, borderRadius: 8, justifyContent: "center", alignItems: "center", backgroundColor: colors.surface },
+  actionLabel: { ...type.captionStrong, color: colors.textSecondary, textAlign: "center" },
+  actionPositive: { borderColor: colors.blue, backgroundColor: colors.primarySoft },
+  actionDanger: { borderColor: colors.dangerBorder, backgroundColor: colors.dangerSoft },
 });

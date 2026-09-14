@@ -4,6 +4,7 @@ import { canViewBilling } from "@checkstation/domain";
 import { formatDateTime } from "@checkstation/i18n";
 import { Alert, Badge, Card, Loading, Page, formatError } from "../components/ui";
 import { useApp } from "../lib/AppProvider";
+import { useForegroundRefresh } from "../lib/useForegroundRefresh";
 // Reuse production presentation rules rather than maintaining a desktop billing matrix.
 // @ts-expect-error Canonical Workspace JavaScript helper.
 import { buildUpgradePlanOptions, buildDowngradePlanOptions, effectivePlanKey, isEffectiveCurrentPlanOption, isBuiltinTrialSelectionMode, planDisplayName, catalogListPriceWithInterval } from "../../../../frontend/src/subscriptionPlanOptions.js";
@@ -34,16 +35,17 @@ export function PlanPage() {
   const [error, setError] = useState("");
   const [helperLocale, setHelperLocale] = useState("");
   useEffect(() => { let active = true; void workspaceI18n.changeLanguage(locale).then(() => { if (active) setHelperLocale(locale); }); return () => { active = false; }; }, [locale]);
-  const load = useCallback(async () => {
+  const load = useCallback(async (silent = false) => {
     if (!allowed) return;
-    setLoading(true); setError("");
+    if (!silent) setLoading(true); setError("");
     try {
       const [snapshot, workspace] = await Promise.all([api.get<Snapshot>(endpoints.billing()), api.get<Snapshot>(endpoints.workspace())]);
       setBilling(snapshot); setEntitlements(workspace.entitlements);
     } catch (caught) { setError(formatError(caught, t("common.error"))); }
-    finally { setLoading(false); }
+    finally { if (!silent) setLoading(false); }
   }, [allowed, api, t]);
   useEffect(() => { void load(); }, [load]);
+  useForegroundRefresh(() => load(true));
   if (!allowed) return <Page><Alert tone="warning">{t("more.staffRoleDescription")}</Alert></Page>;
   if (loading || helperLocale !== locale) return <Page><Loading label={t("plan.loading")} /></Page>;
   if (!billing) return <Page><Alert>{error}</Alert></Page>;
