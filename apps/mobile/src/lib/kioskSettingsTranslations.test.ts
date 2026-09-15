@@ -18,6 +18,8 @@ const kioskSettingsKeys = [
   "kiosk.resetNow",
   "kiosk.saveSettings",
   "kiosk.savingSettings",
+  "kiosk.saveExitCode",
+  "kiosk.cancelExitCodeChange",
   "kiosk.template.clean",
   "kiosk.template.business",
   "kiosk.template.friendly",

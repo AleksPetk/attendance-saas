@@ -60,7 +60,18 @@ test("desktop editor uses Workspace card values, patching and visual miniature c
   assert.match(editor, /CARD_TEMPLATE_IDS, patchMainWithCardTemplate.*cardTemplates.js/);
   assert.match(editor, /next.config.main = patchMainWithCardTemplate\(next.config.main, itemId\)/);
   assert.match(editor, /<CardTemplateMini id=\{itemId\}/);
+  assert.match(editor, /<InputTemplateMini id=\{itemId\}/);
+  assert.match(editor, /function InputTemplateMini/);
+  assert.match(editor, /kb-template-mini kb-template-mini--\$\{id\}/);
+  assert.doesNotMatch(editor, /kind === "cards" \? <CardTemplateMini id=\{itemId\} \/> : <i \/>/);
   assert.match(editor, /aria-pressed=\{itemId === value\}/);
   const miniStyles = readFileSync(new URL("../components/cardTemplatePreviews.css", import.meta.url), "utf8");
   assert.match(miniStyles, /mini--comic/); assert.match(miniStyles, /mini--photo/);
+  const inputMiniStyles = readFileSync(new URL("../components/inputTemplatePreviews.css", import.meta.url), "utf8");
+  for (const id of ["soft", "bold", "minimal", "outline", "dark", "glass", "rounded", "compact", "large_touch"]) {
+    assert.match(inputMiniStyles, new RegExp(`kb-template-mini--${id}`));
+  }
+  assert.match(inputMiniStyles, /\.kb-template-mini \{/);
+  assert.match(inputMiniStyles, /kb-template-mini-field/);
+  assert.match(inputMiniStyles, /kb-template-mini-btn/);
 });

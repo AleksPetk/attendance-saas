@@ -673,11 +673,12 @@
 /* Workspace card and admin-selected promotion styles; isolated to Plan preview. */
 .desktop-plan-preview { --surface:var(--surface-1,#fff); --surface-muted:var(--surface-3,#f8fafc); --text-secondary:var(--text-2); --text-muted:var(--muted); --brand:var(--primary,#2563eb); --radius-md:16px; display:grid; gap:20px; min-width:0; }
 .desktop-plan-grid,.desktop-plan-usage { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; }
-.desktop-plan-preview .account-plan-option { padding:24px; min-width:0; }
+.desktop-plan-summary + .desktop-plan-grid { margin-top:18px; }
+.desktop-plan-preview .account-plan-option { gap:7px; min-height:0; padding:18px 20px; min-width:0; }
 .desktop-plan-preview .account-plan-option-header h4 { font-size:19px; }
-.desktop-plan-preview .account-plan-option-price { font-size:30px; margin-top:12px; }
+.desktop-plan-preview .account-plan-option-price { font-size:30px; margin-top:4px; }
 .desktop-plan-preview .account-plan-option-badge { white-space:normal; }
-.desktop-plan-preview .desktop-plan-purchase:disabled { width:100%; margin-top:14px; background:#e2e8f0; color:#64748b; border:1px solid var(--border); box-shadow:none; cursor:not-allowed; opacity:1; }
+.desktop-plan-preview .desktop-plan-purchase:disabled { width:100%; min-height:38px; margin-top:8px; background:#e2e8f0; color:#64748b; border:1px solid var(--border); box-shadow:none; cursor:not-allowed; opacity:1; }
 .desktop-plan-usage-item { padding:16px; border:1px solid var(--border); border-radius:12px; }
 .desktop-plan-usage-item>div { display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px; font-size:14px; }
 .desktop-plan-usage-item span,.desktop-plan-usage-item small,.desktop-plan-summary { color:var(--muted); }

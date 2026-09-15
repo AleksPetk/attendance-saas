@@ -21,12 +21,19 @@ export default function AppGroupLayout() {
       <Stack.Screen name="help" options={{ title: t("nav.help") }} />
       <Stack.Screen name="help/document/[slug]" options={{ title: t("help.article") }} />
       <Stack.Screen name="help/status" options={{ title: t("status.title") }} />
+      <Stack.Screen name="help/contact" options={{ title: t("help.contact.title") }} />
       <Stack.Screen name="member/[id]" options={{ title: t("nav.members") }} />
       <Stack.Screen name="member/new" options={{ title: t("members.add") }} />
       <Stack.Screen name="group/[id]" options={{ title: t("nav.groups") }} />
       <Stack.Screen name="group/new" options={{ title: t("groups.add") }} />
       <Stack.Screen name="group/[id]/kiosk-settings" options={{ title: t("kiosk.settings") }} />
-      <Stack.Screen name="group/[id]/kiosk-design" options={{ title: t("kiosk.design") || "Kiosk design" }} />
+      <Stack.Screen
+        name="group/[id]/kiosk-design"
+        options={{
+          headerShown: false,
+          contentStyle: { backgroundColor: colors.bg, paddingBottom: 0, paddingLeft: 0, paddingRight: 0 },
+        }}
+      />
     </Stack>
     {authState.status === "authenticated" ? <MobileGuidedHelp autoStart /> : null}
     </View>

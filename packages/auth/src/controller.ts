@@ -158,6 +158,33 @@ export class AuthController {
     return this.applySession(session).session!;
   }
 
+  /**
+   * Apply a successful kiosk exit locally before navigation.
+   * Mirrors browser clearKioskLockLocally — clears top-level and nested workspace flags.
+   */
+  applyKioskUnlock(lockPayload?: Partial<WorkspaceSession> | Record<string, unknown>): AuthState {
+    const current = this.state.session;
+    const flat = current
+      ? ({ ...current, ...(current.workspace || {}) } as WorkspaceSession)
+      : ({} as WorkspaceSession);
+    const payload = (lockPayload || {}) as Partial<WorkspaceSession>;
+    const unlocked = {
+      kiosk_locked: false as const,
+      kiosk_group_id: (payload.kiosk_group_id ?? null) as number | null,
+      kiosk_available: Boolean(payload.kiosk_available ?? false),
+    };
+    const nextWorkspace = {
+      ...(typeof flat.workspace === "object" && flat.workspace ? flat.workspace : {}),
+      ...unlocked,
+    };
+    return this.applySession({
+      ...flat,
+      ...payload,
+      ...unlocked,
+      workspace: nextWorkspace,
+    } as WorkspaceSession);
+  }
+
   async logout(): Promise<void> {
     try {
       await this.api.post(endpoints.logout(), {});

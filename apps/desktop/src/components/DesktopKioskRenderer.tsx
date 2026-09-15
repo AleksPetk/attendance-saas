@@ -11,6 +11,7 @@ type Props = {
   kioskMode: KioskMode;
   onExit: () => void;
   exitLabel: string;
+  helperText?: string;
   showExit?: boolean;
   respectSectionEnabled?: boolean;
 };
@@ -22,7 +23,7 @@ type Props = {
  * renderer: the shared kiosk styles use it to apply saved layout, card, input,
  * and flow presets. Media is resolved through Electron's authenticated bridge.
  */
-export function DesktopKioskRenderer({ children, design, kioskMode, onExit, exitLabel, showExit = true, respectSectionEnabled = false }: Props) {
+export function DesktopKioskRenderer({ children, design, kioskMode, onExit, exitLabel, helperText = "", showExit = true, respectSectionEnabled = false }: Props) {
   const { config } = design;
   const headerLogo = useAuthenticatedAsset(design.header_logo_url);
   const footerLogo = useAuthenticatedAsset(design.footer_logo_url);
@@ -32,6 +33,7 @@ export function DesktopKioskRenderer({ children, design, kioskMode, onExit, exit
   const flowTemplate = desktopKioskFlowTemplate(design, kioskMode);
   const mainUsesImage = config.main.background.mode === "image" && Boolean(mainImage);
   const overlay = kioskOverlayColor(config.main.overlay);
+  const cardHelper = kioskMode === "card" ? String(helperText || "").trim() : "";
 
   return (
     <div
@@ -73,7 +75,7 @@ export function DesktopKioskRenderer({ children, design, kioskMode, onExit, exit
         className="kr-main"
         data-layout={config.main.layout_preset}
         data-has-title={config.main.title.text ? "on" : "off"}
-        data-card-helper="off"
+        data-card-helper={cardHelper ? "on" : "off"}
         data-title-align={safeAlignment(config.main.title.alignment, "center")}
         style={mainUsesImage ? undefined : sectionStyle(config.main.background)}
       >
@@ -93,6 +95,11 @@ export function DesktopKioskRenderer({ children, design, kioskMode, onExit, exit
           ) : null}
           <div className="kr-main-slot">{children}</div>
         </div>
+        {cardHelper ? (
+          <div className="kr-card-helper-dock">
+            <div className="kr-card-helper" role="note">{cardHelper}</div>
+          </div>
+        ) : null}
       </section>
       <footer
         className="kr-footer"

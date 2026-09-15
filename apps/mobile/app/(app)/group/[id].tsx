@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert as NativeAlert, Keyboard, Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from "expo-router";
 import { usePreventRemove } from "expo-router/react-navigation";
 import { ApiError, endpoints, fieldErrorsFromBody } from "@checkstation/api";
@@ -175,19 +176,30 @@ export default function GroupDetailScreen() {
         </View> : null}
 
         <View accessibilityRole="tablist" style={styles.detailTabs}>
-          {sections.map((s) => (
-            <Pressable
-              accessibilityRole="tab"
-              accessibilityState={{ selected: activeSection === s.key }}
-              key={s.key}
-              onPress={() => selectSection(s.key)}
-              style={({ pressed }) => [styles.detailTab, activeSection === s.key && styles.detailTabActive, pressed && styles.tabPressed]}
-            >
-              <Text adjustsFontSizeToFit minimumFontScale={0.82} numberOfLines={1} style={[styles.detailTabText, activeSection === s.key && styles.detailTabTextActive]}>
-                {s.label}
-              </Text>
-            </Pressable>
-          ))}
+          {sections.map((s) => {
+            const active = activeSection === s.key;
+            return (
+              <Pressable
+                accessibilityRole="tab"
+                accessibilityState={{ selected: active }}
+                key={s.key}
+                onPress={() => selectSection(s.key)}
+                style={({ pressed }) => [styles.detailTab, active && styles.detailTabActive, pressed && styles.tabPressed]}
+              >
+                {active ? (
+                  <LinearGradient
+                    colors={[colors.blue, colors.cyan]}
+                    end={{ x: 1, y: 1 }}
+                    start={{ x: 0, y: 0 }}
+                    style={styles.detailTabFill}
+                  />
+                ) : null}
+                <Text adjustsFontSizeToFit minimumFontScale={0.82} numberOfLines={1} style={[styles.detailTabText, active && styles.detailTabTextActive]}>
+                  {s.label}
+                </Text>
+              </Pressable>
+            );
+          })}
         </View>
 
         {activeSection === "overview" && (
@@ -904,10 +916,11 @@ const styles = StyleSheet.create({
   setupSummary: { backgroundColor: "#FFFBEB", borderColor: "#FDE68A", borderWidth: 1, borderRadius: 10, paddingHorizontal: space.md, paddingVertical: space.sm, gap: 2, marginTop: -space.sm, marginBottom: -space.sm },
   setupSummaryText: { ...type.caption, color: colors.text, flexShrink: 1 },
   detailTabs: { flexDirection: "row", padding: 3, borderRadius: 10, backgroundColor: colors.surfaceSubtle },
-  detailTab: { flex: 1, minWidth: 0, minHeight: 40, alignItems: "center", justifyContent: "center", borderRadius: 8, paddingHorizontal: 3 },
-  detailTabActive: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
+  detailTab: { flex: 1, minWidth: 0, minHeight: 40, alignItems: "center", justifyContent: "center", borderRadius: 8, paddingHorizontal: 3, overflow: "hidden" },
+  detailTabActive: { shadowColor: colors.blue, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.18, shadowRadius: 7, elevation: 2 },
+  detailTabFill: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0, borderRadius: 8 },
   detailTabText: { fontSize: 12, fontWeight: "600", lineHeight: 16, color: colors.textMuted, textAlign: "center" },
-  detailTabTextActive: { color: colors.bluePressed },
+  detailTabTextActive: { color: colors.surface },
   tabPressed: { opacity: 0.7 },
   tabs: { flexDirection: "row", padding: 3, borderRadius: 8, backgroundColor: colors.surfaceSubtle },
   tab: { flex: 1, minHeight: 38, alignItems: "center", justifyContent: "center", borderRadius: 6 },

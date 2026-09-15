@@ -9,3 +9,4 @@ export * from "./kioskSettingsForm.js";
 export * from "./groupParticipantForm.js";
 export * from "./groupEmailSender.js";
 export * from "./savedEmailSenders.js";
+export * from "./supportContact.js";

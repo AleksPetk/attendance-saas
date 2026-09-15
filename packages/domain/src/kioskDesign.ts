@@ -17,10 +17,85 @@ export const DEFAULT_KIOSK_DESIGN: KioskDesignConfig = {
   footer: { enabled: true, height: 0.06, background: { mode: "solid", color: "#1E293B", color2: null, gradient_angle: 90 }, logo: null, text: { lines: [], alignment: "center", font: "inter", size_rem: 0.875, color: "#94A3B8", effects: { shadow: false, outline: false } } },
 };
 
+/** Canonical Card template order (matches Workspace / Desktop Kiosk Editor). */
+export const CARD_TEMPLATE_IDS = [
+  "clean", "compact", "business", "large_touch", "photo", "minimal", "bold", "glass", "outline", "soft",
+  "kids_bubble", "heart_pop", "ticket", "id_badge", "cyber_hex", "polaroid", "sticker_pack", "terminal", "ribbon", "comic",
+  "pure", "executive", "welcome", "playground", "active", "pass", "victory", "bare",
+] as const;
+
+/** Canonical Input template order (matches Workspace / Desktop Kiosk Editor). */
+export const INPUT_TEMPLATE_IDS = [
+  "clean", "soft", "bold", "minimal", "outline", "dark", "glass", "rounded", "compact", "large_touch",
+  "kids_bubble", "heart_pop", "ticket", "id_badge", "cyber_hex", "polaroid", "sticker_pack", "terminal", "ribbon", "comic",
+  "pure", "executive", "welcome", "playground", "active", "pass", "victory", "bare",
+] as const;
+
 const CARD_TEMPLATE_PRESETS: Record<string, { layout: string; card: string }> = {
   clean: { layout: "centered", card: "elevated" }, compact: { layout: "compact", card: "flat" }, business: { layout: "split", card: "bordered" }, large_touch: { layout: "large_touch", card: "elevated" }, photo: { layout: "photo_cards", card: "elevated" }, minimal: { layout: "centered", card: "flat" }, outline: { layout: "centered", card: "bordered" }, executive: { layout: "centered", card: "bordered" }, pass: { layout: "centered", card: "bordered" }, bare: { layout: "centered", card: "flat" },
   bold: { layout: "centered", card: "elevated" }, glass: { layout: "centered", card: "elevated" }, soft: { layout: "centered", card: "elevated" }, kids_bubble: { layout: "centered", card: "elevated" }, heart_pop: { layout: "centered", card: "elevated" }, ticket: { layout: "centered", card: "bordered" }, id_badge: { layout: "centered", card: "elevated" }, cyber_hex: { layout: "centered", card: "elevated" }, polaroid: { layout: "centered", card: "elevated" }, sticker_pack: { layout: "centered", card: "elevated" }, terminal: { layout: "centered", card: "elevated" }, ribbon: { layout: "centered", card: "elevated" }, comic: { layout: "centered", card: "elevated" }, pure: { layout: "centered", card: "elevated" }, welcome: { layout: "centered", card: "elevated" }, playground: { layout: "centered", card: "elevated" }, active: { layout: "centered", card: "elevated" }, victory: { layout: "centered", card: "elevated" },
 };
+
+const INPUT_TEMPLATE_PRESETS: Record<string, { layout: string; button: string; input: string; accent: string }> = {
+  clean: { layout: "centered", button: "rounded", input: "outlined", accent: "#2563EB" },
+  soft: { layout: "centered", button: "pill", input: "filled", accent: "#3B82F6" },
+  bold: { layout: "centered", button: "flat", input: "outlined", accent: "#0F172A" },
+  minimal: { layout: "centered", button: "flat", input: "minimal", accent: "#334155" },
+  outline: { layout: "centered", button: "rounded", input: "outlined", accent: "#2563EB" },
+  dark: { layout: "centered", button: "rounded", input: "filled", accent: "#38BDF8" },
+  glass: { layout: "centered", button: "pill", input: "outlined", accent: "#67E8F9" },
+  rounded: { layout: "centered", button: "rounded", input: "filled", accent: "#2563EB" },
+  compact: { layout: "compact", button: "rounded", input: "outlined", accent: "#2563EB" },
+  large_touch: { layout: "large_touch", button: "rounded", input: "outlined", accent: "#2563EB" },
+  kids_bubble: { layout: "centered", button: "pill", input: "filled", accent: "#F472B6" },
+  heart_pop: { layout: "centered", button: "pill", input: "filled", accent: "#FB7185" },
+  ticket: { layout: "centered", button: "rounded", input: "outlined", accent: "#0EA5E9" },
+  id_badge: { layout: "centered", button: "flat", input: "outlined", accent: "#1D4ED8" },
+  cyber_hex: { layout: "centered", button: "flat", input: "filled", accent: "#22D3EE" },
+  polaroid: { layout: "centered", button: "rounded", input: "outlined", accent: "#F59E0B" },
+  sticker_pack: { layout: "centered", button: "pill", input: "filled", accent: "#A855F7" },
+  terminal: { layout: "centered", button: "flat", input: "minimal", accent: "#22C55E" },
+  ribbon: { layout: "centered", button: "rounded", input: "outlined", accent: "#DC2626" },
+  comic: { layout: "centered", button: "flat", input: "outlined", accent: "#FACC15" },
+  pure: { layout: "centered", button: "flat", input: "minimal", accent: "#64748B" },
+  executive: { layout: "centered", button: "rounded", input: "outlined", accent: "#0F172A" },
+  welcome: { layout: "centered", button: "rounded", input: "filled", accent: "#2563EB" },
+  playground: { layout: "centered", button: "pill", input: "filled", accent: "#7C3AED" },
+  active: { layout: "centered", button: "flat", input: "outlined", accent: "#DC2626" },
+  pass: { layout: "centered", button: "rounded", input: "outlined", accent: "#0284C7" },
+  victory: { layout: "centered", button: "rounded", input: "filled", accent: "#CA8A04" },
+  bare: { layout: "centered", button: "flat", input: "minimal", accent: "#475569" },
+};
+
+/** Apply a card template onto main config (canonical + legacy mirrors). */
+export function patchMainWithCardTemplate(
+  main: KioskDesignConfig["main"],
+  templateId: string,
+): KioskDesignConfig["main"] {
+  const id = CARD_TEMPLATE_PRESETS[templateId] ? templateId : "clean";
+  const preset = CARD_TEMPLATE_PRESETS[id];
+  return { ...main, card_template: id, layout_preset: preset.layout, card_preset: preset.card };
+}
+
+/** Apply an input template onto main config (canonical + legacy mirrors). */
+export function patchMainWithInputTemplate(
+  main: KioskDesignConfig["main"],
+  templateId: string,
+): KioskDesignConfig["main"] {
+  const id = INPUT_TEMPLATE_PRESETS[templateId] ? templateId : "clean";
+  const preset = INPUT_TEMPLATE_PRESETS[id];
+  return {
+    ...main,
+    input_template: id,
+    layout_preset: preset.layout,
+    button_preset: preset.button,
+    input_preset: preset.input,
+  };
+}
+
+export function inputTemplateAccent(templateId: string): string {
+  return INPUT_TEMPLATE_PRESETS[templateId]?.accent || "#2563EB";
+}
 function object(value: unknown): Record<string, unknown> { return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {}; }
 function clone<T>(value: T): T { return JSON.parse(JSON.stringify(value)) as T; }
 function mergePreservingSource(base: Record<string, unknown>, source: Record<string, unknown>): Record<string, unknown> { const result = clone(base); for (const [key, value] of Object.entries(source)) { const baseline = object(base[key]); if (Object.keys(baseline).length) { result[key] = value && typeof value === "object" && !Array.isArray(value) ? mergePreservingSource(baseline, object(value)) : clone(base[key]); } else { result[key] = clone(value); } } return result; }

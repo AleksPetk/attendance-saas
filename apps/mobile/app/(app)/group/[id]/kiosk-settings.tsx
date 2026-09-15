@@ -1,5 +1,6 @@
-import { useCallback, useMemo, useState } from "react";
-import { Redirect, useFocusEffect, useLocalSearchParams } from "expo-router";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Redirect, useFocusEffect, useLocalSearchParams, useNavigation } from "expo-router";
+import { usePreventRemove } from "expo-router/react-navigation";
 import { Alert as NativeAlert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
 import { ApiError, endpoints, fieldErrorsFromBody } from "@checkstation/api";
 import {
@@ -15,28 +16,46 @@ import {
 import { Alert, Button, Field, LoadingState, Screen } from "../../../../src/components/ui";
 import { PageHeader, SectionCard, StatusPill } from "../../../../src/components/mobile";
 import { useApp } from "../../../../src/lib/AppProvider";
+import { useConfigurationAutosave } from "../../../../src/lib/useConfigurationAutosave";
 import { colors, space, type } from "../../../../src/theme/tokens";
 
 type GroupSummary = { group_type?: string };
 
+/** Autosave never includes exit-code drafts (exitCodeConfigured forced true). */
+function isAutosaveDirty(form: KioskSettingsForm, saved: KioskSettingsForm) {
+  return isKioskSettingsDirty(form, saved, {
+    changingExitCode: false,
+    savedChangingExitCode: false,
+    exitCodeConfigured: true,
+  });
+}
+
 export default function KioskSettingsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const navigation = useNavigation();
   const { api, authState, t } = useApp();
   const [settings, setSettings] = useState<KioskSettingsApi | null>(null);
   const [form, setForm] = useState<KioskSettingsForm | null>(null);
   const [savedForm, setSavedForm] = useState<KioskSettingsForm | null>(null);
   const [structured, setStructured] = useState(false);
   const [changingExitCode, setChangingExitCode] = useState(false);
-  const [savedChangingExitCode, setSavedChangingExitCode] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [savingExit, setSavingExit] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [showSaved, setShowSaved] = useState(false);
+  const leavingRef = useRef(false);
+  const formRef = useRef(form);
+  const settingsRef = useRef(settings);
+  const structuredRef = useRef(structured);
+  formRef.current = form;
+  settingsRef.current = settings;
+  structuredRef.current = structured;
 
   const load = useCallback(async () => {
-    setLoading(true); setError("");
+    setLoading(true); setError(""); setShowSaved(false);
     try {
       const [data, group] = await Promise.all([
         api.get<KioskSettingsApi>(endpoints.kioskSettings(id)),
@@ -47,15 +66,97 @@ export default function KioskSettingsScreen() {
       if (isStructured) next.mode = "card";
       const editingExit = !data.exit_code_configured;
       setSettings(data); setForm(next); setSavedForm(next); setStructured(isStructured);
-      setChangingExitCode(editingExit); setSavedChangingExitCode(editingExit);
+      setChangingExitCode(editingExit);
     } catch (caught) { setError(caught instanceof Error ? caught.message : t("common.error")); }
     finally { setLoading(false); }
   }, [api, id, t]);
   useFocusEffect(useCallback(() => { void load(); }, [load]));
 
-  const dirty = useMemo(() => Boolean(form && savedForm && settings && isKioskSettingsDirty(form, savedForm, {
-    changingExitCode, savedChangingExitCode, exitCodeConfigured: Boolean(settings.exit_code_configured),
-  })), [changingExitCode, form, savedChangingExitCode, savedForm, settings]);
+  const autosaveDirty = useMemo(
+    () => Boolean(form && savedForm && isAutosaveDirty(form, savedForm)),
+    [form, savedForm],
+  );
+  const snapshot = useMemo(() => {
+    if (!form) return "";
+    return JSON.stringify(buildKioskSettingsSavePayload(form, { changingExitCode: false, exitCodeConfigured: true }));
+  }, [form]);
+  const immediateKey = useMemo(() => {
+    if (!form) return "";
+    return JSON.stringify({
+      mode: form.mode,
+      card_show_name: form.card_show_name,
+      card_show_participant_code: form.card_show_participant_code,
+      card_show_email: form.card_show_email,
+      use_pin: form.use_pin,
+      input_field_count: form.input_field_count,
+      input_second_field: form.input_second_field,
+      confirmation_return_seconds: form.confirmation_return_seconds,
+      confirmation_sound_enabled: form.confirmation_sound_enabled,
+      confirmation_vibration_enabled: form.confirmation_vibration_enabled,
+      attendance_reset_mode: form.attendance_reset_mode,
+    });
+  }, [form]);
+
+  const saveAutosave = useCallback(async () => {
+    const currentForm = formRef.current;
+    const currentSettings = settingsRef.current;
+    if (!currentForm || !currentSettings) return false;
+    try {
+      const updated = await api.patch<KioskSettingsApi>(
+        endpoints.kioskSettings(id),
+        buildKioskSettingsSavePayload(currentForm, { changingExitCode: false, exitCodeConfigured: true }),
+      );
+      const next = kioskSettingsFormFromApi(updated);
+      if (structuredRef.current) next.mode = "card";
+      setSettings(updated);
+      setForm((prev) => (prev ? { ...next, exit_code: prev.exit_code, exit_code_confirm: prev.exit_code_confirm } : next));
+      setSavedForm(next);
+      setError("");
+      setFieldErrors((prev) => {
+        const cleared = { ...prev };
+        for (const key of Object.keys(cleared)) {
+          if (key === "exit_code" || key === "exit_code_confirm") continue;
+          delete cleared[key];
+        }
+        return cleared;
+      });
+      return true;
+    } catch (caught) {
+      if (caught instanceof ApiError) setFieldErrors(fieldErrorsFromBody(caught.data));
+      setError(caught instanceof Error ? caught.message : t("common.error"));
+      return false;
+    }
+  }, [api, id, t]);
+
+  const autosave = useConfigurationAutosave({
+    snapshot,
+    dirty: autosaveDirty,
+    immediateKey,
+    save: saveAutosave,
+    eligible: Boolean(form && savedForm && settings && !loading),
+  });
+
+  const previousStatus = useRef(autosave.status);
+  useEffect(() => {
+    const previous = previousStatus.current;
+    previousStatus.current = autosave.status;
+    if (autosave.status === "saving" || autosave.status === "pending") {
+      setShowSaved(false);
+      return;
+    }
+    if (autosave.status === "saved" && (previous === "saving" || previous === "pending")) setShowSaved(true);
+    if (autosave.status === "error") setShowSaved(false);
+  }, [autosave.status]);
+
+  const needsFlush = autosaveDirty || autosave.status === "pending" || autosave.status === "saving";
+  usePreventRemove(needsFlush, ({ data }) => {
+    if (leavingRef.current) return;
+    leavingRef.current = true;
+    void autosave.flush().then((saved) => {
+      if (saved) navigation.dispatch(data.action);
+      leavingRef.current = false;
+    });
+  });
 
   if (!canManageGroupConfiguration(authState.session)) return <Redirect href="/(app)/(tabs)/groups" />;
   if (loading) return <Screen><LoadingState label={t("kiosk.settingsLoading")} /></Screen>;
@@ -65,6 +166,12 @@ export default function KioskSettingsScreen() {
   const groupPinOn = Boolean(settings.group_require_pin);
   const pinForcesCode = form.mode === "card" && form.use_pin;
   const messageFields = visibleConfirmationMessageFields(settings.group_actions);
+  const statusLabel = autosave.status === "saving" || autosave.status === "pending"
+    ? t("kiosk.savingSettings")
+    : showSaved
+      ? t("common.saved")
+      : "";
+
   function patch(next: Partial<KioskSettingsForm>) {
     setForm((current) => {
       if (!current) return current;
@@ -73,26 +180,43 @@ export default function KioskSettingsScreen() {
       return updated;
     });
     setMessage("");
+    setShowSaved(false);
   }
-  async function save() {
-    const currentForm = form;
+  function flushText() {
+    void autosave.flush();
+  }
+  function cancelExitChange() {
+    patch({ exit_code: "", exit_code_confirm: "" });
+    setChangingExitCode(false);
+    setFieldErrors((prev) => {
+      const next = { ...prev };
+      delete next.exit_code;
+      delete next.exit_code_confirm;
+      return next;
+    });
+  }
+  async function saveExitCode() {
     const currentSettings = settings;
-    if (!dirty || !currentForm || !currentSettings) return;
-    setSaving(true); setError(""); setMessage(""); setFieldErrors({});
+    if (!currentSettings) return;
+    setSavingExit(true); setError(""); setMessage(""); setFieldErrors({});
     try {
+      if (!(await autosave.flush())) return;
+      const currentForm = formRef.current;
+      if (!currentForm) return;
       const updated = await api.patch<KioskSettingsApi>(endpoints.kioskSettings(id), buildKioskSettingsSavePayload(currentForm, {
-        changingExitCode, exitCodeConfigured: Boolean(currentSettings.exit_code_configured),
+        changingExitCode: true,
+        exitCodeConfigured: Boolean(currentSettings.exit_code_configured),
       }));
       const next = kioskSettingsFormFromApi(updated);
       if (structured) next.mode = "card";
-      const editingExit = !updated.exit_code_configured;
+      const stillEditing = !updated.exit_code_configured;
       setSettings(updated); setForm(next); setSavedForm(next);
-      setChangingExitCode(editingExit); setSavedChangingExitCode(editingExit);
+      setChangingExitCode(stillEditing);
       setMessage(t("kiosk.settingsSaved"));
     } catch (caught) {
       if (caught instanceof ApiError) setFieldErrors(fieldErrorsFromBody(caught.data));
       setError(caught instanceof Error ? caught.message : t("common.error"));
-    } finally { setSaving(false); }
+    } finally { setSavingExit(false); }
   }
   function resetNow() {
     NativeAlert.alert(t("kiosk.resetNow"), t("kiosk.resetNowConfirm"), [
@@ -108,6 +232,7 @@ export default function KioskSettingsScreen() {
 
   return <Screen style={styles.screen}><ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
     <PageHeader title={t("kiosk.settings")} description={settings.group_name} />
+    {statusLabel ? <Text accessibilityLiveRegion="polite" style={styles.statusFeedback}>{statusLabel}</Text> : null}
     <Alert message={error} /><Alert message={message} variant="success" />
 
     <SectionCard title={t("kiosk.kioskType")} description={structured ? t("kiosk.structuredModeHint") : t("kiosk.modeHint")}>
@@ -118,7 +243,8 @@ export default function KioskSettingsScreen() {
       {settings.exit_code_configured && !changingExitCode ? <View style={styles.statusRow}><StatusPill label={t("kiosk.exitCodeConfigured")} tone="green" /><Button label={t("kiosk.changeExitCode")} variant="secondary" onPress={() => setChangingExitCode(true)} /></View> : <View style={styles.stack}>
         <Field secureTextEntry autoCapitalize="none" error={fieldErrors.exit_code} label={t("kiosk.newExitCode")} value={form.exit_code} onChangeText={(exit_code) => patch({ exit_code })} />
         <Field secureTextEntry autoCapitalize="none" error={fieldErrors.exit_code_confirm} label={t("kiosk.confirmExitCode")} value={form.exit_code_confirm} onChangeText={(exit_code_confirm) => patch({ exit_code_confirm })} />
-        {settings.exit_code_configured ? <Button label={t("kiosk.cancelExitCodeChange")} variant="secondary" onPress={() => { patch({ exit_code: "", exit_code_confirm: "" }); setChangingExitCode(false); }} /> : null}
+        <Button label={t("kiosk.saveExitCode")} loading={savingExit} onPress={() => void saveExitCode()} />
+        {settings.exit_code_configured ? <Button label={t("kiosk.cancelExitCodeChange")} variant="secondary" onPress={cancelExitChange} /> : null}
       </View>}
     </SectionCard>
 
@@ -136,7 +262,7 @@ export default function KioskSettingsScreen() {
 
     <SectionCard title={t("kiosk.confirmation")} description={t("kiosk.confirmationHint")}><View style={styles.stack}>
       <Text style={styles.hint}>{t("kiosk.confirmationVariables")}</Text>
-      {messageFields.map((item) => <Field key={item.field} multiline error={fieldErrors[item.field]} label={t(item.labelKey)} value={form[item.field]} placeholder={settings.confirmation_defaults?.[item.action] || ""} onChangeText={(value) => patch({ [item.field]: value } as Partial<KioskSettingsForm>)} />)}
+      {messageFields.map((item) => <Field key={item.field} multiline error={fieldErrors[item.field]} label={t(item.labelKey)} value={form[item.field]} placeholder={settings.confirmation_defaults?.[item.action] || ""} onChangeText={(value) => patch({ [item.field]: value } as Partial<KioskSettingsForm>)} onBlur={flushText} />)}
       <OptionPicker label={t("kiosk.returnDelay")} value={String(form.confirmation_return_seconds)} options={CONFIRMATION_RETURN_OPTIONS.map((seconds) => ({ value: String(seconds), label: t(seconds === 1 ? "kiosk.oneSecond" : "kiosk.seconds", { count: seconds }) }))} onChange={(value) => patch({ confirmation_return_seconds: Number(value) })} />
       <View style={styles.settingsListInset}><SettingSwitch label={t("kiosk.sound")} hint={t("kiosk.soundHint")} value={form.confirmation_sound_enabled} onValueChange={(confirmation_sound_enabled) => patch({ confirmation_sound_enabled })} /><SettingSwitch label={t("kiosk.vibration")} hint={t("kiosk.vibrationHint")} value={form.confirmation_vibration_enabled} onValueChange={(confirmation_vibration_enabled) => patch({ confirmation_vibration_enabled })} /></View>
     </View></SectionCard>
@@ -144,10 +270,9 @@ export default function KioskSettingsScreen() {
     <SectionCard title={t("kiosk.attendanceReset")} description={t("kiosk.attendanceResetHint")}><View style={styles.stack}>
       <OptionPicker label={t("kiosk.resetMode")} value={form.attendance_reset_mode} options={[{ value: "daily", label: t("kiosk.daily") }, { value: "rolling", label: t("kiosk.rolling") }]} onChange={(attendance_reset_mode) => patch({ attendance_reset_mode: attendance_reset_mode as "daily" | "rolling" })} />
       <Text style={styles.hint}>{t(form.attendance_reset_mode === "daily" ? "kiosk.dailyHint" : "kiosk.rollingHint")}</Text>
-      {form.attendance_reset_mode === "daily" ? <Field error={fieldErrors.attendance_reset_daily_time} label={t("kiosk.resetTime")} placeholder="HH:MM" value={form.attendance_reset_daily_time} onChangeText={(attendance_reset_daily_time) => patch({ attendance_reset_daily_time })} /> : <View style={styles.durationRow}><Field containerStyle={styles.flex} keyboardType="number-pad" error={fieldErrors.attendance_reset_rolling_hours} label={t("kiosk.rollingHours")} value={String(form.attendance_reset_rolling_hours)} onChangeText={(value) => patch({ attendance_reset_rolling_hours: Number(value) || 0 })} /><Field containerStyle={styles.flex} keyboardType="number-pad" error={fieldErrors.attendance_reset_rolling_minutes} label={t("kiosk.rollingMinutes")} value={String(form.attendance_reset_rolling_minutes)} onChangeText={(value) => patch({ attendance_reset_rolling_minutes: Number(value) || 0 })} /></View>}
+      {form.attendance_reset_mode === "daily" ? <Field error={fieldErrors.attendance_reset_daily_time} label={t("kiosk.resetTime")} placeholder="HH:MM" value={form.attendance_reset_daily_time} onChangeText={(attendance_reset_daily_time) => patch({ attendance_reset_daily_time })} onBlur={flushText} /> : <View style={styles.durationRow}><Field containerStyle={styles.flex} keyboardType="number-pad" error={fieldErrors.attendance_reset_rolling_hours} label={t("kiosk.rollingHours")} value={String(form.attendance_reset_rolling_hours)} onChangeText={(value) => patch({ attendance_reset_rolling_hours: Number(value) || 0 })} onBlur={flushText} /><Field containerStyle={styles.flex} keyboardType="number-pad" error={fieldErrors.attendance_reset_rolling_minutes} label={t("kiosk.rollingMinutes")} value={String(form.attendance_reset_rolling_minutes)} onChangeText={(value) => patch({ attendance_reset_rolling_minutes: Number(value) || 0 })} onBlur={flushText} /></View>}
       <Button label={t("kiosk.resetNow")} variant="danger" loading={resetting} onPress={resetNow} />
     </View></SectionCard>
-    <Button label={saving ? t("kiosk.savingSettings") : t("kiosk.saveSettings")} loading={saving} disabled={!dirty} onPress={() => void save()} />
   </ScrollView></Screen>;
 }
 
@@ -161,6 +286,7 @@ function OptionPicker({ label, value, options, onChange }: { label: string; valu
 const styles = StyleSheet.create({
   screen: { padding: 0 }, content: { padding: space.lg, paddingBottom: space.xxxl, gap: space.lg },
   stack: { gap: space.lg }, stackSmall: { gap: space.sm }, flex: { flex: 1 },
+  statusFeedback: { ...type.caption, color: colors.textMuted, marginTop: -space.sm },
   statusRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: space.md },
   settingsList: { marginHorizontal: -space.lg, marginVertical: -space.sm },
   settingsListInset: { borderWidth: 1, borderColor: colors.border, borderRadius: 10, overflow: "hidden" },

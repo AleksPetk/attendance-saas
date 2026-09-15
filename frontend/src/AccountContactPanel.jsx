@@ -179,7 +179,7 @@ export default function AccountContactPanel({
       aria-labelledby="account-contact-title"
       data-tutorial-target="account-contact"
     >
-      <header className="account-info-intro">
+      <header className="account-info-intro account-contact-intro">
         <p className="account-info-eyebrow">{t("account:contactPanel.eyebrow")}</p>
         <h2 id="account-contact-title">{t("account:contactPanel.title")}</h2>
         <p>{t("account:contactPanel.description")}</p>
@@ -187,17 +187,19 @@ export default function AccountContactPanel({
 
       {success ? (
         <div className="account-contact-success" role="status">
-          <strong>
-            {success.delivered === false
-              ? t("account:contactPanel.successSaved")
-              : t("account:contactPanel.successSent")}
-          </strong>
-          <p>{success.message || t("account:contactPanel.successDefault")}</p>
-          {success.reference ? (
-            <p className="hint">
-              {t("account:contactPanel.reference", { reference: success.reference })}
-            </p>
-          ) : null}
+          <div className="account-contact-success-copy">
+            <strong>
+              {success.delivered === false
+                ? t("account:contactPanel.successSaved")
+                : t("account:contactPanel.successSent")}
+            </strong>
+            <p>{success.message || t("account:contactPanel.successDefault")}</p>
+            {success.reference ? (
+              <p className="hint">
+                {t("account:contactPanel.reference", { reference: success.reference })}
+              </p>
+            ) : null}
+          </div>
           <button
             type="button"
             className="btn-secondary btn-sm"
@@ -215,7 +217,7 @@ export default function AccountContactPanel({
       ) : null}
 
       <form className="account-contact-form" onSubmit={handleSubmit} noValidate>
-        <div className="account-settings-section is-static">
+        <div className="account-settings-section is-static tone-password account-contact-card">
           <div className="account-settings-header">
             <div className="account-settings-trigger-main">
               <h3 className="account-settings-title">
@@ -292,7 +294,7 @@ export default function AccountContactPanel({
         </div>
 
         {classified ? (
-          <div className="account-settings-section is-static">
+          <div className="account-settings-section is-static tone-email account-contact-card">
             <div className="account-settings-header">
               <div className="account-settings-trigger-main">
                 <h3 className="account-settings-title">
@@ -354,7 +356,7 @@ export default function AccountContactPanel({
         ) : null}
 
         {classified ? (
-          <div className="account-settings-section is-static">
+          <div className="account-settings-section is-static tone-password account-contact-card">
             <div className="account-settings-header">
               <div className="account-settings-trigger-main">
                 <h3 className="account-settings-title">
@@ -366,30 +368,32 @@ export default function AccountContactPanel({
               </div>
             </div>
             <div className="account-settings-panel account-contact-message-fields">
-              <div className="account-contact-field">
-                <label htmlFor="account-contact-email">
-                  {t("account:contactPanel.emailLabel")}
-                </label>
-                <input
-                  id="account-contact-email"
-                  type="email"
-                  value={email}
-                  readOnly
-                  autoComplete="email"
-                />
-              </div>
-              <div className="account-contact-field">
-                <label htmlFor="account-contact-name">
-                  {t("account:contactPanel.nameLabel")}
-                </label>
-                <input
-                  id="account-contact-name"
-                  type="text"
-                  value={name}
-                  onChange={(event) => setName(event.target.value)}
-                  maxLength={80}
-                  autoComplete="name"
-                />
+              <div className="account-contact-identity-grid">
+                <div className="account-contact-field">
+                  <label htmlFor="account-contact-email">
+                    {t("account:contactPanel.emailLabel")}
+                  </label>
+                  <input
+                    id="account-contact-email"
+                    type="email"
+                    value={email}
+                    readOnly
+                    autoComplete="email"
+                  />
+                </div>
+                <div className="account-contact-field">
+                  <label htmlFor="account-contact-name">
+                    {t("account:contactPanel.nameLabel")}
+                  </label>
+                  <input
+                    id="account-contact-name"
+                    type="text"
+                    value={name}
+                    onChange={(event) => setName(event.target.value)}
+                    maxLength={80}
+                    autoComplete="name"
+                  />
+                </div>
               </div>
               <div className="account-contact-field">
                 <label htmlFor="account-contact-subject">
@@ -419,7 +423,7 @@ export default function AccountContactPanel({
                   onChange={(event) => setMessage(event.target.value)}
                   minLength={MESSAGE_MIN}
                   maxLength={MESSAGE_MAX}
-                  rows={6}
+                  rows={5}
                   aria-invalid={errors.message ? "true" : "false"}
                 />
                 <FieldError id="account-contact-message-error" message={errors.message} />

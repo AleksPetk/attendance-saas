@@ -92,4 +92,31 @@ describe("AuthController", () => {
     assert.equal(second.workspace?.entitlements?.selection_required?.members, false);
     assert.equal(auth.getState().session?.workspace?.entitlements?.selection_required?.members, false);
   });
+
+  it("applyKioskUnlock clears locked status without requiring a workspace refetch", () => {
+    const api = new ApiClient(createAppConfig());
+    const auth = new AuthController(api);
+    (auth as { setState: (patch: Record<string, unknown>) => void }).setState({
+      status: "kiosk_locked",
+      session: {
+        role: "owner",
+        kiosk_locked: true,
+        kiosk_group_id: 42,
+        workspace: {
+          workspace_id: "REAL01",
+          name: "Locked workspace",
+          kiosk_locked: true,
+          kiosk_group_id: 42,
+        },
+      },
+      twoFactorPending: false,
+      bootstrapError: null,
+    });
+    const state = auth.applyKioskUnlock({ kiosk_locked: false, kiosk_group_id: null, kiosk_available: false });
+    assert.equal(state.status, "authenticated");
+    assert.equal(state.session?.kiosk_locked, false);
+    assert.equal(state.session?.kiosk_group_id, null);
+    assert.equal(state.session?.workspace?.kiosk_locked, false);
+    assert.equal(state.session?.workspace?.kiosk_group_id, null);
+  });
 });

@@ -12121,100 +12121,262 @@ a.btn-secondary {
 
 .account-contact-panel {
   display: grid;
-  gap: var(--space-5);
-}
-.account-contact-form {
-  display: grid;
   gap: var(--space-4);
+  width: min(100%, 52rem);
 }
-.account-contact-topic-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-4);
-}
-.account-contact-field {
+
+.account-contact-intro {
+  max-width: 38rem;
   display: grid;
   gap: 0.35rem;
+}
+
+.account-contact-intro .account-info-eyebrow {
+  margin: 0;
+}
+
+.account-contact-intro h2 {
+  margin: 0;
+  color: var(--navy);
+  font-size: clamp(1.2rem, 2vw, 1.45rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+}
+
+.account-contact-intro > p:last-child {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+
+.account-contact-form {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.account-page .account-contact-card.account-settings-section {
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.account-page .account-contact-card .account-settings-header {
+  padding: 0.85rem 1.15rem 0.8rem;
+  padding-left: calc(1.15rem + 0.1rem);
+}
+
+.account-page .account-contact-card .account-settings-trigger-main {
+  gap: 0.2rem;
+}
+
+.account-page .account-contact-card .account-settings-title {
+  font-size: 0.98rem;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+}
+
+.account-page .account-contact-card .account-settings-description {
+  font-size: 0.84rem;
+  line-height: 1.4;
+}
+
+.account-page .account-contact-card .account-settings-panel {
+  padding: 0.95rem 1.15rem 1.1rem;
+  padding-left: calc(1.15rem + 0.1rem);
+  gap: var(--space-3);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.72), #fff 42%);
+}
+
+.account-contact-topic-grid,
+.account-contact-identity-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem 1rem;
+  align-items: start;
+}
+
+.account-contact-field {
+  display: grid;
+  gap: 0.3rem;
   min-width: 0;
 }
+
 .account-contact-field label {
-  font-size: 0.82rem;
-  font-weight: 650;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
   color: var(--text-secondary);
 }
+
 .account-contact-field select,
 .account-contact-field input,
 .account-contact-field textarea {
   width: 100%;
   min-width: 0;
   box-sizing: border-box;
+  padding: 0.58rem 0.75rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-strong);
+  background: #fff;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
 }
+
+.account-contact-field select:hover:not(:disabled),
+.account-contact-field input:hover:not(:disabled):not([readonly]),
+.account-contact-field textarea:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--blue) 35%, var(--border-strong));
+}
+
+.account-contact-field select:focus,
+.account-contact-field input:focus,
+.account-contact-field textarea:focus {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+  outline: none;
+}
+
+.account-contact-field select:disabled {
+  background: #f8fafc;
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
 .account-contact-field input[readonly] {
-  background: var(--surface-subtle);
+  background: #f8fafc;
   color: var(--text-secondary);
+  border-color: #e2e8f0;
 }
+
+.account-contact-field textarea {
+  min-height: 7.5rem;
+  resize: vertical;
+  line-height: 1.45;
+}
+
 .account-contact-field-error {
   margin: 0;
   color: #b91c1c;
-  font-size: 0.8rem;
+  font-size: 0.78rem;
+  line-height: 1.35;
 }
+
 .account-contact-help-list {
   list-style: none;
   margin: 0;
   padding: 0;
   display: grid;
-  gap: 0.5rem;
+  gap: 0.45rem;
 }
+
 .account-contact-help-list li {
-  border: 1px solid var(--border);
+  border: 1px solid #e2e8f0;
   border-radius: var(--radius-md);
-  background: var(--surface);
+  background: #fff;
   overflow: hidden;
+  box-shadow: 0 1px 1px rgba(15, 23, 42, 0.03);
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    background-color 0.15s ease;
 }
-.account-contact-help-list li.is-open {
+
+.account-contact-help-list li:hover {
   border-color: rgba(37, 99, 235, 0.28);
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.06);
 }
+
+.account-contact-help-list li.is-open {
+  border-color: rgba(14, 165, 183, 0.42);
+  background: linear-gradient(180deg, rgba(14, 165, 183, 0.04), #fff 48%);
+  box-shadow: 0 2px 10px rgba(14, 165, 183, 0.08);
+}
+
 .account-contact-help-question {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
   width: 100%;
-  padding: 0.75rem 0.9rem;
+  padding: 0.65rem 0.8rem;
   border: 0;
   background: transparent;
   text-align: left;
   cursor: pointer;
   color: var(--navy);
   font-weight: 650;
-  font-size: 0.92rem;
+  font-size: 0.88rem;
+  line-height: 1.35;
 }
+
+.account-contact-help-question > span:first-child {
+  min-width: 0;
+  flex: 1;
+}
+
 .account-contact-help-chevron {
   flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 999px;
   color: var(--text-muted);
-  transition: transform 0.16s ease;
+  background: #f1f5f9;
+  font-size: 0.72rem;
+  line-height: 1;
+  transition: transform 0.16s ease, background-color 0.16s ease, color 0.16s ease;
 }
+
+.account-contact-help-list li:hover .account-contact-help-chevron {
+  background: rgba(37, 99, 235, 0.1);
+  color: var(--blue);
+}
+
 .account-contact-help-list li.is-open .account-contact-help-chevron {
   transform: rotate(180deg);
+  background: rgba(14, 165, 183, 0.14);
+  color: #0e7490;
 }
+
 .account-contact-help-answer {
-  padding: 0 0.9rem 0.9rem;
+  padding: 0 0.8rem 0.8rem;
   display: grid;
-  gap: 0.65rem;
+  gap: 0.55rem;
+  border-top: 1px solid rgba(148, 163, 184, 0.22);
+  margin-top: 0;
+  padding-top: 0.7rem;
 }
+
 .account-contact-help-body {
   color: var(--text-secondary);
-  font-size: 0.9rem;
+  font-size: 0.86rem;
   line-height: 1.5;
 }
-.account-contact-help-docs {
-  font-size: 0.82rem;
-  font-weight: 650;
+
+.account-contact-help-body p {
+  margin: 0 0 0.55rem;
 }
+
+.account-contact-help-body p:last-child {
+  margin-bottom: 0;
+}
+
+.account-contact-help-docs {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--blue);
+  width: fit-content;
+}
+
+.account-contact-help-docs:hover {
+  color: var(--primary-hover);
+}
+
 .account-contact-message-fields {
   display: grid;
-  gap: var(--space-4);
+  gap: 0.85rem;
 }
+
 .account-contact-honeypot {
   position: absolute;
   left: -10000px;
@@ -12223,21 +12385,76 @@ a.btn-secondary {
   height: 1px;
   overflow: hidden;
 }
+
 .account-contact-actions {
   display: flex;
   justify-content: flex-start;
+  padding-top: 0.15rem;
 }
+
 .account-contact-success {
-  display: grid;
-  gap: 0.5rem;
-  padding: var(--space-4);
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.85rem 1rem;
+  padding: 0.85rem 1rem;
   border: 1px solid rgba(16, 185, 129, 0.28);
   border-radius: var(--radius-lg);
-  background: rgba(240, 253, 250, 0.85);
+  background:
+    linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(34, 211, 238, 0.05) 55%, #fff);
+  box-shadow: 0 1px 2px rgba(6, 78, 59, 0.05);
 }
+
+.account-contact-success-copy {
+  display: grid;
+  gap: 0.28rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.account-contact-success-copy strong {
+  color: #047857;
+  font-size: 0.95rem;
+  font-weight: 750;
+  letter-spacing: -0.01em;
+}
+
+.account-contact-success-copy p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.account-contact-success-copy .hint {
+  margin: 0;
+  font-size: 0.8rem;
+}
+
+.account-contact-success .btn-secondary {
+  flex: 0 0 auto;
+  align-self: center;
+}
+
 @media (max-width: 720px) {
-  .account-contact-topic-grid {
+  .account-contact-topic-grid,
+  .account-contact-identity-grid {
     grid-template-columns: 1fr;
+  }
+
+  .account-contact-success {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .account-contact-success .btn-secondary {
+    align-self: flex-start;
+  }
+
+  .account-page .account-contact-card .account-settings-header,
+  .account-page .account-contact-card .account-settings-panel {
+    padding-left: 1rem;
+    padding-right: 1rem;
   }
 }
 

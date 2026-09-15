@@ -70,4 +70,14 @@ export const endpoints = {
   ownerTwoFactorRegenerate: () => "/auth/owner-2fa/recovery-codes/regenerate/",
   ownerTwoFactorDisable: () => "/auth/owner-2fa/disable/",
   announcements: () => "/announcements/",
+  contactCategories: () => "/contact/categories/",
+  contactSuggestions: (category: string, subcategory: string, lang?: string) => {
+    const query = new URLSearchParams({
+      category,
+      subcategory,
+    });
+    if (lang) query.set("lang", lang);
+    return `/contact/suggestions/?${query.toString()}`;
+  },
+  contactWorkspace: () => "/contact/workspace/",
 } as const;
