@@ -96,3 +96,13 @@ test("H: Class card long name uses same contained name field", () => {
   assert.match(groupKioskSrc, /handleClassTap[\s\S]*?KioskPersonCardFields[\s\S]*?name=\{section\.name\}/);
   assert.match(cardCss, /\.kiosk-person-name[\s\S]*?line-clamp:\s*2/);
 });
+
+test("I: live kiosk card code uses participant_code only (no label prefix)", () => {
+  assert.match(sampleSrc, /code=\{display\.show_participant_code \? person\.participant_code : ""\}/);
+  assert.match(groupKioskSrc, /code=\{p\.participant_code \|\| ""\}/);
+  assert.doesNotMatch(
+    groupKioskSrc,
+    /code=\{[\s\S]*?participantCodeLabel[\s\S]*?participant_code/,
+  );
+  assert.doesNotMatch(groupKioskSrc, /\$\{participantCodeLabel\}: \$\{p\.participant_code\}/);
+});

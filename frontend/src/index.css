@@ -12118,6 +12118,129 @@ a.btn-secondary {
   .account-status-service-state { text-align: left; }
   .account-status-refresh-meta { text-align: left; }
 }
+
+.account-contact-panel {
+  display: grid;
+  gap: var(--space-5);
+}
+.account-contact-form {
+  display: grid;
+  gap: var(--space-4);
+}
+.account-contact-topic-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+.account-contact-field {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+}
+.account-contact-field label {
+  font-size: 0.82rem;
+  font-weight: 650;
+  color: var(--text-secondary);
+}
+.account-contact-field select,
+.account-contact-field input,
+.account-contact-field textarea {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+.account-contact-field input[readonly] {
+  background: var(--surface-subtle);
+  color: var(--text-secondary);
+}
+.account-contact-field-error {
+  margin: 0;
+  color: #b91c1c;
+  font-size: 0.8rem;
+}
+.account-contact-help-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+.account-contact-help-list li {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  overflow: hidden;
+}
+.account-contact-help-list li.is-open {
+  border-color: rgba(37, 99, 235, 0.28);
+}
+.account-contact-help-question {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.75rem 0.9rem;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  color: var(--navy);
+  font-weight: 650;
+  font-size: 0.92rem;
+}
+.account-contact-help-chevron {
+  flex: 0 0 auto;
+  color: var(--text-muted);
+  transition: transform 0.16s ease;
+}
+.account-contact-help-list li.is-open .account-contact-help-chevron {
+  transform: rotate(180deg);
+}
+.account-contact-help-answer {
+  padding: 0 0.9rem 0.9rem;
+  display: grid;
+  gap: 0.65rem;
+}
+.account-contact-help-body {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+.account-contact-help-docs {
+  font-size: 0.82rem;
+  font-weight: 650;
+}
+.account-contact-message-fields {
+  display: grid;
+  gap: var(--space-4);
+}
+.account-contact-honeypot {
+  position: absolute;
+  left: -10000px;
+  top: auto;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+.account-contact-actions {
+  display: flex;
+  justify-content: flex-start;
+}
+.account-contact-success {
+  display: grid;
+  gap: 0.5rem;
+  padding: var(--space-4);
+  border: 1px solid rgba(16, 185, 129, 0.28);
+  border-radius: var(--radius-lg);
+  background: rgba(240, 253, 250, 0.85);
+}
+@media (max-width: 720px) {
+  .account-contact-topic-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .tutorial-module-footer { margin-top: auto; color: var(--text-muted); font-size: 0.75rem; }
 
 .tutorial-success-toast {

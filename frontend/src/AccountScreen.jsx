@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { api, errorMessage } from "./api.js";
 import AccountSignInMethodsPanel from "./AccountSignInMethodsPanel.jsx";
 import AccountInfoPanel from "./AccountInfoPanel.js";
+import AccountContactPanel from "./AccountContactPanel.jsx";
 import AccountTutorialPanel from "./AccountTutorialPanel.jsx";
 import AccountStatusPanel from "./AccountStatusPanel.jsx";
 import { openStripePortalSafely } from "./billingExternalLinks.js";
@@ -731,7 +732,21 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
     return <Navigate to="/account/security" replace />;
   }
 
-  if (section === "subscription" || section === "billing" || section === "info" || section === "tutorial" || section === "status") {
+  if (section === "subscription" || section === "billing" || section === "info" || section === "tutorial" || section === "contact" || section === "status") {
+    if (section === "contact" && loading) {
+      return (
+        <div className="page">
+          <LoadingState label={t("common:loading")} />
+        </div>
+      );
+    }
+    if (section === "contact" && error) {
+      return (
+        <div className="page">
+          <ErrorBanner message={error} />
+        </div>
+      );
+    }
     return (
       <div className="page account-page">
         <AccountSubNav session={session} />
@@ -770,6 +785,9 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
         ) : null}
         {section === "info" ? <AccountInfoPanel contentLang={workspaceContentLang} /> : null}
         {section === "tutorial" ? <AccountTutorialPanel /> : null}
+        {section === "contact" ? (
+          <AccountContactPanel account={account} contentLang={workspaceContentLang} />
+        ) : null}
         {section === "status" ? <AccountStatusPanel contentLang={workspaceContentLang} /> : null}
       </div>
     );

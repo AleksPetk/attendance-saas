@@ -19,6 +19,7 @@ const ACCOUNT_SECTION_LABEL_KEYS = {
   billing: "accountSections.billing",
   info: "accountSections.info",
   tutorial: "accountSections.tutorial",
+  contact: "accountSections.contact",
   status: "accountSections.status",
 };
 

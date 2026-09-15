@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import PublicPageShell from "./PublicPageShell.jsx";
 import { api, errorMessage } from "./api.js";
 import { publicDocsDocumentUrl } from "./publicFooterLinks.js";
+import { contactCatalogLabel } from "./contactCatalogLabels.js";
 import {
   HONEYPOT_FIELD,
   MESSAGE_MAX,
@@ -39,10 +40,11 @@ function contactFaqUrl(locale, question) {
   return `${base}?q=${encodeURIComponent(query)}`;
 }
 
-function catalogLabel(t, id, fallback) {
+function catalogLabel(t, locale, id, fallback) {
   const key = `contact.catalogLabels.${id}`;
   const value = t(key);
-  return !value || value === key ? fallback : value;
+  if (value && value !== key) return value;
+  return contactCatalogLabel(locale, id, fallback);
 }
 
 export default function PublicContactScreen() {
@@ -108,7 +110,7 @@ export default function PublicContactScreen() {
     }
     let cancelled = false;
     api
-      .getContactSuggestions(categoryId, subcategoryId)
+      .getContactSuggestions(categoryId, subcategoryId, { lang: locale })
       .then((result) => {
         if (!cancelled) setSuggestions(result.data?.items || []);
       })
@@ -118,13 +120,18 @@ export default function PublicContactScreen() {
     return () => {
       cancelled = true;
     };
-  }, [categoryId, subcategoryId]);
+  }, [categoryId, subcategoryId, locale]);
 
   useEffect(() => {
     if (!subjectTouched && category && subcategory) {
-      setSubject(suggestedSubject(category.label, subcategory.label));
+      setSubject(
+        suggestedSubject(
+          catalogLabel(t, locale, category.id, category.label),
+          catalogLabel(t, locale, subcategory.id, subcategory.label),
+        ),
+      );
     }
-  }, [category, subcategory, subjectTouched]);
+  }, [category, subcategory, subjectTouched, locale, t]);
 
   useEffect(() => {
     const siteKey = catalog.turnstile_site_key;
@@ -303,7 +310,7 @@ export default function PublicContactScreen() {
                   <option value="">{t("contact.categoryPlaceholder")}</option>
                   {(catalog.categories || []).map((item) => (
                     <option key={item.id} value={item.id}>
-                      {catalogLabel(t, item.id, item.label)}
+                      {catalogLabel(t, locale, item.id, item.label)}
                     </option>
                   ))}
                 </select>
@@ -326,7 +333,7 @@ export default function PublicContactScreen() {
                   <option value="">{t("contact.subcategoryPlaceholder")}</option>
                   {(category?.subcategories || []).map((item) => (
                     <option key={item.id} value={item.id}>
-                      {catalogLabel(t, item.id, item.label)}
+                      {catalogLabel(t, locale, item.id, item.label)}
                     </option>
                   ))}
                 </select>

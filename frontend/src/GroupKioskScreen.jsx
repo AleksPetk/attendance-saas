@@ -249,8 +249,6 @@ export default function GroupKioskScreen({ session, groupId, onUnlocked, onKiosk
   const kioskMode = kiosk?.kiosk_mode;
   const isStructured = Boolean(kiosk?.structured);
   const requireClassPin = Boolean(kiosk?.require_class_pin);
-  const participantCodeLabel =
-    kiosk?.participant_code_label || t("fields.groupParticipantCode");
   const kioskLocked = Boolean(session?.workspace?.kiosk_locked);
 
   function clearParticipantFields() {
@@ -886,11 +884,7 @@ export default function GroupKioskScreen({ session, groupId, onUnlocked, onKiosk
                     <KioskPersonAvatar name={p.name} photoUrl={p.photo_url} />
                     <KioskPersonCardFields
                       name={p.name || t("participantFallback")}
-                      code={
-                        p.participant_code
-                          ? `${participantCodeLabel}: ${p.participant_code}`
-                          : ""
-                      }
+                      code={p.participant_code || ""}
                       email={p.email || ""}
                     />
                   </button>

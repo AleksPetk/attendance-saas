@@ -303,12 +303,37 @@ class ContactApiTests(TestCase):
     def test_suggestions_endpoint_uses_canonical_faq(self):
         response = self.client.get(
             reverse("contact-suggestions"),
-            {"category": "kiosk", "subcategory": "cannot_launch"},
+            {"category": "kiosk", "subcategory": "cannot_launch", "lang": "en"},
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertTrue(response.data["items"])
+        self.assertEqual(response.data.get("language"), "en")
         self.assertIn("question", response.data["items"][0])
         self.assertIn("answer_markdown", response.data["items"][0])
+
+    def test_suggestions_respect_explicit_lang_over_accept_language(self):
+        response_en = self.client.get(
+            reverse("contact-suggestions"),
+            {"category": "kiosk", "subcategory": "cannot_launch", "lang": "en"},
+            HTTP_ACCEPT_LANGUAGE="ja",
+        )
+        response_ja = self.client.get(
+            reverse("contact-suggestions"),
+            {"category": "kiosk", "subcategory": "cannot_launch", "lang": "ja"},
+            HTTP_ACCEPT_LANGUAGE="en",
+        )
+        self.assertEqual(response_en.status_code, status.HTTP_200_OK)
+        self.assertEqual(response_ja.status_code, status.HTTP_200_OK)
+        self.assertEqual(response_en.data.get("language"), "en")
+        self.assertEqual(response_ja.data.get("language"), "ja")
+        self.assertTrue(response_en.data["items"])
+        self.assertTrue(response_ja.data["items"])
+        en_q = response_en.data["items"][0]["question"]
+        ja_q = response_ja.data["items"][0]["question"]
+        self.assertNotEqual(en_q, ja_q)
+        for item in response_en.data["items"]:
+            self.assertNotRegex(item["question"], r"[ぁ-んァ-ン一-龯]")
+        self.assertRegex(ja_q, r"[ぁ-んァ-ン一-龯]")
 
     def test_no_match_returns_empty_list(self):
         response = self.client.get(
@@ -316,3 +341,45 @@ class ContactApiTests(TestCase):
             {"category": "nope", "subcategory": "nope"},
         )
         self.assertEqual(response.data["items"], [])
+
+    def test_workspace_contact_requires_auth_and_skips_turnstile(self):
+        from accounts.models import User
+        from organizations.models import Organization
+
+        payload = self._valid_payload()
+        payload.pop("turnstile_token", None)
+        payload["client_type"] = "workspace_web"
+        unauth = self.client.post(
+            reverse("contact-workspace-submit"),
+            payload,
+            format="json",
+        )
+        self.assertIn(unauth.status_code, (401, 403))
+        self.assertEqual(ContactRequest.objects.count(), 0)
+
+        owner = User.objects.create_user(
+            email="workspace-contact@example.com",
+            password="secure-password",
+        )
+        owner.mark_email_verified()
+        Organization.objects.create_with_owner(owner=owner)
+        self.client.force_login(owner)
+        with patch("contact.operations.send_transactional_email", return_value=True):
+            response = self.client.post(
+                reverse("contact-workspace-submit"),
+                {
+                    "category": "kiosk",
+                    "subcategory": "cannot_launch",
+                    "name": "Owner",
+                    "subject": "Kiosk will not start",
+                    "message": "The launch button stays disabled after I saved an exit code.",
+                    "company_url": "",
+                    "locale": "en",
+                },
+                format="json",
+            )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        row = ContactRequest.objects.get(public_ref=response.data["reference"])
+        self.assertEqual(row.email, "workspace-contact@example.com")
+        self.assertEqual(row.client_type, "workspace_web")
+        self.assertEqual(row.category_id, "kiosk")

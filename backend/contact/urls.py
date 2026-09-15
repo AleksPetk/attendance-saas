@@ -4,6 +4,7 @@ from contact.views import (
     ContactCategoriesView,
     ContactSubmitView,
     ContactSuggestionsView,
+    WorkspaceContactSubmitView,
 )
 
 urlpatterns = [
@@ -12,6 +13,11 @@ urlpatterns = [
         "contact/suggestions/",
         ContactSuggestionsView.as_view(),
         name="contact-suggestions",
+    ),
+    path(
+        "contact/workspace/",
+        WorkspaceContactSubmitView.as_view(),
+        name="contact-workspace-submit",
     ),
     path("contact/", ContactSubmitView.as_view(), name="contact-submit"),
 ]

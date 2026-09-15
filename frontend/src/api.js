@@ -432,13 +432,17 @@ export const api = {
   getBillingCatalog: () => request("/api/billing/catalog/", { credentials: "omit" }),
   getPublicGeo: () => request("/api/geo/", { credentials: "omit" }),
   getContactCategories: () => request("/api/contact/categories/", { credentials: "omit" }),
-  getContactSuggestions: (category, subcategory) =>
-    request(
-      `/api/contact/suggestions/?category=${encodeURIComponent(category)}&subcategory=${encodeURIComponent(subcategory)}`,
-      { credentials: "omit" },
-    ),
+  getContactSuggestions: (category, subcategory, { lang } = {}) => {
+    const query = new URLSearchParams();
+    query.set("category", category);
+    query.set("subcategory", subcategory);
+    if (lang) query.set("lang", lang);
+    return request(`/api/contact/suggestions/?${query.toString()}`, { credentials: "omit" });
+  },
   submitContact: (payload) =>
     request("/api/contact/", { method: "POST", json: payload, credentials: "omit" }),
+  submitWorkspaceContact: (payload) =>
+    request("/api/contact/workspace/", { method: "POST", json: payload }),
 
   /* Canonical published documentation/help content (public / anonymous). */
   listContentDocuments: ({ lang } = {}) => {

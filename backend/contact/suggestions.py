@@ -3,6 +3,7 @@
 import re
 
 from content.faq_search import filter_faq_entries
+from content.locale import DEFAULT_CONTENT_LOCALE, normalize_content_locale
 from content.public import faq_entry_payload, public_faq_queryset
 from contact.catalog import SUGGESTION_LIMIT, get_pair
 
@@ -19,13 +20,26 @@ def answer_preview(markdown, limit=180):
     return text[: limit - 1].rstrip() + "…"
 
 
-def suggest_faq_entries(category_id, subcategory_id, entries=None, *, limit=SUGGESTION_LIMIT):
+def _faq_entries_for_locale(locale):
+    """Load published FAQ rows for one content locale (EN fallback if empty)."""
+    normalized = normalize_content_locale(locale) if locale else DEFAULT_CONTENT_LOCALE
+    rows = list(public_faq_queryset(normalized))
+    used = normalized
+    if not rows and normalized != DEFAULT_CONTENT_LOCALE:
+        rows = list(public_faq_queryset(DEFAULT_CONTENT_LOCALE))
+        used = DEFAULT_CONTENT_LOCALE
+    return [faq_entry_payload(item, locale=used) for item in rows]
+
+
+def suggest_faq_entries(
+    category_id, subcategory_id, entries=None, *, locale=None, limit=SUGGESTION_LIMIT
+):
     pair = get_pair(category_id, subcategory_id)
     if not pair:
         return []
     _category, sub = pair
     if entries is None:
-        entries = [faq_entry_payload(item) for item in public_faq_queryset()]
+        entries = _faq_entries_for_locale(locale)
     ranked = {}
     for query in sub.get("faq_queries") or ():
         for index, entry in enumerate(filter_faq_entries(entries, query)):

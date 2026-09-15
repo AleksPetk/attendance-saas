@@ -79,6 +79,7 @@
     "billing": "Billing",
     "info": "Info",
     "tutorial": "Tutorial",
+    "contact": "Contact",
     "status": "Status"
   },
   "accountSectionDescriptions": {
@@ -87,6 +88,7 @@
     "billing": "Invoices, receipts, and payment details.",
     "info": "Documentation, legal information, and help from CheckStation.",
     "tutorial": "Replay the Workspace introduction or choose a focused guided tutorial.",
+    "contact": "Get support answers and send a message to CheckStation.",
     "status": "Live CheckStation service health, incidents, and scheduled maintenance."
   },
   "loadingWorkspace": "Loading workspace…",

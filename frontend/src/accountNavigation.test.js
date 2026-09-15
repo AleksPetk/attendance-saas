@@ -109,14 +109,23 @@ test("default account section is security", () => {
   assert.equal(resolveAccountSection("unknown"), "security");
 });
 
-test("account section ids include the owner Tutorial and Status areas", () => {
-  assert.deepEqual(ACCOUNT_SECTION_IDS, ["security", "subscription", "billing", "info", "tutorial", "status"]);
-  assert.equal(ACCOUNT_SECTIONS.length, 6);
+test("account section ids include the owner Tutorial, Contact, and Status areas", () => {
+  assert.deepEqual(ACCOUNT_SECTION_IDS, [
+    "security",
+    "subscription",
+    "billing",
+    "info",
+    "tutorial",
+    "contact",
+    "status",
+  ]);
+  assert.equal(ACCOUNT_SECTIONS.length, 7);
   assert.ok(isAccountSectionId("security"));
   assert.ok(isAccountSectionId("subscription"));
   assert.ok(isAccountSectionId("billing"));
   assert.ok(isAccountSectionId("info"));
   assert.ok(isAccountSectionId("tutorial"));
+  assert.ok(isAccountSectionId("contact"));
   assert.ok(isAccountSectionId("status"));
   assert.equal(isAccountSectionId("settings"), false);
 });
@@ -127,10 +136,11 @@ test("account section routes are absolute and stable", () => {
   assert.equal(accountSectionMeta("billing").path, "/account/billing");
   assert.equal(accountSectionMeta("info").path, "/account/info");
   assert.equal(accountSectionMeta("tutorial").path, "/account/tutorial");
+  assert.equal(accountSectionMeta("contact").path, "/account/contact");
   assert.equal(accountSectionMeta("status").path, "/account/status");
 });
 
-test("account subnav renders all six sections for a billing-capable owner", () => {
+test("account subnav renders all seven sections for a billing-capable owner", () => {
   const session = {
     workspace: {
       capabilities: { can_view_billing: true, can_manage_subscription: true },
@@ -149,11 +159,13 @@ test("account subnav renders all six sections for a billing-capable owner", () =
   assert.match(html, /Billing/);
   assert.match(html, /Info/);
   assert.match(html, /Tutorial/);
+  assert.match(html, /Contact/);
   assert.match(html, /Status/);
   assert.match(html, /href="\/account\/security"/);
   assert.match(html, /href="\/account\/subscription"/);
   assert.match(html, /href="\/account\/billing"/);
   assert.match(html, /href="\/account\/info"/);
+  assert.match(html, /href="\/account\/contact"/);
   assert.match(html, /href="\/account\/status"/);
   assert.match(html, /is-active/);
 });
@@ -1302,19 +1314,27 @@ test("direct Status route resolves inside owner Account navigation", () => {
   assert.match(html, /is-active/);
 });
 
-test("CheckStation-managed account hides billing sections but keeps Info, Tutorial, and Status", () => {
+test("CheckStation-managed account hides billing sections but keeps Info, Tutorial, Contact, and Status", () => {
   const session = {
     workspace: {
       capabilities: { can_view_billing: false, can_manage_subscription: false },
     },
   };
-  assert.deepEqual(visibleAccountSectionIds(session), ["security", "info", "tutorial", "status"]);
+  assert.deepEqual(visibleAccountSectionIds(session), [
+    "security",
+    "info",
+    "tutorial",
+    "contact",
+    "status",
+  ]);
   assert.equal(isAccountSectionId("subscription", session), false);
   assert.equal(resolveAccountSection("billing", session), "security");
   assert.equal(isAccountSectionId("info", session), true);
   assert.equal(resolveAccountSection("info", session), "info");
   assert.equal(isAccountSectionId("tutorial", session), true);
   assert.equal(resolveAccountSection("tutorial", session), "tutorial");
+  assert.equal(isAccountSectionId("contact", session), true);
+  assert.equal(resolveAccountSection("contact", session), "contact");
   assert.equal(isAccountSectionId("status", session), true);
   assert.equal(resolveAccountSection("status", session), "status");
   const html = renderToStaticMarkup(
@@ -1327,6 +1347,7 @@ test("CheckStation-managed account hides billing sections but keeps Info, Tutori
   assert.match(html, /Security/);
   assert.match(html, /Info/);
   assert.match(html, /Tutorial/);
+  assert.match(html, /Contact/);
   assert.match(html, /Status/);
   assert.doesNotMatch(html, /Subscription/);
   assert.doesNotMatch(html, /Billing/);
