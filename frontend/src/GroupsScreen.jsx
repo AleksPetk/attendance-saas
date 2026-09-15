@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router-dom";
 import { api } from "./api.js";
-import { ConfirmDialog, EmptyState, ErrorBanner, LoadingState, PageHeader, StatusBadge } from "./components.jsx";
+import { ConfirmDialog, EmptyState, ErrorBanner, LoadingState, StatusBadge } from "./components.jsx";
 import { localizedErrorMessage } from "./i18n/errorMessages.js";
 import { usePageTitle } from "./i18n/usePageTitle.js";
 import {
@@ -263,7 +263,6 @@ export default function GroupsScreen({ session, onNavigate, setSession }) {
   if (selectionOpen && mustSelect) {
     return (
       <div className="page">
-        <PageHeader title={t("title")} description={selectionNotice} />
         <PlanLockSelectionPanel
           kind={selectionKind}
           title={selectionTitle}
@@ -280,53 +279,55 @@ export default function GroupsScreen({ session, onNavigate, setSession }) {
     );
   }
 
+  const createGroupAction =
+    canConfigure && !mustSelect ? (
+      <button type="button" className="btn-primary" data-tutorial-target="groups-create" onClick={() => onNavigate({ name: "group-editor" })}>
+        {t("createGroup")}
+      </button>
+    ) : null;
+
   return (
     <div className="page">
-      <PageHeader
-        title={t("title")}
-        actions={
-          canConfigure && !mustSelect ? (
-            <button type="button" className="btn-primary" data-tutorial-target="groups-create" onClick={() => onNavigate({ name: "group-editor" })}>
-              {t("createGroup")}
-            </button>
-          ) : null
-        }
-      />
-      {standardUsage || structuredUsage ? (
-        <div className="groups-usage" aria-label={t("usage.label")} aria-live="polite">
-          {[
-            { key: "standard", label: t("usage.standard"), usage: standardUsage },
-            { key: "structured", label: t("usage.structured"), usage: structuredUsage },
-          ].map((item) =>
-            item.usage ? (
-              <section className={`groups-usage-item is-${item.key}`} key={item.key}>
-                <div className="groups-usage-copy">
-                  <strong>{item.label}</strong>
-                  <span>
-                    {t("usage.summary", {
-                      count: item.usage.count,
-                      remaining: item.usage.remaining,
-                    })}
-                  </span>
-                </div>
-                <div
-                  className="groups-usage-progress"
-                  role="progressbar"
-                  aria-label={t("usage.progressLabel", { type: item.label })}
-                  aria-valuemin={0}
-                  aria-valuemax={100}
-                  aria-valuenow={item.usage.percentage}
-                  aria-valuetext={t("usage.progressValue", {
-                    type: item.label,
-                    count: item.usage.count,
-                    limit: item.usage.limit,
-                  })}
-                >
-                  <span style={{ width: `${item.usage.percentage}%` }} />
-                </div>
-              </section>
-            ) : null,
-          )}
+      {standardUsage || structuredUsage || createGroupAction ? (
+        <div className="groups-usage-row">
+          {standardUsage || structuredUsage ? (
+            <div className="groups-usage" aria-label={t("usage.label")} aria-live="polite">
+              {[
+                { key: "standard", label: t("usage.standard"), usage: standardUsage },
+                { key: "structured", label: t("usage.structured"), usage: structuredUsage },
+              ].map((item) =>
+                item.usage ? (
+                  <section className={`groups-usage-item is-${item.key}`} key={item.key}>
+                    <div className="groups-usage-copy">
+                      <strong>{item.label}</strong>
+                      <span>
+                        {t("usage.summary", {
+                          count: item.usage.count,
+                          remaining: item.usage.remaining,
+                        })}
+                      </span>
+                    </div>
+                    <div
+                      className="groups-usage-progress"
+                      role="progressbar"
+                      aria-label={t("usage.progressLabel", { type: item.label })}
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                      aria-valuenow={item.usage.percentage}
+                      aria-valuetext={t("usage.progressValue", {
+                        type: item.label,
+                        count: item.usage.count,
+                        limit: item.usage.limit,
+                      })}
+                    >
+                      <span style={{ width: `${item.usage.percentage}%` }} />
+                    </div>
+                  </section>
+                ) : null,
+              )}
+            </div>
+          ) : <div className="groups-usage-spacer" aria-hidden="true" />}
+          {createGroupAction ? <div className="groups-usage-actions">{createGroupAction}</div> : null}
         </div>
       ) : null}
       <AdBanner session={session} placement={PLACEMENT_GROUPS_BANNER} />

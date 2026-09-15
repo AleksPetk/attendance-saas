@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router-dom";
 import { api } from "./api.js";
-import { ConfirmDialog, ErrorBanner, LoadingState, PageHeader } from "./components.jsx";
+import { ConfirmDialog, ErrorBanner, LoadingState } from "./components.jsx";
 import { EmptyState, PersonRow } from "./WorkspaceLayout.jsx";
 import { localizedErrorMessage } from "./i18n/errorMessages.js";
 import { usePageTitle } from "./i18n/usePageTitle.js";
@@ -228,7 +228,6 @@ export default function MembersScreen({ session, setSession, onNavigate }) {
   if (selectionOpen && mustSelect) {
     return (
       <div className="page">
-        <PageHeader title={t("title")} description={selectionNotice} />
         <PlanLockSelectionPanel
           kind="members"
           title={t("planSelection.panelTitle")}
@@ -242,50 +241,52 @@ export default function MembersScreen({ session, setSession, onNavigate }) {
     );
   }
 
+  const addMemberAction =
+    !mustSelect && statusFilter === "active" ? (
+      <button
+        type="button"
+        className="btn-primary"
+        data-tutorial-target="members-add"
+        onClick={() => onNavigate({ name: "member-create" })}
+      >
+        {t("addMember")}
+      </button>
+    ) : null;
+
   return (
     <div className="page">
-      <PageHeader
-        title={t("title")}
-        actions={
-          !mustSelect && statusFilter === "active" ? (
-            <button
-              type="button"
-              className="btn-primary"
-              data-tutorial-target="members-add"
-              onClick={() => onNavigate({ name: "member-create" })}
-            >
-              {t("addMember")}
-            </button>
-          ) : null
-        }
-      />
-      {statusFilter === "active" && usage ? (
-        <section className="members-usage" aria-label={t("usage.label")} aria-live="polite">
-          <div className="members-usage-copy">
-            <strong>{t("usage.memberCount", { count: usage.count })}</strong>
-            <span>
-              {usage.unlimited
-                ? t("usage.unlimited")
-                : t("usage.remaining", { count: usage.remaining })}
-            </span>
-          </div>
-          {!usage.unlimited ? (
-            <div
-              className="members-usage-progress"
-              role="progressbar"
-              aria-label={t("usage.progressLabel")}
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-valuenow={usage.percentage}
-              aria-valuetext={t("usage.progressValue", {
-                count: usage.count,
-                limit: usage.limit,
-              })}
-            >
-              <span style={{ width: `${usage.percentage}%` }} />
-            </div>
-          ) : null}
-        </section>
+      {statusFilter === "active" && (usage || addMemberAction) ? (
+        <div className="members-usage-row">
+          {usage ? (
+            <section className="members-usage" aria-label={t("usage.label")} aria-live="polite">
+              <div className="members-usage-copy">
+                <strong>{t("usage.memberCount", { count: usage.count })}</strong>
+                <span>
+                  {usage.unlimited
+                    ? t("usage.unlimited")
+                    : t("usage.remaining", { count: usage.remaining })}
+                </span>
+              </div>
+              {!usage.unlimited ? (
+                <div
+                  className="members-usage-progress"
+                  role="progressbar"
+                  aria-label={t("usage.progressLabel")}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={usage.percentage}
+                  aria-valuetext={t("usage.progressValue", {
+                    count: usage.count,
+                    limit: usage.limit,
+                  })}
+                >
+                  <span style={{ width: `${usage.percentage}%` }} />
+                </div>
+              ) : null}
+            </section>
+          ) : <div className="members-usage-spacer" aria-hidden="true" />}
+          {addMemberAction ? <div className="members-usage-actions">{addMemberAction}</div> : null}
+        </div>
       ) : null}
 
       <div

@@ -9,7 +9,6 @@ import AccountStatusPanel from "./AccountStatusPanel.jsx";
 import { openStripePortalSafely } from "./billingExternalLinks.js";
 import { AccountSettingsSection } from "./accountAccordion.js";
 import {
-  accountSectionMeta,
   isAccountSectionId,
   resolveAccountSection,
 } from "./accountNavigation.js";
@@ -25,7 +24,6 @@ import {
   Field,
   CopyButton,
   LoadingState,
-  PageHeader,
   PasswordInput,
   SuccessBanner,
   usePasswordVisibility,
@@ -88,7 +86,6 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
   const billingAllowed =
     canViewBilling(session) && canManageSubscription(session);
   const section = resolveAccountSection(sectionParam, session);
-  const sectionMeta = accountSectionMeta(section, session);
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [loading, setLoading] = useState(true);
@@ -734,15 +731,9 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
     return <Navigate to="/account/security" replace />;
   }
 
-  const sectionDescription = t(`accountSectionDescriptions.${section}`, {
-    ns: "workspace",
-    defaultValue: sectionMeta.description,
-  });
-
   if (section === "subscription" || section === "billing" || section === "info" || section === "tutorial" || section === "status") {
     return (
       <div className="page account-page">
-        <PageHeader title={t("workspace:pageTitles.account")} description={sectionDescription} />
         <AccountSubNav session={session} />
         {section === "subscription" ? (
           <AccountSubscriptionPanel
@@ -805,7 +796,6 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
 
   return (
     <div className="page account-page" data-tutorial-target="account-security">
-      <PageHeader title={t("workspace:pageTitles.account")} description={sectionDescription} />
       <AccountSubNav session={session} />
       <div className="account-settings-stack">
         <AccountSettingsSection

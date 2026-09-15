@@ -20,10 +20,11 @@ test("Staff management reuses the responsive Groups usage pattern", () => {
   assert.match(styles, /@media \(max-width: 720px\)[\s\S]*\.groups-usage,[\s\S]*grid-template-columns: 1fr/);
 });
 
-test("Staff subtitle width is uncapped only on the Staff management page", () => {
+test("Staff page content no longer renders a duplicate title or subtitle", () => {
   assert.match(source, /page staff-management-page/);
-  assert.match(styles, /\.staff-management-page \.page-header-copy p \{\s*max-width: none;/);
-  assert.doesNotMatch(styles, /\.staff-management-page[\s\S]{0,200}white-space:\s*nowrap/);
+  assert.doesNotMatch(source, /PageHeader/);
+  assert.doesNotMatch(source, /staff:management\.descriptionOwner/);
+  assert.doesNotMatch(source, /staff:management\.descriptionAdmin/);
 });
 
 test("old raw usage caption is no longer rendered", () => {

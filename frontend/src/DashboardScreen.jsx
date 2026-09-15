@@ -6,7 +6,6 @@ import {
   ActionBadge,
   EmptyState,
   LoadingState,
-  PageHeader,
   StatCard,
 } from "./components.jsx";
 import AdBanner from "./advertising/AdBanner.jsx";
@@ -95,11 +94,6 @@ export default function DashboardScreen({ session }) {
 
   return (
     <div className="page">
-      <PageHeader
-        eyebrow={t("dashboard.eyebrow")}
-        title={t("dashboard.title")}
-        description={t("dashboard.description")}
-      />
       <AdBanner session={session} placement={PLACEMENT_DASHBOARD_BANNER} />
 
       <div className="dashboard-metrics" data-tutorial-target="workspace-dashboard">

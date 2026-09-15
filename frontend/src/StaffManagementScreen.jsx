@@ -9,7 +9,6 @@ import {
   ErrorBanner,
   Field,
   LoadingState,
-  PageHeader,
   PasswordInput,
   StatusBadge,
   SuccessBanner,
@@ -320,10 +319,6 @@ export default function StaffManagementScreen({ session, setSession }) {
     const admins = activeSelectionKind === "workspace_admins";
     return (
       <div className="page">
-        <PageHeader
-          title={t("staff:management.title")}
-          description={t("staff:management.resolveDescription")}
-        />
         <PlanLockSelectionPanel
           kind={activeSelectionKind}
           title={
@@ -424,14 +419,6 @@ export default function StaffManagementScreen({ session, setSession }) {
 
   return (
     <div className="page staff-management-page" data-tutorial-target="staff-overview">
-      <PageHeader
-        title={t("staff:management.title")}
-        description={
-          canManageAdmins
-            ? t("staff:management.descriptionOwner")
-            : t("staff:management.descriptionAdmin")
-        }
-      />
       {adminUsage || staffUsage ? (
         <div className="groups-usage staff-usage" aria-label={t("staff:usage.label")} aria-live="polite">
           {[

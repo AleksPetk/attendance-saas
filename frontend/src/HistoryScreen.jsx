@@ -1,6 +1,5 @@
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
-import { PageHeader } from "./components.jsx";
 import { usePageTitle } from "./i18n/usePageTitle.js";
 import ActivityLogPanel from "./history/ActivityLogPanel.jsx";
 import AttendanceReportPanel from "./history/AttendanceReportPanel.jsx";
@@ -24,8 +23,6 @@ export default function HistoryScreen({ session }) {
 
   return (
     <div className={`page history-page${view === "activity" ? " history-page-activity" : ""}`}>
-      <PageHeader title={t("title")} />
-
       <div
         className="history-view-switch"
         data-tutorial-target="history-tabs"
