@@ -1,0 +1,101 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block content %}
+<div id="content-main" class="cs-high-risk-confirm">
+  <h1>{{ confirm_title }}</h1>
+  {% if confirm_lead %}
+    <p>{{ confirm_lead }}</p>
+  {% endif %}
+
+  {% if warning %}
+    <div class="cs-high-risk-warning">{{ warning }}</div>
+  {% endif %}
+
+  <div class="cs-confirm-block">
+    <h2>What this creates</h2>
+    {{ requested_state|linebreaks }}
+  </div>
+  {% if access_impact %}
+    <div class="cs-confirm-block">
+      <h2>Access impact</h2>
+      {{ access_impact|linebreaks }}
+    </div>
+  {% endif %}
+  {% if billing_impact %}
+    <div class="cs-confirm-block">
+      <h2>Billing impact</h2>
+      {{ billing_impact|linebreaks }}
+    </div>
+  {% endif %}
+
+  <form method="post" id="create-workspace-form">
+    {% csrf_token %}
+    <input type="hidden" name="confirm" value="1">
+
+    <fieldset class="module aligned">
+      <div class="form-row">
+        <label for="id_owner">Owner (customer account)</label>
+        <select id="id_owner" name="owner" required>
+          <option value="">---------</option>
+          {% for value, label in owner_choices %}
+            <option value="{{ value }}" {% if value|stringformat:"s" == selected_owner %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+        {% if errors.owner %}<p class="errornote">{{ errors.owner }}</p>{% endif %}
+        <p class="help">Only verified customer accounts that do not already own a workspace are listed. One workspace per owner.</p>
+      </div>
+
+      <div class="form-row">
+        <label for="id_internal_label">Internal label (optional)</label>
+        <input id="id_internal_label" name="internal_label" type="text" maxlength="150" value="{{ posted_internal_label }}">
+        <p class="help">Admin/support label only. Not a customer-facing workspace name.</p>
+      </div>
+
+      <div class="form-row">
+        <label for="id_billing_market_override">Billing market override</label>
+        <select id="id_billing_market_override" name="billing_market_override">
+          {% for value, label in billing_market_choices %}
+            <option value="{{ value }}" {% if value == selected_billing_market %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+        <p class="help">Affects future checkout currency only. No Stripe subscription is created now.</p>
+      </div>
+
+      <div class="form-row">
+        <label for="id_as_checkstation_account">
+          <input id="id_as_checkstation_account" name="as_checkstation_account" type="checkbox" {% if as_checkstation_account %}checked{% endif %}>
+          Create as CheckStation Account (internal / reviewer / test)
+        </label>
+        <p class="help">Uses the existing CheckStation Account mode: customer Subscription/Billing stay hidden; plan is admin-controlled. No Stripe subscription.</p>
+      </div>
+
+      <div class="form-row">
+        <label for="id_checkstation_plan">CheckStation plan (only if CheckStation Account)</label>
+        <select id="id_checkstation_plan" name="checkstation_plan">
+          {% for value, label in plan_choices %}
+            <option value="{{ value }}" {% if value == selected_plan %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </fieldset>
+
+    <label for="id_reason">Reason (required, not shown to customers)</label>
+    <textarea id="id_reason" name="reason" rows="3" required>{{ posted_reason }}</textarea>
+    {% if errors.reason %}<p class="errornote">{{ errors.reason }}</p>{% endif %}
+
+    <label for="id_admin_password">Your platform-admin password</label>
+    <input id="id_admin_password" name="admin_password" type="password" autocomplete="current-password" required>
+    {% if errors.admin_password %}<p class="errornote">{{ errors.admin_password }}</p>{% endif %}
+
+    {% if form_error %}
+      <p class="errornote">{{ form_error }}</p>
+    {% endif %}
+
+    <div class="submit-row">
+      <input type="submit" class="default" value="{{ confirm_label }}">
+      <a href="{{ cancel_url }}" class="button cancel-link">{% trans "Cancel" %}</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

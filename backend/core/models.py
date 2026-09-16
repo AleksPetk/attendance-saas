@@ -428,6 +428,7 @@ class PlatformAdminActionType(models.TextChoices):
         "billing_market_override_change",
         "Billing market override change",
     )
+    ORGANIZATION_CREATE = "organization_create", "Create organization"
     ORGANIZATION_BLOCK = "organization_block", "Block organization"
     ORGANIZATION_UNBLOCK = "organization_unblock", "Unblock organization"
     ORGANIZATION_PERMANENT_DELETE = (

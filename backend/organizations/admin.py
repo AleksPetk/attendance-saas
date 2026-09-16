@@ -36,8 +36,16 @@ from organizations.models import (
     OrganizationStatus,
     WorkspaceStaffAccount,
 )
+from organizations.workspace_admin_create import (
+    WorkspaceAdminCreateError,
+    create_workspace_for_existing_owner,
+    eligible_owners_queryset,
+)
 
 CONFIRM_TEMPLATE = "admin/confirm_high_risk.html"
+CREATE_WORKSPACE_TEMPLATE = (
+    "admin/organizations/organization/create_workspace.html"
+)
 MARKET_LABELS = {
     MARKET_GLOBAL: "Global (USD)",
     MARKET_JP: "Japan (JPY)",
@@ -90,6 +98,9 @@ class OrganizationAdmin(admin.ModelAdmin):
     """
 
     change_form_template = "admin/organizations/organization/change_form.html"
+    change_list_template = (
+        "admin/organizations/organization/change_list.html"
+    )
     list_display = (
         "workspace_id",
         "owner",
@@ -192,6 +203,11 @@ class OrganizationAdmin(admin.ModelAdmin):
         urls = super().get_urls()
         extra = [
             path(
+                "create-workspace/",
+                self.admin_site.admin_view(self.create_workspace_view),
+                name="organizations_organization_create_workspace",
+            ),
+            path(
                 "<path:object_id>/account-type/",
                 self.admin_site.admin_view(self.account_type_view),
                 name="organizations_organization_account_type",
@@ -223,6 +239,183 @@ class OrganizationAdmin(admin.ModelAdmin):
             ),
         ]
         return extra + urls
+
+    def changelist_view(self, request, extra_context=None):
+        extra_context = extra_context or {}
+        if request.user.is_staff or request.user.is_superuser:
+            extra_context["create_workspace_url"] = reverse(
+                "admin:organizations_organization_create_workspace"
+            )
+        return super().changelist_view(request, extra_context=extra_context)
+
+    def create_workspace_view(self, request):
+        """Admin-only create of a real workspace for an existing owner."""
+        require_platform_operator(request)
+        cancel_url = reverse("admin:organizations_organization_changelist")
+        owners = list(eligible_owners_queryset()[:500])
+        owner_choices = [(u.pk, u.email) for u in owners]
+        selected_owner = (request.POST.get("owner") or request.GET.get("owner") or "").strip()
+        selected_market = (
+            request.POST.get("billing_market_override")
+            or BillingMarketOverride.AUTO
+        ).strip().lower()
+        if selected_market not in BillingMarketOverride.values:
+            selected_market = BillingMarketOverride.AUTO
+        as_checkstation = request.POST.get("as_checkstation_account") == "on" or (
+            request.method == "GET"
+            and request.GET.get("as_checkstation_account") == "1"
+        )
+        selected_plan = (
+            request.POST.get("checkstation_plan") or OrganizationPlan.BASIC
+        ).strip().lower()
+        if selected_plan not in OrganizationPlan.values:
+            selected_plan = OrganizationPlan.BASIC
+        posted_label = request.POST.get("internal_label", "")
+        posted_reason = request.POST.get("reason", "")
+
+        def _page_context(*, errors=None, form_error=""):
+            account_kind = (
+                "CheckStation Account (internal / reviewer / test)"
+                if as_checkstation
+                else "Normal customer workspace"
+            )
+            plan_note = ""
+            if as_checkstation:
+                plan_note = (
+                    f"\nCheckStation plan: "
+                    f"{PLAN_DISPLAY_NAMES.get(selected_plan, selected_plan)}"
+                )
+            else:
+                plan_note = (
+                    "\nBuilt-in 7-day Business feature trial grants on create "
+                    "(commercially Basic; no Stripe subscription)."
+                )
+            return {
+                **admin.site.each_context(request),
+                "opts": Organization._meta,
+                "title": "Create workspace",
+                "confirm_title": "Create workspace for existing owner?",
+                "confirm_lead": (
+                    "Creates a real CheckStation Organization using the same "
+                    "canonical create path as normal signup. Workspace ID is "
+                    "generated automatically. One workspace per owner."
+                ),
+                "warning": (
+                    "No Stripe checkout or paid subscription is created. "
+                    "Do not use this for charging customers."
+                ),
+                "requested_state": (
+                    f"Owner: selected below\n"
+                    f"Account type: {account_kind}\n"
+                    f"Billing market override: "
+                    f"{dict(BillingMarketOverride.choices).get(selected_market, selected_market)}"
+                    f"{plan_note}"
+                ),
+                "access_impact": (
+                    "Owner gains their single workspace immediately. "
+                    "Staff accounts are not created."
+                ),
+                "billing_impact": (
+                    "No Stripe subscription. No charge. "
+                    + (
+                        "CheckStation Account hides customer Subscription/Billing; "
+                        "plan is admin-controlled."
+                        if as_checkstation
+                        else "Same initial commercial state as normal signup "
+                        "(built-in feature trial; commercially Basic)."
+                    )
+                ),
+                "confirm_label": "Create workspace",
+                "cancel_url": cancel_url,
+                "owner_choices": owner_choices,
+                "selected_owner": selected_owner,
+                "billing_market_choices": list(BillingMarketOverride.choices),
+                "selected_billing_market": selected_market,
+                "plan_choices": list(OrganizationPlan.choices),
+                "selected_plan": selected_plan,
+                "as_checkstation_account": as_checkstation,
+                "posted_internal_label": posted_label,
+                "posted_reason": posted_reason,
+                "errors": errors or {},
+                "form_error": form_error,
+            }
+
+        if request.method == "POST":
+            _user, reason, errors = confirmation_form_errors(request)
+            owner = None
+            if not selected_owner:
+                errors["owner"] = "Select an existing customer account."
+            else:
+                from accounts.models import User as AccountUser
+
+                owner = AccountUser.objects.filter(pk=selected_owner).first()
+                if owner is None:
+                    errors["owner"] = "That customer account was not found."
+
+            if not errors:
+                try:
+                    organization = create_workspace_for_existing_owner(
+                        owner=owner,
+                        internal_label=posted_label,
+                        billing_market_override=selected_market,
+                        as_checkstation_account=as_checkstation,
+                        checkstation_plan=selected_plan,
+                    )
+                except WorkspaceAdminCreateError as exc:
+                    errors["form"] = str(exc)
+                    if exc.code.startswith("owner_"):
+                        errors["owner"] = str(exc)
+                else:
+                    account_label = (
+                        "CheckStation Account"
+                        if organization.is_checkstation_account
+                        else "normal customer"
+                    )
+                    record_platform_admin_action(
+                        request=request,
+                        action_type=ACTION.ORGANIZATION_CREATE,
+                        reason=reason,
+                        target=organization,
+                        workspace_id_snapshot=organization.workspace_id,
+                        owner_email_snapshot=organization.owner.email,
+                        old_value="(none)",
+                        new_value=(
+                            f"{organization.workspace_id} / {account_label} / "
+                            f"{organization.plan}"
+                        ),
+                        log_message=(
+                            f"Created workspace {organization.workspace_id} "
+                            f"for {organization.owner.email} ({account_label})."
+                        ),
+                    )
+                    messages.success(
+                        request,
+                        (
+                            f"Created workspace {organization.workspace_id} "
+                            f"for {organization.owner.email}."
+                        ),
+                    )
+                    return redirect(
+                        reverse(
+                            "admin:organizations_organization_change",
+                            args=[organization.pk],
+                        )
+                    )
+
+            return render(
+                request,
+                CREATE_WORKSPACE_TEMPLATE,
+                _page_context(
+                    errors=errors,
+                    form_error=errors.get("form", ""),
+                ),
+            )
+
+        return render(
+            request,
+            CREATE_WORKSPACE_TEMPLATE,
+            _page_context(),
+        )
 
     def change_view(self, request, object_id, form_url="", extra_context=None):
         extra_context = extra_context or {}
