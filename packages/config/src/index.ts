@@ -34,7 +34,7 @@ const DEFAULTS: CheckStationAppConfig = {
   promoBaseUrl: "https://checkstation.app",
   requestTimeoutMs: 30_000,
   appDisplayName: "CheckStation",
-  iosBundleId: "app.checkstation.mobile",
+  iosBundleId: "app.checkstation.client",
   androidPackage: "app.checkstation.mobile",
   macosBundleId: "app.checkstation.desktop",
   windowsAppId: "app.checkstation.desktop",

@@ -135,10 +135,17 @@ npm run mobile:android  # Android emulator / device
 Env (dev override): `EXPO_PUBLIC_API_BASE_URL=http://localhost:8000/api`.  
 Standalone / TestFlight resolution: `EXPO_PUBLIC_API_BASE_URL` → `app.json` `extra.apiBaseUrl` → production fallback `https://workspace.checkstation.app/api` when not `__DEV__` (`apps/mobile/src/lib/config.ts`). `app.json` extra is production.
 
-Bundle ID: `app.checkstation.mobile` · marketing version `0.1.0` · iOS `buildNumber` starts at `1` (`app.json`).
+iOS/iPadOS Bundle ID: `app.checkstation.client` (matches existing App Store Connect app Apple ID `6807262653` / SKU `checkstation-client-001`).  
+Android package (unchanged; Play later): `app.checkstation.mobile`.  
+Marketing version `0.1.0` · iOS `buildNumber` starts at `1` (`app.json`).
 
 EAS: `apps/mobile/eas.json` profiles `development` | `preview` | `production`.  
-Expo project is **not linked yet** — do not invent a project UUID. From `apps/mobile` after login: `eas init` (writes real `extra.eas.projectId`). First TestFlight IPA: `npm run eas:build:production -w @checkstation/mobile` (do not run until Apple + EAS are connected).
+Expo project: `@alekspetk/checkstation` (`extra.eas.projectId` in `app.json`). First TestFlight IPA: `npm run eas:build:production -w @checkstation/mobile` (do not run until Apple signing is configured).
+
+Apple identifier roles (repo + App Store Connect evidence):
+- `app.checkstation.client` — canonical native iOS/iPadOS App ID / bundle ID for the existing CheckStation App Store app.
+- `app.checkstation.web` — present in App Store Connect identifier list as “CheckStation Web”; **not referenced in this repository**. Do not assume or change it (likely separate from the native app; may relate to web Sign in with Apple, but that is not proven by repo files). Leave Browser Apple OAuth env (`APPLE_OAUTH_*`) untouched.
+- `app.checkstation.mobile` — temporary Expo placeholder introduced during Mobile packaging prep; **not** the App Store Connect iOS bundle. Retained only as the Android `package` until Play Store identity is decided.
 
 ### Desktop
 
