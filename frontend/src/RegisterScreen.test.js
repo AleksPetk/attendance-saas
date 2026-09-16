@@ -26,10 +26,20 @@ test("registration requires and submits legal acknowledgement", () => {
 test("legal links fetch canonical slugs without replacing form state", () => {
   assert.match(registerSource, /terms: "terms-of-use"/);
   assert.match(registerSource, /privacy: "privacy-policy"/);
-  assert.match(registerSource, /api\.getContentDocument\(legalSlug\)/);
+  assert.match(registerSource, /api\.getContentDocument\(legalSlug, \{ lang: locale \}\)/);
   assert.match(registerSource, /const \[email, setEmail\] = useState/);
   assert.match(registerSource, /onClose=\{\(\) => setLegalSlug\(""\)\}/);
   assert.doesNotMatch(registerSource, /onClose=\{[^}]*setEmail/);
+});
+
+test("registration legal document request uses the active workspace locale", () => {
+  assert.match(registerSource, /const \{ locale \} = useLanguage\(\)/);
+  assert.match(registerSource, /api\.getContentDocument\(legalSlug, \{ lang: locale \}\)/);
+  // Locale must be in the effect deps so switching EN↔JA reloads without a page refresh.
+  assert.match(
+    registerSource,
+    /api\.getContentDocument\(legalSlug, \{ lang: locale \}\)[\s\S]*?\}, \[legalSlug, legalReload, locale, t\]\)/,
+  );
 });
 
 test("registration legal viewer reuses the safe Markdown renderer", () => {

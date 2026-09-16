@@ -121,7 +121,7 @@ export default function RegisterScreen() {
     setLegalLoading(true);
     setLegalError("");
     setLegalDocument(null);
-    api.getContentDocument(legalSlug)
+    api.getContentDocument(legalSlug, { lang: locale })
       .then((result) => {
         if (!cancelled) setLegalDocument(result.data);
       })
@@ -134,7 +134,7 @@ export default function RegisterScreen() {
     return () => {
       cancelled = true;
     };
-  }, [legalSlug, legalReload, t]);
+  }, [legalSlug, legalReload, locale, t]);
 
   function openLegalDocument(slug) {
     setLegalSlug(slug);
