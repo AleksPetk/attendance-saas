@@ -132,9 +132,13 @@ npm run mobile:ios      # iOS Simulator (macOS + Xcode)
 npm run mobile:android  # Android emulator / device
 ```
 
-Env: `EXPO_PUBLIC_API_BASE_URL=http://localhost:8000/api` (default in app.json extra).
+Env (dev override): `EXPO_PUBLIC_API_BASE_URL=http://localhost:8000/api`.  
+Standalone / TestFlight resolution: `EXPO_PUBLIC_API_BASE_URL` → `app.json` `extra.apiBaseUrl` → production fallback `https://workspace.checkstation.app/api` when not `__DEV__` (`apps/mobile/src/lib/config.ts`). `app.json` extra is production.
 
-Bundle IDs (placeholders): `app.checkstation.mobile`
+Bundle ID: `app.checkstation.mobile` · marketing version `0.1.0` · iOS `buildNumber` starts at `1` (`app.json`).
+
+EAS: `apps/mobile/eas.json` profiles `development` | `preview` | `production`.  
+Expo project is **not linked yet** — do not invent a project UUID. From `apps/mobile` after login: `eas init` (writes real `extra.eas.projectId`). First TestFlight IPA: `npm run eas:build:production -w @checkstation/mobile` (do not run until Apple + EAS are connected).
 
 ### Desktop
 

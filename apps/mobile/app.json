@@ -20,13 +20,22 @@
         }
       ],
       "expo-sharing",
-      ["expo-image-picker", { "photosPermission": "Choose a profile photo for a CheckStation participant.", "cameraPermission": false, "microphonePermission": false }]
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "CheckStation uses your photo library so you can choose a profile photo for a participant.",
+          "cameraPermission": false,
+          "microphonePermission": false
+        }
+      ]
     ],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "app.checkstation.mobile",
+      "buildNumber": "1",
       "infoPlist": {
-        "CFBundleDisplayName": "CheckStation"
+        "CFBundleDisplayName": "CheckStation",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -46,8 +55,9 @@
     "extra": {
       "apiBaseUrl": "https://workspace.checkstation.app/api",
       "eas": {
-        "projectId": "checkstation-mobile-placeholder"
+        "projectId": "8120af29-cf5e-46f0-a330-ccb8d4f9596f"
       }
-    }
+    },
+    "owner": "alekspetk"
   }
 }

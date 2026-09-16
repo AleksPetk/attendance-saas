@@ -62,13 +62,24 @@ out/
 # Native apps (Expo / Electron)
 apps/mobile/.expo/
 apps/mobile/dist/
+apps/mobile/ios/
+apps/mobile/android/
 apps/desktop/release/
 apps/desktop/dist/
 *.jks
 *.mobileprovision
 *.p12
+*.p8
+AuthKey_*.p8
+*.cer
+*.certSigningRequest
 google-services.json
 GoogleService-Info.plist
+# EAS / Apple local credential material (use EAS remote credentials by default)
+credentials.json
+**/credentials.json
+eas-credentials/
+.eas/credentials/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
