@@ -108,28 +108,73 @@ export class AuthController {
     return this.state;
   }
 
-  async loginOwner(email: string, password: string): Promise<OwnerLoginResult> {
-    try {
-      await this.api.post<WorkspaceSession>(endpoints.ownerLogin(), { email, password });
-    } catch (error) {
-      // The production endpoint represents a valid first factor requiring 2FA
-      // as a 403 response with this code; ApiClient correctly throws for it.
-      if (error instanceof ApiError && error.data.code === "two_factor_required") {
-        this.setState({
-          status: "needs_2fa",
-          session: null,
-          twoFactorPending: true,
-          bootstrapError: null,
-        });
-        return { kind: "two_factor_required" };
-      }
-      throw error;
-    }
+  private async finishOwnerFirstFactor(): Promise<OwnerLoginResult> {
     // Verify that the newly issued Django session is usable before entering
     // the authenticated app; this also catches transport regressions early.
     const session = await this.api.get<WorkspaceSession>(endpoints.workspace());
     const state = this.applySession(session);
     return { kind: "authenticated", session: state.session! };
+  }
+
+  private mapOwnerFirstFactorError(error: unknown): OwnerLoginResult | null {
+    // The production endpoint represents a valid first factor requiring 2FA
+    // as a 403 response with this code; ApiClient correctly throws for it.
+    if (error instanceof ApiError && error.data.code === "two_factor_required") {
+      this.setState({
+        status: "needs_2fa",
+        session: null,
+        twoFactorPending: true,
+        bootstrapError: null,
+      });
+      return { kind: "two_factor_required" };
+    }
+    return null;
+  }
+
+  async loginOwner(email: string, password: string): Promise<OwnerLoginResult> {
+    try {
+      await this.api.post<WorkspaceSession>(endpoints.ownerLogin(), { email, password });
+    } catch (error) {
+      const mapped = this.mapOwnerFirstFactorError(error);
+      if (mapped) return mapped;
+      throw error;
+    }
+    return this.finishOwnerFirstFactor();
+  }
+
+  /**
+   * Complete native iOS Sign in with Apple after obtaining an identityToken.
+   * Uses the same Django session / cookie jar path as password login.
+   */
+  async completeAppleNative(payload: {
+    identityToken: string;
+    nonce: string;
+    intent: "login" | "register";
+    legalAcknowledgement?: boolean;
+    fullName?: {
+      givenName?: string | null;
+      familyName?: string | null;
+    } | null;
+  }): Promise<OwnerLoginResult> {
+    try {
+      await this.api.post<WorkspaceSession>(endpoints.appleNativeComplete(), {
+        identity_token: payload.identityToken,
+        nonce: payload.nonce,
+        intent: payload.intent,
+        legal_acknowledgement: Boolean(payload.legalAcknowledgement),
+        full_name: payload.fullName
+          ? {
+              givenName: payload.fullName.givenName || "",
+              familyName: payload.fullName.familyName || "",
+            }
+          : undefined,
+      });
+    } catch (error) {
+      const mapped = this.mapOwnerFirstFactorError(error);
+      if (mapped) return mapped;
+      throw error;
+    }
+    return this.finishOwnerFirstFactor();
   }
 
   async completeOwnerTwoFactor(payload: { code?: string; recovery_code?: string }): Promise<WorkspaceSession> {
@@ -211,15 +256,14 @@ export class AuthController {
   }
 
   /**
-   * OAuth (Google/Apple) uses browser redirects to the web SPA today.
-   * Native deep-link completion is not implemented — see APPS.md.
+   * Google still uses browser redirect OAuth. Native Apple uses
+   * /api/auth/apple/native/ (identity token) on iOS.
    */
   getOAuthGapNote(): string {
     return (
-      "Owner Google/Apple sign-in still uses web redirect callbacks "
-      + "(/api/auth/{google|apple}/callback → FRONTEND_BASE_URL). "
-      + "Native ASWebAuthenticationSession / Intent deep links require backend "
-      + "callback support before production OAuth on mobile/desktop."
+      "Owner Google sign-in still uses web redirect callbacks "
+      + "(/api/auth/google/callback → FRONTEND_BASE_URL). "
+      + "Native Apple sign-in uses /api/auth/apple/native/ on iOS."
     );
   }
 }

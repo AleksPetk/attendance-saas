@@ -16,6 +16,11 @@ def apple_oauth_client_id() -> str:
     return getattr(settings, "APPLE_OAUTH_CLIENT_ID", "").strip()
 
 
+def apple_native_ios_client_id() -> str:
+    """iOS App ID / bundle identifier used as native identity-token audience."""
+    return getattr(settings, "APPLE_NATIVE_IOS_CLIENT_ID", "").strip()
+
+
 def apple_oauth_team_id() -> str:
     return getattr(settings, "APPLE_OAUTH_TEAM_ID", "").strip()
 
@@ -36,6 +41,11 @@ def apple_oauth_is_configured() -> bool:
         and apple_oauth_key_id()
         and apple_oauth_private_key_pem()
     )
+
+
+def apple_native_ios_is_configured() -> bool:
+    """Native iOS Apple auth only needs the App ID audience (JWKS verify)."""
+    return bool(apple_native_ios_client_id())
 
 
 def apple_oauth_state_ttl_seconds() -> int:

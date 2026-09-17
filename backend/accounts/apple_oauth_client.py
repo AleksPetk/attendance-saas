@@ -177,3 +177,79 @@ def verify_apple_id_token(id_token_jwt: str, *, expected_nonce: str) -> dict:
         raise AppleOAuthClientError("missing_subject")
 
     return claims
+
+
+def _sha256_hex(value: str) -> str:
+    import hashlib
+
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def _audience_matches(claims: dict, expected_audience: str) -> bool:
+    audience = claims.get("aud")
+    if isinstance(audience, (list, tuple, set)):
+        return expected_audience in audience
+    return audience == expected_audience
+
+
+def verify_apple_native_id_token(
+    id_token_jwt: str,
+    *,
+    expected_raw_nonce: str,
+    expected_audience: str | None = None,
+) -> dict:
+    """
+    Verify a native iOS Sign in with Apple identity token.
+
+    Audience must be the iOS App ID / bundle (APPLE_NATIVE_IOS_CLIENT_ID),
+    not the browser Services ID. The ID token nonce claim is the SHA-256
+    hex digest of the raw nonce passed to AppleAuthentication.signInAsync.
+    """
+    try:
+        import jwt
+    except ImportError as exc:
+        raise AppleOAuthClientError("pyjwt_unavailable") from exc
+
+    from accounts.apple_oauth_settings import apple_native_ios_client_id
+
+    audience = (expected_audience or apple_native_ios_client_id()).strip()
+    if not audience:
+        raise AppleOAuthClientError("native_audience_not_configured")
+    if not expected_raw_nonce:
+        raise AppleOAuthClientError("invalid_nonce")
+
+    try:
+        signing_key = _get_jwks_client().get_signing_key_from_jwt(id_token_jwt)
+        claims = jwt.decode(
+            id_token_jwt,
+            signing_key.key,
+            algorithms=["RS256"],
+            audience=audience,
+            issuer=APPLE_OAUTH_ISSUER,
+            options={"require": ["exp", "iss", "aud", "sub"]},
+        )
+    except jwt.ExpiredSignatureError as exc:
+        raise AppleOAuthClientError("expired_id_token") from exc
+    except jwt.InvalidTokenError as exc:
+        raise AppleOAuthClientError("invalid_id_token") from exc
+
+    if claims.get("iss") != APPLE_OAUTH_ISSUER:
+        raise AppleOAuthClientError("invalid_issuer")
+    if not _audience_matches(claims, audience):
+        raise AppleOAuthClientError("invalid_audience")
+
+    # Reject browser Services-ID tokens even if somehow decoded with wrong aud.
+    browser_aud = apple_oauth_client_id()
+    if browser_aud and _audience_matches(claims, browser_aud) and browser_aud != audience:
+        raise AppleOAuthClientError("invalid_audience")
+
+    expected_hash = _sha256_hex(expected_raw_nonce)
+    token_nonce = str(claims.get("nonce") or "").strip()
+    if token_nonce != expected_hash:
+        raise AppleOAuthClientError("invalid_nonce")
+
+    subject = str(claims.get("sub") or "").strip()
+    if not subject:
+        raise AppleOAuthClientError("missing_subject")
+
+    return claims

@@ -232,14 +232,22 @@ export function OAuthProviderButtons({
   dialogTitle,
   dialogBody,
   okLabel,
+  onApplePress,
+  appleAvailable = true,
+  appleBusy = false,
 }: {
   googleLabel: string;
   appleLabel: string;
   dialogTitle: string;
   dialogBody: string;
   okLabel: string;
+  /** When set, Apple uses native auth instead of the coming-soon dialog. */
+  onApplePress?: () => void;
+  appleAvailable?: boolean;
+  appleBusy?: boolean;
 }) {
   const notifyUnavailable = () => NativeAlert.alert(dialogTitle, dialogBody, [{ text: okLabel }]);
+  const appleDisabled = appleBusy || (onApplePress != null && !appleAvailable);
   return (
     <View style={styles.oauthStack}>
       <Pressable accessibilityRole="button" onPress={notifyUnavailable} style={({ pressed }) => [styles.oauthButton, pressed && styles.oauthPressed]}>
@@ -248,7 +256,23 @@ export function OAuthProviderButtons({
         </View>
         <Text style={styles.oauthLabel}>{googleLabel}</Text>
       </Pressable>
-      <Pressable accessibilityRole="button" onPress={notifyUnavailable} style={({ pressed }) => [styles.oauthButton, pressed && styles.oauthPressed]}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ disabled: appleDisabled }}
+        disabled={appleDisabled}
+        onPress={() => {
+          if (onApplePress) {
+            if (!appleAvailable) {
+              notifyUnavailable();
+              return;
+            }
+            onApplePress();
+            return;
+          }
+          notifyUnavailable();
+        }}
+        style={({ pressed }) => [styles.oauthButton, pressed && styles.oauthPressed, appleDisabled && styles.oauthDisabled]}
+      >
         <View style={styles.oauthIcon}>
           <Ionicons color={colors.text} name="logo-apple" size={21} />
         </View>
@@ -418,6 +442,7 @@ const styles = StyleSheet.create({
   googleMark: { width: 21, height: 22 },
   oauthButton: { minHeight: 46, borderWidth: 1, borderColor: colors.borderStrong, borderRadius: radii.sm, backgroundColor: colors.surface, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: space.sm },
   oauthPressed: { backgroundColor: colors.surfaceMuted },
+  oauthDisabled: { opacity: 0.45 },
   oauthLabel: { ...type.bodyStrong, color: colors.text },
   eyeOutline: { width: 21, height: 13, borderWidth: 1.8, borderColor: colors.textMuted, borderRadius: 11, alignItems: "center", justifyContent: "center", transform: [{ rotate: "-1deg" }] },
   eyePupil: { width: 5, height: 5, borderRadius: 3, backgroundColor: colors.textMuted },

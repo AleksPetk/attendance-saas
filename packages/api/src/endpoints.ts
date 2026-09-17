@@ -14,6 +14,7 @@ export const endpoints = {
   ownerLogin: () => "/auth/login/",
   staffLogin: () => "/auth/staff-login/",
   logout: () => "/auth/logout/",
+  appleNativeComplete: () => "/auth/apple/native/",
   ownerTotpChallenge: () => "/auth/owner-2fa/challenge/",
   workspace: () => "/workspace/",
   dashboard: () => "/dashboard/",

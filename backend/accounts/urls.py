@@ -8,6 +8,7 @@ from accounts.account_recovery_views import (
     RecoverAccountTwoFactorView,
     RecoverAccountVerifyPrimaryView,
 )
+from accounts.apple_native_views import AppleNativeCompleteView
 from accounts.apple_oauth_views import AppleOAuthCallbackView, AppleOAuthStartView
 from accounts.google_oauth_views import GoogleOAuthCallbackView, GoogleOAuthStartView
 from accounts.owner_sign_in_method_views import (
@@ -167,5 +168,10 @@ urlpatterns = [
         "auth/apple/callback/",
         AppleOAuthCallbackView.as_view(),
         name="apple-oauth-callback",
+    ),
+    path(
+        "auth/apple/native/",
+        AppleNativeCompleteView.as_view(),
+        name="apple-native-complete",
     ),
 ]

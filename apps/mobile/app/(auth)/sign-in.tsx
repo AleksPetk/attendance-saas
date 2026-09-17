@@ -1,8 +1,9 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Keyboard, StyleSheet, Text, TextInput, View } from "react-native";
 import { Redirect, router } from "expo-router";
 import { AuthScreen } from "../../src/components/AuthScreen";
 import { Alert, Button, Field, OAuthProviderButtons, PasswordVisibilityButton, TextLink } from "../../src/components/ui";
+import { isNativeAppleAuthAvailable, requestNativeAppleCredential } from "../../src/lib/appleNativeAuth";
 import { signInErrorMessage } from "../../src/lib/authErrors";
 import { useApp } from "../../src/lib/AppProvider";
 import { colors, space, type } from "../../src/theme/tokens";
@@ -15,10 +16,23 @@ export default function SignInScreen() {
   const [twoFactorValue, setTwoFactorValue] = useState("");
   const [useRecoveryCode, setUseRecoveryCode] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [appleBusy, setAppleBusy] = useState(false);
+  const [appleAvailable, setAppleAvailable] = useState(true);
   const [error, setError] = useState("");
   const emailRef = useRef<TextInput | null>(null);
   const passwordRef = useRef<TextInput | null>(null);
   const twoFactorRef = useRef<TextInput | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const available = await isNativeAppleAuthAvailable();
+      if (!cancelled) setAppleAvailable(available);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   if (authState.status === "authenticated") return <Redirect href="/(app)/(tabs)/home" />;
 
@@ -49,6 +63,45 @@ export default function SignInScreen() {
       setError(signInErrorMessage(caught, "owner", t));
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function onAppleSignIn() {
+    if (busy || appleBusy) return;
+    setAppleBusy(true);
+    setError("");
+    try {
+      const apple = await requestNativeAppleCredential();
+      if (apple.kind === "cancelled") return;
+      if (apple.kind === "unavailable") {
+        setAppleAvailable(false);
+        setError(t("auth.appleUnavailable"));
+        return;
+      }
+      if (apple.kind === "missing_token") {
+        setError(t("auth.appleMissingToken"));
+        return;
+      }
+      if (apple.kind === "error") {
+        setError(t("auth.appleFailed"));
+        return;
+      }
+      const result = await auth.completeAppleNative({
+        identityToken: apple.credential.identityToken,
+        nonce: apple.credential.nonce,
+        intent: "login",
+        fullName: apple.credential.fullName,
+      });
+      if (result.kind === "two_factor_required") {
+        requestAnimationFrame(() => twoFactorRef.current?.focus());
+        return;
+      }
+      Keyboard.dismiss();
+      router.replace("/(app)/(tabs)/home");
+    } catch (caught) {
+      setError(signInErrorMessage(caught, "owner", t));
+    } finally {
+      setAppleBusy(false);
     }
   }
 
@@ -122,13 +175,22 @@ export default function SignInScreen() {
             <Field ref={passwordRef} autoCapitalize="none" autoComplete="current-password" autoCorrect={false} importantForAutofill="yes" label={t("auth.password")} onChangeText={(value) => { setPassword(value); clearErrorOnEdit(); }} onSubmitEditing={() => void onOwnerSignIn()} returnKeyType="go" rightAccessory={<PasswordVisibilityButton visible={passwordVisible} onPress={togglePasswordVisibility} showLabel={t("auth.showPassword")} hideLabel={t("auth.hidePassword")} />} secureTextEntry={!passwordVisible} spellCheck={false} submitBehavior="blurAndSubmit" textContentType="password" value={password} />
           </View>
           <Alert message={error} />
-          <Button disabled={busy} label={busy ? t("auth.signingIn") : t("auth.signIn")} loading={busy} onPress={() => void onOwnerSignIn()} />
+          <Button disabled={busy || appleBusy} label={busy ? t("auth.signingIn") : t("auth.signIn")} loading={busy} onPress={() => void onOwnerSignIn()} />
           <View style={styles.recoveryLinks}>
             <TextLink label={t("auth.forgotPassword")} onPress={() => router.push("/(auth)/forgot-password")} />
             <TextLink label={t("auth.recoverAccount")} onPress={() => router.push("/(auth)/recover-account")} />
           </View>
           <View style={styles.divider}><View style={styles.dividerLine} /><Text style={styles.dividerText}>{t("auth.or")}</Text><View style={styles.dividerLine} /></View>
-          <OAuthProviderButtons appleLabel={t("auth.continueApple")} dialogBody={t("auth.oauthComingBody")} dialogTitle={t("auth.oauthComingTitle")} googleLabel={t("auth.continueGoogle")} okLabel={t("common.ok")} />
+          <OAuthProviderButtons
+            appleAvailable={appleAvailable}
+            appleBusy={appleBusy || busy}
+            appleLabel={t("auth.continueApple")}
+            dialogBody={t("auth.oauthComingBody")}
+            dialogTitle={t("auth.oauthComingTitle")}
+            googleLabel={t("auth.continueGoogle")}
+            okLabel={t("common.ok")}
+            onApplePress={() => void onAppleSignIn()}
+          />
           <Button label={t("auth.staffSignIn")} onPress={() => router.push("/(auth)/staff-sign-in")} variant="secondary" />
           <Button label={t("auth.createAccount")} onPress={() => router.push("/(auth)/register")} variant="secondary" />
         </View>

@@ -125,6 +125,7 @@ env = environ.Env(
     APPLE_OAUTH_REDIRECT_URI=(str, ""),
     APPLE_OAUTH_STATE_TTL_SECONDS=(int, 600),
     APPLE_OAUTH_HTTP_TIMEOUT_SECONDS=(int, 15),
+    APPLE_NATIVE_IOS_CLIENT_ID=(str, ""),
 )
 
 env_file = REPO_ROOT / ".env"
@@ -443,6 +444,9 @@ APPLE_OAUTH_PRIVATE_KEY = env("APPLE_OAUTH_PRIVATE_KEY", default="")
 APPLE_OAUTH_REDIRECT_URI = env("APPLE_OAUTH_REDIRECT_URI", default="")
 APPLE_OAUTH_STATE_TTL_SECONDS = env("APPLE_OAUTH_STATE_TTL_SECONDS")
 APPLE_OAUTH_HTTP_TIMEOUT_SECONDS = env("APPLE_OAUTH_HTTP_TIMEOUT_SECONDS")
+# Native iOS Sign in with Apple identity-token audience (App ID / bundle).
+# Browser Services ID remains APPLE_OAUTH_CLIENT_ID. Not a secret.
+APPLE_NATIVE_IOS_CLIENT_ID = env("APPLE_NATIVE_IOS_CLIENT_ID", default="")
 
 # Stripe TEST-mode billing. Empty placeholders until credentials exist.
 # Never commit live keys. Permanent list prices stay in billing.catalog.
