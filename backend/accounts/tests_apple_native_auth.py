@@ -631,3 +631,56 @@ class AppleNativeVerifyEndpointTests(TestCase):
             )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["role"], "owner")
+
+    def test_native_reverify_allows_primary_and_backup_email_actions(self):
+        response = self._post_verify()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.client.session.session_key, self.session_key)
+
+        with patch("accounts.email_management.send_primary_email_change_verification"):
+            primary = self.client.post(
+                "/api/auth/account/primary-email/",
+                data={"email": "new-login@example.com"},
+                content_type="application/json",
+            )
+        self.assertEqual(primary.status_code, 200, primary.content)
+        self.owner.refresh_from_db()
+        self.assertEqual(self.owner.pending_primary_email, "new-login@example.com")
+
+        with patch("accounts.email_management.send_backup_email_verification"):
+            backup = self.client.post(
+                "/api/auth/account/backup-email/",
+                data={"email": "backup-apple@example.com"},
+                content_type="application/json",
+            )
+        self.assertEqual(backup.status_code, 200, backup.content)
+        self.owner.refresh_from_db()
+        self.assertEqual(self.owner.pending_backup_email, "backup-apple@example.com")
+
+    def test_expired_reverify_blocks_email_actions(self):
+        from datetime import timedelta
+
+        from accounts.owner_sensitive_auth import OWNER_OAUTH_REAUTH_SESSION_KEY
+
+        session = self.client.session
+        session[OWNER_OAUTH_REAUTH_SESSION_KEY] = {
+            "user_id": self.owner.pk,
+            "provider": OwnerAuthProvider.APPLE,
+            "verified_at": (timezone.now() - timedelta(seconds=601)).isoformat(),
+        }
+        session.save()
+
+        primary = self.client.post(
+            "/api/auth/account/primary-email/",
+            data={"email": "too-late@example.com"},
+            content_type="application/json",
+        )
+        self.assertEqual(primary.status_code, 400)
+        self.assertEqual(primary.json()["code"], "oauth_reauth_required")
+        backup = self.client.post(
+            "/api/auth/account/backup-email/",
+            data={"email": "too-late-backup@example.com"},
+            content_type="application/json",
+        )
+        self.assertEqual(backup.status_code, 400)
+        self.assertEqual(backup.json()["code"], "oauth_reauth_required")

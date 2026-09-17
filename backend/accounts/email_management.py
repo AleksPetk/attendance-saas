@@ -95,8 +95,8 @@ def _send_primary_change_verification(user):
     user.save(update_fields=["primary_email_change_last_sent_at"])
 
 
-def request_backup_email(user, email, password):
-    if not user.check_password(password):
+def request_backup_email(user, email, password="", *, skip_password_check=False):
+    if not skip_password_check and not user.check_password(password or ""):
         return "wrong_password", None
     try:
         normalized = validate_backup_email_for_user(user, email)
@@ -144,8 +144,8 @@ def cancel_pending_backup(user):
     return "cancelled"
 
 
-def remove_backup_email(user, password):
-    if not user.check_password(password):
+def remove_backup_email(user, password="", *, skip_password_check=False):
+    if not skip_password_check and not user.check_password(password or ""):
         return False
     user.backup_email = None
     user.backup_email_verified_at = None
@@ -202,8 +202,8 @@ def verify_backup_email_uid_token(uid, token):
     return "verified", locked
 
 
-def request_primary_email_change(user, email, password):
-    if not user.check_password(password):
+def request_primary_email_change(user, email, password="", *, skip_password_check=False):
+    if not skip_password_check and not user.check_password(password or ""):
         return "wrong_password", None
     try:
         normalized = validate_primary_email_for_user(user, email)

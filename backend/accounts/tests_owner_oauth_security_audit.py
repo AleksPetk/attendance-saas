@@ -169,15 +169,17 @@ class OwnerOAuthDeletionCascadeAuditTests(TestCase):
 
 
 class OAuthOnlySensitiveActionAuditTests(TestCase):
-    SENSITIVE_PATHS = (
-        ("/api/auth/account/primary-email/", {"email": "new@example.com", "current_password": "x"}),
-        ("/api/auth/account/backup-email/", {"email": "backup@example.com", "current_password": "x"}),
-        ("/api/auth/account/backup-email/remove/", {"current_password": "x"}),
+    PASSWORD_GATED_PATHS = (
         ("/api/auth/owner-2fa/setup/", {"current_password": "x"}),
         (
             "/api/auth/change-password/",
             {"current_password": "x", "new_password": "x", "new_password_confirm": "x"},
         ),
+    )
+    OAUTH_REAUTH_EMAIL_PATHS = (
+        ("/api/auth/account/primary-email/", {"email": "new@example.com", "current_password": "x"}),
+        ("/api/auth/account/backup-email/", {"email": "backup@example.com", "current_password": "x"}),
+        ("/api/auth/account/backup-email/remove/", {"current_password": "x"}),
     )
 
     def setUp(self):
@@ -190,13 +192,20 @@ class OAuthOnlySensitiveActionAuditTests(TestCase):
         self.client = APIClient()
         self.client.force_authenticate(self.owner)
 
-    def test_oauth_only_owner_gets_password_not_available_on_sensitive_endpoints(self):
-        for path, payload in self.SENSITIVE_PATHS:
+    def test_oauth_only_owner_gets_password_not_available_on_password_gated_endpoints(self):
+        for path, payload in self.PASSWORD_GATED_PATHS:
             with self.subTest(path=path):
                 response = self.client.post(path, payload, format="json")
                 self.assertEqual(response.status_code, 400, response.data)
                 self.assertEqual(response.data.get("code"), "password_not_available")
                 self.assertIn(PASSWORD_NOT_AVAILABLE_MESSAGE, response.data.get("detail", ""))
+
+    def test_oauth_only_owner_email_actions_require_oauth_reauth(self):
+        for path, payload in self.OAUTH_REAUTH_EMAIL_PATHS:
+            with self.subTest(path=path):
+                response = self.client.post(path, payload, format="json")
+                self.assertEqual(response.status_code, 400, response.data)
+                self.assertEqual(response.data.get("code"), "oauth_reauth_required")
 
     def test_oauth_only_owner_delete_requires_oauth_reauth_not_password(self):
         response = self.client.post(

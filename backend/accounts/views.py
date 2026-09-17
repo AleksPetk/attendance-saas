@@ -56,6 +56,7 @@ from core.auth_rate_limits import (
 from accounts.owner_sensitive_auth import (
     clear_owner_oauth_reauth,
     password_not_available_response,
+    validate_owner_email_sensitive_reauth,
     validate_sensitive_owner_reauth,
 )
 from accounts.sign_in_methods import owner_password_enabled
@@ -312,22 +313,23 @@ class BackupEmailView(APIView):
         if customer_must_verify_email(actor):
             raise EmailNotVerified()
 
-        password_denied = _require_owner_password(actor)
-        if password_denied is not None:
-            return password_denied
-
         serializer = EmailWithPasswordSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        reauth_error = validate_owner_email_sensitive_reauth(
+            request,
+            actor,
+            current_password=serializer.validated_data.get("current_password") or "",
+            code=serializer.validated_data.get("code") or "",
+            recovery_code=serializer.validated_data.get("recovery_code") or "",
+        )
+        if reauth_error is not None:
+            return reauth_error
+
         result, detail = request_backup_email(
             actor,
             serializer.validated_data["email"],
-            serializer.validated_data["current_password"],
+            skip_password_check=True,
         )
-        if result == "wrong_password":
-            return Response(
-                {"current_password": "Current password is incorrect."},
-                status=400,
-            )
         if result == "validation_error":
             return Response({"email": detail}, status=400)
         if result == "send_failed":
@@ -352,15 +354,21 @@ class BackupEmailRemoveView(APIView):
         if customer_must_verify_email(actor):
             raise EmailNotVerified()
 
-        password_denied = _require_owner_password(actor)
-        if password_denied is not None:
-            return password_denied
-
         serializer = PasswordOnlySerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        if not remove_backup_email(actor, serializer.validated_data["current_password"]):
+        reauth_error = validate_owner_email_sensitive_reauth(
+            request,
+            actor,
+            current_password=serializer.validated_data.get("current_password") or "",
+            code=serializer.validated_data.get("code") or "",
+            recovery_code=serializer.validated_data.get("recovery_code") or "",
+        )
+        if reauth_error is not None:
+            return reauth_error
+
+        if not remove_backup_email(actor, skip_password_check=True):
             return Response(
-                {"current_password": "Current password is incorrect."},
+                {"detail": "Backup email could not be removed."},
                 status=400,
             )
         return Response({"detail": "Backup email removed.", "code": "removed"})
@@ -451,22 +459,23 @@ class PrimaryEmailChangeView(APIView):
         if customer_must_verify_email(actor):
             raise EmailNotVerified()
 
-        password_denied = _require_owner_password(actor)
-        if password_denied is not None:
-            return password_denied
-
         serializer = EmailWithPasswordSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        reauth_error = validate_owner_email_sensitive_reauth(
+            request,
+            actor,
+            current_password=serializer.validated_data.get("current_password") or "",
+            code=serializer.validated_data.get("code") or "",
+            recovery_code=serializer.validated_data.get("recovery_code") or "",
+        )
+        if reauth_error is not None:
+            return reauth_error
+
         result, detail = request_primary_email_change(
             actor,
             serializer.validated_data["email"],
-            serializer.validated_data["current_password"],
+            skip_password_check=True,
         )
-        if result == "wrong_password":
-            return Response(
-                {"current_password": "Current password is incorrect."},
-                status=400,
-            )
         if result == "validation_error":
             return Response({"email": detail}, status=400)
         if result == "send_failed":

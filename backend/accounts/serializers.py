@@ -111,11 +111,19 @@ class PreferredLanguageUpdateSerializer(serializers.Serializer):
 
 class EmailWithPasswordSerializer(serializers.Serializer):
     email = serializers.EmailField()
-    current_password = serializers.CharField(write_only=True)
+    current_password = serializers.CharField(
+        write_only=True, required=False, allow_blank=True, default=""
+    )
+    code = serializers.CharField(required=False, allow_blank=True, default="")
+    recovery_code = serializers.CharField(required=False, allow_blank=True, default="")
 
 
 class PasswordOnlySerializer(serializers.Serializer):
-    current_password = serializers.CharField(write_only=True)
+    current_password = serializers.CharField(
+        write_only=True, required=False, allow_blank=True, default=""
+    )
+    code = serializers.CharField(required=False, allow_blank=True, default="")
+    recovery_code = serializers.CharField(required=False, allow_blank=True, default="")
 
 
 class DeleteAccountSerializer(serializers.Serializer):

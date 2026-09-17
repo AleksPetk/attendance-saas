@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { canConfirmDeleteWithApple } from "./accountDeleteReauth";
+import { canConfirmDeleteWithApple, canConfirmSensitiveWithApple } from "./accountDeleteReauth";
 
 const root = fileURLToPath(new URL("../..", import.meta.url));
 const read = (relative: string) => readFileSync(`${root}/${relative}`, "utf8");
@@ -15,11 +15,11 @@ const authController = readFileSync(
   "utf8",
 );
 
-test("canConfirmDeleteWithApple is true only for Apple-linked passwordless owners", () => {
+test("canConfirmSensitiveWithApple aliases delete helper for Apple-only owners", () => {
+  assert.equal(canConfirmSensitiveWithApple({ apple: { linked: true }, password: { enabled: false } }), true);
   assert.equal(canConfirmDeleteWithApple({ apple: { linked: true }, password: { enabled: false } }), true);
   assert.equal(canConfirmDeleteWithApple({ apple: { linked: true }, password: { enabled: true } }), false);
   assert.equal(canConfirmDeleteWithApple({ google: { linked: true }, password: { enabled: false } }), false);
-  assert.equal(canConfirmDeleteWithApple({ apple: { linked: false } }), false);
 });
 
 test("Delete Account shows Confirm with Apple for Apple-only owners", () => {

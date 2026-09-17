@@ -408,13 +408,13 @@ class PasswordNotAvailableApiTests(TestCase):
         self.client = APIClient()
         self.client.force_authenticate(self.owner)
 
-    def test_primary_email_change_returns_password_not_available(self):
+    def test_primary_email_change_returns_oauth_reauth_required(self):
         response = self.client.post(
             "/api/auth/account/primary-email/",
             {"email": "new@example.com", "current_password": "anything"},
         )
         self.assertEqual(response.status_code, 400)
-        self.assertEqual(response.data["code"], "password_not_available")
+        self.assertEqual(response.data["code"], "oauth_reauth_required")
 
     def test_delete_account_returns_oauth_reauth_required(self):
         response = self.client.post(

@@ -191,6 +191,50 @@ def validate_owner_password_reauth(user, current_password: str) -> Response | No
     return None
 
 
+def validate_owner_email_sensitive_reauth(
+    request,
+    user,
+    *,
+    current_password: str = "",
+    code: str = "",
+    recovery_code: str = "",
+) -> Response | None:
+    """
+    Re-auth for primary/backup email changes.
+
+    Password-enabled owners: current password only (existing email behavior; no
+    new 2FA gate on this path).
+    OAuth-only owners: fresh linked-provider re-auth, plus owner 2FA when enabled
+    (same oauth step-up contract as account deletion).
+    """
+    if owner_password_enabled(user):
+        return validate_owner_password_reauth(user, current_password)
+
+    links = owner_linked_providers(user)
+    if not any(
+        provider in links
+        for provider in (OwnerAuthProvider.GOOGLE, OwnerAuthProvider.APPLE)
+    ):
+        return reauth_required_response(
+            code="oauth_reauth_required",
+            detail=OAUTH_REAUTH_REQUIRED_MESSAGE,
+        )
+    if not owner_oauth_reauth_is_fresh(request, user):
+        return reauth_required_response(
+            code="oauth_reauth_required",
+            detail=OAUTH_REAUTH_REQUIRED_MESSAGE,
+        )
+
+    ok, second_factor_error = _verify_owner_second_factor(
+        user,
+        code=code,
+        recovery_code=recovery_code,
+    )
+    if not ok:
+        return second_factor_error
+    return None
+
+
 def validate_sensitive_owner_reauth(
     request,
     user,
