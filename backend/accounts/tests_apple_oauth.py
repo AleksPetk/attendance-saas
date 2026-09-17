@@ -825,3 +825,128 @@ class AppleOAuthFormPostHardeningTests(TestCase):
                 provider_subject="apple-sub-link-cross",
             ).exists()
         )
+        # Link without Lax cookie must not overwrite the authenticated session.
+        self.assertEqual(starter.get("/api/workspace/").status_code, 200)
+
+    def test_verify_without_session_cookie_preserves_auth_and_records_reauth(self):
+        """
+        Production bug: Apple form_post omits SameSite=Lax cookie. Writing reauth
+        onto request.session created a new anonymous session Set-Cookie and signed
+        the owner out before DELETE could succeed.
+        """
+        from django.conf import settings
+        from django.contrib.sessions.backends.db import SessionStore
+
+        from accounts.owner_sensitive_auth import (
+            OWNER_OAUTH_REAUTH_SESSION_KEY,
+            owner_oauth_reauth_is_fresh,
+        )
+
+        owner, _org = create_owner(email="verify-apple@example.com")
+        owner.set_unusable_password()
+        owner.save(update_fields=["password"])
+        OwnerAuthProviderLink.objects.create(
+            user=owner,
+            provider=OwnerAuthProvider.APPLE,
+            provider_subject="apple-sub-verify",
+            provider_email="verify-apple@example.com",
+        )
+        starter = Client()
+        starter.force_login(owner)
+        auth_session_key = starter.session.session_key
+        self.assertTrue(auth_session_key)
+        self.assertEqual(starter.get("/api/workspace/").status_code, 200)
+
+        start = starter.get("/api/auth/apple/start/?intent=verify")
+        self.assertEqual(start.status_code, 302)
+        state = parse_qs(urlparse(start["Location"]).query)["state"][0]
+        pending = load_apple_oauth_state(start.wsgi_request)
+        self.assertEqual(pending.session_key, auth_session_key)
+        claims = apple_claims(
+            sub="apple-sub-verify",
+            email="verify-apple@example.com",
+            nonce=pending.nonce,
+        )
+
+        callback = Client(enforce_csrf_checks=True)
+        with patch(
+            "accounts.apple_oauth.exchange_authorization_code",
+            return_value={"id_token": "fake-id-token"},
+        ), patch(
+            "accounts.apple_oauth.verify_apple_id_token",
+            return_value=claims,
+        ):
+            response = callback.post(
+                "/api/auth/apple/callback/",
+                {"code": "auth-code", "state": state},
+            )
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(
+            result_code_from_redirect(response["Location"]),
+            AppleOAuthResultCode.VERIFIED,
+        )
+        self.assertIn("/account/security", response["Location"])
+        self.assertIn("result=verified", response["Location"])
+
+        # Callback must not mint a replacement session cookie for an empty session.
+        set_cookie = response.cookies.get(settings.SESSION_COOKIE_NAME)
+        if set_cookie is not None:
+            self.assertEqual(set_cookie.value, auth_session_key)
+
+        # Original authenticated session still works and carries fresh Apple reauth.
+        self.assertEqual(starter.get("/api/workspace/").status_code, 200)
+        store = SessionStore(session_key=auth_session_key)
+        self.assertIn(OWNER_OAUTH_REAUTH_SESSION_KEY, store)
+        self.assertEqual(store[OWNER_OAUTH_REAUTH_SESSION_KEY]["provider"], OwnerAuthProvider.APPLE)
+
+        class _Req:
+            def __init__(self, session):
+                self.session = session
+
+        self.assertTrue(
+            owner_oauth_reauth_is_fresh(_Req(starter.session), owner, provider=OwnerAuthProvider.APPLE)
+        )
+
+        delete = starter.post(
+            "/api/auth/account/delete/",
+            data={"confirmation": "DELETE"},
+            content_type="application/json",
+        )
+        self.assertEqual(delete.status_code, 200, delete.content)
+        self.assertFalse(User.objects.filter(pk=owner.pk).exists())
+
+    def test_verify_wrong_apple_subject_rejected_without_signing_out(self):
+        owner, _org = create_owner(email="verify-wrong@example.com")
+        OwnerAuthProviderLink.objects.create(
+            user=owner,
+            provider=OwnerAuthProvider.APPLE,
+            provider_subject="apple-sub-correct",
+        )
+        starter = Client()
+        starter.force_login(owner)
+        start = starter.get("/api/auth/apple/start/?intent=verify")
+        state = parse_qs(urlparse(start["Location"]).query)["state"][0]
+        pending = load_apple_oauth_state(start.wsgi_request)
+        claims = apple_claims(
+            sub="apple-sub-other-person",
+            email="other@example.com",
+            nonce=pending.nonce,
+        )
+        callback = Client(enforce_csrf_checks=True)
+        with patch(
+            "accounts.apple_oauth.exchange_authorization_code",
+            return_value={"id_token": "fake-id-token"},
+        ), patch(
+            "accounts.apple_oauth.verify_apple_id_token",
+            return_value=claims,
+        ):
+            response = callback.post(
+                "/api/auth/apple/callback/",
+                {"code": "auth-code", "state": state},
+            )
+        self.assertEqual(
+            result_code_from_redirect(response["Location"]),
+            AppleOAuthResultCode.AUTHENTICATION_FAILED,
+        )
+        self.assertEqual(starter.get("/api/workspace/").status_code, 200)
+        self.assertTrue(User.objects.filter(pk=owner.pk).exists())

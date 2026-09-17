@@ -73,6 +73,37 @@ def record_owner_oauth_reauth(request, user, provider: str) -> None:
     request.session.modified = True
 
 
+def record_owner_oauth_reauth_in_bound_session(
+    *,
+    session_key: str,
+    user,
+    provider: str,
+) -> bool:
+    """
+    Write OAuth re-auth into a previously authenticated Django session by key.
+
+    Used when Apple form_post omits the SameSite=Lax session cookie so we must
+    not create a new anonymous session (which would sign the owner out).
+    """
+    from django.contrib.sessions.backends.db import SessionStore
+
+    if not session_key:
+        return False
+    store = SessionStore(session_key=session_key)
+    if not store.exists(session_key):
+        return False
+    auth_uid = str(store.get("_auth_user_id") or "")
+    if auth_uid != str(user.pk):
+        return False
+    store[OWNER_OAUTH_REAUTH_SESSION_KEY] = {
+        "user_id": user.pk,
+        "provider": provider,
+        "verified_at": timezone.now().isoformat(),
+    }
+    store.save()
+    return True
+
+
 def clear_owner_oauth_reauth(request) -> None:
     request.session.pop(OWNER_OAUTH_REAUTH_SESSION_KEY, None)
     request.session.modified = True

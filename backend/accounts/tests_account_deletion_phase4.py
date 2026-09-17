@@ -223,3 +223,103 @@ class AccountDeletionAuthAndSubscriptionTests(TestCase):
         )
         self.assertEqual(response.status_code, 200, response.data)
         self.assertFalse(User.objects.filter(pk=owner.pk).exists())
+
+    def test_apple_only_owner_with_fresh_reauth_can_delete(self):
+        owner, org = create_oauth_only_owner(email="apple-ok@example.com")
+        OwnerAuthProviderLink.objects.filter(user=owner).delete()
+        OwnerAuthProviderLink.objects.create(
+            user=owner,
+            provider=OwnerAuthProvider.APPLE,
+            provider_subject="apple-sub-delete-ok",
+            provider_email="apple-ok@example.com",
+        )
+        client = Client()
+        client.force_login(owner)
+        session = client.session
+        request = type("R", (), {"session": session})()
+        record_owner_oauth_reauth(request, owner, OwnerAuthProvider.APPLE)
+        session.save()
+
+        response = client.post(
+            "/api/auth/account/delete/",
+            data={"confirmation": "DELETE"},
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200, response.json())
+        self.assertFalse(User.objects.filter(pk=owner.pk).exists())
+        self.assertFalse(Organization.objects.filter(pk=org.pk).exists())
+
+    def test_oauth_reauth_expires_and_blocks_delete(self):
+        owner, org = create_oauth_only_owner(email="oauth-expired@example.com")
+        client = Client()
+        client.force_login(owner)
+        session = client.session
+        session[OWNER_OAUTH_REAUTH_SESSION_KEY] = {
+            "user_id": owner.pk,
+            "provider": OwnerAuthProvider.GOOGLE,
+            "verified_at": (timezone.now() - timedelta(seconds=601)).isoformat(),
+        }
+        session.save()
+
+        response = client.post(
+            "/api/auth/account/delete/",
+            data={"confirmation": "DELETE"},
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["code"], "oauth_reauth_required")
+        self.assertTrue(User.objects.filter(pk=owner.pk).exists())
+        self.assertTrue(Organization.objects.filter(pk=org.pk).exists())
+
+    def test_oauth_reauth_is_session_bound(self):
+        owner, org = create_oauth_only_owner(email="oauth-bound@example.com")
+        authed = Client()
+        authed.force_login(owner)
+        session = authed.session
+        request = type("R", (), {"session": session})()
+        record_owner_oauth_reauth(request, owner, OwnerAuthProvider.GOOGLE)
+        session.save()
+
+        other = Client()
+        other.force_login(owner)
+        response = other.post(
+            "/api/auth/account/delete/",
+            data={"confirmation": "DELETE"},
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["code"], "oauth_reauth_required")
+        self.assertTrue(User.objects.filter(pk=owner.pk).exists())
+
+    def test_logout_clears_oauth_reauth_marker(self):
+        owner, _org = create_oauth_only_owner(email="oauth-logout@example.com")
+        client = Client()
+        client.force_login(owner)
+        session = client.session
+        request = type("R", (), {"session": session})()
+        record_owner_oauth_reauth(request, owner, OwnerAuthProvider.GOOGLE)
+        session.save()
+        self.assertIn(OWNER_OAUTH_REAUTH_SESSION_KEY, client.session)
+
+        logout = client.post("/api/auth/logout/", {}, content_type="application/json")
+        self.assertEqual(logout.status_code, 204)
+        self.assertNotIn(OWNER_OAUTH_REAUTH_SESSION_KEY, client.session)
+
+    def test_password_plus_apple_owner_can_delete_with_password(self):
+        owner, org, password = create_password_owner(email="both-methods@example.com")
+        OwnerAuthProviderLink.objects.create(
+            user=owner,
+            provider=OwnerAuthProvider.APPLE,
+            provider_subject="apple-sub-both",
+            provider_email="both-methods@example.com",
+        )
+        api = APIClient()
+        api.force_authenticate(owner)
+        response = api.post(
+            "/api/auth/account/delete/",
+            {"current_password": password, "confirmation": "DELETE"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertFalse(User.objects.filter(pk=owner.pk).exists())
+        self.assertFalse(Organization.objects.filter(pk=org.pk).exists())

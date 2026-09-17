@@ -79,12 +79,15 @@ def create_apple_oauth_state(
     nonce = secrets.token_urlsafe(32)
     jti = secrets.token_urlsafe(32)
     created_at = timezone.now().isoformat()
+    session_key = request.session.session_key or ""
     payload = {
         "v": 1,
         "nonce": nonce,
         "intent": intent,
         "legal": bool(legal_acknowledgement),
         "owner_id": owner_user_id,
+        # Bound authenticated session for link/verify form_post (no Lax cookie).
+        "sid": session_key,
         "jti": jti,
         "iat": created_at,
     }
@@ -94,7 +97,7 @@ def create_apple_oauth_state(
         state=signed_state,
         nonce=nonce,
         intent=intent,
-        session_key=request.session.session_key or "",
+        session_key=session_key,
         created_at=created_at,
         legal_acknowledgement=bool(legal_acknowledgement),
         owner_user_id=owner_user_id,
@@ -135,6 +138,17 @@ def load_apple_oauth_state(request) -> AppleOAuthPendingState | None:
 
 
 def clear_apple_oauth_state(request) -> None:
+    """
+    Clear the best-effort session mirror when the Lax session cookie is present.
+
+    Apple form_post callbacks usually omit the cookie. Touching request.session
+    in that case would create a new empty session and Set-Cookie overwrite the
+    owner's authenticated session — never do that.
+    """
+    from django.conf import settings
+
+    if settings.SESSION_COOKIE_NAME not in request.COOKIES:
+        return
     if OWNER_APPLE_OAUTH_SESSION_KEY in request.session:
         request.session.pop(OWNER_APPLE_OAUTH_SESSION_KEY, None)
         request.session.modified = True
@@ -188,7 +202,7 @@ def consume_apple_oauth_state(request, submitted_state: str) -> AppleOAuthPendin
         state=submitted_state,
         nonce=nonce,
         intent=intent,
-        session_key="",
+        session_key=str(payload.get("sid") or ""),
         created_at=str(payload.get("iat") or ""),
         legal_acknowledgement=bool(payload.get("legal")),
         owner_user_id=owner_user_id,

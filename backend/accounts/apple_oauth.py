@@ -35,7 +35,10 @@ from accounts.email_uniqueness import (
 )
 from accounts.owner_auth_provider_models import OwnerAuthProvider, OwnerAuthProviderLink
 from accounts.owner_authentication import complete_owner_authentication
-from accounts.owner_sensitive_auth import record_owner_oauth_reauth
+from accounts.owner_sensitive_auth import (
+    record_owner_oauth_reauth,
+    record_owner_oauth_reauth_in_bound_session,
+)
 from accounts.provisional_ownership import (
     ProvisionalClaimError,
     claim_provisional_owner_with_oauth,
@@ -343,6 +346,7 @@ def handle_apple_oauth_verify(
     identity: AppleIdentity,
     *,
     owner_user_id: int,
+    bound_session_key: str = "",
 ) -> HttpResponseRedirect:
     actor = _resolve_signed_owner_actor(request, owner_user_id=owner_user_id)
     if actor is None:
@@ -356,7 +360,24 @@ def handle_apple_oauth_verify(
         return redirect_apple_account_security_result(AppleOAuthResultCode.AUTHENTICATION_FAILED)
 
     update_apple_provider_link_snapshot(owner_link, identity)
-    record_owner_oauth_reauth(request, actor, OwnerAuthProvider.APPLE)
+
+    from django.conf import settings
+
+    cookie_name = settings.SESSION_COOKIE_NAME
+    if cookie_name in request.COOKIES and getattr(request.user, "is_authenticated", False):
+        # Rare for Apple form_post, but keep the live session path when available.
+        record_owner_oauth_reauth(request, actor, OwnerAuthProvider.APPLE)
+    else:
+        # Typical Apple form_post: no Lax cookie. Write into the start-bound session
+        # and do not touch request.session (would overwrite the auth cookie).
+        if not record_owner_oauth_reauth_in_bound_session(
+            session_key=bound_session_key,
+            user=actor,
+            provider=OwnerAuthProvider.APPLE,
+        ):
+            return redirect_apple_account_security_result(
+                AppleOAuthResultCode.AUTHENTICATION_FAILED
+            )
     return redirect_apple_account_security_result(AppleOAuthResultCode.VERIFIED)
 
 
@@ -404,5 +425,6 @@ def process_apple_oauth_callback(request, *, code: str | None, state: str | None
             request,
             identity,
             owner_user_id=int(pending.owner_user_id),
+            bound_session_key=pending.session_key or "",
         )
     return redirect_apple_oauth_result(AppleOAuthResultCode.INVALID_INTENT)
