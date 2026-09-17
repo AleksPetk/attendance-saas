@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { canConfirmSensitiveWithApple } from "./accountDeleteReauth";
+import { canConfirmSensitiveWithApple, canConfirmSensitiveWithGoogle } from "./accountDeleteReauth";
 
 const root = fileURLToPath(new URL("../..", import.meta.url));
 const read = (relative: string) => readFileSync(`${root}/${relative}`, "utf8");
@@ -30,6 +30,21 @@ test("Apple-only owners can open Security actions after Confirm with Apple", () 
   assert.match(securityScreen, /appleLinked=\{Boolean\(methods\?\.apple\?\.linked\)\}/);
 });
 
+test("Google-only owners can open Security actions after Confirm with Google", () => {
+  assert.equal(canConfirmSensitiveWithGoogle({ google: { linked: true }, password: { enabled: false } }), true);
+  assert.equal(
+    canConfirmSensitiveWithGoogle({ google: { linked: true }, password: { enabled: true } }),
+    false,
+  );
+  assert.match(securityActions, /canConfirmSensitiveWithGoogle/);
+  assert.match(securityActions, /Confirm with Google/);
+  assert.match(securityActions, /Identity confirmed with Google/);
+  assert.match(securityActions, /requestNativeGoogleCredential/);
+  assert.match(securityActions, /verifyGoogleNative/);
+  assert.doesNotMatch(securityActions, /Secure mobile Google re-verification is not available yet/);
+  assert.match(securityScreen, /googleLinked=\{Boolean\(methods\?\.google\?\.linked\)\}/);
+});
+
 test("Apple-only 2FA setup/disable/regen omit current_password after provider reverify", () => {
   assert.match(securityActions, /ownerTwoFactorSetup/);
   assert.match(securityActions, /passwordEnabled \? \{ current_password: password \} : \{\}/);
@@ -54,13 +69,15 @@ test("Password owner change-password and 2FA paths remain", () => {
   assert.match(securityActions, /security\.currentPassword/);
 });
 
-test("Google-only Security shows Google-specific unavailable guidance", () => {
-  assert.match(securityActions, /googleUnavailable/);
-  assert.match(securityActions, /Secure mobile Google re-verification is not available yet/);
-  assert.doesNotMatch(securityActions, /if \(!passwordEnabled\) return <Alert variant="info" message=\{t\("security\.passwordUnavailable"\)\}/);
+test("cancelled Apple or Google verify leaves Security actions gated", () => {
+  assert.match(securityActions, /apple\.kind === "cancelled"/);
+  assert.match(securityActions, /google\.kind === "cancelled"/);
+  assert.match(
+    securityActions,
+    /actionsUnlocked =\s*passwordEnabled \|\| \(\(appleVerify \|\| googleVerify\) && oauthReauthReady\)/,
+  );
 });
 
-test("cancelled Apple verify leaves Security actions gated", () => {
-  assert.match(securityActions, /apple\.kind === "cancelled"/);
-  assert.match(securityActions, /actionsUnlocked = passwordEnabled \|\| \(appleVerify && oauthReauthReady\)/);
+test("Apple path remains preferred when both Apple and Google are linked without password", () => {
+  assert.match(securityActions, /canConfirmSensitiveWithGoogle\(methods\) && !appleVerify/);
 });

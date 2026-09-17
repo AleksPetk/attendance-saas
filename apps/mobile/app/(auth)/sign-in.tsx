@@ -3,7 +3,8 @@ import { Keyboard, StyleSheet, Text, TextInput, View } from "react-native";
 import { Redirect, router } from "expo-router";
 import { AuthScreen } from "../../src/components/AuthScreen";
 import { Alert, Button, Field, OAuthProviderButtons, PasswordVisibilityButton, TextLink } from "../../src/components/ui";
-import { isNativeAppleAuthAvailable, requestNativeAppleCredential } from "../../src/lib/appleNativeAuth";
+import { requestNativeAppleCredential, isNativeAppleAuthAvailable } from "../../src/lib/appleNativeAuth";
+import { requestNativeGoogleCredential, isNativeGoogleAuthAvailable } from "../../src/lib/googleNativeAuth";
 import { signInErrorMessage } from "../../src/lib/authErrors";
 import { useApp } from "../../src/lib/AppProvider";
 import { colors, space, type } from "../../src/theme/tokens";
@@ -18,6 +19,8 @@ export default function SignInScreen() {
   const [busy, setBusy] = useState(false);
   const [appleBusy, setAppleBusy] = useState(false);
   const [appleAvailable, setAppleAvailable] = useState(true);
+  const [googleBusy, setGoogleBusy] = useState(false);
+  const [googleAvailable, setGoogleAvailable] = useState(true);
   const [error, setError] = useState("");
   const emailRef = useRef<TextInput | null>(null);
   const passwordRef = useRef<TextInput | null>(null);
@@ -26,8 +29,14 @@ export default function SignInScreen() {
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const available = await isNativeAppleAuthAvailable();
-      if (!cancelled) setAppleAvailable(available);
+      const [appleOk, googleOk] = await Promise.all([
+        isNativeAppleAuthAvailable(),
+        isNativeGoogleAuthAvailable(),
+      ]);
+      if (!cancelled) {
+        setAppleAvailable(appleOk);
+        setGoogleAvailable(googleOk);
+      }
     })();
     return () => {
       cancelled = true;
@@ -67,7 +76,7 @@ export default function SignInScreen() {
   }
 
   async function onAppleSignIn() {
-    if (busy || appleBusy) return;
+    if (busy || appleBusy || googleBusy) return;
     setAppleBusy(true);
     setError("");
     try {
@@ -102,6 +111,49 @@ export default function SignInScreen() {
       setError(signInErrorMessage(caught, "owner", t));
     } finally {
       setAppleBusy(false);
+    }
+  }
+
+  async function onGoogleSignIn() {
+    if (busy || appleBusy || googleBusy) return;
+    setGoogleBusy(true);
+    setError("");
+    try {
+      const google = await requestNativeGoogleCredential();
+      if (google.kind === "cancelled") return;
+      if (google.kind === "unavailable") {
+        setGoogleAvailable(false);
+        setError(t("auth.googleUnavailable"));
+        return;
+      }
+      if (google.kind === "misconfigured") {
+        setGoogleAvailable(false);
+        setError(t("auth.googleMisconfigured"));
+        return;
+      }
+      if (google.kind === "missing_token") {
+        setError(t("auth.googleMissingToken"));
+        return;
+      }
+      if (google.kind === "error") {
+        setError(t("auth.googleFailed"));
+        return;
+      }
+      const result = await auth.completeGoogleNative({
+        identityToken: google.credential.identityToken,
+        nonce: google.credential.nonce,
+        intent: "login",
+      });
+      if (result.kind === "two_factor_required") {
+        requestAnimationFrame(() => twoFactorRef.current?.focus());
+        return;
+      }
+      Keyboard.dismiss();
+      router.replace("/(app)/(tabs)/home");
+    } catch (caught) {
+      setError(signInErrorMessage(caught, "owner", t));
+    } finally {
+      setGoogleBusy(false);
     }
   }
 
@@ -175,7 +227,7 @@ export default function SignInScreen() {
             <Field ref={passwordRef} autoCapitalize="none" autoComplete="current-password" autoCorrect={false} importantForAutofill="yes" label={t("auth.password")} onChangeText={(value) => { setPassword(value); clearErrorOnEdit(); }} onSubmitEditing={() => void onOwnerSignIn()} returnKeyType="go" rightAccessory={<PasswordVisibilityButton visible={passwordVisible} onPress={togglePasswordVisibility} showLabel={t("auth.showPassword")} hideLabel={t("auth.hidePassword")} />} secureTextEntry={!passwordVisible} spellCheck={false} submitBehavior="blurAndSubmit" textContentType="password" value={password} />
           </View>
           <Alert message={error} />
-          <Button disabled={busy || appleBusy} label={busy ? t("auth.signingIn") : t("auth.signIn")} loading={busy} onPress={() => void onOwnerSignIn()} />
+          <Button disabled={busy || appleBusy || googleBusy} label={busy ? t("auth.signingIn") : t("auth.signIn")} loading={busy} onPress={() => void onOwnerSignIn()} />
           <View style={styles.recoveryLinks}>
             <TextLink label={t("auth.forgotPassword")} onPress={() => router.push("/(auth)/forgot-password")} />
             <TextLink label={t("auth.recoverAccount")} onPress={() => router.push("/(auth)/recover-account")} />
@@ -183,13 +235,16 @@ export default function SignInScreen() {
           <View style={styles.divider}><View style={styles.dividerLine} /><Text style={styles.dividerText}>{t("auth.or")}</Text><View style={styles.dividerLine} /></View>
           <OAuthProviderButtons
             appleAvailable={appleAvailable}
-            appleBusy={appleBusy || busy}
+            appleBusy={appleBusy || busy || googleBusy}
             appleLabel={t("auth.continueApple")}
             dialogBody={t("auth.oauthComingBody")}
             dialogTitle={t("auth.oauthComingTitle")}
+            googleAvailable={googleAvailable}
+            googleBusy={googleBusy || busy || appleBusy}
             googleLabel={t("auth.continueGoogle")}
             okLabel={t("common.ok")}
             onApplePress={() => void onAppleSignIn()}
+            onGooglePress={() => void onGoogleSignIn()}
           />
           <Button label={t("auth.staffSignIn")} onPress={() => router.push("/(auth)/staff-sign-in")} variant="secondary" />
           <Button label={t("auth.createAccount")} onPress={() => router.push("/(auth)/register")} variant="secondary" />

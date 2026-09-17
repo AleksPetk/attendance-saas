@@ -10,6 +10,7 @@ from accounts.account_recovery_views import (
 )
 from accounts.apple_native_views import AppleNativeCompleteView
 from accounts.apple_oauth_views import AppleOAuthCallbackView, AppleOAuthStartView
+from accounts.google_native_views import GoogleNativeCompleteView
 from accounts.google_oauth_views import GoogleOAuthCallbackView, GoogleOAuthStartView
 from accounts.owner_sign_in_method_views import (
     AppleUnlinkView,
@@ -162,6 +163,11 @@ urlpatterns = [
         "auth/google/callback/",
         GoogleOAuthCallbackView.as_view(),
         name="google-oauth-callback",
+    ),
+    path(
+        "auth/google/native/",
+        GoogleNativeCompleteView.as_view(),
+        name="google-native-complete",
     ),
     path("auth/apple/start/", AppleOAuthStartView.as_view(), name="apple-oauth-start"),
     path(

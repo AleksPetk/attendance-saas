@@ -232,6 +232,9 @@ export function OAuthProviderButtons({
   dialogTitle,
   dialogBody,
   okLabel,
+  onGooglePress,
+  googleAvailable = true,
+  googleBusy = false,
   onApplePress,
   appleAvailable = true,
   appleBusy = false,
@@ -241,16 +244,37 @@ export function OAuthProviderButtons({
   dialogTitle: string;
   dialogBody: string;
   okLabel: string;
+  /** When set, Google uses native auth instead of the coming-soon dialog. */
+  onGooglePress?: () => void;
+  googleAvailable?: boolean;
+  googleBusy?: boolean;
   /** When set, Apple uses native auth instead of the coming-soon dialog. */
   onApplePress?: () => void;
   appleAvailable?: boolean;
   appleBusy?: boolean;
 }) {
   const notifyUnavailable = () => NativeAlert.alert(dialogTitle, dialogBody, [{ text: okLabel }]);
+  const googleDisabled = googleBusy || (onGooglePress != null && !googleAvailable);
   const appleDisabled = appleBusy || (onApplePress != null && !appleAvailable);
   return (
     <View style={styles.oauthStack}>
-      <Pressable accessibilityRole="button" onPress={notifyUnavailable} style={({ pressed }) => [styles.oauthButton, pressed && styles.oauthPressed]}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ disabled: googleDisabled }}
+        disabled={googleDisabled}
+        onPress={() => {
+          if (onGooglePress) {
+            if (!googleAvailable) {
+              notifyUnavailable();
+              return;
+            }
+            onGooglePress();
+            return;
+          }
+          notifyUnavailable();
+        }}
+        style={({ pressed }) => [styles.oauthButton, pressed && styles.oauthPressed, googleDisabled && styles.oauthDisabled]}
+      >
         <View style={styles.oauthIcon}>
           <Image accessibilityIgnoresInvertColors resizeMode="contain" source={googleMarkSource} style={styles.googleMark} />
         </View>

@@ -6,8 +6,9 @@ import { SectionCard, StatusPill } from "./mobile";
 import { ManagementSheet } from "./ManagementSheet";
 import { useApp } from "../lib/AppProvider";
 import { requestNativeAppleCredential } from "../lib/appleNativeAuth";
+import { requestNativeGoogleCredential } from "../lib/googleNativeAuth";
 import { colors, space, type } from "../theme/tokens";
-import { canConfirmDeleteWithApple } from "./accountDeleteReauth";
+import { canConfirmDeleteWithApple, canConfirmDeleteWithGoogle } from "./accountDeleteReauth";
 
 type Methods = {
   password?: { enabled?: boolean };
@@ -23,12 +24,16 @@ const copy = {
   en: {
     connected: "Connected", notConnected: "Not connected", connect: "Connect", disconnect: "Disconnect",
     oauthGap: "Google and Apple connection in the mobile app is not available yet. Existing connections are shown from your CheckStation account.",
-    oauthSensitiveGoogle: "This action requires Google re-verification. Secure mobile Google re-verification is not available yet.",
     oauthSensitiveGeneric: "This action requires provider re-verification. Secure mobile provider re-verification is not available yet.",
     confirmWithApple: "Confirm with Apple",
-    oauthReauthReady: "Identity confirmed with Apple",
+    confirmWithGoogle: "Confirm with Google",
+    oauthReauthReadyApple: "Identity confirmed with Apple",
+    oauthReauthReadyGoogle: "Identity confirmed with Google",
     appleVerifyFailed: "Apple identity could not be confirmed. Try again.",
+    googleVerifyFailed: "Google identity could not be confirmed. Try again.",
     appleUnavailable: "Sign in with Apple is not available on this device.",
+    googleUnavailable: "Google sign-in is not available on this device.",
+    googleMisconfigured: "Google sign-in is not configured for this build yet.",
     danger: "Danger zone", deleteAccount: "Delete account", permanentlyDelete: "Delete permanently",
     deleteWarning: "Permanently delete your owner account, workspace, and customer-created operational data. This cannot be undone. Existing subscription and provider safeguards apply; an active subscription may block deletion.",
     finalDeleteConfirmation: "Permanently delete your account and workspace? This cannot be undone.",
@@ -38,12 +43,16 @@ const copy = {
   ja: {
     connected: "接続済み", notConnected: "未接続", connect: "接続", disconnect: "接続を解除",
     oauthGap: "モバイルアプリでのGoogle・Apple接続はまだ利用できません。既存の接続はCheckStationアカウントから取得して表示しています。",
-    oauthSensitiveGoogle: "この操作にはGoogleによる再認証が必要です。安全なモバイルGoogle再認証はまだ利用できません。",
     oauthSensitiveGeneric: "この操作にはプロバイダーによる再認証が必要です。安全なモバイル再認証はまだ利用できません。",
     confirmWithApple: "Apple で確認",
-    oauthReauthReady: "Apple で本人確認が完了しました",
+    confirmWithGoogle: "Google で確認",
+    oauthReauthReadyApple: "Apple で本人確認が完了しました",
+    oauthReauthReadyGoogle: "Google で本人確認が完了しました",
     appleVerifyFailed: "Apple の本人確認に失敗しました。もう一度お試しください。",
+    googleVerifyFailed: "Google の本人確認に失敗しました。もう一度お試しください。",
     appleUnavailable: "このデバイスでは Sign in with Apple を利用できません。",
+    googleUnavailable: "このデバイスでは Google サインインを利用できません。",
+    googleMisconfigured: "このビルドでは Google サインインがまだ設定されていません。",
     danger: "危険な操作", deleteAccount: "アカウントを削除", permanentlyDelete: "アカウントを完全に削除",
     deleteWarning: "CheckStation アカウント、このワークスペース、およびお客様が作成した運用データを完全に削除します。この操作は元に戻せません。",
     finalDeleteConfirmation: "この操作は元に戻せません。CheckStation アカウントとワークスペースを完全に削除しますか？",
@@ -95,9 +104,9 @@ function SensitiveSheet({ account, action, onClose, onSaved }: { account: Accoun
   const text = locale === "ja" ? copy.ja : copy.en;
   const isDelete = action === "delete";
   const hasPassword = Boolean(account.sign_in_methods?.password?.enabled);
-  const appleLinked = Boolean(account.sign_in_methods?.apple?.linked);
-  const googleLinked = Boolean(account.sign_in_methods?.google?.linked);
   const appleDeleteVerify = isDelete && canConfirmDeleteWithApple(account.sign_in_methods);
+  const googleDeleteVerify =
+    isDelete && canConfirmDeleteWithGoogle(account.sign_in_methods) && !appleDeleteVerify;
   const [password, setPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
   const [code, setCode] = useState("");
@@ -141,6 +150,41 @@ function SensitiveSheet({ account, action, onClose, onSaved }: { account: Accoun
     }
   }
 
+  async function confirmWithGoogle() {
+    if (busy || oauthReauthReady) return;
+    setBusy(true);
+    setError("");
+    try {
+      const google = await requestNativeGoogleCredential();
+      if (google.kind === "cancelled") return;
+      if (google.kind === "unavailable") {
+        setError(text.googleUnavailable);
+        return;
+      }
+      if (google.kind === "misconfigured") {
+        setError(text.googleMisconfigured);
+        return;
+      }
+      if (google.kind === "missing_token" || google.kind === "error") {
+        setError(google.kind === "error" ? google.message : text.googleVerifyFailed);
+        return;
+      }
+      await auth.verifyGoogleNative({
+        identityToken: google.credential.identityToken,
+        nonce: google.credential.nonce,
+      });
+      setOauthReauthReady(true);
+    } catch (caught) {
+      if (caught instanceof ApiError) {
+        setError(typeof caught.data?.detail === "string" ? caught.data.detail : text.googleVerifyFailed);
+      } else {
+        setError(caught instanceof Error ? caught.message : text.googleVerifyFailed);
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function submit() {
     if (busy) return;
     if (isDelete && confirmation.trim() !== "DELETE") return;
@@ -149,7 +193,7 @@ function SensitiveSheet({ account, action, onClose, onSaved }: { account: Accoun
     } else if (isDelete) {
       if (!oauthReauthReady) return;
     } else {
-      // Unlink without password: mobile provider re-verify not available yet.
+      // Unlink without password: mobile provider re-verify / unlink not wired yet.
       return;
     }
     if (isDelete) {
@@ -180,14 +224,8 @@ function SensitiveSheet({ account, action, onClose, onSaved }: { account: Accoun
   }
 
   let oauthHint: string | null = null;
-  if (!hasPassword) {
-    if (appleDeleteVerify) {
-      oauthHint = null;
-    } else if (googleLinked && !appleLinked) {
-      oauthHint = text.oauthSensitiveGoogle;
-    } else {
-      oauthHint = text.oauthSensitiveGeneric;
-    }
+  if (!hasPassword && !appleDeleteVerify && !googleDeleteVerify) {
+    oauthHint = text.oauthSensitiveGeneric;
   }
 
   return (
@@ -198,11 +236,22 @@ function SensitiveSheet({ account, action, onClose, onSaved }: { account: Accoun
       ) : appleDeleteVerify ? (
         <View style={styles.verifyBlock}>
           {oauthReauthReady ? (
-            <Alert message={text.oauthReauthReady} variant="info" />
+            <Alert message={text.oauthReauthReadyApple} variant="info" />
           ) : (
             <>
               <Text style={styles.note}>{locale === "ja" ? "削除を続行するには Apple で本人確認してください。" : "Confirm your identity with Apple to continue deletion."}</Text>
               <Button label={text.confirmWithApple} loading={busy} onPress={() => void confirmWithApple()} variant="secondary" />
+            </>
+          )}
+        </View>
+      ) : googleDeleteVerify ? (
+        <View style={styles.verifyBlock}>
+          {oauthReauthReady ? (
+            <Alert message={text.oauthReauthReadyGoogle} variant="info" />
+          ) : (
+            <>
+              <Text style={styles.note}>{locale === "ja" ? "削除を続行するには Google で本人確認してください。" : "Confirm your identity with Google to continue deletion."}</Text>
+              <Button label={text.confirmWithGoogle} loading={busy} onPress={() => void confirmWithGoogle()} variant="secondary" />
             </>
           )}
         </View>

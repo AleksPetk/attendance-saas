@@ -5,7 +5,8 @@ import { ApiError, endpoints, fieldErrorsFromBody } from "@checkstation/api";
 import { AuthScreen } from "../../src/components/AuthScreen";
 import { LegalDocumentModal } from "../../src/components/LegalDocumentModal";
 import { Alert, Button, Field, OAuthProviderButtons, PasswordVisibilityButton, TextLink } from "../../src/components/ui";
-import { isNativeAppleAuthAvailable, requestNativeAppleCredential } from "../../src/lib/appleNativeAuth";
+import { requestNativeAppleCredential, isNativeAppleAuthAvailable } from "../../src/lib/appleNativeAuth";
+import { requestNativeGoogleCredential, isNativeGoogleAuthAvailable } from "../../src/lib/googleNativeAuth";
 import { signInErrorMessage } from "../../src/lib/authErrors";
 import { useApp } from "../../src/lib/AppProvider";
 import { colors, space, type } from "../../src/theme/tokens";
@@ -18,6 +19,8 @@ export default function RegisterScreen() {
   const [busy, setBusy] = useState(false);
   const [appleBusy, setAppleBusy] = useState(false);
   const [appleAvailable, setAppleAvailable] = useState(true);
+  const [googleBusy, setGoogleBusy] = useState(false);
+  const [googleAvailable, setGoogleAvailable] = useState(true);
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [legalSlug, setLegalSlug] = useState<string | null>(null);
@@ -30,8 +33,14 @@ export default function RegisterScreen() {
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const available = await isNativeAppleAuthAvailable();
-      if (!cancelled) setAppleAvailable(available);
+      const [appleOk, googleOk] = await Promise.all([
+        isNativeAppleAuthAvailable(),
+        isNativeGoogleAuthAvailable(),
+      ]);
+      if (!cancelled) {
+        setAppleAvailable(appleOk);
+        setGoogleAvailable(googleOk);
+      }
     })();
     return () => {
       cancelled = true;
@@ -57,7 +66,7 @@ export default function RegisterScreen() {
   }
 
   async function onAppleRegister() {
-    if (busy || appleBusy) return;
+    if (busy || appleBusy || googleBusy) return;
     if (!accepted) {
       setFieldErrors((current) => ({ ...current, legal: t("auth.legalRequired") }));
       return;
@@ -101,6 +110,55 @@ export default function RegisterScreen() {
     }
   }
 
+  async function onGoogleRegister() {
+    if (busy || appleBusy || googleBusy) return;
+    if (!accepted) {
+      setFieldErrors((current) => ({ ...current, legal: t("auth.legalRequired") }));
+      return;
+    }
+    setGoogleBusy(true);
+    setError("");
+    setFieldErrors({});
+    try {
+      const google = await requestNativeGoogleCredential();
+      if (google.kind === "cancelled") return;
+      if (google.kind === "unavailable") {
+        setGoogleAvailable(false);
+        setError(t("auth.googleUnavailable"));
+        return;
+      }
+      if (google.kind === "misconfigured") {
+        setGoogleAvailable(false);
+        setError(t("auth.googleMisconfigured"));
+        return;
+      }
+      if (google.kind === "missing_token") {
+        setError(t("auth.googleMissingToken"));
+        return;
+      }
+      if (google.kind === "error") {
+        setError(t("auth.googleFailed"));
+        return;
+      }
+      const result = await auth.completeGoogleNative({
+        identityToken: google.credential.identityToken,
+        nonce: google.credential.nonce,
+        intent: "register",
+        legalAcknowledgement: accepted,
+      });
+      if (result.kind === "two_factor_required") {
+        router.replace("/(auth)/sign-in");
+        return;
+      }
+      Keyboard.dismiss();
+      router.replace("/(app)/(tabs)/home");
+    } catch (caught) {
+      setError(signInErrorMessage(caught, "owner", t));
+    } finally {
+      setGoogleBusy(false);
+    }
+  }
+
   function openLegal(slug: string) {
     Keyboard.dismiss();
     setLegalSlug(slug);
@@ -118,17 +176,20 @@ export default function RegisterScreen() {
         <View style={styles.legalRow}><Switch accessibilityLabel={t("auth.legalConsent")} onValueChange={(value) => { setAccepted(value); setFieldErrors((current) => ({ ...current, legal: "" })); }} trackColor={{ false: colors.borderStrong, true: colors.blue }} value={accepted} /><View style={styles.legalCopy}><Text style={styles.muted}>{t("auth.legalAgree")}</Text><View style={styles.inline}><TextLink label={t("auth.terms")} onPress={() => openLegal("terms-of-use")} /><Text style={styles.muted}> {t("auth.andPrivacy")} </Text><TextLink label={t("auth.privacy")} onPress={() => openLegal("privacy-policy")} /></View></View></View>
         {fieldErrors.legal ? <Text style={styles.fieldError}>{fieldErrors.legal}</Text> : null}
         <Alert message={error} />
-        <Button disabled={busy || appleBusy || !accepted} label={busy ? t("auth.creatingAccount") : t("auth.createAccount")} loading={busy} onPress={() => void submit()} />
+        <Button disabled={busy || appleBusy || googleBusy || !accepted} label={busy ? t("auth.creatingAccount") : t("auth.createAccount")} loading={busy} onPress={() => void submit()} />
         <View style={styles.divider}><View style={styles.dividerLine} /><Text style={styles.dividerText}>{t("auth.or")}</Text><View style={styles.dividerLine} /></View>
         <OAuthProviderButtons
           appleAvailable={appleAvailable}
-          appleBusy={appleBusy || busy}
+          appleBusy={appleBusy || busy || googleBusy}
           appleLabel={t("auth.continueApple")}
           dialogBody={t("auth.oauthComingBody")}
           dialogTitle={t("auth.oauthComingTitle")}
+          googleAvailable={googleAvailable}
+          googleBusy={googleBusy || busy || appleBusy}
           googleLabel={t("auth.continueGoogle")}
           okLabel={t("common.ok")}
           onApplePress={() => void onAppleRegister()}
+          onGooglePress={() => void onGoogleRegister()}
         />
         <Text style={styles.verifyHint}>{t("auth.registrationVerifyHint")}</Text>
         <Button label={`${t("auth.alreadyAccount")} ${t("auth.signIn")}`} onPress={() => router.replace("/(auth)/sign-in")} variant="secondary" />

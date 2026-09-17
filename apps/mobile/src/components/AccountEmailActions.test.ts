@@ -3,17 +3,13 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { canConfirmSensitiveWithApple } from "./accountDeleteReauth";
+import { canConfirmSensitiveWithApple, canConfirmSensitiveWithGoogle } from "./accountDeleteReauth";
 
 const root = fileURLToPath(new URL("../..", import.meta.url));
 const read = (relative: string) => readFileSync(`${root}/${relative}`, "utf8");
 
 const emailActions = read("src/components/AccountEmailActions.tsx");
 const accountScreen = read("app/(app)/account.tsx");
-const i18n = readFileSync(
-  fileURLToPath(new URL("../../../../packages/i18n/src/management.ts", import.meta.url)),
-  "utf8",
-);
 
 test("canConfirmSensitiveWithApple gates Apple-only sensitive Account actions", () => {
   assert.equal(canConfirmSensitiveWithApple({ apple: { linked: true }, password: { enabled: false } }), true);
@@ -34,19 +30,19 @@ test("login and backup email show Confirm with Apple for Apple-linked passwordle
   assert.doesNotMatch(emailActions, /Native Google\/Apple verification is not available yet/);
 });
 
-test("Google-only email actions show Google-specific unavailable guidance", () => {
-  assert.match(emailActions, /googleUnavailable/);
-  assert.match(emailActions, /Secure mobile Google re-verification is not available yet/);
+test("Google-only email actions use Confirm with Google", () => {
+  assert.equal(canConfirmSensitiveWithGoogle({ google: { linked: true }, password: { enabled: false } }), true);
+  assert.match(emailActions, /canConfirmSensitiveWithGoogle/);
+  assert.match(emailActions, /Confirm with Google/);
+  assert.match(emailActions, /Identity confirmed with Google/);
+  assert.match(emailActions, /requestNativeGoogleCredential/);
+  assert.match(emailActions, /verifyGoogleNative/);
+  assert.doesNotMatch(emailActions, /Secure mobile Google re-verification is not available yet/);
+  assert.match(accountScreen, /googleLinked=\{!!account\?\.sign_in_methods\?\.google\?\.linked\}/);
 });
 
 test("password email path remains available without Apple verify", () => {
   assert.match(emailActions, /passwordEnabled/);
   assert.match(emailActions, /current_password: password/);
   assert.match(emailActions, /security\.currentPassword/);
-});
-
-test("two-factor security placeholder no longer claims Apple is unavailable for all actions", () => {
-  assert.match(i18n, /Secure mobile Google re-verification is not available yet/);
-  assert.doesNotMatch(i18n, /Native Google\/Apple verification is not available yet/);
-  assert.doesNotMatch(i18n, /Provider re-verification is not available for this action yet/);
 });

@@ -13,14 +13,18 @@
     "preview": {
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_API_BASE_URL": "https://workspace.checkstation.app/api"
+        "EXPO_PUBLIC_API_BASE_URL": "https://workspace.checkstation.app/api",
+        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "533996414208-a130ppp91kc0seu6jondvrth2i94i7qa.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_IOS_URL_SCHEME": "com.googleusercontent.apps.533996414208-a130ppp91kc0seu6jondvrth2i94i7qa"
       }
     },
     "production": {
       "distribution": "store",
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_API_BASE_URL": "https://workspace.checkstation.app/api"
+        "EXPO_PUBLIC_API_BASE_URL": "https://workspace.checkstation.app/api",
+        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "533996414208-a130ppp91kc0seu6jondvrth2i94i7qa.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_IOS_URL_SCHEME": "com.googleusercontent.apps.533996414208-a130ppp91kc0seu6jondvrth2i94i7qa"
       }
     }
   },

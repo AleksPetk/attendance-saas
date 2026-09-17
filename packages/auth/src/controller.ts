@@ -193,6 +193,47 @@ export class AuthController {
     });
   }
 
+  /**
+   * Complete native iOS Google Sign-In after obtaining an ID token.
+   * Uses the same Django session / cookie jar path as password / Apple login.
+   */
+  async completeGoogleNative(payload: {
+    identityToken: string;
+    nonce: string;
+    intent: "login" | "register";
+    legalAcknowledgement?: boolean;
+  }): Promise<OwnerLoginResult> {
+    try {
+      await this.api.post<WorkspaceSession>(endpoints.googleNativeComplete(), {
+        identity_token: payload.identityToken,
+        nonce: payload.nonce,
+        intent: payload.intent,
+        legal_acknowledgement: Boolean(payload.legalAcknowledgement),
+      });
+    } catch (error) {
+      const mapped = this.mapOwnerFirstFactorError(error);
+      if (mapped) return mapped;
+      throw error;
+    }
+    return this.finishOwnerFirstFactor();
+  }
+
+  /**
+   * Re-verify the linked Google identity for a sensitive action.
+   * Records `_owner_oauth_reauth` on the existing authenticated session — does not
+   * replace login / finishOwnerFirstFactor.
+   */
+  async verifyGoogleNative(payload: {
+    identityToken: string;
+    nonce: string;
+  }): Promise<{ code: string; detail?: string }> {
+    return this.api.post<{ code: string; detail?: string }>(endpoints.googleNativeComplete(), {
+      identity_token: payload.identityToken,
+      nonce: payload.nonce,
+      intent: "verify",
+    });
+  }
+
   async completeOwnerTwoFactor(payload: { code?: string; recovery_code?: string }): Promise<WorkspaceSession> {
     await this.api.post(endpoints.ownerTotpChallenge(), payload);
     const session = await this.api.get<WorkspaceSession>(endpoints.workspace());
@@ -272,14 +313,15 @@ export class AuthController {
   }
 
   /**
-   * Google still uses browser redirect OAuth. Native Apple uses
-   * /api/auth/apple/native/ (identity token) on iOS.
+   * Browser Google OAuth remains redirect-based; native Apple and Google use
+   * /api/auth/{provider}/native/ identity-token completion on iOS.
    */
   getOAuthGapNote(): string {
     return (
-      "Owner Google sign-in still uses web redirect callbacks "
+      "Browser owner Google sign-in still uses web redirect callbacks "
       + "(/api/auth/google/callback → FRONTEND_BASE_URL). "
-      + "Native Apple sign-in uses /api/auth/apple/native/ on iOS."
+      + "Native iOS Google and Apple sign-in use "
+      + "/api/auth/google/native/ and /api/auth/apple/native/."
     );
   }
 }

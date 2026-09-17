@@ -18,8 +18,18 @@ def google_oauth_client_secret() -> str:
     return getattr(settings, "GOOGLE_OAUTH_CLIENT_SECRET", "").strip()
 
 
+def google_native_ios_client_id() -> str:
+    """iOS OAuth client ID used as native Google ID-token audience."""
+    return getattr(settings, "GOOGLE_NATIVE_IOS_CLIENT_ID", "").strip()
+
+
 def google_oauth_is_configured() -> bool:
     return bool(google_oauth_client_id() and google_oauth_client_secret())
+
+
+def google_native_ios_is_configured() -> bool:
+    """Native iOS Google auth only needs the iOS OAuth client ID (ID-token aud)."""
+    return bool(google_native_ios_client_id())
 
 
 def google_oauth_state_ttl_seconds() -> int:

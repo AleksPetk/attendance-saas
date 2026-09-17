@@ -15,6 +15,7 @@ from accounts.google_oauth_settings import (
     GOOGLE_OAUTH_ISSUERS,
     GOOGLE_OAUTH_SCOPES,
     GOOGLE_OAUTH_TOKEN_URL,
+    google_native_ios_client_id,
     google_oauth_client_id,
     google_oauth_client_secret,
 )
@@ -104,6 +105,80 @@ def verify_google_id_token(id_token_jwt: str, *, expected_nonce: str) -> dict:
     token_nonce = claims.get("nonce")
     if not expected_nonce or token_nonce != expected_nonce:
         raise GoogleOAuthClientError("invalid_nonce")
+
+    subject = str(claims.get("sub") or "").strip()
+    if not subject:
+        raise GoogleOAuthClientError("missing_subject")
+
+    return claims
+
+
+def _audience_matches(claims: dict, expected_audience: str) -> bool:
+    audience = claims.get("aud")
+    if isinstance(audience, (list, tuple, set)):
+        return expected_audience in audience
+    return audience == expected_audience
+
+
+def verify_google_native_id_token(
+    id_token_jwt: str,
+    *,
+    expected_raw_nonce: str = "",
+    expected_audience: str | None = None,
+) -> dict:
+    """
+    Verify a native iOS Google Sign-In ID token.
+
+    Audience must be the iOS OAuth client ID (GOOGLE_NATIVE_IOS_CLIENT_ID),
+    not the browser web OAuth client ID.
+
+    Nonce:
+    - When Google embeds a `nonce` claim, it must match `expected_raw_nonce`
+      (raw value; unlike Apple, Google does not hash the nonce).
+    - Current @react-native-google-signin/google-signin does not expose a
+      nonce parameter, so tokens often omit `nonce`; missing claim is allowed.
+    """
+    audience = (expected_audience or google_native_ios_client_id()).strip()
+    if not audience:
+        raise GoogleOAuthClientError("native_audience_not_configured")
+
+    try:
+        from google.auth.transport import requests as google_requests
+        from google.oauth2 import id_token
+    except ImportError as exc:
+        raise GoogleOAuthClientError("google_auth_unavailable") from exc
+
+    try:
+        claims = id_token.verify_oauth2_token(
+            id_token_jwt,
+            google_requests.Request(),
+            audience,
+        )
+    except ValueError as exc:
+        message = str(exc).lower()
+        if "expired" in message:
+            raise GoogleOAuthClientError("expired_id_token") from exc
+        if "audience" in message:
+            raise GoogleOAuthClientError("invalid_audience") from exc
+        raise GoogleOAuthClientError("invalid_id_token") from exc
+
+    issuer = claims.get("iss")
+    if issuer not in GOOGLE_OAUTH_ISSUERS:
+        raise GoogleOAuthClientError("invalid_issuer")
+
+    if not _audience_matches(claims, audience):
+        raise GoogleOAuthClientError("invalid_audience")
+
+    # Reject browser web-client tokens even if somehow accepted above.
+    browser_aud = google_oauth_client_id()
+    if browser_aud and browser_aud != audience and _audience_matches(claims, browser_aud):
+        raise GoogleOAuthClientError("invalid_audience")
+
+    token_nonce = str(claims.get("nonce") or "").strip()
+    expected_nonce = (expected_raw_nonce or "").strip()
+    if token_nonce:
+        if not expected_nonce or token_nonce != expected_nonce:
+            raise GoogleOAuthClientError("invalid_nonce")
 
     subject = str(claims.get("sub") or "").strip()
     if not subject:

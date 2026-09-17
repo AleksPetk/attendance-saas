@@ -3,7 +3,8 @@ import { Image, StyleSheet, Text, View } from "react-native";
 import { ApiError, endpoints, fieldErrorsFromBody } from "@checkstation/api";
 import { useApp } from "../lib/AppProvider";
 import { requestNativeAppleCredential } from "../lib/appleNativeAuth";
-import { canConfirmSensitiveWithApple } from "./accountDeleteReauth";
+import { requestNativeGoogleCredential } from "../lib/googleNativeAuth";
+import { canConfirmSensitiveWithApple, canConfirmSensitiveWithGoogle } from "./accountDeleteReauth";
 import { ManagementSheet } from "./ManagementSheet";
 import { Alert, Button, Field, TextLink } from "./ui";
 import { colors, space, type } from "../theme/tokens";
@@ -19,21 +20,29 @@ type Methods = {
 const copy = {
   en: {
     confirmWithApple: "Confirm with Apple",
-    oauthReauthReady: "Identity confirmed with Apple",
+    confirmWithGoogle: "Confirm with Google",
+    oauthReauthReadyApple: "Identity confirmed with Apple",
+    oauthReauthReadyGoogle: "Identity confirmed with Google",
     appleVerifyFailed: "Apple identity could not be confirmed. Try again.",
+    googleVerifyFailed: "Google identity could not be confirmed. Try again.",
     appleUnavailable: "Sign in with Apple is not available on this device.",
-    googleUnavailable:
-      "This action requires Google re-verification. Secure mobile Google re-verification is not available yet.",
-    confirmHint: "Confirm your identity with Apple before continuing this security action.",
+    googleUnavailable: "Google sign-in is not available on this device.",
+    googleMisconfigured: "Google sign-in is not configured for this build yet.",
+    confirmHintApple: "Confirm your identity with Apple before continuing this security action.",
+    confirmHintGoogle: "Confirm your identity with Google before continuing this security action.",
   },
   ja: {
     confirmWithApple: "Apple で確認",
-    oauthReauthReady: "Apple で本人確認が完了しました",
+    confirmWithGoogle: "Google で確認",
+    oauthReauthReadyApple: "Apple で本人確認が完了しました",
+    oauthReauthReadyGoogle: "Google で本人確認が完了しました",
     appleVerifyFailed: "Apple の本人確認に失敗しました。もう一度お試しください。",
+    googleVerifyFailed: "Google の本人確認に失敗しました。もう一度お試しください。",
     appleUnavailable: "このデバイスでは Sign in with Apple を利用できません。",
-    googleUnavailable:
-      "この操作にはGoogleによる再認証が必要です。安全なモバイルGoogle再認証はまだ利用できません。",
-    confirmHint: "このセキュリティ操作を続ける前に Apple で本人確認してください。",
+    googleUnavailable: "このデバイスでは Google サインインを利用できません。",
+    googleMisconfigured: "このビルドでは Google サインインがまだ設定されていません。",
+    confirmHintApple: "このセキュリティ操作を続ける前に Apple で本人確認してください。",
+    confirmHintGoogle: "このセキュリティ操作を続ける前に Google で本人確認してください。",
   },
 };
 
@@ -60,6 +69,7 @@ export function SecurityActions({
     google: { linked: googleLinked },
   };
   const appleVerify = canConfirmSensitiveWithApple(methods);
+  const googleVerify = canConfirmSensitiveWithGoogle(methods) && !appleVerify;
   const [action, setAction] = useState<Action | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -96,30 +106,79 @@ export function SecurityActions({
     }
   }
 
-  if (!passwordEnabled && !appleVerify) {
-    return (
-      <Alert
-        variant="info"
-        message={googleLinked ? text.googleUnavailable : t("security.passwordUnavailable")}
-      />
-    );
+  async function confirmWithGoogle() {
+    if (busy || oauthReauthReady) return;
+    setBusy(true);
+    setError("");
+    try {
+      const google = await requestNativeGoogleCredential();
+      if (google.kind === "cancelled") return;
+      if (google.kind === "unavailable") {
+        setError(text.googleUnavailable);
+        return;
+      }
+      if (google.kind === "misconfigured") {
+        setError(text.googleMisconfigured);
+        return;
+      }
+      if (google.kind === "missing_token" || google.kind === "error") {
+        setError(google.kind === "error" ? google.message : text.googleVerifyFailed);
+        return;
+      }
+      await auth.verifyGoogleNative({
+        identityToken: google.credential.identityToken,
+        nonce: google.credential.nonce,
+      });
+      setOauthReauthReady(true);
+    } catch (caught) {
+      if (caught instanceof ApiError) {
+        setError(typeof caught.data?.detail === "string" ? caught.data.detail : text.googleVerifyFailed);
+      } else {
+        setError(caught instanceof Error ? caught.message : text.googleVerifyFailed);
+      }
+    } finally {
+      setBusy(false);
+    }
   }
 
-  const actionsUnlocked = passwordEnabled || (appleVerify && oauthReauthReady);
+  if (!passwordEnabled && !appleVerify && !googleVerify) {
+    return <Alert variant="info" message={t("security.passwordUnavailable")} />;
+  }
+
+  const actionsUnlocked =
+    passwordEnabled || ((appleVerify || googleVerify) && oauthReauthReady);
 
   let oauthGate: ReactNode = null;
   if (!passwordEnabled && appleVerify) {
     oauthGate = (
       <View style={styles.verifyBlock}>
         {oauthReauthReady ? (
-          <Alert message={text.oauthReauthReady} variant="info" />
+          <Alert message={text.oauthReauthReadyApple} variant="info" />
         ) : (
           <>
-            <Text style={styles.hint}>{text.confirmHint}</Text>
+            <Text style={styles.hint}>{text.confirmHintApple}</Text>
             <Button
               label={text.confirmWithApple}
               loading={busy}
               onPress={() => void confirmWithApple()}
+              variant="secondary"
+            />
+          </>
+        )}
+      </View>
+    );
+  } else if (!passwordEnabled && googleVerify) {
+    oauthGate = (
+      <View style={styles.verifyBlock}>
+        {oauthReauthReady ? (
+          <Alert message={text.oauthReauthReadyGoogle} variant="info" />
+        ) : (
+          <>
+            <Text style={styles.hint}>{text.confirmHintGoogle}</Text>
+            <Button
+              label={text.confirmWithGoogle}
+              loading={busy}
+              onPress={() => void confirmWithGoogle()}
               variant="secondary"
             />
           </>
