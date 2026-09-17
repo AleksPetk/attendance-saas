@@ -43,10 +43,13 @@ import {
   twoFactorStatusPills,
 } from "./accountScreenUi.js";
 import {
+  consumeOAuthSecurityReturn,
   isOAuthVerifiedResult,
   oauthAccountSecurityResultMessage,
   oauthStartUrl,
+  ownerNeedsProviderReauth,
   passwordNotAvailableGuidance,
+  rememberOAuthSecurityReturn,
   signInMethodsStatusPills,
   signInMethodsStatusSummary,
 } from "./signInMethodsUi.js";
@@ -59,7 +62,37 @@ function fieldError(error, name) {
 }
 
 function sensitiveActionErrorMessage(error) {
+  if (error?.data?.code === "oauth_reauth_required") {
+    return error.data.detail || i18n.t("account:twoFactor.oauthReauthRequired");
+  }
   return passwordNotAvailableGuidance(error) || errorMessage(error);
+}
+
+function ProviderReauthControls({
+  methods,
+  oauthReauthReady,
+  onStartVerify,
+  requiredHint,
+  readyHint,
+}) {
+  if (oauthReauthReady) {
+    return <p className="hint">{readyHint}</p>;
+  }
+  return (
+    <div className="account-inline-actions">
+      <p className="hint">{requiredHint}</p>
+      {methods?.google?.linked ? (
+        <button type="button" className="btn-secondary btn-sm" onClick={() => onStartVerify("google")}>
+          {i18n.t("account:signInMethods.confirmWithGoogle")}
+        </button>
+      ) : null}
+      {methods?.apple?.linked ? (
+        <button type="button" className="btn-secondary btn-sm" onClick={() => onStartVerify("apple")}>
+          {i18n.t("account:signInMethods.confirmWithApple")}
+        </button>
+      ) : null}
+    </div>
+  );
 }
 
 function EmailActionRow({ label, email, status, statusVariant, hint, children }) {
@@ -483,11 +516,29 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
     if (!oauthProvider || !oauthResult) return undefined;
 
     const message = oauthAccountSecurityResultMessage(oauthProvider, oauthResult);
+    const returnAction = consumeOAuthSecurityReturn();
     if (isOAuthVerifiedResult(oauthResult)) {
       setOauthReauthReady(true);
       setSignInMethodsNotice(message);
       setSignInMethodsError("");
-      setDeleteOpen(true);
+      if (returnAction === "delete") {
+        setDeleteOpen(true);
+      } else if (returnAction === "2fa-setup") {
+        setTwoFactorExpanded(true);
+        setTwoFactorAction("setup");
+        setSetupStep("password");
+      } else if (returnAction === "2fa-disable") {
+        setTwoFactorExpanded(true);
+        setTwoFactorAction("disable");
+      } else if (returnAction === "2fa-regen") {
+        setTwoFactorExpanded(true);
+        setTwoFactorAction("regen");
+      } else if (returnAction === "set-password") {
+        setSignInMethodsExpanded(true);
+      } else {
+        setSignInMethodsExpanded(true);
+        setTwoFactorExpanded(true);
+      }
     } else if (oauthResult === "linked" || oauthResult === "already_linked") {
       setSignInMethodsNotice(message);
       setSignInMethodsError("");
@@ -811,6 +862,12 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
 
   const backupStatus = account.backup_email_status || "none";
   const passwordEnabled = Boolean(account.sign_in_methods?.password?.enabled);
+  const needsProviderReauth = ownerNeedsProviderReauth(account.sign_in_methods);
+
+  function startProviderVerify(provider, returnAction) {
+    rememberOAuthSecurityReturn(returnAction);
+    window.location.assign(oauthStartUrl(api.baseUrl, provider, "verify"));
+  }
 
   return (
     <div className="page account-page" data-tutorial-target="account-security">
@@ -1160,7 +1217,7 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
                     try {
                       await api.csrf();
                       const payload = {
-                        current_password: regenPassword,
+                        ...(passwordEnabled ? { current_password: regenPassword } : {}),
                         ...(regenUseRecoveryCode
                           ? { recovery_code: regenRecoveryCode }
                           : { code: regenCode }),
@@ -1175,9 +1232,19 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
                   }}
                 >
                   <h4 style={{ margin: 0, fontWeight: 700 }}>{t("account:twoFactor.regenerateTitle")}</h4>
-                  <Field label={t("account:password.current")} error={regenError}>
-                    <PasswordInput value={regenPassword} onChange={(e) => setRegenPassword(e.target.value)} required autoComplete="current-password" />
-                  </Field>
+                  {passwordEnabled ? (
+                    <Field label={t("account:password.current")} error={regenError}>
+                      <PasswordInput value={regenPassword} onChange={(e) => setRegenPassword(e.target.value)} required autoComplete="current-password" />
+                    </Field>
+                  ) : (
+                    <ProviderReauthControls
+                      methods={account?.sign_in_methods}
+                      oauthReauthReady={oauthReauthReady}
+                      onStartVerify={(provider) => startProviderVerify(provider, "2fa-regen")}
+                      requiredHint={t("account:twoFactor.oauthReauthRequired")}
+                      readyHint={t("account:twoFactor.oauthReauthReady")}
+                    />
+                  )}
 
                   <div style={{ display: "grid", gap: "0.75rem" }}>
                     <button
@@ -1244,7 +1311,11 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
                       </div>
                     </div>
                   ) : (
-                    <button type="submit" className="btn-primary" disabled={regenBusy}>
+                    <button
+                      type="submit"
+                      className="btn-primary"
+                      disabled={regenBusy || (needsProviderReauth && !oauthReauthReady)}
+                    >
                       {regenBusy ? t("common:working") : t("account:twoFactor.regenerate")}
                     </button>
                   )}
@@ -1262,7 +1333,7 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
                     try {
                       await api.csrf();
                       const payload = {
-                        current_password: disablePassword,
+                        ...(passwordEnabled ? { current_password: disablePassword } : {}),
                         ...(disableUseRecoveryCode ? { recovery_code: disableRecoveryCode } : { code: disableCode }),
                       };
                       await api.owner2faDisable(payload);
@@ -1277,9 +1348,19 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
                   }}
                 >
                   <h4 style={{ margin: 0, fontWeight: 700 }}>{t("account:twoFactor.disableTitle")}</h4>
-                  <Field label={t("account:password.current")}>
-                    <PasswordInput value={disablePassword} onChange={(e) => setDisablePassword(e.target.value)} required autoComplete="current-password" />
-                  </Field>
+                  {passwordEnabled ? (
+                    <Field label={t("account:password.current")}>
+                      <PasswordInput value={disablePassword} onChange={(e) => setDisablePassword(e.target.value)} required autoComplete="current-password" />
+                    </Field>
+                  ) : (
+                    <ProviderReauthControls
+                      methods={account?.sign_in_methods}
+                      oauthReauthReady={oauthReauthReady}
+                      onStartVerify={(provider) => startProviderVerify(provider, "2fa-disable")}
+                      requiredHint={t("account:twoFactor.oauthReauthRequired")}
+                      readyHint={t("account:twoFactor.oauthReauthReady")}
+                    />
+                  )}
 
                   <div style={{ display: "grid", gap: "0.75rem" }}>
                     <button
@@ -1306,7 +1387,11 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
                   </div>
 
                   <ErrorBanner message={disableError} />
-                  <button type="submit" className="btn-danger-soft" disabled={disableBusy}>
+                  <button
+                    type="submit"
+                    className="btn-danger-soft"
+                    disabled={disableBusy || (needsProviderReauth && !oauthReauthReady)}
+                  >
                     {disableBusy ? t("common:working") : t("account:twoFactor.disable")}
                   </button>
                 </form>
@@ -1357,7 +1442,10 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
                         setSetupRecoveryCodes(null);
                         try {
                           await api.csrf();
-                          const result = await api.owner2faStartSetup({ current_password: setupPassword });
+                          const payload = passwordEnabled
+                            ? { current_password: setupPassword }
+                            : {};
+                          const result = await api.owner2faStartSetup(payload);
                           setSetupQrDataUri(result.data.qr_data_uri);
                           setSetupKey(result.data.setup_key);
                           setSetupStep("verifying");
@@ -1368,11 +1456,25 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
                         }
                       }}
                     >
-                      <Field label={t("account:password.current")} error={setupError}>
-                        <PasswordInput value={setupPassword} onChange={(e) => setSetupPassword(e.target.value)} required autoComplete="current-password" />
-                      </Field>
+                      {passwordEnabled ? (
+                        <Field label={t("account:password.current")} error={setupError}>
+                          <PasswordInput value={setupPassword} onChange={(e) => setSetupPassword(e.target.value)} required autoComplete="current-password" />
+                        </Field>
+                      ) : (
+                        <ProviderReauthControls
+                          methods={account?.sign_in_methods}
+                          oauthReauthReady={oauthReauthReady}
+                          onStartVerify={(provider) => startProviderVerify(provider, "2fa-setup")}
+                          requiredHint={t("account:twoFactor.oauthReauthRequired")}
+                          readyHint={t("account:twoFactor.oauthReauthReady")}
+                        />
+                      )}
                       <ErrorBanner message={setupError} />
-                      <button type="submit" className="btn-primary" disabled={setupBusy}>
+                      <button
+                        type="submit"
+                        className="btn-primary"
+                        disabled={setupBusy || (needsProviderReauth && !oauthReauthReady)}
+                      >
                         {setupBusy ? t("common:working") : t("account:twoFactor.continue")}
                       </button>
                     </form>
@@ -1540,9 +1642,7 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
                         <button
                           type="button"
                           className="btn-secondary btn-sm"
-                          onClick={() => {
-                            window.location.assign(oauthStartUrl(api.baseUrl, "google", "verify"));
-                          }}
+                          onClick={() => startProviderVerify("google", "delete")}
                         >
                           {t("account:signInMethods.confirmWithGoogle")}
                         </button>
@@ -1551,9 +1651,7 @@ export default function AccountScreen({ session, setSession, onAccountDeleted })
                         <button
                           type="button"
                           className="btn-secondary btn-sm"
-                          onClick={() => {
-                            window.location.assign(oauthStartUrl(api.baseUrl, "apple", "verify"));
-                          }}
+                          onClick={() => startProviderVerify("apple", "delete")}
                         >
                           {t("account:signInMethods.confirmWithApple")}
                         </button>

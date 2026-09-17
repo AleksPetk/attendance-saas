@@ -10,6 +10,7 @@ import {
   oauthAccountSecurityResultMessage,
   oauthStartUrl,
   otherLinkedProviderForReauth,
+  ownerNeedsProviderReauth,
   signInMethodsStatusPills,
   signInMethodsStatusSummary,
 } from "./signInMethodsUi.js";
@@ -79,4 +80,17 @@ test("other linked provider excludes provider being unlinked", () => {
   };
   assert.equal(otherLinkedProviderForReauth(both, "google"), "apple");
   assert.equal(otherLinkedProviderForReauth(both, "apple"), "google");
+});
+
+test("provider-only owners need provider reauth for sensitive security actions", () => {
+  assert.equal(ownerNeedsProviderReauth(passwordOnly), false);
+  assert.equal(ownerNeedsProviderReauth(googleOnly), true);
+  assert.equal(
+    ownerNeedsProviderReauth({
+      password: { enabled: true },
+      google: { linked: true },
+      apple: { linked: false },
+    }),
+    false,
+  );
 });

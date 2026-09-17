@@ -424,10 +424,10 @@ class PasswordNotAvailableApiTests(TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.data["code"], "oauth_reauth_required")
 
-    def test_owner_2fa_setup_returns_password_not_available(self):
+    def test_owner_2fa_setup_returns_oauth_reauth_required(self):
         response = self.client.post(
             "/api/auth/owner-2fa/setup/",
             {"current_password": "anything"},
         )
         self.assertEqual(response.status_code, 400)
-        self.assertEqual(response.data["code"], "password_not_available")
+        self.assertEqual(response.data["code"], "oauth_reauth_required")

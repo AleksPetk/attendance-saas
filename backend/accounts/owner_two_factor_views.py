@@ -2,11 +2,11 @@
 Customer-owner TOTP 2FA API views.
 
 These endpoints implement:
-- setup start (password -> pending secret + QR)
+- setup start (password or fresh provider re-auth -> pending secret + QR)
 - setup verify (authenticator code -> enable + recovery codes)
 - login challenge (password already checked -> TOTP or recovery code)
-- regenerate recovery codes (password + second factor)
-- disable 2FA (password + second factor)
+- regenerate recovery codes (password or provider re-auth + second factor)
+- disable 2FA (password or provider re-auth + second factor)
 """
 
 from __future__ import annotations
@@ -14,43 +14,35 @@ from __future__ import annotations
 import logging
 
 from django.contrib.auth import get_user_model
-from django.core.exceptions import ValidationError as DjangoValidationError
-from django.utils import timezone
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from accounts.customer_two_factor_models import OwnerRecoveryCode, OwnerTOTPDevice
+from accounts.customer_two_factor_models import OwnerTOTPDevice
 from accounts.exceptions import EmailNotVerified
 from accounts.owner_authentication import establish_owner_session
+from accounts.owner_sensitive_auth import validate_sensitive_owner_reauth
 from accounts.owner_two_factor import (
     clear_owner_2fa_for_user,
     clear_pending_owner_2fa,
     confirm_device,
     consume_recovery_code,
     decrypt_owner_totp_secret,
-    encrypt_owner_totp_secret,
     get_or_create_unconfirmed_device,
     get_unconfirmed_device,
     has_confirmed_owner_totp,
     load_pending_owner_user,
     lock_is_active,
     normalize_recovery_code,
-    owner_build_totp,
     owner_provisioning_uri,
     owner_qr_data_uri_from_uri,
     owner_setup_label,
-    pending_is_fresh,
     register_failure_on_device,
     register_success_on_device,
     replace_recovery_codes,
     seconds_until,
     verify_totp_code,
-    owner_setup_label,
 )
-
-from accounts.owner_sensitive_auth import password_not_available_response
-from accounts.sign_in_methods import owner_password_enabled
 from accounts.verification import customer_must_verify_email
 
 logger = logging.getLogger("accounts.owner_2fa")
@@ -91,11 +83,13 @@ class OwnerTOTPSetupStartView(APIView):
         if customer_must_verify_email(actor):
             raise EmailNotVerified()
 
-        current_password = request.data.get("current_password") or ""
-        if not owner_password_enabled(actor):
-            return password_not_available_response()
-        if not actor.check_password(current_password):
-            return Response({"current_password": "Current password is incorrect."}, status=400)
+        reauth_error = validate_sensitive_owner_reauth(
+            request,
+            actor,
+            current_password=request.data.get("current_password") or "",
+        )
+        if reauth_error is not None:
+            return reauth_error
 
         # If already enabled, disallow re-enrollment through this flow.
         if has_confirmed_owner_totp(actor):
@@ -254,50 +248,16 @@ class OwnerTOTPRecoveryCodesRegenerateView(APIView):
         if not has_confirmed_owner_totp(actor):
             return Response({"detail": "Two-factor authentication is not enabled."}, status=400)
 
-        current_password = request.data.get("current_password") or ""
-        if not owner_password_enabled(actor):
-            return password_not_available_response()
-        if not actor.check_password(current_password):
-            return Response({"current_password": "Current password is incorrect."}, status=400)
+        reauth_error = validate_sensitive_owner_reauth(
+            request,
+            actor,
+            current_password=request.data.get("current_password") or "",
+            code=request.data.get("code") or "",
+            recovery_code=request.data.get("recovery_code") or "",
+        )
+        if reauth_error is not None:
+            return reauth_error
 
-        device = OwnerTOTPDevice.objects.filter(user=actor, confirmed=True).first()
-        if device is None:
-            return Response({"detail": "Two-factor authentication is not enabled."}, status=400)
-
-        if lock_is_active(device.locked_until):
-            return Response(
-                {"detail": LOCKED_ERROR.format(seconds=seconds_until(device.locked_until))},
-                status=429,
-            )
-
-        totp_code = request.data.get("code") or ""
-        recovery_code = request.data.get("recovery_code") or ""
-        second_factor_ok = False
-        if recovery_code:
-            submitted = normalize_recovery_code(recovery_code)
-            if submitted and consume_recovery_code(actor, submitted):
-                second_factor_ok = True
-                # Consumed a recovery code; regenerate invalidates all codes anyway.
-                register_success_on_device(device)
-        else:
-            secret = decrypt_owner_totp_secret(device.secret_encrypted)
-            ok, timestep = verify_totp_code(
-                secret, totp_code, last_timestep=device.last_verified_timestep
-            )
-            if ok:
-                second_factor_ok = True
-                register_success_on_device(device, timestep=timestep)
-
-        if not second_factor_ok:
-            register_failure_on_device(device)
-            if lock_is_active(device.locked_until):
-                return Response(
-                    {"detail": LOCKED_ERROR.format(seconds=seconds_until(device.locked_until))},
-                    status=429,
-                )
-            return Response({"detail": GENERIC_TOTP_ERROR}, status=400)
-
-        old_codes = OwnerRecoveryCode.objects.filter(user=actor).values_list("code_hash", flat=True)
         codes = replace_recovery_codes(actor)
         logger.info("owner_2fa_recovery_codes_regenerated user_id=%s", actor.pk)
         # Return plaintext codes once.
@@ -318,46 +278,15 @@ class OwnerTOTPDisableView(APIView):
         if not has_confirmed_owner_totp(actor):
             return Response({"detail": "Two-factor authentication is not enabled."}, status=400)
 
-        current_password = request.data.get("current_password") or ""
-        if not owner_password_enabled(actor):
-            return password_not_available_response()
-        if not actor.check_password(current_password):
-            return Response({"current_password": "Current password is incorrect."}, status=400)
-
-        device = OwnerTOTPDevice.objects.filter(user=actor, confirmed=True).first()
-        if device is None:
-            return Response({"detail": "Two-factor authentication is not enabled."}, status=400)
-
-        if lock_is_active(device.locked_until):
-            return Response(
-                {"detail": LOCKED_ERROR.format(seconds=seconds_until(device.locked_until))},
-                status=429,
-            )
-
-        totp_code = request.data.get("code") or ""
-        recovery_code = request.data.get("recovery_code") or ""
-
-        second_factor_ok = False
-        if recovery_code:
-            submitted = normalize_recovery_code(recovery_code)
-            if submitted and consume_recovery_code(actor, submitted):
-                second_factor_ok = True
-        else:
-            secret = decrypt_owner_totp_secret(device.secret_encrypted)
-            ok, _timestep = verify_totp_code(
-                secret, totp_code, last_timestep=device.last_verified_timestep
-            )
-            if ok:
-                second_factor_ok = True
-
-        if not second_factor_ok:
-            register_failure_on_device(device)
-            if lock_is_active(device.locked_until):
-                return Response(
-                    {"detail": LOCKED_ERROR.format(seconds=seconds_until(device.locked_until))},
-                    status=429,
-                )
-            return Response({"detail": GENERIC_TOTP_ERROR}, status=400)
+        reauth_error = validate_sensitive_owner_reauth(
+            request,
+            actor,
+            current_password=request.data.get("current_password") or "",
+            code=request.data.get("code") or "",
+            recovery_code=request.data.get("recovery_code") or "",
+        )
+        if reauth_error is not None:
+            return reauth_error
 
         clear_owner_2fa_for_user(actor)
         logger.info("owner_2fa_disabled user_id=%s", actor.pk)

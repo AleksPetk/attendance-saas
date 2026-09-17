@@ -100,7 +100,9 @@
     "manualKey": "手動設定キー:",
     "copyKey": "キーをコピー",
     "codePlaceholder": "6桁のコード",
-    "continue": "続行"
+    "continue": "続行",
+    "oauthReauthRequired": "続行する前に、連携済みのサインイン方法で本人確認を行ってください。",
+    "oauthReauthReady": "本人確認が完了しました。このセキュリティ操作を続行できます。"
   },
   "danger": {
     "intro": "CheckStation アカウント、このワークスペース、およびお客様が作成した運用データを完全に削除します。この操作は元に戻せません。",

@@ -12,6 +12,7 @@ import {
   oauthStartUrl,
   otherLinkedProviderForReauth,
   providerDisplayName,
+  rememberOAuthSecurityReturn,
 } from "./signInMethodsUi.js";
 
 function fieldError(error, name) {
@@ -76,10 +77,13 @@ export default function AccountSignInMethodsPanel({
   const passwordVisibility = usePasswordVisibility();
 
   const needsOAuthReauthForSetPassword =
-    !passwordEnabled && !twoFactorEnabled && (methods?.google?.linked || methods?.apple?.linked);
+    !passwordEnabled && (methods?.google?.linked || methods?.apple?.linked);
   const setPasswordReauthReady = !needsOAuthReauthForSetPassword || oauthReauthReady;
 
-  function startOAuth(intent, provider) {
+  function startOAuth(intent, provider, returnAction = "set-password") {
+    if (intent === "verify") {
+      rememberOAuthSecurityReturn(returnAction);
+    }
     window.location.assign(oauthStartUrl(api.baseUrl, provider, intent));
   }
 

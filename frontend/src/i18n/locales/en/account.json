@@ -100,7 +100,9 @@
     "manualKey": "Manual setup key:",
     "copyKey": "Copy key",
     "codePlaceholder": "6-digit code",
-    "continue": "Continue"
+    "continue": "Continue",
+    "oauthReauthRequired": "Confirm your identity with a linked sign-in provider before continuing.",
+    "oauthReauthReady": "Identity confirmed. You can continue this security action."
   },
   "danger": {
     "intro": "Permanently delete your CheckStation account, this workspace, and customer-created operational data. This cannot be undone.",

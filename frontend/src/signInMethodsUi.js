@@ -88,3 +88,31 @@ export function providerDisplayName(provider) {
   if (provider === "google") return "Google";
   return "Provider";
 }
+
+const OAUTH_SECURITY_RETURN_KEY = "checkstation_oauth_security_return";
+
+export function rememberOAuthSecurityReturn(action) {
+  try {
+    window.sessionStorage.setItem(OAUTH_SECURITY_RETURN_KEY, action);
+  } catch {
+    // Ignore storage failures; caller can still continue manually.
+  }
+}
+
+export function consumeOAuthSecurityReturn() {
+  try {
+    const value = window.sessionStorage.getItem(OAUTH_SECURITY_RETURN_KEY) || "";
+    window.sessionStorage.removeItem(OAUTH_SECURITY_RETURN_KEY);
+    return value;
+  } catch {
+    return "";
+  }
+}
+
+export function ownerNeedsProviderReauth(signInMethods) {
+  return Boolean(
+    signInMethods &&
+      !signInMethods.password?.enabled &&
+      (signInMethods.google?.linked || signInMethods.apple?.linked),
+  );
+}

@@ -139,11 +139,16 @@ def owner_oauth_reauth_is_fresh(
     if timezone.now() - verified_at > timedelta(seconds=OWNER_OAUTH_REAUTH_TTL_SECONDS):
         return False
     session_provider = str(raw.get("provider") or "")
+    if not session_provider:
+        return False
+    links = owner_linked_providers(user)
+    if session_provider not in links:
+        return False
     if provider is not None and session_provider != provider:
         return False
     if exclude_provider is not None and session_provider == exclude_provider:
         return False
-    return bool(session_provider)
+    return True
 
 
 def _verify_owner_second_factor(user, *, code: str = "", recovery_code: str = "") -> tuple[bool, Response | None]:
@@ -295,6 +300,10 @@ def validate_set_password_reauth(
     code: str = "",
     recovery_code: str = "",
 ) -> Response | None:
+    """
+    Provider-only owners may set a first CheckStation password after fresh
+    linked-provider re-auth (plus owner 2FA when already enabled).
+    """
     if owner_password_enabled(user):
         return Response(
             {
@@ -304,18 +313,11 @@ def validate_set_password_reauth(
             status=400,
         )
 
-    if has_confirmed_owner_totp(user):
-        ok, second_factor_error = _verify_owner_second_factor(
-            user,
-            code=code,
-            recovery_code=recovery_code,
-        )
-        if not ok:
-            return second_factor_error
-        return None
-
     links = owner_linked_providers(user)
-    if not links:
+    if not any(
+        provider in links
+        for provider in (OwnerAuthProvider.GOOGLE, OwnerAuthProvider.APPLE)
+    ):
         return reauth_required_response(
             code="oauth_reauth_required",
             detail=OAUTH_REAUTH_REQUIRED_MESSAGE,
@@ -325,4 +327,12 @@ def validate_set_password_reauth(
             code="oauth_reauth_required",
             detail=OAUTH_REAUTH_REQUIRED_MESSAGE,
         )
+
+    ok, second_factor_error = _verify_owner_second_factor(
+        user,
+        code=code,
+        recovery_code=recovery_code,
+    )
+    if not ok:
+        return second_factor_error
     return None
