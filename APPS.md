@@ -136,7 +136,7 @@ Standalone / TestFlight resolution: `EXPO_PUBLIC_API_BASE_URL` → `app.json` `e
 
 iOS/iPadOS Bundle ID: `app.checkstation.client` (matches existing App Store Connect app Apple ID `6807262653` / SKU `checkstation-client-001`).  
 Android package (unchanged; Play later): `app.checkstation.mobile`.  
-Marketing version `0.1.0` · iOS `buildNumber` `4` (`app.json`; next TestFlight after white app icon).
+Marketing version `0.1.0` · iOS `buildNumber` `5` (`app.json`; white app icon TestFlight).
 
 EAS: `apps/mobile/eas.json` profiles `development` | `preview` | `production`.  
 Expo project: `@alekspetk/checkstation` (`extra.eas.projectId` in `app.json`). First TestFlight IPA: `npm run eas:build:production -w @checkstation/mobile` (do not run until Apple signing is configured).
