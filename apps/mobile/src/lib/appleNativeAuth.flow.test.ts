@@ -72,4 +72,6 @@ test("AuthController Apple completion uses cookie jar session path", () => {
   assert.match(authController, /finishOwnerFirstFactor/);
   assert.match(authController, /endpoints\.workspace\(\)/);
   assert.match(authController, /two_factor_required/);
+  assert.match(authController, /verifyAppleNative/);
+  assert.match(authController, /intent:\s*"verify"/);
 });

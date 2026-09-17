@@ -2,7 +2,7 @@ import * as AppleAuthentication from "expo-apple-authentication";
 import * as Crypto from "expo-crypto";
 import { Platform } from "react-native";
 
-export type AppleNativeIntent = "login" | "register";
+export type AppleNativeIntent = "login" | "register" | "verify";
 
 export type AppleNativeCredential = {
   identityToken: string;

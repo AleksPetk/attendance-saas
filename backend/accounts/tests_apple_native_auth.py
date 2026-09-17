@@ -482,3 +482,152 @@ class AppleNativeCompleteEndpointTests(TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.json()["code"], AppleOAuthResultCode.AUTHENTICATION_FAILED)
         self.assertIn("app", response.json()["detail"].lower())
+
+
+@override_settings(**NATIVE_TEST_SETTINGS)
+class AppleNativeVerifyEndpointTests(TestCase):
+    def setUp(self):
+        self.raw_nonce = "mobile-verify-nonce"
+        self.owner, self.org = create_owner(email="verify-native@example.com")
+        self.owner.set_unusable_password()
+        self.owner.save(update_fields=["password"])
+        OwnerAuthProviderLink.objects.create(
+            user=self.owner,
+            provider=OwnerAuthProvider.APPLE,
+            provider_subject="apple-native-verify-sub",
+            provider_email="verify-native@example.com",
+            provider_email_verified=True,
+        )
+        self.client = Client()
+        self.client.force_login(self.owner)
+        self.session_key = self.client.session.session_key
+
+    def _claims(self, *, sub="apple-native-verify-sub", email="verify-native@example.com"):
+        return {
+            "sub": sub,
+            "email": email,
+            "email_verified": True,
+            "iss": "https://appleid.apple.com",
+            "aud": NATIVE_AUDIENCE,
+            "nonce": sha256_hex(self.raw_nonce),
+            "exp": int(timezone.now().timestamp()) + 3600,
+        }
+
+    def _post_verify(self, *, sub="apple-native-verify-sub"):
+        with patch(
+            "accounts.apple_native_auth.verify_apple_native_id_token",
+            return_value=self._claims(sub=sub),
+        ):
+            return self.client.post(
+                "/api/auth/apple/native/",
+                data={
+                    "identity_token": "fake-token",
+                    "nonce": self.raw_nonce,
+                    "intent": "verify",
+                },
+                content_type="application/json",
+            )
+
+    def test_authenticated_apple_owner_can_native_reverify(self):
+        from accounts.owner_sensitive_auth import (
+            OWNER_OAUTH_REAUTH_SESSION_KEY,
+            owner_oauth_reauth_is_fresh,
+        )
+
+        response = self._post_verify()
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(response.json()["code"], AppleOAuthResultCode.VERIFIED)
+        self.assertEqual(self.client.session.session_key, self.session_key)
+        self.assertEqual(self.client.get("/api/workspace/").status_code, 200)
+        self.assertIn(OWNER_OAUTH_REAUTH_SESSION_KEY, self.client.session)
+        self.assertEqual(
+            self.client.session[OWNER_OAUTH_REAUTH_SESSION_KEY]["provider"],
+            OwnerAuthProvider.APPLE,
+        )
+        self.assertTrue(
+            owner_oauth_reauth_is_fresh(
+                type("R", (), {"session": self.client.session})(),
+                self.owner,
+                provider=OwnerAuthProvider.APPLE,
+            )
+        )
+        # Verify must not create a second Apple link or switch owners.
+        self.assertEqual(
+            OwnerAuthProviderLink.objects.filter(
+                provider=OwnerAuthProvider.APPLE,
+                provider_subject="apple-native-verify-sub",
+            ).count(),
+            1,
+        )
+        self.assertEqual(
+            OwnerAuthProviderLink.objects.get(
+                provider=OwnerAuthProvider.APPLE,
+                provider_subject="apple-native-verify-sub",
+            ).user_id,
+            self.owner.pk,
+        )
+
+    def test_wrong_apple_subject_rejected_without_changing_session(self):
+        response = self._post_verify(sub="someone-else-apple-sub")
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["code"], AppleOAuthResultCode.AUTHENTICATION_FAILED)
+        self.assertEqual(self.client.session.session_key, self.session_key)
+        self.assertEqual(self.client.get("/api/workspace/").status_code, 200)
+        self.assertNotIn("_owner_oauth_reauth", self.client.session)
+        self.assertTrue(User.objects.filter(pk=self.owner.pk).exists())
+
+    def test_unauthenticated_verify_rejected(self):
+        anon = Client()
+        with patch(
+            "accounts.apple_native_auth.verify_apple_native_id_token",
+            return_value=self._claims(),
+        ):
+            response = anon.post(
+                "/api/auth/apple/native/",
+                data={
+                    "identity_token": "fake-token",
+                    "nonce": self.raw_nonce,
+                    "intent": "verify",
+                },
+                content_type="application/json",
+            )
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.json()["code"], AppleOAuthResultCode.AUTHENTICATION_REQUIRED)
+
+    def test_native_reverify_then_delete_succeeds(self):
+        response = self._post_verify()
+        self.assertEqual(response.status_code, 200)
+        delete = self.client.post(
+            "/api/auth/account/delete/",
+            data={"confirmation": "DELETE"},
+            content_type="application/json",
+        )
+        self.assertEqual(delete.status_code, 200, delete.content)
+        self.assertFalse(User.objects.filter(pk=self.owner.pk).exists())
+        self.assertFalse(Organization.objects.filter(pk=self.org.pk).exists())
+
+    def test_login_intent_still_works_after_verify_support(self):
+        other, _org = create_owner(email="login-still@example.com")
+        OwnerAuthProviderLink.objects.create(
+            user=other,
+            provider=OwnerAuthProvider.APPLE,
+            provider_subject="apple-login-still-sub",
+            provider_email="login-still@example.com",
+            provider_email_verified=True,
+        )
+        anon = Client()
+        with patch(
+            "accounts.apple_native_auth.verify_apple_native_id_token",
+            return_value=self._claims(sub="apple-login-still-sub", email="login-still@example.com"),
+        ):
+            response = anon.post(
+                "/api/auth/apple/native/",
+                data={
+                    "identity_token": "fake-token",
+                    "nonce": self.raw_nonce,
+                    "intent": "login",
+                },
+                content_type="application/json",
+            )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["role"], "owner")

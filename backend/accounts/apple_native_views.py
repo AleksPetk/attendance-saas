@@ -21,8 +21,12 @@ class AppleNativeCompleteView(APIView):
     POST /api/auth/apple/native/
 
     Accepts a native Apple identityToken + raw nonce from the iOS app,
-    verifies audience app.checkstation.client (APPLE_NATIVE_IOS_CLIENT_ID),
-    then reuses OwnerAuthProviderLink / complete_owner_authentication.
+    verifies audience app.checkstation.client (APPLE_NATIVE_IOS_CLIENT_ID).
+
+    Intents:
+    - login / register: OwnerAuthProviderLink + complete_owner_authentication
+    - verify: authenticated owner re-check; records `_owner_oauth_reauth`
+      on the existing session (no login completion / session replace)
     """
 
     permission_classes = [AllowAny]

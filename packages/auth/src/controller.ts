@@ -177,6 +177,22 @@ export class AuthController {
     return this.finishOwnerFirstFactor();
   }
 
+  /**
+   * Re-verify the linked Apple identity for a sensitive action (e.g. account deletion).
+   * Records `_owner_oauth_reauth` on the existing authenticated session — does not
+   * replace login / finishOwnerFirstFactor.
+   */
+  async verifyAppleNative(payload: {
+    identityToken: string;
+    nonce: string;
+  }): Promise<{ code: string; detail?: string }> {
+    return this.api.post<{ code: string; detail?: string }>(endpoints.appleNativeComplete(), {
+      identity_token: payload.identityToken,
+      nonce: payload.nonce,
+      intent: "verify",
+    });
+  }
+
   async completeOwnerTwoFactor(payload: { code?: string; recovery_code?: string }): Promise<WorkspaceSession> {
     await this.api.post(endpoints.ownerTotpChallenge(), payload);
     const session = await this.api.get<WorkspaceSession>(endpoints.workspace());

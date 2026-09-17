@@ -170,6 +170,43 @@ describe("AuthController", () => {
     assert.equal(auth.getState().status, "needs_2fa");
   });
 
+  it("verifyAppleNative posts intent=verify on the same cookie session without finishOwnerFirstFactor", async () => {
+    let workspaceHits = 0;
+    let verifyBody: Record<string, unknown> | null = null;
+    const fakeFetch: typeof fetch = async (input, init) => {
+      const path = new URL(String(input)).pathname;
+      const requestHeaders = init?.headers as Record<string, string>;
+      if (path.endsWith("/auth/csrf/")) {
+        const response = new Response(JSON.stringify({ csrfToken: "csrf-initial" }), { status: 200, headers: { "content-type": "application/json" } });
+        Object.defineProperty(response, "_rawHeaders", { value: [["set-cookie", "checkstation_csrftoken=csrf-initial; Path=/; Secure"]] });
+        return response;
+      }
+      if (path.endsWith("/auth/apple/native/")) {
+        verifyBody = JSON.parse(String(init?.body || "{}"));
+        assert.equal(requestHeaders["X-CSRFToken"], "csrf-initial");
+        assert.match(requestHeaders.Cookie || "", /checkstation_csrftoken=csrf-initial/);
+        return new Response(JSON.stringify({ code: "verified", detail: "Identity confirmed with Apple." }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      if (path.endsWith("/workspace/")) {
+        workspaceHits += 1;
+        return new Response(JSON.stringify({ role: "owner" }), { status: 200, headers: { "content-type": "application/json" } });
+      }
+      throw new Error(`Unexpected request: ${path}`);
+    };
+    const api = new ApiClient(createAppConfig({ apiBaseUrl: "https://workspace.checkstation.app/api" }), undefined, { fetchImpl: fakeFetch });
+    const auth = new AuthController(api);
+    await api.init();
+    const result = await auth.verifyAppleNative({ identityToken: "id-token", nonce: "raw-nonce" });
+    assert.equal(result.code, "verified");
+    assert.equal(verifyBody?.intent, "verify");
+    assert.equal(verifyBody?.identity_token, "id-token");
+    assert.equal(verifyBody?.nonce, "raw-nonce");
+    assert.equal(workspaceHits, 0);
+  });
+
   it("applyKioskUnlock clears locked status without requiring a workspace refetch", () => {
     const api = new ApiClient(createAppConfig());
     const auth = new AuthController(api);

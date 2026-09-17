@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 
+from django.contrib.auth import get_user_model
 from django.db import IntegrityError, transaction
 from rest_framework.response import Response
 
@@ -18,6 +19,7 @@ from accounts.apple_oauth import (
     _validate_apple_identity_for_registration,
     create_apple_provider_link,
     get_apple_provider_link,
+    get_owner_apple_link,
     parse_apple_identity,
     update_apple_provider_link_snapshot,
 )
@@ -26,20 +28,23 @@ from accounts.apple_oauth_client import (
     verify_apple_native_id_token,
 )
 from accounts.apple_oauth_settings import apple_native_ios_is_configured
-from accounts.apple_oauth_state import INTENT_LOGIN, INTENT_REGISTER
+from accounts.apple_oauth_state import INTENT_LOGIN, INTENT_REGISTER, INTENT_VERIFY
 from accounts.email_uniqueness import (
     email_ownership_established,
     get_provisional_unverified_owner,
 )
+from accounts.owner_auth_provider_models import OwnerAuthProvider
 from accounts.owner_authentication import complete_owner_authentication
+from accounts.owner_sensitive_auth import record_owner_oauth_reauth
 from accounts.provisional_ownership import (
     ProvisionalClaimError,
     claim_provisional_owner_with_oauth,
 )
 
 logger = logging.getLogger("accounts.apple_native")
+User = get_user_model()
 
-NATIVE_INTENTS = frozenset({INTENT_LOGIN, INTENT_REGISTER})
+NATIVE_INTENTS = frozenset({INTENT_LOGIN, INTENT_REGISTER, INTENT_VERIFY})
 
 
 def _error_response(code: str, *, detail: str, status: int = 400) -> Response:
@@ -210,6 +215,49 @@ def process_apple_native_register(
     return _finalize_native_login(request, user, full_name=full_name)
 
 
+def process_apple_native_verify(request, identity: AppleIdentity) -> Response:
+    """
+    Re-verify the currently authenticated owner's linked Apple identity.
+
+    Writes `_owner_oauth_reauth` into the existing session. Does not call
+    complete_owner_authentication (would rotate/replace the session).
+    """
+    actor = getattr(request, "user", None)
+    if actor is None or not getattr(actor, "is_authenticated", False):
+        return _error_response(
+            AppleOAuthResultCode.AUTHENTICATION_REQUIRED,
+            detail="Sign in to confirm your identity with Apple.",
+            status=403,
+        )
+    if not isinstance(actor, User):
+        return _error_response(
+            AppleOAuthResultCode.AUTHENTICATION_REQUIRED,
+            detail="Only the paying workspace owner can confirm with Apple.",
+            status=403,
+        )
+    if getattr(actor, "is_staff", False) or getattr(actor, "is_superuser", False):
+        return _error_response(
+            AppleOAuthResultCode.AUTHENTICATION_FAILED,
+            detail="Apple identity could not be confirmed.",
+        )
+
+    owner_link = get_owner_apple_link(actor)
+    if owner_link is None or owner_link.provider_subject != identity.subject:
+        return _error_response(
+            AppleOAuthResultCode.AUTHENTICATION_FAILED,
+            detail="Apple identity could not be confirmed.",
+        )
+
+    update_apple_provider_link_snapshot(owner_link, identity)
+    record_owner_oauth_reauth(request, actor, OwnerAuthProvider.APPLE)
+    return Response(
+        {
+            "code": AppleOAuthResultCode.VERIFIED,
+            "detail": "Identity confirmed with Apple.",
+        }
+    )
+
+
 def complete_apple_native_authentication(
     request,
     *,
@@ -273,6 +321,8 @@ def complete_apple_native_authentication(
     identity = parse_apple_identity(claims)
     if intent_normalized == INTENT_LOGIN:
         return process_apple_native_login(request, identity, full_name=full_name)
+    if intent_normalized == INTENT_VERIFY:
+        return process_apple_native_verify(request, identity)
     return process_apple_native_register(
         request,
         identity,
