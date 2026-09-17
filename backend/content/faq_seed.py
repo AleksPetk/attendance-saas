@@ -481,8 +481,7 @@ FAQ_ENTRIES = (
         "related_document_slug": "kiosk-setup",
         "sort_order": 70,
         "answer": (
-            "No. Card and Input templates are available on Basic, Plus, and Business. "
-            "Basic still shows ads around launch/exit and in workspace banners."
+            "No. Card and Input templates are available on Basic, Plus, and Business."
         ),
     },
     {
@@ -594,7 +593,7 @@ FAQ_ENTRIES = (
             "participation email(s), the sender is configured, and the address is valid. "
             "Platform signup/verification mail uses Resend. Group attendance mail uses "
             "the Group email sender you configured (custom SMTP, Gmail app password, "
-            "Outlook / Microsoft 365 SMTP, or Yahoo Mail app password). Ads or plan locks "
+            "Outlook / Microsoft 365 SMTP, or Yahoo Mail app password). Plan locks "
             "do not send mail."
         ),
     },
@@ -756,7 +755,7 @@ FAQ_ENTRIES = (
         "slug": "what-is-included-in-basic",
         "question": "What is included in Basic?",
         "category": FaqCategory.PLANS,
-        "keywords": "basic plan, free, ads",
+        "keywords": "basic plan, free",
         "related_document_slug": "billing-plans",
         "featured": True,
         "sort_order": 10,
@@ -765,7 +764,7 @@ FAQ_ENTRIES = (
             "{{PLAN_BASIC_LIMIT_ACTIVE_STANDARD_GROUPS}} active), "
             "{{PLAN_BASIC_LIMIT_MEMBERS}} Members, kiosk builder with all templates, and "
             "History. It does not include Structured Groups, Staff/Admin seats, file "
-            "exports, or Forward Emails. Ads may appear in specified placements. Details: "
+            "exports, or Forward Emails. Details: "
             "[Billing & Plans](/billing-plans)."
         ),
     },
@@ -778,7 +777,7 @@ FAQ_ENTRIES = (
         "sort_order": 20,
         "answer": (
             "Plus is paid ({{PLAN_PRICE_PLUS_MONTHLY}} monthly or {{PLAN_PRICE_PLUS_YEARLY}} "
-            "yearly). No ads. Larger Standard limits, Admin/Staff seats, CSV/Excel/PDF "
+            "yearly). Larger Standard limits, Admin/Staff seats, CSV/Excel/PDF "
             "export, and Forward Emails. Structured Groups are still Business-only."
         ),
     },
@@ -834,19 +833,6 @@ FAQ_ENTRIES = (
         "answer": (
             "Yes. All Card and Input kiosk templates are available on every plan, including "
             "Basic."
-        ),
-    },
-    {
-        "slug": "does-basic-have-ads",
-        "question": "Does Basic show ads?",
-        "category": FaqCategory.PLANS,
-        "keywords": "ads, interstitial, banner",
-        "related_document_slug": "billing-plans",
-        "sort_order": 70,
-        "answer": (
-            "Yes, in Dashboard and Groups banners, and as interstitials before kiosk "
-            "launch, after kiosk exit, and when leaving Kiosk Builder. Ads are not shown "
-            "during live kiosk operation. Plus and Business have no ads."
         ),
     },
     {

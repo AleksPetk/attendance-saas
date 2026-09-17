@@ -32,8 +32,6 @@ import {
   partitionGroupsByPlanAvailability,
 } from "./groupsListOrdering.js";
 import PlanLockSelectionPanel from "./PlanLockSelectionPanel.jsx";
-import AdBanner from "./advertising/AdBanner.jsx";
-import { PLACEMENT_GROUPS_BANNER } from "./advertising/placements.js";
 
 export default function GroupsScreen({ session, onNavigate, setSession }) {
   const { t } = useTranslation(["groups", "common", "errors"]);
@@ -330,7 +328,6 @@ export default function GroupsScreen({ session, onNavigate, setSession }) {
           {createGroupAction ? <div className="groups-usage-actions">{createGroupAction}</div> : null}
         </div>
       ) : null}
-      <AdBanner session={session} placement={PLACEMENT_GROUPS_BANNER} />
       {mustSelect ? (
         <div className="plan-selection-notice" role="status">
           <div>

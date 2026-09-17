@@ -37,12 +37,15 @@ describe("translation files", () => {
     assert.notEqual(en.nav.groups, ja.nav.groups);
   });
 
-  it("keeps billing flow label in entitlements for both locales", () => {
+  it("keeps plan display names in entitlements for both locales", () => {
     const en = loadLocale("en", "entitlements");
     const ja = loadLocale("ja", "entitlements");
-    assert.equal(en.adsRequired, "Ads supported on Basic plan");
-    assert.equal(ja.adsRequired, "Basic プランでは広告が表示されます");
-    assert.notEqual(en.adsRequired, ja.adsRequired);
+    assert.equal(en.plans.basic, "Basic");
+    assert.equal(ja.plans.basic, "Basic");
+    assert.equal(en.plans.plus, "Plus");
+    assert.equal(ja.plans.plus, "Plus");
+    assert.doesNotMatch(JSON.stringify(en), /ads|advertising/i);
+    assert.doesNotMatch(JSON.stringify(ja), /ads|advertising|広告/i);
   });
 
   it("keeps error and empty state strings in both locales", () => {

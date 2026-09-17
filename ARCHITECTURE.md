@@ -35,7 +35,7 @@ Do not infer implementation from this document for:
 - Event / Event Entry **database schema** (lifecycle and kiosk-ownership rules are recorded above)
 - Actions and Action Records
 - Kiosk **database fields** for Events, and Event kiosk launch/session (Group kiosk launch, cookie-session lock, and exit-code unlock are implemented)
-- subscriptions and billing **provider integration** (Stripe/Apple checkout, webhooks, Customer Portal). **V1 plan names/limits, ads, downgrade semantics, Account IA, purchase sources, entitlement layer, permanent USD prices, automatic 7-day built-in Business trial, upgrade/downgrade/cancel timing, and payment-failure grace are frozen** in PRODUCT.md and DEC-072–082 / DEC-093 — do not invent alternate tier names or silently change the matrix. Internal billing persistence is implemented in the `billing` app.
+- subscriptions and billing **provider integration** (Stripe/Apple checkout, webhooks, Customer Portal). **V1 plan names/limits, downgrade semantics, Account IA, purchase sources, entitlement layer, permanent USD prices, automatic 7-day built-in Business trial, upgrade/downgrade/cancel timing, and payment-failure grace are frozen** in PRODUCT.md and DEC-072–082 / DEC-093 / DEC-099 — do not invent alternate tier names or silently change the matrix. There is no advertising system (DEC-099). Internal billing persistence is implemented in the `billing` app.
 - configurable fields and group-specific overrides (this slice implements explicit GroupMembership override fields for name, email, photo, member identifier, and PIN — not a generic field engine)
 - notification engine (Group after-action email via per-Group Custom SMTP / Gmail / Microsoft / Yahoo senders is implemented in this slice, including optional Group-level Forward Emails up to 3 private copies; broader engine channels and OAuth providers remain undesigned)
 - platform-operator administration tooling
@@ -434,7 +434,7 @@ only. Existing GroupMembership / participation in an operational Group stays
 intact (kiosk attendance, participation edits, Action Records). Locked Members
 cannot be added to a **new** Group participation.
 
-**Kiosk templates:** Card and Input template catalogs are available on every plan (Basic / Plus / Business). Template access is not a plan entitlement and must not be gated by plan. Basic still carries `ads_required`; effective advertising also requires the platform kill switch (see Basic ads below).
+**Kiosk templates:** Card and Input template catalogs are available on every plan (Basic / Plus / Business). Template access is not a plan entitlement and must not be gated by plan.
 
 Stripe/web and other purchase sources update billing subscription state that **feeds** this layer through `apply_effective_plan()` (DEC-076, DEC-081).
 
@@ -486,32 +486,9 @@ Owner Account surfaces are three top-level sections/pages:
 
 Public `/pricing` presents Basic / Plus / Business with catalog prices (monthly/yearly). Unauthenticated paid CTAs route through registration/login; Checkout starts only for the authenticated workspace owner.
 
-### Basic ads (placement architecture)
+### No advertising system
 
-Ads are a **Basic**-only commercial surface. Effective advertising is:
-
-`features.ads_required` (plan catalog) **AND** platform `ads_globally_enabled` (singleton `PlatformAdvertisingSettings`).
-
-Do **not** enforce ads with `require_feature` / `deny_plan_feature` — `ads_required` polarity means “eligible/required to show ads,” unlike other feature flags.
-
-Frozen **web** placements:
-
-- `dashboard_banner`
-- `groups_banner`
-- `kiosk_launch_interstitial` (workspace route, **before** `POST /api/groups/:id/kiosk/` lock)
-- `kiosk_exit_interstitial` (after successful exit-code unlock, **before** Group/Groups navigation)
-- `kiosk_builder_exit_interstitial` (after dirty-state resolution, **before** destination navigation)
-- `kiosk_idle_banner` (live kiosk **idle/ready only**: Standard start or Structured class picker; bottom-right; hide during identify/PIN/confirm/processing/success)
-
-**Live participant kiosk interaction must stay ad-free** except the idle banner above. Do not put ads in `KioskRenderer` (`mode="live"`) internals, confirmation/processing screens, `KioskBuilderPreview`, Kiosk Settings, Members, History, Staff, or Account.
-
-Authenticated workspace payloads include an `advertising` object (`enabled`, `provider`, `placements`) beside `entitlements`. Fetch this **before** kiosk lock; do not add an ads request that must run while locked.
-
-Current provider is **mock** (local development). A real provider is deferred until deployment. Provider/render failure is **fail-open**: banners omit, interstitials skip, and the original navigation continues.
-
-Platform operators toggle advertising from Django admin (dashboard card + confirmation). Workspace APIs cannot change the kill switch. Django admin History/`LogEntry` records the change.
-
-Plus/Business have no ads (`ads_required=False`). Provider choice remains open beyond mock.
+There is no advertising placement architecture, AdSense/AdMob integration, mock ad product surface, advertising entitlement, or platform advertising kill switch (DEC-099). Do not gate product behavior on advertising payloads.
 
 ---
 
@@ -631,7 +608,7 @@ The following are confirmed **product concepts** but intentionally **excluded fr
 | Event / Event Entry schema | Product concept and lifecycle/kiosk-ownership rules approved; database/API architecture not started |
 | Action / Action Record | Product concept approved; architecture not started |
 | Group kiosk launch / session lock | Implemented for Groups: cookie-session kiosk lock, exit-code unlock, live start/identify/perform. Event kiosk session remains undesigned |
-| Subscriptions / Plans **provider integration** | **V1 names/limits, ads, downgrade, Account IA, entitlement layer, prices, built-in 7-day trial, change timing, grace frozen** (PRODUCT.md, DEC-072–082, DEC-093). Stripe/Apple checkout, webhooks, portal, and interval-change execution remain open |
+| Subscriptions / Plans **provider integration** | **V1 names/limits, downgrade, Account IA, entitlement layer, prices, built-in 7-day trial, change timing, grace frozen**; no advertising system (PRODUCT.md, DEC-072–082, DEC-093, DEC-099). Stripe/Apple checkout, webhooks, portal, and interval-change execution remain open |
 | Configurable fields | Product direction approved; structure not started |
 | GroupMembership overrides | Explicit name/email/photo/identifier/PIN overrides implemented in the Member/Group slice; generic field engine still not started |
 | Organization role permissions | Owner is the paying User; admin/staff are WorkspaceStaffAccount. **Admin matrix frozen (DEC-070). Staff matrix frozen (DEC-071).** |

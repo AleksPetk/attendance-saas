@@ -1138,7 +1138,7 @@ a.cs-activity-main:hover .cs-activity-title {
   white-space: nowrap;
 }
 
-.cs-ads-card {
+.cs-platform-controls {
   margin: 0;
   padding: 0;
   background: var(--cs-surface);
@@ -1148,7 +1148,7 @@ a.cs-activity-main:hover .cs-activity-title {
   overflow: hidden;
 }
 
-.cs-ads-card-title {
+.cs-platform-controls-title {
   margin: 0;
   padding: 0.85rem 1.2rem;
   background: var(--cs-surface-muted);
@@ -1159,12 +1159,12 @@ a.cs-activity-main:hover .cs-activity-title {
   color: var(--cs-text);
 }
 
-.cs-ads-rows {
+.cs-platform-controls-rows {
   display: grid;
   grid-template-columns: 1fr;
 }
 
-.cs-ads-row {
+.cs-platform-controls-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1172,16 +1172,16 @@ a.cs-activity-main:hover .cs-activity-title {
   padding: 1.05rem 1.2rem;
 }
 
-.cs-ads-row + .cs-ads-row {
+.cs-platform-controls-row + .cs-platform-controls-row {
   border-top: 1px solid var(--cs-border);
 }
 
-.cs-ads-copy {
+.cs-platform-controls-copy {
   min-width: 0;
   flex: 1;
 }
 
-.cs-ads-copy h3 {
+.cs-platform-controls-copy h3 {
   margin: 0 0 0.35rem;
   padding: 0;
   background: none;
@@ -1191,7 +1191,7 @@ a.cs-activity-main:hover .cs-activity-title {
   color: var(--cs-text);
 }
 
-.cs-ads-copy p {
+.cs-platform-controls-copy p {
   margin: 0;
   display: flex;
   flex-wrap: wrap;
@@ -1201,14 +1201,14 @@ a.cs-activity-main:hover .cs-activity-title {
   color: var(--cs-text-muted);
 }
 
-.cs-ads-actions {
+.cs-platform-controls-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
   flex-shrink: 0;
 }
 
-.cs-ads-actions .button {
+.cs-platform-controls-actions .button {
   white-space: nowrap;
 }
 
@@ -1221,24 +1221,6 @@ a.cs-activity-main:hover .cs-activity-title {
 
 .cs-pricing-template-form select {
   min-width: 9rem;
-}
-
-.cs-ads-confirm h1 {
-  margin-top: 0;
-}
-
-.cs-ads-confirm p {
-  max-width: 40rem;
-  color: var(--cs-text-muted);
-}
-
-.cs-ads-confirm-note {
-  margin-top: 1.25rem;
-}
-
-.cs-ads-submit-row {
-  display: flex;
-  gap: 0.5rem;
 }
 
 .cs-promotion-cards {
@@ -1991,7 +1973,7 @@ body.login .submit-row input {
 
   .cs-dash-header,
   .cs-metric-grid,
-  .cs-ads-card,
+  .cs-platform-controls,
   .cs-plan-strip,
   .cs-quick-links,
   .cs-dash-columns,
@@ -2035,7 +2017,7 @@ body.login .submit-row input {
   }
 
   .cs-security-card,
-  .cs-ads-row,
+  .cs-platform-controls-row,
   .cs-promotion-review-bar {
     flex-direction: column;
     align-items: stretch;

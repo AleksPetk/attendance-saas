@@ -90,9 +90,6 @@ export function pricingFeatureList(catalog, planKey, translate) {
       tr ? tr("pricing.features.kioskCheckIn") : "Kiosk check-in",
       tr ? tr("pricing.features.actionHistory") : "Action history",
     );
-    if (features.ads_required) {
-      items.push(tr ? tr("pricing.features.adsSupported") : "Ads supported");
-    }
     return items;
   }
 
@@ -129,9 +126,6 @@ export function pricingFeatureList(catalog, planKey, translate) {
     }
     if (features.group_forward_emails) {
       items.push(tr ? tr("pricing.features.groupForwardEmails") : "Group Forward Emails");
-    }
-    if (features.ads_required === false) {
-      items.push(tr ? tr("pricing.features.noAds") : "No ads");
     }
     return items;
   }

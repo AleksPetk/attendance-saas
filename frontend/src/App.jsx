@@ -63,15 +63,7 @@ import {
   canViewGlobalMembers,
 } from "./workspaceSession.js";
 import { confirmWorkspaceLeave } from "./kiosk/builder/workspaceLeaveGuard.js";
-import AdInterstitial from "./advertising/AdInterstitial.jsx";
-import { mockProvider } from "./advertising/mockProvider.js";
 import { LanguageProvider } from "./i18n/LanguageProvider.jsx";
-import {
-  PLACEMENT_KIOSK_BUILDER_EXIT,
-  PLACEMENT_KIOSK_EXIT,
-  PLACEMENT_KIOSK_LAUNCH,
-} from "./advertising/placements.js";
-import { resolveInterstitialDecision } from "./advertising/state.js";
 
 const SESSION_KEY = "attendance-saas-local-session";
 
@@ -398,7 +390,6 @@ function WorkspaceRoutes({
   setSession,
   onKioskEntered,
   onKioskUnlockedLocally,
-  requestInterstitial,
 }) {
   const { t } = useTranslation("kiosk");
   const kioskLocked = Boolean(session.workspace.kiosk_locked);
@@ -457,16 +448,6 @@ function WorkspaceRoutes({
   function onNavigate(route) {
     if (!route || !route.name) return;
     if (!confirmWorkspaceLeave()) return;
-    const leavingBuilder = location.pathname.includes("/kiosk-builder");
-    const stayingInBuilder = route.name === "kiosk-builder";
-    if (route.name === "kiosk") {
-      requestInterstitial(PLACEMENT_KIOSK_LAUNCH, () => applyWorkspaceRoute(route));
-      return;
-    }
-    if (leavingBuilder && !stayingInBuilder) {
-      requestInterstitial(PLACEMENT_KIOSK_BUILDER_EXIT, () => applyWorkspaceRoute(route));
-      return;
-    }
     applyWorkspaceRoute(route);
   }
 
@@ -477,14 +458,11 @@ function WorkspaceRoutes({
     flushSync(() => {
       onKioskUnlockedLocally(lockPayload);
     });
-    const goToWorkspace = () => {
-      if (groupAvailable && groupId) {
-        nav(`/groups/${groupId}`, { replace: true });
-      } else {
-        nav("/groups", { replace: true });
-      }
-    };
-    requestInterstitial(PLACEMENT_KIOSK_EXIT, goToWorkspace);
+    if (groupAvailable && groupId) {
+      nav(`/groups/${groupId}`, { replace: true });
+    } else {
+      nav("/groups", { replace: true });
+    }
   }
 
   if (location.pathname.startsWith("/kiosk/")) {
@@ -655,31 +633,7 @@ function WorkspaceRoutes({
 export default function App() {
   const [session, setSession] = useState(readSession);
   const [loadingSession, setLoadingSession] = useState(true);
-  const [adGate, setAdGate] = useState(null);
   const sessionIdentity = session?.workspace?.identity;
-
-  function requestInterstitial(placement, onContinue) {
-    try {
-      const decision = resolveInterstitialDecision(session, placement, mockProvider);
-      if (!decision.show || !decision.model) {
-        onContinue();
-        return;
-      }
-      setAdGate({ placement, model: decision.model, onContinue });
-    } catch {
-      onContinue();
-    }
-  }
-
-  function finishAdGate() {
-    const pending = adGate;
-    setAdGate(null);
-    try {
-      pending?.onContinue?.();
-    } catch {
-      /* Advertising must never trap navigation. */
-    }
-  }
 
   useEffect(() => {
     if (session) {
@@ -965,20 +919,12 @@ export default function App() {
                     setSession={setSession}
                     onKioskEntered={markKioskLocked}
                     onKioskUnlockedLocally={clearKioskLockLocally}
-                    requestInterstitial={requestInterstitial}
                   />
                 </TutorialProvider>
               </RequireSession>
             }
           />
         </Routes>
-        {adGate ? (
-          <AdInterstitial
-            placement={adGate.placement}
-            model={adGate.model}
-            onContinue={finishAdGate}
-          />
-        ) : null}
       </KioskLockGate>
       </LanguageProvider>
     </BrowserRouter>

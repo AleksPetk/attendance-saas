@@ -25,18 +25,11 @@
     "limit": "上限: {{limit}}"
   },
   "usageOf": "{{usage}} / {{limit}}",
-  "adsRequired": "Basic プランでは広告が表示されます",
   "planLockCandidates": {
     "structuredGroup": "構造化グループ",
     "standardGroup": "スタンダードグループ",
     "workspaceAdmin": "ワークスペース管理者",
     "workspaceStaff": "ワークスペーススタッフ",
     "recordNumber": "レコード #{{id}}"
-  },
-  "advertising": {
-    "ariaLabel": "広告",
-    "kicker": "広告",
-    "headline": "開発用プレースホルダー",
-    "continue": "続行"
   }
 }

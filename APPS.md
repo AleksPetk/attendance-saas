@@ -88,8 +88,7 @@ Native / desktop clients:
 1. **OAuth** — Google/Apple callbacks redirect to the **web** `FRONTEND_BASE_URL`. Native ASWebAuthenticationSession / deep links need a reviewed backend callback contract.
 2. **Token auth** — optional future; cookie jar is the foundation path without weakening browser security.
 3. **Native store billing** — not implemented; plan screen shows entitlement/billing **state** only.
-4. **Native ads** — abstract only; no AdSense / AdMob in this foundation.
-5. **RN Set-Cookie edge cases** — if a specific device runtime still strips Set-Cookie from `expo/fetch`, session establishment fails until that runtime is fixed or a reviewed native CookieManager (dev build) is added. CSRF JSON body path already covers CSRF.
+4. **RN Set-Cookie edge cases** — if a specific device runtime still strips Set-Cookie from `expo/fetch`, session establishment fails until that runtime is fixed or a reviewed native CookieManager (dev build) is added. CSRF JSON body path already covers CSRF.
 
 ## Navigation
 

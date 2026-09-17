@@ -45,7 +45,6 @@ from organizations.serializers import (
 from organizations.account_mode import account_mode_key
 from organizations.authentication import WORKSPACE_STAFF_SESSION_AUTH_BACKEND
 from attendance.kiosk_lock import attach_kiosk_status
-from organizations.entitlements.advertising import attach_workspace_advertising
 from core.auth_rate_limits import (
     check_owner_login_allowed,
     check_staff_login_allowed,
@@ -139,7 +138,6 @@ class CurrentWorkspaceView(APIView):
                 "capabilities": workspace_capabilities(actor),
                 "entitlements": build_entitlement_payload(org),
             }
-            attach_workspace_advertising(payload, org)
             attach_builtin_trial(payload, org)
             return Response(CurrentWorkspaceSerializer(attach_kiosk_status(request, payload)).data)
 
@@ -167,7 +165,6 @@ class CurrentWorkspaceView(APIView):
                     getattr(actor, "preferred_language", None)
                 ),
             }
-            attach_workspace_advertising(payload, organization)
             attach_builtin_trial(payload, organization)
             attach_workspace_tutorial(payload, organization)
             return Response(CurrentWorkspaceSerializer(attach_kiosk_status(request, payload)).data)
@@ -478,7 +475,6 @@ class StaffLoginView(APIView):
             "capabilities": workspace_capabilities(staff),
             "entitlements": build_entitlement_payload(staff.organization),
         }
-        attach_workspace_advertising(payload, staff.organization)
         attach_builtin_trial(payload, staff.organization)
         return Response(CurrentWorkspaceSerializer(attach_kiosk_status(request, payload)).data)
 

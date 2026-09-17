@@ -58,7 +58,7 @@ class PlanCatalogTests(TestCase):
         self.assertFalse(plan["features"][FEATURE_STAFF_MANAGEMENT])
         self.assertFalse(plan["features"][FEATURE_REPORT_EXPORT_CSV])
         self.assertFalse(plan["features"][FEATURE_GROUP_FORWARD_EMAILS])
-        self.assertTrue(plan["features"]["ads_required"])
+        self.assertNotIn("ads_required", plan["features"])
         self.assertNotIn("basic_kiosk_card_template_ids", plan)
         self.assertNotIn("full_kiosk_templates", plan["features"])
 
@@ -75,7 +75,7 @@ class PlanCatalogTests(TestCase):
         self.assertTrue(plan["features"][FEATURE_STAFF_MANAGEMENT])
         self.assertTrue(plan["features"][FEATURE_REPORT_EXPORT_CSV])
         self.assertTrue(plan["features"][FEATURE_GROUP_FORWARD_EMAILS])
-        self.assertFalse(plan["features"]["ads_required"])
+        self.assertNotIn("ads_required", plan["features"])
 
     def test_business_frozen_limits_and_features(self):
         plan = get_plan_definition(PLAN_BUSINESS)
@@ -244,7 +244,8 @@ class BasicPlanEnforcementTests(EntitlementApiFixtureMixin, TestCase):
         self.assertEqual(entitlements["plan"]["key"], PLAN_BASIC)
         self.assertEqual(entitlements["usage"][LIMIT_ACTIVE_STANDARD_GROUPS], 0)
         self.assertFalse(entitlements["features"][FEATURE_STAFF_MANAGEMENT])
-        self.assertTrue(entitlements["features"]["ads_required"])
+        self.assertNotIn("ads_required", entitlements["features"])
+        self.assertNotIn("advertising", resp.data)
         self.assertNotIn("basic_kiosk_templates_confirmed", entitlements)
         self.assertNotIn("full_kiosk_templates", entitlements["features"])
 

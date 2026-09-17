@@ -102,9 +102,9 @@ List prices are shown in the product and in [Billing & Plans](/billing-plans) fo
 
 Yearly prices provide approximately two months of savings compared with paying monthly for 12 months. These list prices live in the Check Station catalog. Promotional discounts, if offered later, must not silently rewrite those list prices.
 
-### 9.2 Entitlements and ads
+### 9.2 Entitlements
 
-Plans include different limits for Groups, Members, participants, workspace staff, exports, Structured Groups, and related features, as shown in the product. **Basic** may display advertising in specified workspace placements (not during active participant check-in/out interaction). **Plus** and **Business** do not include ads. A platform kill switch may hide ads without changing your plan.
+Plans include different limits for Groups, Members, participants, workspace staff, exports, Structured Groups, and related features, as shown in the product.
 
 Exceeding a limit after downgrade does not automatically delete your data. The product is designed to block increasing usage that would exceed the new plan. Feature-locked content remains in the workspace subject to those rules.
 
@@ -149,7 +149,7 @@ You must not:
 - use the service to track people without authority
 - resell Check Station as if you were the operator, except with our written permission
 - scrape or bulk-export in a way that degrades the service or violates these Terms
-- interfere with advertising, Status reporting, or other customers
+- interfere with Status reporting or other customers
 
 We may investigate and suspend accounts that appear to violate this section.
 

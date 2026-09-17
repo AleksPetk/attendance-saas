@@ -20,18 +20,7 @@ import {
   usageLimitCaption,
   usageTotalValue,
   workspacePlanDisplayName,
-  workspaceRequiresAds,
 } from "./workspaceEntitlements.js";
-import {
-  advertisingIsEnabled,
-  resolveBannerModel,
-  resolveInterstitialDecision,
-  shouldShowPlacement,
-} from "./advertising/state.js";
-import {
-  PLACEMENT_DASHBOARD_BANNER,
-  PLACEMENT_KIOSK_LAUNCH,
-} from "./advertising/placements.js";
 
 const basicEntitlements = {
   plan: { key: "basic", display_name: "Basic" },
@@ -42,7 +31,6 @@ const basicEntitlements = {
     report_export_excel: false,
     report_export_pdf: false,
     group_forward_emails: false,
-    ads_required: true,
   },
   limits: {
     active_standard_groups: 2,
@@ -172,52 +160,5 @@ test("capacity caption before resolution shows zero available", () => {
   assert.equal(
     groupsCapacityCaption(session, "active_standard_groups", "active records"),
     "4 records · 0 of 2 available",
-  );
-});
-
-test("ads_required is a plan flag, not an entitlement gate", () => {
-  assert.equal(workspaceRequiresAds(basicSession), true);
-  const plusSession = {
-    workspace: {
-      entitlements: {
-        ...basicEntitlements,
-        plan: { key: "plus", display_name: "Plus" },
-        features: { ...basicEntitlements.features, ads_required: false },
-      },
-    },
-  };
-  assert.equal(workspaceRequiresAds(plusSession), false);
-});
-
-test("effective advertising follows workspace.advertising, not ads_required alone", () => {
-  assert.equal(advertisingIsEnabled(basicSession), false);
-  const active = {
-    workspace: {
-      entitlements: basicEntitlements,
-      advertising: {
-        enabled: true,
-        provider: "mock",
-        placements: [PLACEMENT_DASHBOARD_BANNER, PLACEMENT_KIOSK_LAUNCH],
-      },
-    },
-  };
-  assert.equal(advertisingIsEnabled(active), true);
-  assert.equal(shouldShowPlacement(active, PLACEMENT_DASHBOARD_BANNER), true);
-  const globallyOff = {
-    workspace: {
-      entitlements: basicEntitlements,
-      advertising: { enabled: false, provider: "mock", placements: [] },
-    },
-  };
-  assert.equal(advertisingIsEnabled(globallyOff), false);
-  assert.equal(shouldShowPlacement(globallyOff, PLACEMENT_DASHBOARD_BANNER), false);
-  assert.equal(resolveBannerModel(globallyOff, PLACEMENT_DASHBOARD_BANNER, {
-    banner: () => ({ headline: "should not show" }),
-  }), null);
-  assert.equal(
-    resolveInterstitialDecision(globallyOff, PLACEMENT_KIOSK_LAUNCH, {
-      interstitial: () => ({ headline: "should not show" }),
-    }).show,
-    false,
   );
 });

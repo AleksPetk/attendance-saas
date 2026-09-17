@@ -25,18 +25,11 @@
     "limit": "Limit: {{limit}}"
   },
   "usageOf": "{{usage}} of {{limit}}",
-  "adsRequired": "Ads supported on Basic plan",
   "planLockCandidates": {
     "structuredGroup": "Structured Group",
     "standardGroup": "Standard Group",
     "workspaceAdmin": "Workspace Admin",
     "workspaceStaff": "Workspace Staff",
     "recordNumber": "Record #{{id}}"
-  },
-  "advertising": {
-    "ariaLabel": "Advertisement",
-    "kicker": "ADVERTISEMENT",
-    "headline": "Development placeholder",
-    "continue": "Continue"
   }
 }

@@ -129,11 +129,6 @@ export function canExportAnyReport(session) {
   );
 }
 
-/** Plan-level ads flag only. Effective ads also require the platform kill switch. */
-export function workspaceRequiresAds(session) {
-  return hasPlanFeature(session, "ads_required");
-}
-
 export function usageLabel(limitKey) {
   return i18n.t(`entitlements:usageLabels.${limitKey}`, { defaultValue: limitKey });
 }

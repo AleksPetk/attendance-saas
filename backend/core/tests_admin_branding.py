@@ -150,11 +150,11 @@ class PlatformAdminDashboardTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Platform dashboard")
         self.assertContains(response, "cs-dashboard")
-        self.assertContains(response, "Advertising")
-        self.assertContains(response, "Ads Switcher")
         self.assertContains(response, "Promotions")
-        self.assertContains(response, "Disable advertising")
         self.assertContains(response, "Manage promotions")
+        self.assertNotContains(response, "Ads Switcher")
+        self.assertNotContains(response, "Disable advertising")
+        self.assertNotContains(response, "Advertising")
         self.assertNotContains(response, "class=\"addlink\"")
         self.assertNotContains(response, "class=\"changelink\"")
         self.assertNotContains(response, "Recent actions")
@@ -560,9 +560,8 @@ class PlatformAdminCategoryLandingTests(TestCase):
         self._assert_category_page(
             "/admin/auth/",
             title="Security / System administration",
-            card_labels=["Advertising", "Permission Groups"],
+            card_labels=["Permission Groups"],
             changelist_names=[
-                "admin:core_platformadvertisingsettings_changelist",
                 "admin:auth_group_changelist",
             ],
         )
@@ -571,7 +570,7 @@ class PlatformAdminCategoryLandingTests(TestCase):
         self.assertNotContains(response, ">Permissions</h2>")
         core_page = self.client.get("/admin/core/")
         self.assertEqual(core_page.status_code, 200)
-        self.assertContains(core_page, "Advertising")
+        self.assertNotContains(core_page, "Advertising")
 
     def test_category_breadcrumb_from_changelist(self):
         response = self.client.get(reverse("admin:organizations_organization_changelist"))

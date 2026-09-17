@@ -66,6 +66,7 @@ apps/mobile/ios/
 apps/mobile/android/
 apps/desktop/release/
 apps/desktop/dist/
+apps/desktop/index-*.js
 *.jks
 *.mobileprovision
 *.p12

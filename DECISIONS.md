@@ -717,11 +717,11 @@ Only log decisions supported by approved product planning. Do not invent decisio
 | Field | Value |
 |-------|-------|
 | **Date** | 2026-08-25 |
-| **Decision** | Canonical V1 plan names are **Basic**, **Plus**, and **Business** only (not Free / Pro / Enterprise). Full capability and quota matrix is frozen in [PRODUCT.md — Subscriptions and Plans](./PRODUCT.md#subscriptions-and-plans). Summary: **Basic** is free forever with ads, tight Standard-only quotas, Staff page locked (0 Admin / 0 Staff), full Kiosk Builder with **all** Card/Input kiosk templates, full Settings/History/Reports, no CSV/Excel/PDF export, Group email senders + after-action/participation emails allowed, Forward Emails locked. **Plus** is paid, no ads, larger Standard-only quotas, 2 Admin / 5 Staff, full Kiosk Builder with all templates, full exports, full Group email including Forward Emails, Staff Group assignments, Structured Groups still locked. **Business** is paid, no ads, includes Plus plus Structured Groups (active Structured quotas, Classes/participants per Class), larger Standard/Member/staff quotas, Standard → Structured Class snapshot import, and the full current product feature set for those capabilities. Kiosk template access does **not** differ by plan. Event-specific plan axes remain open. |
+| **Decision** | Canonical V1 plan names are **Basic**, **Plus**, and **Business** only (not Free / Pro / Enterprise). Full capability and quota matrix is frozen in [PRODUCT.md — Subscriptions and Plans](./PRODUCT.md#subscriptions-and-plans). Summary: **Basic** is free forever, tight Standard-only quotas, Staff page locked (0 Admin / 0 Staff), full Kiosk Builder with **all** Card/Input kiosk templates, full Settings/History/Reports, no CSV/Excel/PDF export, Group email senders + after-action/participation emails allowed, Forward Emails locked. **Plus** is paid, larger Standard-only quotas, 2 Admin / 5 Staff, full Kiosk Builder with all templates, full exports, full Group email including Forward Emails, Staff Group assignments, Structured Groups still locked. **Business** is paid, includes Plus plus Structured Groups (active Structured quotas, Classes/participants per Class), larger Standard/Member/staff quotas, Standard → Structured Class snapshot import, and the full current product feature set for those capabilities. Kiosk template access does **not** differ by plan. Event-specific plan axes remain open. |
 | **Reason** | Product, marketing, entitlement, and future billing must share one frozen V1 tier definition. |
 | **Status** | confirmed |
 | **Clarifies** | DEC-018, OPEN-007 (names and V1 Group/Member/staff/feature limits) |
-| **Clarified by** | [DEC-077](#dec-077--v1-paid-usd-pricing-and-billing-intervals) (permanent USD prices) |
+| **Clarified by** | [DEC-077](#dec-077--v1-paid-usd-pricing-and-billing-intervals) (permanent USD prices), [DEC-099](#dec-099--advertising-removed-product-is-ad-free) (advertising removed; plan matrix no longer uses ads differentiation) |
 | **Product source** | [PRODUCT.md](./PRODUCT.md#subscriptions-and-plans) |
 
 ### DEC-073 — Plan entitlement semantics and non-destructive downgrade
@@ -743,8 +743,9 @@ Only log decisions supported by approved product planning. Do not invent decisio
 | **Updated** | 2026-09-07 (added kiosk idle banner) |
 | **Decision** | **Basic** may show ads in these frozen **web** placements: **Dashboard banner**, **Groups banner**, **before kiosk launch** (interstitial), **after kiosk exit** (interstitial), **when leaving Kiosk Builder** (interstitial), and a **kiosk idle banner** on the live kiosk idle/ready screen only (Standard start or Structured class picker). Ads are **not** allowed during **active participant kiosk interaction** (identify, PIN, action choice, processing, success/confirmation). **Plus** and **Business** have **no ads**. A platform-operator global kill switch can hide all advertising without changing workspace plans. Local/web development uses a mock provider; a real provider is deferred until deployment. Ad/provider failure must never block application functionality. |
 | **Reason** | Monetize Basic without interrupting participant check-in UX. |
-| **Status** | confirmed |
+| **Status** | superseded |
 | **Clarifies** | DEC-072 |
+| **Superseded by** | [DEC-099](#dec-099--advertising-removed-product-is-ad-free) |
 
 ### DEC-075 — Owner Account area: Security, Subscription, Billing
 
@@ -998,6 +999,19 @@ Only log decisions supported by approved product planning. Do not invent decisio
 | **Decision** | Structured Class PINs and Group participation PINs (membership and group-only participants) are stored as Django password hashes, never plaintext and never reversibly encrypted. Managers may set/reset a PIN but cannot retrieve an existing raw PIN after save. APIs expose only boolean metadata such as `has_class_pin` / `has_pin`; raw PINs and hashes are never serialized. Verification is server-side via `check_password`. Standard Group → Class import copies hash digests (not recoverable plaintext). Member profile PINs and kiosk exit codes already followed this model and remain unchanged. |
 | **Clarifies** | Phase 6 deployment-prep PIN hardening |
 | **Notes** | Does not change kiosk Class PIN session-grant behavior (Phase 3) or shared-cache rate limits (Phase 5 / DEC-097). |
+
+### DEC-099 — Advertising removed; product is ad-free
+
+| Field | Content |
+|-------|---------|
+| **ID** | DEC-099 |
+| **Date** | 2026-09-17 |
+| **Status** | confirmed |
+| **Decision** | Advertising is **removed** from CheckStation. The product is entirely **ad-free** on every plan: **Basic**, **Plus**, and **Business**. **Basic** remains the free plan with its existing limits; it is free **without ads**. Deferred plans for a real AdSense (or similar) provider, mock advertising surfaces as a product feature, and the platform advertising kill switch as a commercial control are **cancelled**. Do not describe tiers by “with ads” / “no ads,” and do not treat “no ads” as a paid-plan feature bullet. |
+| **Reason** | Product direction is ad-free; advertising is no longer part of monetization or entitlement differentiation. |
+| **Supersedes** | [DEC-074](#dec-074--basic-ads-policy) |
+| **Clarifies** | [DEC-072](#dec-072--v1-plan-tiers-basic-plus-business) (plan matrix without advertising differentiation) |
+| **Does not change** | Existing V1 plan limits, permanent USD prices (DEC-077), or non-advertising entitlement features |
 
 
 ## Open Decisions

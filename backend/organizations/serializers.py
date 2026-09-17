@@ -24,7 +24,6 @@ class CurrentWorkspaceSerializer(serializers.Serializer):
     workspace_id = serializers.CharField(allow_null=True)
     capabilities = serializers.DictField(required=False)
     entitlements = serializers.DictField(required=False)
-    advertising = serializers.DictField(required=False)
     account_mode = serializers.CharField(required=False)
     workspace_status = serializers.CharField(required=False, allow_null=True)
     builtin_trial = serializers.DictField(required=False)

@@ -25,9 +25,7 @@ test("build emits ten canonical marketing HTML documents with raw SEO metadata",
       assert.match(html, new RegExp(`<html lang="${locale}">`));
       assert.match(html, /<title>[^<]+<\/title>/);
       assert.match(html, /<meta name="description" content="[^"]+" \/>/);
-      assert.ok(
-        html.includes('<meta name="google-adsense-account" content="ca-pub-7946536524469970" />'),
-      );
+      assert.doesNotMatch(html, /google-adsense-account|adsense|ca-pub-/i);
       assert.ok(html.includes(`<link rel="canonical" href="https://checkstation.app${path}" />`));
       assert.ok(html.includes('hreflang="en"'));
       assert.ok(html.includes('hreflang="ja"'));
@@ -65,20 +63,12 @@ test("robots policies are host-specific", async () => {
   assert.doesNotMatch(workspace, /Sitemap:/);
 });
 
-test("ads.txt is emitted as the AdSense publisher line only", async () => {
-  const ads = await readFile(new URL("ads.txt", distUrl), "utf8");
-  assert.equal(
-    ads.trim(),
-    "google.com, pub-7946536524469970, DIRECT, f08c47fec0942fa0",
-  );
-  assert.doesNotMatch(ads, /<html|<!DOCTYPE/i);
-});
-
-test("marketing nginx serves ads.txt as an exact plain-text file", async () => {
+test("marketing site does not serve ads.txt", async () => {
   const nginx = await readFile(new URL("../nginx.conf", import.meta.url), "utf8");
-  assert.match(
-    nginx,
-    /server_name checkstation\.app;[\s\S]*location = \/ads\.txt \{[\s\S]*try_files \/ads\.txt =404;[\s\S]*default_type text\/plain;/,
+  assert.doesNotMatch(nginx, /location = \/ads\.txt/);
+  await assert.rejects(
+    () => readFile(new URL("ads.txt", distUrl), "utf8"),
+    (error) => error && error.code === "ENOENT",
   );
 });
 

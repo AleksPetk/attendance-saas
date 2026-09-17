@@ -152,8 +152,6 @@ Back on the Group, choose **Launch Kiosk**. That opens the live kiosk and **lock
 
 Launch is blocked until Group setup and Kiosk Settings are ready (participants complete, exit code set, identification valid). Plan-locked Groups cannot launch.
 
-On Basic, you may see an ad **before** launch. Ads are not shown during the live participant kiosk.
-
 The live screen may show **Loading kiosk…** briefly.
 
 ## 13. Perform a test check-in or check-out
@@ -175,7 +173,7 @@ Each successful action creates an **Action Record**. That is the history, not a 
 2. In **Exit kiosk**, enter this Group’s **Exit code**.
 3. Confirm **Exit kiosk**.
 
-Exit uses the kiosk exit code only — not the owner password. After a successful exit you return to the workspace. On Basic you may see an ad after exit.
+Exit uses the kiosk exit code only — not the owner password. After a successful exit you return to the workspace.
 
 If this browser is already locked, use **Unlock session** with the same exit code.
 
@@ -214,7 +212,7 @@ The owner opens **Account**:
 - **Subscription** — current plan, usage, upgrades and downgrades
 - **Billing** — invoices, receipts, payment details (Stripe for web checkout)
 
-New workspaces include a **7-day Business trial** (no card). After that week, unpaid workspaces are **Basic** (free, with ads in specified workspace placements). Paid plans are Plus and Business. Changing plan does not delete existing data; it can lock increasing usage that exceeds the new plan.
+New workspaces include a **7-day Business trial** (no card). After that week, unpaid workspaces are **Basic** (free). Paid plans are Plus and Business. Changing plan does not delete existing data; it can lock increasing usage that exceeds the new plan.
 
 ## 19. Next
 

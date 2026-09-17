@@ -221,15 +221,6 @@ CATEGORY_DEFINITIONS = (
                 "stats": lambda: _promotion_stats(),
             },
             {
-                "app_label": "core",
-                "object_name": "platformadvertisingsettings",
-                "label": "Advertising",
-                "description": "Global advertising kill switch for all workspaces.",
-                "prefer_add": False,
-                "count": lambda: 1,
-                "stats": lambda: _advertising_stats(),
-            },
-            {
                 "app_label": "content",
                 "object_name": "announcement",
                 "label": "Announcements",
@@ -286,18 +277,6 @@ CATEGORY_DEFINITIONS = (
         ),
     },
 )
-
-
-def _advertising_stats():
-    from core.models import PlatformAdvertisingSettings
-
-    enabled = PlatformAdvertisingSettings.load().ads_globally_enabled
-    return [
-        {
-            "label": "Status",
-            "value": "Enabled" if enabled else "Disabled",
-        }
-    ]
 
 
 def _pricing_template_stats():

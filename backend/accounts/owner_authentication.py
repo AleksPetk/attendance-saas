@@ -21,7 +21,6 @@ from attendance.kiosk_lock import attach_kiosk_status
 from billing.builtin_trial import attach_builtin_trial
 from organizations.account_mode import account_mode_key
 from organizations.entitlements import build_entitlement_payload
-from organizations.entitlements.advertising import attach_workspace_advertising
 from organizations.models import Organization, OrganizationStatus
 from organizations.permissions import workspace_capabilities
 from organizations.serializers import CurrentWorkspaceSerializer
@@ -51,7 +50,6 @@ def build_owner_workspace_payload(request, user, organization):
             getattr(user, "preferred_language", None)
         ),
     }
-    attach_workspace_advertising(payload, organization)
     attach_builtin_trial(payload, organization)
     return CurrentWorkspaceSerializer(attach_kiosk_status(request, payload)).data
 

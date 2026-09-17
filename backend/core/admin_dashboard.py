@@ -136,11 +136,6 @@ NAV_GROUPS = (
                 "label": "Promotions",
             },
             {
-                "app_label": "core",
-                "object_name": "platformadvertisingsettings",
-                "label": "Advertising",
-            },
-            {
                 "app_label": "content",
                 "object_name": "announcement",
                 "label": "Announcements",
@@ -164,34 +159,6 @@ NAV_GROUPS = (
         ),
     },
 )
-
-def build_advertising_status():
-    from django.urls import NoReverseMatch, reverse
-
-    from core.models import PlatformAdvertisingSettings
-
-    settings_obj = PlatformAdvertisingSettings.load()
-    try:
-        toggle_url = reverse("admin:core_platformadvertisingsettings_toggle")
-        change_url = reverse(
-            "admin:core_platformadvertisingsettings_change",
-            args=[settings_obj.pk],
-        )
-    except NoReverseMatch:
-        toggle_url = ""
-        change_url = ""
-    enabled = bool(settings_obj.ads_globally_enabled)
-    return {
-        "enabled": enabled,
-        "label": "Enabled" if enabled else "Disabled",
-        "action_label": (
-            "Disable advertising" if enabled else "Enable advertising"
-        ),
-        "toggle_url": toggle_url,
-        "change_url": change_url,
-        "updated_at": settings_obj.updated_at,
-    }
-
 
 def build_promotion_status():
     from django.urls import NoReverseMatch, reverse
@@ -632,7 +599,6 @@ def build_dashboard_context(request):
         "dashboard_metrics": build_summary_metrics(),
         "dashboard_operational_metrics": build_operational_metrics(),
         "dashboard_plans": build_plan_metrics(),
-        "dashboard_advertising": build_advertising_status(),
         "dashboard_promotion": build_promotion_status(),
         "dashboard_pricing_template": build_pricing_template_status(),
         "dashboard_promotional_text": build_promotional_text_status(),

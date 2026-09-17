@@ -534,7 +534,7 @@ Recurring subscription SaaS product. **Subscriptions belong to the Organization 
 
 Every newly created **normal** workspace automatically receives **Business** for **7 days** at creation (DEC-093). No card, no activation choice, and no “use later.” CheckStation-managed workspaces are ineligible. Workspaces that already existed when this trial shipped are permanently ineligible. The first-time workspace tutorial only **informs** the owner that Business is already included; it does not activate the trial.
 
-**V1 plan names, limits, ads policy, non-destructive downgrade semantics, Owner Account area structure, entitlement architecture, permanent USD prices, monthly/yearly intervals, automatic 7-day built-in Business trial, upgrade/downgrade/cancellation timing, and payment-failure grace are frozen** (see below and [DECISIONS.md](./DECISIONS.md) DEC-072–082, DEC-093). Stripe Checkout/webhooks/Customer Portal **architecture and Account UI are implemented** (provider boundary + owner APIs); live Stripe account/credentials and Apple billing remain open (OPEN-011 narrowed, OPEN-015).
+**V1 plan names, limits, non-destructive downgrade semantics, Owner Account area structure, entitlement architecture, permanent USD prices, monthly/yearly intervals, automatic 7-day built-in Business trial, upgrade/downgrade/cancellation timing, and payment-failure grace are frozen** (see below and [DECISIONS.md](./DECISIONS.md) DEC-072–082, DEC-093, DEC-099). There is no advertising system (DEC-099). Stripe Checkout/webhooks/Customer Portal **architecture and Account UI are implemented** (provider boundary + owner APIs); live Stripe account/credentials and Apple billing remain open (OPEN-011 narrowed, OPEN-015).
 
 Do **not** treat kiosks as a separately assigned workspace resource for plan limits. Do **not** artificially disable essential operational functionality only to invent pricing tiers beyond the frozen matrix.
 
@@ -542,7 +542,7 @@ Do **not** treat kiosks as a separately assigned workspace resource for plan lim
 
 | Plan | Monthly | Yearly |
 |------|---------|--------|
-| **Basic** | Free forever (ads) | Free forever (ads) |
+| **Basic** | Free forever | Free forever |
 | **Plus** | USD $9.99 | USD $99.99 |
 | **Business** | USD $14.99 | USD $149.99 |
 
@@ -555,7 +555,6 @@ Promotions are eligibility-based (DEC-091): New/Basic OFF/NORMAL/BIG acquisition
 | Capability | Basic | Plus | Business |
 |------------|-------|------|----------|
 | Price posture | Free forever | Paid | Paid |
-| Ads | Yes (see Basic ads policy) | No | No |
 | Active Standard Groups | 2 | 10 | 30 |
 | Active Structured Groups | Locked (0) | Locked (0) | 15 |
 | Archived Groups | 2 | 10 | 50 total (current Group archive model) |
@@ -658,24 +657,9 @@ Plan-lock / slot-selection runs only when the **effective** entitlement plan cha
 
 Platform-admin changes to `Organization.plan` for **CheckStation Accounts** are **manual entitlement operations**, not paid transactions, and must use `apply_effective_plan()`. Normal customer workspaces with a live paid subscription are not raw-edited from Organization admin.
 
-### Basic ads policy
+### No advertising system
 
-**Basic** may show ads in these **web workspace** placements:
-
-- Dashboard banner
-- Groups banner
-- before kiosk launch (interstitial)
-- after kiosk exit (interstitial)
-- when leaving Kiosk Builder (interstitial)
-- kiosk idle banner (live kiosk idle/ready only)
-
-**Ads are not allowed during active participant kiosk interaction.** That includes identify, PIN, action chooser, processing/sending, and success/confirmation. The idle banner may appear only on Standard start or Structured class picker while the kiosk is waiting.
-
-**Plus** and **Business** have **no ads**.
-
-A platform-operator **global kill switch** can hide all advertising without changing workspace plans or subscriptions.
-
-The current web implementation uses a **development mock provider**. A real ad provider is deferred until deployment. Provider or render failure must never block Dashboard, Groups, kiosk launch, kiosk exit, Kiosk Builder navigation, or attendance actions.
+CheckStation does not include an advertising system, placements, advertising entitlements, or advertising provider integrations (DEC-099; supersedes DEC-074). Plan differentiation is limits and product features only.
 
 ### Owner Account area (architecture)
 

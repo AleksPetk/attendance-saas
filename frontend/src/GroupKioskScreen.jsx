@@ -12,9 +12,6 @@ import {
   peopleFromKioskStartPayload,
 } from "./groupKioskStartPeople.js";
 import { browserReportTimezone } from "./history/reportTimezone.js";
-import AdBanner from "./advertising/AdBanner.jsx";
-import { PLACEMENT_KIOSK_IDLE } from "./advertising/placements.js";
-import { isKioskIdleReadyForAd } from "./advertising/state.js";
 import KioskRenderer from "./kiosk/KioskRenderer.jsx";
 import KioskConfirmationScreen from "./kiosk/KioskConfirmationScreen.jsx";
 import KioskProcessingScreen from "./kiosk/KioskProcessingScreen.jsx";
@@ -729,21 +726,6 @@ export default function GroupKioskScreen({ session, groupId, onUnlocked, onKiosk
       />
     ) : null;
 
-  const showKioskIdleAd = isKioskIdleReadyForAd({
-    step,
-    unavailable,
-    isStructured,
-    exitOpen,
-    identifying,
-    performing,
-    inputValues,
-  });
-  const idleAdBanner = showKioskIdleAd ? (
-    <div className="kiosk-idle-ad" data-testid="kiosk-idle-ad">
-      <AdBanner session={session} placement={PLACEMENT_KIOSK_IDLE} />
-    </div>
-  ) : null;
-
   const operationalBody = (
     <>
       {unavailable ? (
@@ -1076,7 +1058,6 @@ export default function GroupKioskScreen({ session, groupId, onUnlocked, onKiosk
         >
           {operationalBody}
         </KioskRenderer>
-        {idleAdBanner}
         {exitDialog}
         {pinDialog}
       </>
@@ -1097,7 +1078,6 @@ export default function GroupKioskScreen({ session, groupId, onUnlocked, onKiosk
           </button>
         ) : null}
       </header>
-      {idleAdBanner}
       {exitDialog}
       {pinDialog}
       {operationalBody}

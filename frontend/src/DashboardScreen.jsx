@@ -8,8 +8,6 @@ import {
   LoadingState,
   StatCard,
 } from "./components.jsx";
-import AdBanner from "./advertising/AdBanner.jsx";
-import { PLACEMENT_DASHBOARD_BANNER } from "./advertising/placements.js";
 import { localizedErrorMessage } from "./i18n/errorMessages.js";
 import { formatDate } from "./i18n/format.js";
 import { usePageTitle } from "./i18n/usePageTitle.js";
@@ -94,8 +92,6 @@ export default function DashboardScreen({ session }) {
 
   return (
     <div className="page">
-      <AdBanner session={session} placement={PLACEMENT_DASHBOARD_BANNER} />
-
       <div className="dashboard-metrics" data-tutorial-target="workspace-dashboard">
         {showMembers ? (
           <StatCard

@@ -165,8 +165,6 @@ Launch is blocked when:
 
 Banners: **Setup incomplete**, **Kiosk settings need attention**.
 
-On Basic, an ad may appear **before** launch. Ads are not shown during the live participant flow.
-
 ## 20. Live kiosk lock
 
 While locked, this browser cannot open the workspace dashboard or most workspace APIs. The app keeps you on the live kiosk URL.
@@ -196,8 +194,6 @@ Participants receive mail at the **Group email** on the participation record.
 The code is 4–10 letters or numbers, set under Kiosk Settings → **Exit Kiosk**. Status: **Exit code configured** or **Exit code required**. Changing it uses **Change exit code**.
 
 Exit does **not** use the owner or staff password.
-
-On Basic, an ad may appear after exit.
 
 ## 24. Editing the kiosk later
 
@@ -230,5 +226,5 @@ Builder still uses Header / Main / Footer plus the **Cards** tab. Identification
 
 - [Getting Started](/getting-started) — account, first Group, test check-in, History
 - [Groups & Members](/groups-members) — people, Visitors, and plan-locked Groups
-- [Billing & Plans](/billing-plans) — ads on Basic, exports, and plan limits
+- [Billing & Plans](/billing-plans) — exports and plan limits
 - [FAQ](/faq) — kiosk launch, lock, PIN, and exit code questions

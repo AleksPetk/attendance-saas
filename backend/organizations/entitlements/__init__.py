@@ -1,5 +1,4 @@
 from organizations.entitlements.catalog import (
-    FEATURE_ADS_REQUIRED,
     FEATURE_GROUP_FORWARD_EMAILS,
     FEATURE_REPORT_EXPORT_CSV,
     FEATURE_REPORT_EXPORT_EXCEL,
@@ -47,13 +46,6 @@ from organizations.entitlements.plan_locks import (
     require_staff_account_plan_unlocked,
     sync_plan_locks_after_plan_change,
 )
-from organizations.entitlements.advertising import (
-    advertising_is_active,
-    ads_globally_enabled,
-    attach_workspace_advertising,
-    build_advertising_payload,
-    workspace_requires_ads,
-)
 from organizations.entitlements.transitions import (
     InvalidPlanError,
     apply_effective_plan,
@@ -73,7 +65,6 @@ from organizations.entitlements.service import (
 )
 
 __all__ = [
-    "FEATURE_ADS_REQUIRED",
     "FEATURE_GROUP_FORWARD_EMAILS",
     "FEATURE_REPORT_EXPORT_CSV",
     "FEATURE_REPORT_EXPORT_EXCEL",
@@ -95,12 +86,8 @@ __all__ = [
     "PLAN_KEYS",
     "PLAN_PLUS",
     "PlanEntitlementDenied",
-    "ads_globally_enabled",
-    "advertising_is_active",
     "apply_effective_plan",
     "apply_slot_selection",
-    "attach_workspace_advertising",
-    "build_advertising_payload",
     "build_entitlement_payload",
     "can_create_resource",
     "can_operate_group",
@@ -135,5 +122,4 @@ __all__ = [
     "require_no_unresolved_member_selection",
     "require_staff_account_plan_unlocked",
     "sync_plan_locks_after_plan_change",
-    "workspace_requires_ads",
 ]

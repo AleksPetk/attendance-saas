@@ -10,7 +10,6 @@ test("Dashboard removes duplicate Overview/title/subtitle from page content", ()
   assert.doesNotMatch(source, /dashboard\.eyebrow/);
   assert.doesNotMatch(source, /dashboard\.description/);
   assert.match(source, /dashboard-metrics/);
-  assert.match(source, /PLACEMENT_DASHBOARD_BANNER/);
 });
 
 test("Members removes duplicate title and aligns Add Member with usage", () => {

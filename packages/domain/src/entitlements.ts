@@ -141,18 +141,3 @@ export function isGroupScopedStaff(session: WorkspaceSession | null | undefined)
 export function isKioskLocked(session: WorkspaceSession | null | undefined): boolean {
   return Boolean(session?.kiosk_locked);
 }
-
-/** Ads: Basic may show ads; Plus/Business/Business-trial should not. Native monetization is separate. */
-export function shouldShowBasicAdsSurface(
-  session: WorkspaceSession | null | undefined,
-): boolean {
-  const plan = workspacePlanKey(session);
-  if (plan !== "basic") return false;
-  // If trial flags exist on entitlements, prefer them.
-  const ents = entitlementsFromSession(session) as WorkspaceEntitlements & {
-    trial?: { active?: boolean };
-    business_trial_active?: boolean;
-  };
-  if (ents?.business_trial_active || ents?.trial?.active) return false;
-  return true;
-}

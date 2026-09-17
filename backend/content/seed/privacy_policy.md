@@ -172,7 +172,6 @@ Check Station automatically processes:
 
 Check Station does **not** currently operate a third-party product-analytics product (for example a marketing analytics tag manager) as part of the documented architecture.
 
-Advertising on the Basic plan currently uses a **mock** development provider. A real advertising network is not connected. When a real provider is introduced, this Policy will need to be updated to describe that sharing.
 
 ## 7. Cookies and session technologies
 
@@ -194,7 +193,6 @@ We use information to:
 - authenticate owners and workspace staff and protect sessions
 - send platform transactional email (verification, password reset, email-change notices, and billing notices such as payment-failure warnings during grace)
 - process subscriptions, entitlements, plan limits, upgrades, downgrades, cancellations, and payment-provider events
-- display advertising placements on **Basic** workspaces when the plan requires ads **and** the platform advertising kill switch is on (not during active participant kiosk interaction; idle/ready banner may show while waiting)
 - prevent fraud, abuse, and unauthorized access, including Contact-form rate limiting and bot protection
 - receive and respond to Contact messages and privacy/legal requests (capture and routing only; requests are not automatically executed)
 - comply with law and enforce the Terms of Use
@@ -216,30 +214,20 @@ These providers process data according to their terms and the instructions and c
 
 Customer-configured SMTP providers (Google, Microsoft, Yahoo, or a customer's own mail server) receive whatever the customer sends through Group email. That is the customer's processing, using credentials the customer supplied.
 
-## 10. Advertising (Basic plan)
 
-**Basic** workspaces may show ads. **Plus** and **Business** workspaces do not.
-
-Current frozen web placements are: dashboard banner, Groups banner, before kiosk launch, after kiosk exit, when leaving Kiosk Builder, and a kiosk idle banner on the live kiosk idle/ready screen only. Ads are **not** shown during active participant check-in/out interaction (identify, PIN, action choice, processing, confirmation), and are not shown on Members, History, Staff, or Account surfaces as currently specified.
-
-A platform operator can disable all advertising globally without changing workspace plans. Local development uses a mock provider. Because no live ad network is connected, this Policy does not claim sharing of personal data with an advertising network.
-
-## 11. Children and minors
-
+## 10. Children and minors
 Check Station is sold to organizations. The product examples include schools and childcare, among other organization types. Members and participants generally do **not** create Check Station owner accounts.
 
 Check Station does not provide an age-gate for participants. Customers who enter information about children are responsible for complying with applicable children's privacy and education-privacy laws, including obtaining any required parental or guardian consent and providing any required notices. Check Station does not claim COPPA, GDPR-K, or similar certification.
 
 If we learn that an **owner account** was created by a child in violation of the Terms, we may delete that account.
 
-## 12. International processing
-
+## 11. International processing
 Check Station may be accessed from more than one country. Production hosting region is not designated in this Policy. Information may be processed in whatever country the then-current infrastructure occupies.
 
 Customers in Japan remain responsible for their own obligations under the Act on the Protection of Personal Information (APPI) and related guidelines for the personal data they decide to collect. This Policy is not a substitute for a customer's APPI notice to data subjects.
 
-## 13. Retention
-
+## 12. Retention
 Check Station retains account and workspace data while the workspace exists.
 
 Archive and deactivate are the ordinary reversible paths and are designed to **preserve** history, including Action Records.
@@ -248,8 +236,7 @@ A documented numeric retention schedule for Action Records after archive, and a 
 
 Local development databases persist on disk volumes; that is not a production backup policy.
 
-## 14. Deletion
-
+## 13. Deletion
 Owners may permanently delete their Check Station account when no live paid subscription blocks deletion. The built-in free Business trial alone does not block deletion.
 
 Permanent deletion is owner-only (or a platform superuser in administration), requires sensitive confirmation (password re-entry, or provider re-authentication for OAuth-only owners), and is irreversible in the product.
@@ -264,16 +251,14 @@ After true deletion, the owner's email may be registered again as a new account.
 
 Stripe or other provider objects may still exist at the provider until canceled or deleted there. The current deletion implementation does not document a guaranteed provider-side wipe.
 
-## 15. Security
-
+## 14. Security
 Check Station uses access controls, password hashing, CSRF protection, isolated admin sessions, optional owner TOTP, mandatory platform-admin TOTP for Django administration, encryption of certain secrets at rest (including TOTP secrets and Group SMTP passwords), and kiosk session lock to keep the workspace UI away from participants.
 
 Attendance PINs and class PINs are operational codes stored using one-way hashing. Managers can set, change, or reset them, but the product does not display saved PIN values. They are not equivalent to login passwords.
 
 No method of transmission or storage is completely secure. Check Station does not guarantee absolute security and does not claim a specific certification (for example ISO 27001 or SOC 2) in this Policy.
 
-## 16. Privacy rights
-
+## 15. Privacy rights
 Depending on where you live, you may have rights to access, correct, or delete personal data, or to object to certain processing.
 
 - **Owners** can access and update much of their account data in Account settings and can request permanent deletion as described above.
@@ -282,18 +267,15 @@ Depending on where you live, you may have rights to access, correct, or delete p
 
 We may refuse requests that are unfounded, repetitive, or that would violate another person's rights or the security of the service.
 
-## 17. Legal requests
-
+## 16. Legal requests
 We may disclose information if we believe it is required by law, legal process, or to protect Check Station, customers, or individuals from harm. We do not publish a law-enforcement guidelines document in this version.
 
-## 18. Changes
-
+## 17. Changes
 We may update this Policy. The version, last-updated timestamp, and effective date published through the Check Station content API (and shown on this page) are the current public metadata. Material changes take effect on the stated effective date. Continued use after that date constitutes acceptance of the updated Policy where permitted by law.
 
 Because this document is canonical, changing it in the Check Station content system updates the public Docs site and any future in-app viewers that fetch the same API. It does not require a separate copy in each frontend.
 
-## 19. Contact
-
+## 18. Contact
 Privacy questions about Check Station as a service: {{LEGAL_CONTACT_EMAIL}}, or the public Contact page on the Check Station website (category Privacy & Data).
 
 Questions about a school's, employer's, or club's use of Check Station, including a request about a Member or participant record, should be directed to that organization.

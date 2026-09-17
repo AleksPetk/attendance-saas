@@ -473,7 +473,6 @@ FAQ_ENTRIES_JA = (
         "sort_order": 70,
         "answer": (
             "いいえ。カードと入力テンプレートは Basic、Plus、Business すべてで利用可能。"
-            "Basic では起動／終了周辺とワークスペースバナーに広告が表示される場合あり。"
         ),
     },
     {
@@ -584,7 +583,7 @@ FAQ_ENTRIES_JA = (
             "送信者が設定済みか、アドレスが有効か確認。プラットフォームの登録／認証メールは Resend。"
             "グループ出席メールは設定したグループ送信者（カスタム SMTP、Gmail アプリパスワード、"
             "Outlook / Microsoft 365 SMTP、Yahoo Mail アプリパスワード）。"
-            "広告やプラン制限はメールを送信しません。"
+            "プラン制限はメールを送信しません。"
         ),
     },
     {
@@ -744,7 +743,7 @@ FAQ_ENTRIES_JA = (
         "slug": "what-is-included-in-basic",
         "question": "Basic には何が含まれますか？",
         "category": FaqCategory.PLANS,
-        "keywords": "basic plan, free, ads, Basic プラン",
+        "keywords": "basic plan, free, Basic プラン",
         "related_document_slug": "billing-plans",
         "featured": True,
         "sort_order": 10,
@@ -753,7 +752,7 @@ FAQ_ENTRIES_JA = (
             "{{PLAN_BASIC_LIMIT_ACTIVE_STANDARD_GROUPS}}）、"
             "メンバー {{PLAN_BASIC_LIMIT_MEMBERS}}、全テンプレート付きキオスクビルダー、"
             "履歴を含みます。Structured Group、Staff/Admin シート、ファイルエクスポート、"
-            "転送メールは含まれません。指定配置に広告が表示される場合あり。"
+            "転送メールは含まれません。"
             "詳細: [請求とプラン](/billing-plans)。"
         ),
     },
@@ -766,7 +765,7 @@ FAQ_ENTRIES_JA = (
         "sort_order": 20,
         "answer": (
             "Plus は有料（月額 {{PLAN_PRICE_PLUS_MONTHLY}}、年額 {{PLAN_PRICE_PLUS_YEARLY}}）。"
-            "広告なし。Standard 上限拡大、Admin/Staff シート、CSV/Excel/PDF エクスポート、"
+            "Standard 上限拡大、Admin/Staff シート、CSV/Excel/PDF エクスポート、"
             "転送メール。Structured Group は引き続き Business のみ。"
         ),
     },
@@ -820,19 +819,6 @@ FAQ_ENTRIES_JA = (
         "sort_order": 60,
         "answer": (
             "はい。すべてのカードと入力キオスクテンプレートは Basic を含む全プランで利用可能。"
-        ),
-    },
-    {
-        "slug": "does-basic-have-ads",
-        "question": "Basic に広告は表示されますか？",
-        "category": FaqCategory.PLANS,
-        "keywords": "ads, interstitial, banner, 広告",
-        "related_document_slug": "billing-plans",
-        "sort_order": 70,
-        "answer": (
-            "はい。ダッシュボードとグループのバナー、キオスク起動前、終了後、"
-            "キオスクビルダー離脱時のインタースティシャル。ライブキオスク操作中は表示されません。"
-            "Plus と Business には広告なし。"
         ),
     },
     {

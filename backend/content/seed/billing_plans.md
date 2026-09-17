@@ -22,11 +22,10 @@ New workspaces automatically receive a **7-day Business trial** at creation. No 
 
 It includes Standard Groups, kiosk builder (all Card and Input templates), History, and Group email senders. It does **not** include Structured Groups, Staff/Admin seats, report exports, or Forward Emails.
 
-Basic **shows ads** in specified workspace placements. See [Ads on Basic](#16-ads-on-basic).
 
 ## 3. Plus
 
-{{PLAN_PLUS_NAME}} is the first paid plan. No ads. Larger Standard Group and Member limits. Admin and Staff seats. CSV, Excel, and PDF exports. Forward Emails.
+{{PLAN_PLUS_NAME}} is the first paid plan. Larger Standard Group and Member limits. Admin and Staff seats. CSV, Excel, and PDF exports. Forward Emails.
 
 Plus does **not** include Structured Groups.
 
@@ -36,7 +35,7 @@ Plus does **not** include Structured Groups.
 
 ## 5. Monthly billing
 
-Paid plans can be billed **monthly**. The billing interval is chosen at checkout and can later be changed on a Stripe-managed subscription. Interval changes take effect at period end. See [Monthly → yearly](#22-monthly--yearly).
+Paid plans can be billed **monthly**. The billing interval is chosen at checkout and can later be changed on a Stripe-managed subscription. Interval changes take effect at period end. See [Monthly → yearly](#21-monthly--yearly).
 
 ## 6. Yearly billing
 
@@ -70,7 +69,6 @@ Taxes, payment-method fees, and Stripe proration amounts are calculated by Strip
 | CSV / Excel / PDF export | No | Yes | Yes |
 | Forward Emails | No | Yes | Yes |
 | Snapshot import into a Class | No | No | Yes |
-| Ads | Yes | No | No |
 
 Group after-action email uses the **Group email sender** you configure (custom SMTP, Gmail app password, Outlook / Microsoft 365 SMTP, or Yahoo Mail app password). It is available on every plan when the sender is ready. Forward Emails are Plus and Business.
 
@@ -123,22 +121,8 @@ Forward Emails are extra private copies of Group after-action messages (up to th
 
 This is separate from participation emails (the addresses for the person who checked in) and from the Group's own SMTP sender.
 
-## 16. Ads on Basic
 
-On Basic, ads may appear as:
-
-- Dashboard banner
-- Groups banner
-- before kiosk launch (interstitial)
-- after kiosk exit (interstitial)
-- when leaving Kiosk Builder (interstitial)
-
-Ads are **not** shown during live participant kiosk operation, and not on Members, History, Staff, or Account.
-
-Plus and Business have no ads. A platform-operator kill switch can hide ads without changing your plan. Local development uses a mock ad provider. A failed ad must never block Dashboard, Groups, or kiosk launch.
-
-## 17. Upgrading
-
+## 16. Upgrading
 The workspace **owner** upgrades from **Account → Subscription**.
 
 Paid web upgrades use Stripe Checkout or an in-account plan change, depending on whether you already have a Stripe subscription.
@@ -147,16 +131,14 @@ Same-interval Plus → Business is **immediate**. Other changes may be scheduled
 
 Staff and Admin cannot change the plan.
 
-## 18. Plus → Business same-interval upgrade
-
+## 17. Plus → Business same-interval upgrade
 If you are already on Plus monthly and choose Business monthly (or Plus yearly → Business yearly), the upgrade is **immediate**.
 
 Stripe calculates unused Plus time as credit and charges the remaining prorated Business difference. CheckStation does not invent that amount. Account shows a Stripe-calculated preview before you confirm when that preview is available.
 
 The billing-cycle renewal date is preserved where Stripe supports it. You are not charged a full new Business year on top of time already paid on Plus.
 
-## 19. Proration
-
+## 18. Proration
 Proration applies to **same-interval paid upgrades**. Stripe calculates the amount.
 
 There is **no** immediate proration charge for:
@@ -166,8 +148,7 @@ There is **no** immediate proration charge for:
 
 Do not expect CheckStation to show a homemade proration formula.
 
-## 20. Downgrading
-
+## 19. Downgrading
 **Business → Plus** on the same interval is **scheduled** for the current paid period end.
 
 Until then:
@@ -178,10 +159,9 @@ Until then:
 
 At period end, the workspace becomes Plus and plan-lock rules run if usage is over Plus limits.
 
-Downgrading from a paid plan to Basic is **cancellation**, not a Plus downgrade. See [Cancelling subscription](#26-cancelling-subscription).
+Downgrading from a paid plan to Basic is **cancellation**, not a Plus downgrade. See [Cancelling subscription](#25-cancelling-subscription).
 
-## 21. Scheduled plan changes
-
+## 20. Scheduled plan changes
 Scheduled changes wait until the current paid period ends. They include:
 
 - Business → Plus
@@ -189,26 +169,22 @@ Scheduled changes wait until the current paid period ends. They include:
 - combined plan + interval (for example Plus monthly → Business yearly)
 - cancellation (access until period or trial end)
 
-You can cancel a scheduled change before it takes effect. See [Cancelling a scheduled change](#25-cancelling-a-scheduled-change).
+You can cancel a scheduled change before it takes effect. See [Cancelling a scheduled change](#24-cancelling-a-scheduled-change).
 
-## 22. Monthly → yearly
-
+## 21. Monthly → yearly
 Changing monthly to yearly is always **scheduled for period end**. There is no immediate charge and no proration for an interval-only change.
 
-## 23. Yearly → monthly
-
+## 22. Yearly → monthly
 Changing yearly to monthly is also **scheduled for period end**. Remaining yearly time is not converted into an immediate monthly invoice.
 
-## 24. Combined plan + interval changes
-
+## 23. Combined plan + interval changes
 A change that switches **both** plan and interval (Plus monthly → Business yearly, Business yearly → Plus monthly, and similar) is scheduled **entirely** for period end.
 
 There is no immediate tier upgrade and no proration preview for that combined change. The target plan applies at the effective date.
 
 Same-interval Plus → Business remains the immediate path described above.
 
-## 25. Cancelling a scheduled change
-
+## 24. Cancelling a scheduled change
 While a Stripe-managed scheduled change is still pending, the owner can reverse it from **Account → Subscription**:
 
 - scheduled cancellation → **Resume** (keeps the current paid plan and renewal date; no new Checkout)
@@ -217,8 +193,7 @@ While a Stripe-managed scheduled change is still pending, the owner can reverse 
 
 Reversals need a successful Stripe confirmation. Apple-managed subscriptions do not use these Stripe actions.
 
-## 26. Cancelling subscription
-
+## 25. Cancelling subscription
 Cancel from **Account → Subscription**. Cancellation is scheduled for **paid period end** or **trial end**.
 
 You keep the current paid (or trial) access until that date. Then the workspace becomes Basic.
@@ -227,14 +202,12 @@ Cancellation is **not** account deletion and **not** data deletion.
 
 If you already canceled and access has not ended, use **Resume**.
 
-## 27. Access until period end
-
+## 26. Access until period end
 Until the effective date you keep the current plan's features and limits. Plan locks from a lower plan do not apply early.
 
 After the effective date, entitlement follows the new plan (Plus, or Basic after cancel/failure).
 
-## 28. Trial behavior
-
+## 27. Trial behavior
 Every new normal workspace automatically has **Business** for **{{BUILTIN_TRIAL_DAYS}} days**. No card. No extra activation step.
 
 The trial is one-time forever. Canceling later, changing payment method, or switching provider does not restore it. Workspaces that already existed before this trial, and CheckStation-managed workspaces, do not receive it.
@@ -243,28 +216,24 @@ If you do nothing, the workspace becomes **Basic** when the free week ends. If y
 
 **Current environment:** trial is {{TRIAL_STATUS}}.
 
-## 29. Payment failure
-
+## 28. Payment failure
 The first failed recurring payment does **not** immediately downgrade the workspace.
 
 Stripe retries according to Stripe. CheckStation does not run a separate retry engine.
 
-## 30. Grace period
-
+## 29. Grace period
 Current paid entitlement is kept for **{{PAYMENT_GRACE_DAYS}} days** after the failure that starts grace.
 
 A warning email is sent once per day during grace (platform billing warning command; schedule that in deployment).
 
 If payment recovers, grace is cleared and you stay on the paid plan.
 
-## 31. Return to Basic after unresolved failure
-
+## 30. Return to Basic after unresolved failure
 If billing is still unresolved after grace and Stripe's final outcome, paid access ends and the workspace becomes **Basic**. Plan-lock rules then apply if usage is above Basic limits. Data is not auto-deleted.
 
 After unpaid cancel or failed grace, you can subscribe again from Account when you are ready.
 
-## 32. Plan-locked data after downgrade
-
+## 31. Plan-locked data after downgrade
 If Members, Groups, or other usage exceed the new plan:
 
 - extra items stay in the workspace
@@ -274,12 +243,10 @@ If Members, Groups, or other usage exceed the new plan:
 
 See [Groups & Members](/groups-members).
 
-## 33. No automatic data deletion on downgrade
-
+## 32. No automatic data deletion on downgrade
 Downgrade, cancel, and payment-failure return to Basic **never automatically delete** Members, Groups, Visitors, Classes, or Action Records.
 
-## 34. Stripe purchases
-
+## 33. Stripe purchases
 Web paid subscriptions use Stripe (`purchase_source=stripe`):
 
 - Checkout for new paid subscriptions
@@ -288,14 +255,12 @@ Web paid subscriptions use Stripe (`purchase_source=stripe`):
 
 Live Stripe credentials are configured in the deployed environment, not in public Docs.
 
-## 35. Apple purchases
-
+## 34. Apple purchases
 Account can store `purchase_source=apple`. For an Apple-managed subscription, CheckStation **hides Stripe portal and Stripe plan-change actions** and tells you to manage billing with Apple.
 
 Apple in-app purchase checkout is **not implemented** in the current product. iOS/Android apps are not shipping in this slice.
 
-## 36. Billing page
-
+## 35. Billing page
 The owner opens **Account**:
 
 - **Security** — login email, backup email, password, 2FA, account deletion
@@ -304,16 +269,13 @@ The owner opens **Account**:
 
 Staff and Admin do not see owner billing.
 
-## 37. Invoices and receipts
-
+## 36. Invoices and receipts
 Stripe-hosted invoices and receipts are opened from **Account → Billing** (Customer Portal) for Stripe-managed subscriptions. CheckStation does not keep a second invented invoice store.
 
-## 38. Customer portal
-
+## 37. Customer portal
 For `purchase_source=stripe`, Billing opens Stripe Customer Portal for payment method and invoices. Basic workspaces have no paid purchase source and no portal. Apple-managed workspaces do not open Stripe Portal.
 
-## 39. Cancellation vs account deletion
-
+## 38. Cancellation vs account deletion
 | Action | What it does |
 | --- | --- |
 | Cancel subscription | Paid access ends at period/trial end; workspace becomes Basic; data remains |
@@ -321,8 +283,7 @@ For `purchase_source=stripe`, Billing opens Stripe Customer Portal for payment m
 
 You can cancel without deleting the account. Deleting the account is irreversible and is not the way to stop renewal.
 
-## 40. Common billing questions
-
+## 39. Common billing questions
 **Can Staff change the plan?** No. Owner only.
 
 **Are records deleted when I downgrade?** No.
@@ -337,11 +298,10 @@ You can cancel without deleting the account. Deleting the account is irreversibl
 
 More short answers: [FAQ](/faq).
 
-## 41. Related docs
-
+## 40. Related docs
 - [Getting Started](/getting-started) — new workspaces include a 7-day Business trial
 - [Groups & Members](/groups-members) — plan-locked Members and Groups
-- [Kiosk Setup](/kiosk-setup) — ads around launch/exit on Basic
+- [Kiosk Setup](/kiosk-setup) — launch, exit, and kiosk design
 - [FAQ](/faq) — searchable billing questions
 - [Terms of Use](/terms-of-use) — subscription agreement
 - [Privacy Policy](/privacy-policy) — billing and account data

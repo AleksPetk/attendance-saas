@@ -87,7 +87,6 @@ const FALLBACK_CATALOG = {
         report_export_csv: false,
         group_forward_emails: false,
         structured_snapshot_import: false,
-        ads_required: true,
       },
       limits: {
         active_standard_groups: 2,
@@ -103,7 +102,6 @@ const FALLBACK_CATALOG = {
         report_export_csv: true,
         group_forward_emails: true,
         structured_snapshot_import: false,
-        ads_required: false,
       },
       limits: {
         active_standard_groups: 10,
@@ -119,7 +117,6 @@ const FALLBACK_CATALOG = {
         report_export_csv: true,
         group_forward_emails: true,
         structured_snapshot_import: true,
-        ads_required: false,
       },
       limits: {
         active_standard_groups: 30,

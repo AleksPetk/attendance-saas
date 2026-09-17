@@ -30,7 +30,6 @@ FEATURE_REPORT_EXPORT_EXCEL = "report_export_excel"
 FEATURE_REPORT_EXPORT_PDF = "report_export_pdf"
 FEATURE_GROUP_FORWARD_EMAILS = "group_forward_emails"
 FEATURE_STRUCTURED_SNAPSHOT_IMPORT = "structured_snapshot_import"
-FEATURE_ADS_REQUIRED = "ads_required"
 
 FEATURE_KEYS = (
     FEATURE_STRUCTURED_GROUPS,
@@ -40,7 +39,6 @@ FEATURE_KEYS = (
     FEATURE_REPORT_EXPORT_PDF,
     FEATURE_GROUP_FORWARD_EMAILS,
     FEATURE_STRUCTURED_SNAPSHOT_IMPORT,
-    FEATURE_ADS_REQUIRED,
 )
 
 # Limit keys
@@ -78,7 +76,6 @@ _PLAN_CATALOG: dict[str, dict[str, Any]] = {
             FEATURE_REPORT_EXPORT_PDF: False,
             FEATURE_GROUP_FORWARD_EMAILS: False,
             FEATURE_STRUCTURED_SNAPSHOT_IMPORT: False,
-            FEATURE_ADS_REQUIRED: True,
         },
         "limits": {
             LIMIT_ACTIVE_STANDARD_GROUPS: 2,
@@ -103,7 +100,6 @@ _PLAN_CATALOG: dict[str, dict[str, Any]] = {
             FEATURE_REPORT_EXPORT_PDF: True,
             FEATURE_GROUP_FORWARD_EMAILS: True,
             FEATURE_STRUCTURED_SNAPSHOT_IMPORT: False,
-            FEATURE_ADS_REQUIRED: False,
         },
         "limits": {
             LIMIT_ACTIVE_STANDARD_GROUPS: 10,
@@ -128,7 +124,6 @@ _PLAN_CATALOG: dict[str, dict[str, Any]] = {
             FEATURE_REPORT_EXPORT_PDF: True,
             FEATURE_GROUP_FORWARD_EMAILS: True,
             FEATURE_STRUCTURED_SNAPSHOT_IMPORT: True,
-            FEATURE_ADS_REQUIRED: False,
         },
         "limits": {
             LIMIT_ACTIVE_STANDARD_GROUPS: 30,
