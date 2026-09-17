@@ -26,7 +26,11 @@ function isCancelError(error: unknown): boolean {
   return code === "ERR_REQUEST_CANCELED" || code === "ERR_CANCELED";
 }
 
-/** Cryptographically secure raw nonce for AppleAuthentication.signInAsync. */
+/**
+ * Cryptographically secure raw nonce sent to CheckStation backend.
+ * AppleAuthentication must receive SHA-256(hex) of this value; Apple embeds
+ * that hash unchanged in the identity-token `nonce` claim.
+ */
 export async function createAppleRawNonce(byteLength = 32): Promise<string> {
   const bytes = await Crypto.getRandomBytesAsync(byteLength);
   let out = "";
@@ -34,6 +38,11 @@ export async function createAppleRawNonce(byteLength = 32): Promise<string> {
     out += bytes[i].toString(16).padStart(2, "0");
   }
   return out;
+}
+
+/** SHA-256 hex digest of the raw nonce — the value passed to Apple. */
+export async function hashAppleNonceForRequest(rawNonce: string): Promise<string> {
+  return Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, rawNonce);
 }
 
 export async function isNativeAppleAuthAvailable(): Promise<boolean> {
@@ -54,14 +63,17 @@ export async function requestNativeAppleCredential(): Promise<AppleNativeSignInO
     return { kind: "unavailable" };
   }
 
-  const nonce = await createAppleRawNonce();
+  const rawNonce = await createAppleRawNonce();
+  const hashedNonce = await hashAppleNonceForRequest(rawNonce);
   try {
     const credential = await AppleAuthentication.signInAsync({
       requestedScopes: [
         AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
         AppleAuthentication.AppleAuthenticationScope.EMAIL,
       ],
-      nonce,
+      // Native Sign in with Apple expects the SHA-256 hex of the raw nonce.
+      // Apple returns that hash unchanged in the ID token `nonce` claim.
+      nonce: hashedNonce,
     });
     const identityToken = credential.identityToken;
     if (!identityToken) {
@@ -71,7 +83,8 @@ export async function requestNativeAppleCredential(): Promise<AppleNativeSignInO
       kind: "success",
       credential: {
         identityToken,
-        nonce,
+        // Backend re-hashes this raw value and compares to the token claim.
+        nonce: rawNonce,
         fullName: credential.fullName
           ? {
               givenName: credential.fullName.givenName,

@@ -178,6 +178,50 @@ class VerifyAppleNativeIdTokenTests(TestCase):
                 verify_apple_native_id_token(token, expected_raw_nonce="wrong-nonce")
         self.assertEqual(str(ctx.exception), "invalid_nonce")
 
+    def test_raw_nonce_in_token_claim_is_rejected_as_invalid_nonce(self):
+        """
+        Production failure mode (build 8): Mobile sent the raw nonce to Apple,
+        so the JWT claim equaled the raw value instead of SHA-256(hex). Backend
+        must keep requiring the hash and reject that mis-wire.
+        """
+        raw_nonce = "raw-nonce-sent-to-apple-by-mistake"
+        now = int(time.time())
+        token = jwt.encode(
+            {
+                "sub": "apple-native-sub",
+                "email": "native@example.com",
+                "email_verified": True,
+                "iss": "https://appleid.apple.com",
+                "aud": NATIVE_AUDIENCE,
+                "iat": now,
+                "exp": now + 3600,
+                # Claim is the raw value — wrong for native Apple semantics.
+                "nonce": raw_nonce,
+            },
+            _RSA_PEM,
+            algorithm="RS256",
+            headers={"kid": "test-kid"},
+        )
+        with patch(
+            "accounts.apple_oauth_client._get_jwks_client",
+            return_value=_mock_jwks_signing_key(),
+        ):
+            with self.assertRaises(AppleOAuthClientError) as ctx:
+                verify_apple_native_id_token(token, expected_raw_nonce=raw_nonce)
+        self.assertEqual(str(ctx.exception), "invalid_nonce")
+
+    def test_sha256_hex_claim_matches_raw_nonce_accepted(self):
+        """Correct native wire: Apple claim is SHA-256(hex) of the raw nonce."""
+        raw_nonce = "secure-raw-nonce-correct-wire"
+        token = mint_native_id_token(raw_nonce=raw_nonce)
+        with patch(
+            "accounts.apple_oauth_client._get_jwks_client",
+            return_value=_mock_jwks_signing_key(),
+        ):
+            claims = verify_apple_native_id_token(token, expected_raw_nonce=raw_nonce)
+        self.assertEqual(claims["nonce"], sha256_hex(raw_nonce))
+        self.assertNotEqual(claims["nonce"], raw_nonce)
+
 
 @override_settings(**NATIVE_TEST_SETTINGS)
 class AppleNativeCompleteEndpointTests(TestCase):

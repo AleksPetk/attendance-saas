@@ -202,8 +202,12 @@ def verify_apple_native_id_token(
     Verify a native iOS Sign in with Apple identity token.
 
     Audience must be the iOS App ID / bundle (APPLE_NATIVE_IOS_CLIENT_ID),
-    not the browser Services ID. The ID token nonce claim is the SHA-256
-    hex digest of the raw nonce passed to AppleAuthentication.signInAsync.
+    not the browser Services ID.
+
+    Nonce (native Apple / ASAuthorizationAppleIDRequest):
+    - Mobile generates a raw nonce and sends SHA-256(hex) of it to Apple
+    - Apple embeds that hash unchanged in the ID-token `nonce` claim
+    - Backend receives the raw nonce and compares SHA-256(hex) to the claim
     """
     try:
         import jwt
@@ -246,6 +250,19 @@ def verify_apple_native_id_token(
     expected_hash = _sha256_hex(expected_raw_nonce)
     token_nonce = str(claims.get("nonce") or "").strip()
     if token_nonce != expected_hash:
+        # Safe diagnostic only — never log nonce/token values.
+        if not token_nonce:
+            mismatch_kind = "missing_claim"
+        elif token_nonce == expected_raw_nonce:
+            # Classic mis-wire: raw nonce was sent to Apple instead of SHA-256(hex).
+            mismatch_kind = "claim_equals_raw_not_hash"
+        else:
+            mismatch_kind = "claim_mismatch"
+        logger.warning(
+            "Native Apple ID token nonce mismatch kind=%s claim_len=%s",
+            mismatch_kind,
+            len(token_nonce),
+        )
         raise AppleOAuthClientError("invalid_nonce")
 
     subject = str(claims.get("sub") or "").strip()

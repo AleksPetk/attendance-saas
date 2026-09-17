@@ -24,11 +24,16 @@ test("expo-apple-authentication is declared and iOS Sign in with Apple is enable
   assert.match(appJson, /"bundleIdentifier"\s*:\s*"app\.checkstation\.client"/);
 });
 
-test("native Apple helper requests FULL_NAME + EMAIL and binds a raw nonce", () => {
+test("native Apple helper hashes the raw nonce for Apple and sends raw to backend", () => {
   assert.match(appleAuth, /AppleAuthentication\.signInAsync/);
   assert.match(appleAuth, /AppleAuthenticationScope\.FULL_NAME/);
   assert.match(appleAuth, /AppleAuthenticationScope\.EMAIL/);
   assert.match(appleAuth, /createAppleRawNonce/);
+  assert.match(appleAuth, /hashAppleNonceForRequest/);
+  assert.match(appleAuth, /CryptoDigestAlgorithm\.SHA256/);
+  assert.match(appleAuth, /digestStringAsync/);
+  assert.match(appleAuth, /nonce:\s*hashedNonce/);
+  assert.match(appleAuth, /nonce:\s*rawNonce/);
   assert.match(appleAuth, /getRandomBytesAsync/);
   assert.match(appleAuth, /ERR_REQUEST_CANCELED/);
   assert.match(appleAuth, /identityToken/);
