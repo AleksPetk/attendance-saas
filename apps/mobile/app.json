@@ -32,7 +32,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "app.checkstation.client",
-      "buildNumber": "3",
+      "buildNumber": "4",
       "infoPlist": {
         "CFBundleDisplayName": "CheckStation",
         "ITSAppUsesNonExemptEncryption": false
