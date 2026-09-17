@@ -1,27 +1,196 @@
-import { useRef, useState } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { Image, StyleSheet, Text, View } from "react-native";
 import { ApiError, endpoints, fieldErrorsFromBody } from "@checkstation/api";
 import { useApp } from "../lib/AppProvider";
+import { requestNativeAppleCredential } from "../lib/appleNativeAuth";
+import { canConfirmSensitiveWithApple } from "./accountDeleteReauth";
 import { ManagementSheet } from "./ManagementSheet";
 import { Alert, Button, Field, TextLink } from "./ui";
 import { colors, space, type } from "../theme/tokens";
 
-type Action = "password" | "setup" | "regenerate" | "disable";
-export function SecurityActions({ enabled, passwordEnabled, onSaved }: { enabled: boolean; passwordEnabled: boolean; onSaved: () => void }) {
-  const { t } = useApp();
+type Action = "password" | "setPassword" | "setup" | "regenerate" | "disable";
+
+type Methods = {
+  password?: { enabled?: boolean };
+  google?: { linked?: boolean };
+  apple?: { linked?: boolean };
+};
+
+const copy = {
+  en: {
+    confirmWithApple: "Confirm with Apple",
+    oauthReauthReady: "Identity confirmed with Apple",
+    appleVerifyFailed: "Apple identity could not be confirmed. Try again.",
+    appleUnavailable: "Sign in with Apple is not available on this device.",
+    googleUnavailable:
+      "This action requires Google re-verification. Secure mobile Google re-verification is not available yet.",
+    confirmHint: "Confirm your identity with Apple before continuing this security action.",
+  },
+  ja: {
+    confirmWithApple: "Apple で確認",
+    oauthReauthReady: "Apple で本人確認が完了しました",
+    appleVerifyFailed: "Apple の本人確認に失敗しました。もう一度お試しください。",
+    appleUnavailable: "このデバイスでは Sign in with Apple を利用できません。",
+    googleUnavailable:
+      "この操作にはGoogleによる再認証が必要です。安全なモバイルGoogle再認証はまだ利用できません。",
+    confirmHint: "このセキュリティ操作を続ける前に Apple で本人確認してください。",
+  },
+};
+
+export function SecurityActions({
+  enabled,
+  passwordEnabled,
+  appleLinked = false,
+  googleLinked = false,
+  twoFactorEnabled = false,
+  onSaved,
+}: {
+  enabled: boolean;
+  passwordEnabled: boolean;
+  appleLinked?: boolean;
+  googleLinked?: boolean;
+  twoFactorEnabled?: boolean;
+  onSaved: () => void;
+}) {
+  const { api, auth, locale, t } = useApp();
+  const text = locale === "ja" ? copy.ja : copy.en;
+  const methods: Methods = {
+    password: { enabled: passwordEnabled },
+    apple: { linked: appleLinked },
+    google: { linked: googleLinked },
+  };
+  const appleVerify = canConfirmSensitiveWithApple(methods);
   const [action, setAction] = useState<Action | null>(null);
-  if (!passwordEnabled) return <Alert variant="info" message={t("security.passwordUnavailable")} />;
-  return <View style={styles.stack}>
-    <Button label={t("security.changePassword")} variant="secondary" onPress={() => setAction("password")} />
-    {enabled ? <>
-      <Button label={t("security.regenerate")} variant="secondary" onPress={() => setAction("regenerate")} />
-      <TextLink label={t("security.disable")} onPress={() => setAction("disable")} />
-    </> : <Button label={t("security.setup")} onPress={() => setAction("setup")} />}
-    {action ? <SecurityForm action={action} onClose={() => setAction(null)} onSaved={() => { setAction(null); onSaved(); }} /> : null}
-  </View>;
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [oauthReauthReady, setOauthReauthReady] = useState(false);
+
+  async function confirmWithApple() {
+    if (busy || oauthReauthReady) return;
+    setBusy(true);
+    setError("");
+    try {
+      const apple = await requestNativeAppleCredential();
+      if (apple.kind === "cancelled") return;
+      if (apple.kind === "unavailable") {
+        setError(text.appleUnavailable);
+        return;
+      }
+      if (apple.kind === "missing_token" || apple.kind === "error") {
+        setError(apple.kind === "error" ? apple.message : text.appleVerifyFailed);
+        return;
+      }
+      await auth.verifyAppleNative({
+        identityToken: apple.credential.identityToken,
+        nonce: apple.credential.nonce,
+      });
+      setOauthReauthReady(true);
+    } catch (caught) {
+      if (caught instanceof ApiError) {
+        setError(typeof caught.data?.detail === "string" ? caught.data.detail : text.appleVerifyFailed);
+      } else {
+        setError(caught instanceof Error ? caught.message : text.appleVerifyFailed);
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!passwordEnabled && !appleVerify) {
+    return (
+      <Alert
+        variant="info"
+        message={googleLinked ? text.googleUnavailable : t("security.passwordUnavailable")}
+      />
+    );
+  }
+
+  const actionsUnlocked = passwordEnabled || (appleVerify && oauthReauthReady);
+
+  let oauthGate: ReactNode = null;
+  if (!passwordEnabled && appleVerify) {
+    oauthGate = (
+      <View style={styles.verifyBlock}>
+        {oauthReauthReady ? (
+          <Alert message={text.oauthReauthReady} variant="info" />
+        ) : (
+          <>
+            <Text style={styles.hint}>{text.confirmHint}</Text>
+            <Button
+              label={text.confirmWithApple}
+              loading={busy}
+              onPress={() => void confirmWithApple()}
+              variant="secondary"
+            />
+          </>
+        )}
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.stack}>
+      <Alert message={error} />
+      {oauthGate}
+      {actionsUnlocked ? (
+        <>
+          {passwordEnabled ? (
+            <Button
+              label={t("security.changePassword")}
+              variant="secondary"
+              onPress={() => setAction("password")}
+            />
+          ) : (
+            <Button
+              label={t("security.setPassword")}
+              variant="secondary"
+              onPress={() => setAction("setPassword")}
+            />
+          )}
+          {enabled ? (
+            <>
+              <Button
+                label={t("security.regenerate")}
+                variant="secondary"
+                onPress={() => setAction("regenerate")}
+              />
+              <TextLink label={t("security.disable")} onPress={() => setAction("disable")} />
+            </>
+          ) : (
+            <Button label={t("security.setup")} onPress={() => setAction("setup")} />
+          )}
+        </>
+      ) : null}
+      {action ? (
+        <SecurityForm
+          action={action}
+          passwordEnabled={passwordEnabled}
+          twoFactorEnabled={twoFactorEnabled || enabled}
+          onClose={() => setAction(null)}
+          onSaved={() => {
+            setAction(null);
+            setOauthReauthReady(false);
+            onSaved();
+          }}
+        />
+      ) : null}
+    </View>
+  );
 }
 
-function SecurityForm({ action, onClose, onSaved }: { action: Action; onClose: () => void; onSaved: () => void }) {
+function SecurityForm({
+  action,
+  passwordEnabled,
+  twoFactorEnabled,
+  onClose,
+  onSaved,
+}: {
+  action: Action;
+  passwordEnabled: boolean;
+  twoFactorEnabled: boolean;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
   const { api, t } = useApp();
   const [password, setPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -34,56 +203,186 @@ function SecurityForm({ action, onClose, onSaved }: { action: Action; onClose: (
   const inFlight = useRef(false);
   const [error, setError] = useState("");
   const [fields, setFields] = useState<Record<string, string>>({});
-  const title = t(action === "password" ? "security.changePassword" : "security." + action);
+
+  const title = t(
+    action === "password"
+      ? "security.changePassword"
+      : action === "setPassword"
+        ? "security.setPassword"
+        : "security." + action,
+  );
+
   async function submit() {
     if (inFlight.current) return;
-    inFlight.current = true; setBusy(true); setError(""); setFields({});
+    inFlight.current = true;
+    setBusy(true);
+    setError("");
+    setFields({});
     try {
       if (action === "password") {
-        await api.post(endpoints.changePassword(), { current_password: password, new_password: newPassword, new_password_confirm: confirmation });
+        await api.post(endpoints.changePassword(), {
+          current_password: password,
+          new_password: newPassword,
+          new_password_confirm: confirmation,
+        });
+        onSaved();
+      } else if (action === "setPassword") {
+        const payload: Record<string, string> = {
+          new_password: newPassword,
+          new_password_confirm: confirmation,
+        };
+        if (twoFactorEnabled) {
+          if (useRecovery) payload.recovery_code = code;
+          else payload.code = code;
+        }
+        await api.post(endpoints.setPassword(), payload);
         onSaved();
       } else if (action === "setup" && !setup) {
-        setSetup(await api.post(endpoints.ownerTwoFactorSetup(), { current_password: password }));
+        const payload = passwordEnabled ? { current_password: password } : {};
+        setSetup(await api.post(endpoints.ownerTwoFactorSetup(), payload));
         setPassword("");
       } else if (action === "setup") {
-        const result = await api.post<{ recovery_codes: string[] }>(endpoints.ownerTwoFactorVerify(), { code });
-        setCodes(result.recovery_codes); setCode(""); setSetup(null);
-      } else {
-        const result = await api.post<{ recovery_codes?: string[] }>(action === "regenerate" ? endpoints.ownerTwoFactorRegenerate() : endpoints.ownerTwoFactorDisable(), {
-          current_password: password, ...(useRecovery ? { recovery_code: code } : { code }),
+        const result = await api.post<{ recovery_codes: string[] }>(endpoints.ownerTwoFactorVerify(), {
+          code,
         });
-        setPassword(""); setCode("");
+        setCodes(result.recovery_codes);
+        setCode("");
+        setSetup(null);
+      } else {
+        const payload: Record<string, string> = {
+          ...(useRecovery ? { recovery_code: code } : { code }),
+        };
+        if (passwordEnabled) payload.current_password = password;
+        const result = await api.post<{ recovery_codes?: string[] }>(
+          action === "regenerate"
+            ? endpoints.ownerTwoFactorRegenerate()
+            : endpoints.ownerTwoFactorDisable(),
+          payload,
+        );
+        setPassword("");
+        setCode("");
         if (action === "regenerate") setCodes(result.recovery_codes || []);
         else onSaved();
       }
     } catch (caught) {
       if (caught instanceof ApiError) setFields(fieldErrorsFromBody(caught.data));
       setError(caught instanceof Error ? caught.message : t("common.error"));
-    } finally { inFlight.current = false; setBusy(false); }
+    } finally {
+      inFlight.current = false;
+      setBusy(false);
+    }
   }
-  return <ManagementSheet title={codes ? t("security.recoveryCodes") : title} busy={busy} dirty={!!(password || newPassword || confirmation || code || setup || codes)} onClose={onClose}>
-    <Alert message={error} />
-    {codes ? <>
-      <Alert variant="warning" message={t("security.codesHint")} />
-      <Text selectable style={styles.codes}>{codes.join("\n")}</Text>
-      <Button label={t("security.done")} onPress={onSaved} />
-    </> : <>
-      {!setup ? <Field label={t("security.currentPassword")} secureTextEntry textContentType="password" autoCapitalize="none" value={password} onChangeText={setPassword} error={fields.current_password} /> : null}
-      {action === "password" ? <>
-        <Field label={t("security.newPassword")} secureTextEntry textContentType="newPassword" autoCapitalize="none" value={newPassword} onChangeText={setNewPassword} error={fields.new_password} />
-        <Field label={t("security.confirmPassword")} secureTextEntry textContentType="newPassword" autoCapitalize="none" value={confirmation} onChangeText={setConfirmation} error={fields.new_password_confirm} />
-      </> : null}
-      {setup ? <>
-        <Text style={styles.body}>{t("security.setupHint")}</Text>
-        <Image accessibilityLabel={t("security.setupKey")} source={{ uri: setup.qr_data_uri }} style={styles.qr} />
-        <Text selectable style={styles.codes}>{setup.setup_key}</Text>
-      </> : null}
-      {setup || action === "regenerate" || action === "disable" ? <>
-        {action !== "setup" ? <TextLink label={t(useRecovery ? "auth.useAuthenticator" : "auth.useRecovery")} onPress={() => { setUseRecovery(!useRecovery); setCode(""); }} /> : null}
-        <Field label={t(useRecovery ? "security.recoveryCode" : "security.code")} value={code} onChangeText={setCode} keyboardType={useRecovery ? "default" : "number-pad"} textContentType="oneTimeCode" autoCapitalize="none" autoCorrect={false} error={fields.code || fields.recovery_code} />
-      </> : null}
-      <Button label={setup ? t("auth.verify") : title} loading={busy} onPress={() => void submit()} variant={action === "disable" ? "danger" : "primary"} />
-    </>}
-  </ManagementSheet>;
+
+  const needsSecondFactor =
+    (action === "setPassword" && twoFactorEnabled) ||
+    action === "regenerate" ||
+    action === "disable" ||
+    Boolean(setup);
+
+  return (
+    <ManagementSheet
+      title={codes ? t("security.recoveryCodes") : title}
+      busy={busy}
+      dirty={!!(password || newPassword || confirmation || code || setup || codes)}
+      onClose={onClose}
+    >
+      <Alert message={error} />
+      {codes ? (
+        <>
+          <Alert variant="warning" message={t("security.codesHint")} />
+          <Text selectable style={styles.codes}>
+            {codes.join("\n")}
+          </Text>
+          <Button label={t("security.done")} onPress={onSaved} />
+        </>
+      ) : (
+        <>
+          {passwordEnabled && !setup && action !== "setPassword" ? (
+            <Field
+              label={t("security.currentPassword")}
+              secureTextEntry
+              textContentType="password"
+              autoCapitalize="none"
+              value={password}
+              onChangeText={setPassword}
+              error={fields.current_password}
+            />
+          ) : null}
+          {action === "password" || action === "setPassword" ? (
+            <>
+              <Field
+                label={t("security.newPassword")}
+                secureTextEntry
+                textContentType="newPassword"
+                autoCapitalize="none"
+                value={newPassword}
+                onChangeText={setNewPassword}
+                error={fields.new_password}
+              />
+              <Field
+                label={t("security.confirmPassword")}
+                secureTextEntry
+                textContentType="newPassword"
+                autoCapitalize="none"
+                value={confirmation}
+                onChangeText={setConfirmation}
+                error={fields.new_password_confirm}
+              />
+            </>
+          ) : null}
+          {setup ? (
+            <>
+              <Text style={styles.body}>{t("security.setupHint")}</Text>
+              <Image
+                accessibilityLabel={t("security.setupKey")}
+                source={{ uri: setup.qr_data_uri }}
+                style={styles.qr}
+              />
+              <Text selectable style={styles.codes}>
+                {setup.setup_key}
+              </Text>
+            </>
+          ) : null}
+          {needsSecondFactor ? (
+            <>
+              {action !== "setup" ? (
+                <TextLink
+                  label={t(useRecovery ? "auth.useAuthenticator" : "auth.useRecovery")}
+                  onPress={() => {
+                    setUseRecovery(!useRecovery);
+                    setCode("");
+                  }}
+                />
+              ) : null}
+              <Field
+                label={t(useRecovery && action !== "setup" ? "security.recoveryCode" : "security.code")}
+                value={code}
+                onChangeText={setCode}
+                keyboardType={useRecovery && action !== "setup" ? "default" : "number-pad"}
+                textContentType="oneTimeCode"
+                autoCapitalize="none"
+                autoCorrect={false}
+                error={fields.code || fields.recovery_code}
+              />
+            </>
+          ) : null}
+          <Button
+            label={setup ? t("auth.verify") : title}
+            loading={busy}
+            onPress={() => void submit()}
+            variant={action === "disable" ? "danger" : "primary"}
+          />
+        </>
+      )}
+    </ManagementSheet>
+  );
 }
-const styles = StyleSheet.create({ stack: { gap: space.md }, body: { ...type.body, color: colors.textSecondary }, codes: { ...type.bodyStrong, color: colors.text, lineHeight: 30 }, qr: { width: 220, height: 220, alignSelf: "center" } });
+
+const styles = StyleSheet.create({
+  stack: { gap: space.md },
+  verifyBlock: { gap: space.sm },
+  hint: { ...type.caption, color: colors.textMuted },
+  body: { ...type.body, color: colors.textSecondary },
+  codes: { ...type.bodyStrong, color: colors.text, lineHeight: 30 },
+  qr: { width: 220, height: 220, alignSelf: "center" },
+});

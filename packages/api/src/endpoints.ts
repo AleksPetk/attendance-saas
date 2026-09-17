@@ -66,6 +66,7 @@ export const endpoints = {
   planLockSelection: (kind: string) => `/plan-locks/selection/?kind=${encodeURIComponent(kind)}`,
   planLockSelectionUpdate: () => "/plan-locks/selection/",
   changePassword: () => "/auth/change-password/",
+  setPassword: () => "/auth/set-password/",
   ownerTwoFactorSetup: () => "/auth/owner-2fa/setup/",
   ownerTwoFactorVerify: () => "/auth/owner-2fa/setup/verify/",
   ownerTwoFactorRegenerate: () => "/auth/owner-2fa/recovery-codes/regenerate/",

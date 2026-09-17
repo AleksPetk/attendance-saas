@@ -46,6 +46,7 @@ test("password email path remains available without Apple verify", () => {
 });
 
 test("two-factor security placeholder no longer claims Apple is unavailable for all actions", () => {
-  assert.match(i18n, /Provider re-verification is not available for this action yet/);
+  assert.match(i18n, /Secure mobile Google re-verification is not available yet/);
   assert.doesNotMatch(i18n, /Native Google\/Apple verification is not available yet/);
+  assert.doesNotMatch(i18n, /Provider re-verification is not available for this action yet/);
 });
