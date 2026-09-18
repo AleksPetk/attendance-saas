@@ -319,6 +319,68 @@ describe("AuthController", () => {
     assert.equal(workspaceHits, 0);
   });
 
+  it("linkGoogleNative posts intent=link without finishOwnerFirstFactor", async () => {
+    let workspaceHits = 0;
+    let linkBody: Record<string, unknown> | null = null;
+    const fakeFetch: typeof fetch = async (input, init) => {
+      const path = new URL(String(input)).pathname;
+      if (path.endsWith("/auth/csrf/")) {
+        const response = new Response(JSON.stringify({ csrfToken: "csrf-initial" }), { status: 200, headers: { "content-type": "application/json" } });
+        Object.defineProperty(response, "_rawHeaders", { value: [["set-cookie", "checkstation_csrftoken=csrf-initial; Path=/; Secure"]] });
+        return response;
+      }
+      if (path.endsWith("/auth/google/native/")) {
+        linkBody = JSON.parse(String(init?.body || "{}"));
+        return new Response(JSON.stringify({ code: "linked", detail: "Google is now connected to your account." }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      if (path.endsWith("/workspace/")) {
+        workspaceHits += 1;
+        return new Response(JSON.stringify({ role: "owner" }), { status: 200, headers: { "content-type": "application/json" } });
+      }
+      throw new Error(`Unexpected request: ${path}`);
+    };
+    const api = new ApiClient(createAppConfig({ apiBaseUrl: "https://workspace.checkstation.app/api" }), undefined, { fetchImpl: fakeFetch });
+    const auth = new AuthController(api);
+    await api.init();
+    const result = await auth.linkGoogleNative({ identityToken: "id-token" });
+    assert.equal(result.code, "linked");
+    assert.equal(linkBody?.intent, "link");
+    assert.equal(linkBody?.identity_token, "id-token");
+    assert.equal(linkBody?.nonce, undefined);
+    assert.equal(workspaceHits, 0);
+  });
+
+  it("linkAppleNative posts intent=link with nonce without finishOwnerFirstFactor", async () => {
+    let linkBody: Record<string, unknown> | null = null;
+    const fakeFetch: typeof fetch = async (input, init) => {
+      const path = new URL(String(input)).pathname;
+      if (path.endsWith("/auth/csrf/")) {
+        const response = new Response(JSON.stringify({ csrfToken: "csrf-initial" }), { status: 200, headers: { "content-type": "application/json" } });
+        Object.defineProperty(response, "_rawHeaders", { value: [["set-cookie", "checkstation_csrftoken=csrf-initial; Path=/; Secure"]] });
+        return response;
+      }
+      if (path.endsWith("/auth/apple/native/")) {
+        linkBody = JSON.parse(String(init?.body || "{}"));
+        return new Response(JSON.stringify({ code: "linked", detail: "Apple is now connected to your account." }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      throw new Error(`Unexpected request: ${path}`);
+    };
+    const api = new ApiClient(createAppConfig({ apiBaseUrl: "https://workspace.checkstation.app/api" }), undefined, { fetchImpl: fakeFetch });
+    const auth = new AuthController(api);
+    await api.init();
+    const result = await auth.linkAppleNative({ identityToken: "id-token", nonce: "raw-nonce" });
+    assert.equal(result.code, "linked");
+    assert.equal(linkBody?.intent, "link");
+    assert.equal(linkBody?.identity_token, "id-token");
+    assert.equal(linkBody?.nonce, "raw-nonce");
+  });
+
   it("applyKioskUnlock clears locked status without requiring a workspace refetch", () => {
     const api = new ApiClient(createAppConfig());
     const auth = new AuthController(api);

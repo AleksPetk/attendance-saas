@@ -1,7 +1,7 @@
 import Constants from "expo-constants";
 import { Platform } from "react-native";
 
-export type GoogleNativeIntent = "login" | "register" | "verify";
+export type GoogleNativeIntent = "login" | "register" | "verify" | "link";
 
 export type GoogleNativeCredential = {
   identityToken: string;

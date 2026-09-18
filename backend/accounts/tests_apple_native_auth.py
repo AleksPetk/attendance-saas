@@ -273,7 +273,7 @@ class AppleNativeCompleteEndpointTests(TestCase):
         self.assertEqual(response.json()["code"], AppleOAuthResultCode.AUTHENTICATION_FAILED)
 
         response = self._post(
-            {"identity_token": "tok", "nonce": self.raw_nonce, "intent": "link"}
+            {"identity_token": "tok", "nonce": self.raw_nonce, "intent": "bogus"}
         )
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.json()["code"], AppleOAuthResultCode.INVALID_INTENT)
@@ -684,3 +684,129 @@ class AppleNativeVerifyEndpointTests(TestCase):
         )
         self.assertEqual(backup.status_code, 400)
         self.assertEqual(backup.json()["code"], "oauth_reauth_required")
+
+
+@override_settings(**NATIVE_TEST_SETTINGS)
+class AppleNativeLinkEndpointTests(TestCase):
+    def setUp(self):
+        self.raw_nonce = "mobile-link-nonce"
+        self.owner, self.org = create_owner(email="apple-link-native@example.com")
+        self.owner.set_unusable_password()
+        self.owner.save(update_fields=["password"])
+        OwnerAuthProviderLink.objects.create(
+            user=self.owner,
+            provider=OwnerAuthProvider.GOOGLE,
+            provider_subject="google-already-on-owner",
+            provider_email="apple-link-native@example.com",
+            provider_email_verified=True,
+        )
+        self.client = Client()
+        self.client.force_login(self.owner)
+        self.session_key = self.client.session.session_key
+
+    def _claims(self, *, sub="apple-link-sub", email="apple-link@example.com"):
+        return {
+            "sub": sub,
+            "email": email,
+            "email_verified": True,
+            "iss": "https://appleid.apple.com",
+            "aud": NATIVE_AUDIENCE,
+            "nonce": sha256_hex(self.raw_nonce),
+            "exp": int(timezone.now().timestamp()) + 3600,
+        }
+
+    def _post_link(self, *, claims):
+        with patch(
+            "accounts.apple_native_auth.verify_apple_native_id_token",
+            return_value=claims,
+        ):
+            return self.client.post(
+                "/api/auth/apple/native/",
+                data={
+                    "identity_token": "fake-token",
+                    "nonce": self.raw_nonce,
+                    "intent": "link",
+                },
+                content_type="application/json",
+            )
+
+    def test_authenticated_owner_links_apple(self):
+        response = self._post_link(claims=self._claims())
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(response.json()["code"], AppleOAuthResultCode.LINKED)
+        self.assertEqual(self.client.session.session_key, self.session_key)
+        link = OwnerAuthProviderLink.objects.get(
+            user=self.owner,
+            provider=OwnerAuthProvider.APPLE,
+        )
+        self.assertEqual(link.provider_subject, "apple-link-sub")
+        self.assertTrue(
+            OwnerAuthProviderLink.objects.filter(
+                user=self.owner,
+                provider=OwnerAuthProvider.GOOGLE,
+            ).exists()
+        )
+        self.assertEqual(self.client.get("/api/workspace/").status_code, 200)
+
+    def test_already_linked_to_current_owner_is_idempotent(self):
+        OwnerAuthProviderLink.objects.create(
+            user=self.owner,
+            provider=OwnerAuthProvider.APPLE,
+            provider_subject="apple-link-sub",
+            provider_email="apple-link@example.com",
+            provider_email_verified=True,
+        )
+        response = self._post_link(claims=self._claims())
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["code"], AppleOAuthResultCode.ALREADY_LINKED)
+
+    def test_provider_linked_to_another_owner_rejected(self):
+        other, _org = create_owner(email="other-apple@example.com")
+        OwnerAuthProviderLink.objects.create(
+            user=other,
+            provider=OwnerAuthProvider.APPLE,
+            provider_subject="apple-taken-sub",
+        )
+        response = self._post_link(claims=self._claims(sub="apple-taken-sub"))
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["code"], AppleOAuthResultCode.APPLE_ALREADY_LINKED)
+        self.assertFalse(
+            OwnerAuthProviderLink.objects.filter(
+                user=self.owner,
+                provider=OwnerAuthProvider.APPLE,
+            ).exists()
+        )
+        self.assertEqual(self.client.session.session_key, self.session_key)
+
+    def test_unauthenticated_link_rejected(self):
+        anon = Client()
+        with patch(
+            "accounts.apple_native_auth.verify_apple_native_id_token",
+            return_value=self._claims(),
+        ):
+            response = anon.post(
+                "/api/auth/apple/native/",
+                data={
+                    "identity_token": "fake-token",
+                    "nonce": self.raw_nonce,
+                    "intent": "link",
+                },
+                content_type="application/json",
+            )
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.json()["code"], AppleOAuthResultCode.AUTHENTICATION_REQUIRED)
+
+    def test_email_match_alone_does_not_merge_accounts(self):
+        create_owner(email="apple-same-email@example.com")
+        response = self._post_link(
+            claims=self._claims(sub="apple-new-sub", email="apple-same-email@example.com")
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["code"], AppleOAuthResultCode.LINKED)
+        self.assertEqual(
+            OwnerAuthProviderLink.objects.get(
+                provider=OwnerAuthProvider.APPLE,
+                provider_subject="apple-new-sub",
+            ).user_id,
+            self.owner.pk,
+        )

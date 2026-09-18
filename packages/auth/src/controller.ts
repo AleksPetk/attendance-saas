@@ -231,6 +231,34 @@ export class AuthController {
     });
   }
 
+  /**
+   * Link Google to the currently authenticated owner (native ID token).
+   * Same provider-link rules as Browser intent=link; does not replace the session.
+   */
+  async linkGoogleNative(payload: {
+    identityToken: string;
+  }): Promise<{ code: string; detail?: string }> {
+    return this.api.post<{ code: string; detail?: string }>(endpoints.googleNativeComplete(), {
+      identity_token: payload.identityToken,
+      intent: "link",
+    });
+  }
+
+  /**
+   * Link Apple to the currently authenticated owner (native identity token).
+   * Same provider-link rules as Browser intent=link; does not replace the session.
+   */
+  async linkAppleNative(payload: {
+    identityToken: string;
+    nonce: string;
+  }): Promise<{ code: string; detail?: string }> {
+    return this.api.post<{ code: string; detail?: string }>(endpoints.appleNativeComplete(), {
+      identity_token: payload.identityToken,
+      nonce: payload.nonce,
+      intent: "link",
+    });
+  }
+
   async completeOwnerTwoFactor(payload: { code?: string; recovery_code?: string }): Promise<WorkspaceSession> {
     await this.api.post(endpoints.ownerTotpChallenge(), payload);
     const session = await this.api.get<WorkspaceSession>(endpoints.workspace());

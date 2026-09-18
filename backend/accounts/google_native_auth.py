@@ -17,6 +17,7 @@ from accounts.google_oauth import (
     GoogleOAuthResultCode,
     _register_new_google_owner,
     _validate_google_identity_for_registration,
+    apply_google_provider_link,
     create_google_provider_link,
     get_google_provider_link,
     get_owner_google_link,
@@ -28,7 +29,12 @@ from accounts.google_oauth_client import (
     verify_google_native_id_token,
 )
 from accounts.google_oauth_settings import google_native_ios_is_configured
-from accounts.google_oauth_state import INTENT_LOGIN, INTENT_REGISTER, INTENT_VERIFY
+from accounts.google_oauth_state import (
+    INTENT_LINK,
+    INTENT_LOGIN,
+    INTENT_REGISTER,
+    INTENT_VERIFY,
+)
 from accounts.email_uniqueness import (
     email_ownership_established,
     get_provisional_unverified_owner,
@@ -44,7 +50,22 @@ from accounts.provisional_ownership import (
 logger = logging.getLogger("accounts.google_native")
 User = get_user_model()
 
-NATIVE_INTENTS = frozenset({INTENT_LOGIN, INTENT_REGISTER, INTENT_VERIFY})
+NATIVE_INTENTS = frozenset({INTENT_LOGIN, INTENT_REGISTER, INTENT_VERIFY, INTENT_LINK})
+
+_GOOGLE_LINK_DETAILS = {
+    GoogleOAuthResultCode.LINKED: "Google is now connected to your account.",
+    GoogleOAuthResultCode.ALREADY_LINKED: "Google is already connected to your account.",
+    GoogleOAuthResultCode.GOOGLE_ALREADY_LINKED: (
+        "This Google account is connected to another CheckStation account."
+    ),
+    GoogleOAuthResultCode.DIFFERENT_GOOGLE_LINKED: (
+        "A different Google account is already connected. Disconnect it first."
+    ),
+    GoogleOAuthResultCode.AUTHENTICATION_FAILED: "Google could not be connected.",
+    GoogleOAuthResultCode.AUTHENTICATION_REQUIRED: (
+        "Sign in to connect Google to your CheckStation account."
+    ),
+}
 
 
 def _error_response(code: str, *, detail: str, status: int = 400) -> Response:
@@ -244,6 +265,38 @@ def process_google_native_verify(request, identity: GoogleIdentity) -> Response:
     )
 
 
+def process_google_native_link(request, identity: GoogleIdentity) -> Response:
+    """
+    Link Google to the currently authenticated owner (JSON; no redirect).
+
+    Reuses apply_google_provider_link — the same rules as Browser intent=link.
+    Does not create owners, switch sessions, or merge by email.
+    """
+    actor = getattr(request, "user", None)
+    if actor is None or not getattr(actor, "is_authenticated", False):
+        return _error_response(
+            GoogleOAuthResultCode.AUTHENTICATION_REQUIRED,
+            detail=_GOOGLE_LINK_DETAILS[GoogleOAuthResultCode.AUTHENTICATION_REQUIRED],
+            status=403,
+        )
+    if not isinstance(actor, User):
+        return _error_response(
+            GoogleOAuthResultCode.AUTHENTICATION_REQUIRED,
+            detail="Only the paying workspace owner can connect Google.",
+            status=403,
+        )
+
+    code = apply_google_provider_link(actor, identity)
+    detail = _GOOGLE_LINK_DETAILS.get(code, "Google could not be connected.")
+    if code in (
+        GoogleOAuthResultCode.LINKED,
+        GoogleOAuthResultCode.ALREADY_LINKED,
+    ):
+        return Response({"code": code, "detail": detail})
+    status = 403 if code == GoogleOAuthResultCode.AUTHENTICATION_REQUIRED else 400
+    return _error_response(code, detail=detail, status=status)
+
+
 def complete_google_native_authentication(
     request,
     *,
@@ -296,6 +349,8 @@ def complete_google_native_authentication(
         return process_google_native_login(request, identity)
     if intent_normalized == INTENT_VERIFY:
         return process_google_native_verify(request, identity)
+    if intent_normalized == INTENT_LINK:
+        return process_google_native_link(request, identity)
     return process_google_native_register(
         request,
         identity,

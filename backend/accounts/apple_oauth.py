@@ -315,19 +315,31 @@ def handle_apple_oauth_link(
     if actor is None:
         return redirect_apple_account_security_result(AppleOAuthResultCode.AUTHENTICATION_REQUIRED)
 
+    return redirect_apple_account_security_result(
+        apply_apple_provider_link(actor, identity)
+    )
+
+
+def apply_apple_provider_link(actor, identity: AppleIdentity) -> str:
+    """
+    Link a verified Apple identity to an authenticated owner.
+
+    Shared by Browser OAuth callback (intent=link) and native iOS intent=link.
+    Returns an AppleOAuthResultCode value. Does not mutate the session.
+    """
     if getattr(actor, "is_staff", False) or getattr(actor, "is_superuser", False):
-        return redirect_apple_account_security_result(AppleOAuthResultCode.AUTHENTICATION_FAILED)
+        return AppleOAuthResultCode.AUTHENTICATION_FAILED
 
     existing_for_subject = get_apple_provider_link(subject=identity.subject)
     if existing_for_subject is not None and existing_for_subject.user_id != actor.pk:
-        return redirect_apple_account_security_result(AppleOAuthResultCode.APPLE_ALREADY_LINKED)
+        return AppleOAuthResultCode.APPLE_ALREADY_LINKED
 
     owner_link = get_owner_apple_link(actor)
     if owner_link is not None:
         if owner_link.provider_subject == identity.subject:
             update_apple_provider_link_snapshot(owner_link, identity)
-            return redirect_apple_account_security_result(AppleOAuthResultCode.ALREADY_LINKED)
-        return redirect_apple_account_security_result(AppleOAuthResultCode.DIFFERENT_APPLE_LINKED)
+            return AppleOAuthResultCode.ALREADY_LINKED
+        return AppleOAuthResultCode.DIFFERENT_APPLE_LINKED
 
     try:
         create_apple_provider_link(actor, identity)
@@ -335,10 +347,10 @@ def handle_apple_oauth_link(
         existing_for_subject = get_apple_provider_link(subject=identity.subject)
         if existing_for_subject is not None and existing_for_subject.user_id == actor.pk:
             update_apple_provider_link_snapshot(existing_for_subject, identity)
-            return redirect_apple_account_security_result(AppleOAuthResultCode.ALREADY_LINKED)
-        return redirect_apple_account_security_result(AppleOAuthResultCode.APPLE_ALREADY_LINKED)
+            return AppleOAuthResultCode.ALREADY_LINKED
+        return AppleOAuthResultCode.APPLE_ALREADY_LINKED
 
-    return redirect_apple_account_security_result(AppleOAuthResultCode.LINKED)
+    return AppleOAuthResultCode.LINKED
 
 
 def handle_apple_oauth_verify(

@@ -27,6 +27,8 @@ class GoogleNativeCompleteView(APIView):
     - login / register: OwnerAuthProviderLink + complete_owner_authentication
     - verify: authenticated owner re-check; records `_owner_oauth_reauth`
       on the existing session (no login completion / session replace)
+    - link: authenticated owner connects Google using the same provider-link
+      rules as Browser intent=link (JSON; no redirect / no session replace)
     """
 
     permission_classes = [AllowAny]

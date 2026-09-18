@@ -17,6 +17,7 @@ from accounts.apple_oauth import (
     AppleOAuthResultCode,
     _register_new_apple_owner,
     _validate_apple_identity_for_registration,
+    apply_apple_provider_link,
     create_apple_provider_link,
     get_apple_provider_link,
     get_owner_apple_link,
@@ -28,7 +29,12 @@ from accounts.apple_oauth_client import (
     verify_apple_native_id_token,
 )
 from accounts.apple_oauth_settings import apple_native_ios_is_configured
-from accounts.apple_oauth_state import INTENT_LOGIN, INTENT_REGISTER, INTENT_VERIFY
+from accounts.apple_oauth_state import (
+    INTENT_LINK,
+    INTENT_LOGIN,
+    INTENT_REGISTER,
+    INTENT_VERIFY,
+)
 from accounts.email_uniqueness import (
     email_ownership_established,
     get_provisional_unverified_owner,
@@ -44,7 +50,22 @@ from accounts.provisional_ownership import (
 logger = logging.getLogger("accounts.apple_native")
 User = get_user_model()
 
-NATIVE_INTENTS = frozenset({INTENT_LOGIN, INTENT_REGISTER, INTENT_VERIFY})
+NATIVE_INTENTS = frozenset({INTENT_LOGIN, INTENT_REGISTER, INTENT_VERIFY, INTENT_LINK})
+
+_APPLE_LINK_DETAILS = {
+    AppleOAuthResultCode.LINKED: "Apple is now connected to your account.",
+    AppleOAuthResultCode.ALREADY_LINKED: "Apple is already connected to your account.",
+    AppleOAuthResultCode.APPLE_ALREADY_LINKED: (
+        "This Apple account is connected to another CheckStation account."
+    ),
+    AppleOAuthResultCode.DIFFERENT_APPLE_LINKED: (
+        "A different Apple account is already connected. Disconnect it first."
+    ),
+    AppleOAuthResultCode.AUTHENTICATION_FAILED: "Apple could not be connected.",
+    AppleOAuthResultCode.AUTHENTICATION_REQUIRED: (
+        "Sign in to connect Apple to your CheckStation account."
+    ),
+}
 
 
 def _error_response(code: str, *, detail: str, status: int = 400) -> Response:
@@ -258,6 +279,38 @@ def process_apple_native_verify(request, identity: AppleIdentity) -> Response:
     )
 
 
+def process_apple_native_link(request, identity: AppleIdentity) -> Response:
+    """
+    Link Apple to the currently authenticated owner (JSON; no redirect).
+
+    Reuses apply_apple_provider_link — the same rules as Browser intent=link.
+    Does not create owners, switch sessions, or merge by email.
+    """
+    actor = getattr(request, "user", None)
+    if actor is None or not getattr(actor, "is_authenticated", False):
+        return _error_response(
+            AppleOAuthResultCode.AUTHENTICATION_REQUIRED,
+            detail=_APPLE_LINK_DETAILS[AppleOAuthResultCode.AUTHENTICATION_REQUIRED],
+            status=403,
+        )
+    if not isinstance(actor, User):
+        return _error_response(
+            AppleOAuthResultCode.AUTHENTICATION_REQUIRED,
+            detail="Only the paying workspace owner can connect Apple.",
+            status=403,
+        )
+
+    code = apply_apple_provider_link(actor, identity)
+    detail = _APPLE_LINK_DETAILS.get(code, "Apple could not be connected.")
+    if code in (
+        AppleOAuthResultCode.LINKED,
+        AppleOAuthResultCode.ALREADY_LINKED,
+    ):
+        return Response({"code": code, "detail": detail})
+    status = 403 if code == AppleOAuthResultCode.AUTHENTICATION_REQUIRED else 400
+    return _error_response(code, detail=detail, status=status)
+
+
 def complete_apple_native_authentication(
     request,
     *,
@@ -323,6 +376,8 @@ def complete_apple_native_authentication(
         return process_apple_native_login(request, identity, full_name=full_name)
     if intent_normalized == INTENT_VERIFY:
         return process_apple_native_verify(request, identity)
+    if intent_normalized == INTENT_LINK:
+        return process_apple_native_link(request, identity)
     return process_apple_native_register(
         request,
         identity,

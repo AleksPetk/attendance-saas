@@ -124,7 +124,10 @@ test("AuthController Apple and Google completion use cookie jar session path", (
   assert.match(authController, /two_factor_required/);
   assert.match(authController, /verifyAppleNative/);
   assert.match(authController, /verifyGoogleNative/);
+  assert.match(authController, /linkAppleNative/);
+  assert.match(authController, /linkGoogleNative/);
   assert.match(authController, /intent:\s*"verify"/);
+  assert.match(authController, /intent:\s*"link"/);
   const googleComplete = authController.slice(authController.indexOf("completeGoogleNative"));
   const googleCompleteBody = googleComplete.slice(0, googleComplete.indexOf("verifyGoogleNative"));
   assert.doesNotMatch(googleCompleteBody, /nonce:/);

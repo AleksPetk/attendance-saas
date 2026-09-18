@@ -31,3 +31,17 @@ export function canConfirmDeleteWithApple(methods?: SignInMethodsSnapshot | null
 export function canConfirmDeleteWithGoogle(methods?: SignInMethodsSnapshot | null): boolean {
   return canConfirmSensitiveWithGoogle(methods);
 }
+
+/**
+ * When disconnecting a provider without a password, reverify with the OTHER
+ * linked provider (matches Browser / validate_sensitive_owner_reauth exclude_provider).
+ */
+export function remainingProviderForUnlink(
+  methods: SignInMethodsSnapshot | null | undefined,
+  unlinking: "google" | "apple",
+): "google" | "apple" | null {
+  if (Boolean(methods?.password?.enabled)) return null;
+  if (unlinking === "google" && Boolean(methods?.apple?.linked)) return "apple";
+  if (unlinking === "apple" && Boolean(methods?.google?.linked)) return "google";
+  return null;
+}

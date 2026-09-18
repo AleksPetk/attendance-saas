@@ -274,19 +274,31 @@ def handle_google_oauth_link(
     if not getattr(actor, "is_authenticated", False) or actor.pk != owner_user_id:
         return redirect_google_account_security_result(GoogleOAuthResultCode.AUTHENTICATION_REQUIRED)
 
+    return redirect_google_account_security_result(
+        apply_google_provider_link(actor, identity)
+    )
+
+
+def apply_google_provider_link(actor, identity: GoogleIdentity) -> str:
+    """
+    Link a verified Google identity to an authenticated owner.
+
+    Shared by Browser OAuth callback (intent=link) and native iOS intent=link.
+    Returns a GoogleOAuthResultCode value. Does not mutate the session.
+    """
     if getattr(actor, "is_staff", False) or getattr(actor, "is_superuser", False):
-        return redirect_google_account_security_result(GoogleOAuthResultCode.AUTHENTICATION_FAILED)
+        return GoogleOAuthResultCode.AUTHENTICATION_FAILED
 
     existing_for_subject = get_google_provider_link(subject=identity.subject)
     if existing_for_subject is not None and existing_for_subject.user_id != actor.pk:
-        return redirect_google_account_security_result(GoogleOAuthResultCode.GOOGLE_ALREADY_LINKED)
+        return GoogleOAuthResultCode.GOOGLE_ALREADY_LINKED
 
     owner_link = get_owner_google_link(actor)
     if owner_link is not None:
         if owner_link.provider_subject == identity.subject:
             update_google_provider_link_snapshot(owner_link, identity)
-            return redirect_google_account_security_result(GoogleOAuthResultCode.ALREADY_LINKED)
-        return redirect_google_account_security_result(GoogleOAuthResultCode.DIFFERENT_GOOGLE_LINKED)
+            return GoogleOAuthResultCode.ALREADY_LINKED
+        return GoogleOAuthResultCode.DIFFERENT_GOOGLE_LINKED
 
     try:
         create_google_provider_link(actor, identity)
@@ -294,10 +306,10 @@ def handle_google_oauth_link(
         existing_for_subject = get_google_provider_link(subject=identity.subject)
         if existing_for_subject is not None and existing_for_subject.user_id == actor.pk:
             update_google_provider_link_snapshot(existing_for_subject, identity)
-            return redirect_google_account_security_result(GoogleOAuthResultCode.ALREADY_LINKED)
-        return redirect_google_account_security_result(GoogleOAuthResultCode.GOOGLE_ALREADY_LINKED)
+            return GoogleOAuthResultCode.ALREADY_LINKED
+        return GoogleOAuthResultCode.GOOGLE_ALREADY_LINKED
 
-    return redirect_google_account_security_result(GoogleOAuthResultCode.LINKED)
+    return GoogleOAuthResultCode.LINKED
 
 
 def handle_google_oauth_verify(
