@@ -147,7 +147,6 @@ export function AccountEmailActions({
       }
       await auth.verifyGoogleNative({
         identityToken: google.credential.identityToken,
-        nonce: google.credential.nonce,
       });
       setOauthReauthReady(true);
     } catch (caught) {

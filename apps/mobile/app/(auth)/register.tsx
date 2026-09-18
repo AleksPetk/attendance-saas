@@ -142,7 +142,6 @@ export default function RegisterScreen() {
       }
       const result = await auth.completeGoogleNative({
         identityToken: google.credential.identityToken,
-        nonce: google.credential.nonce,
         intent: "register",
         legalAcknowledgement: accepted,
       });

@@ -15,7 +15,8 @@
       "env": {
         "EXPO_PUBLIC_API_BASE_URL": "https://workspace.checkstation.app/api",
         "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "533996414208-a130ppp91kc0seu6jondvrth2i94i7qa.apps.googleusercontent.com",
-        "EXPO_PUBLIC_GOOGLE_IOS_URL_SCHEME": "com.googleusercontent.apps.533996414208-a130ppp91kc0seu6jondvrth2i94i7qa"
+        "EXPO_PUBLIC_GOOGLE_IOS_URL_SCHEME": "com.googleusercontent.apps.533996414208-a130ppp91kc0seu6jondvrth2i94i7qa",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "533996414208-meftj1qs2q24cq1hejafcusnblhuqlnp.apps.googleusercontent.com"
       }
     },
     "production": {
@@ -24,7 +25,8 @@
       "env": {
         "EXPO_PUBLIC_API_BASE_URL": "https://workspace.checkstation.app/api",
         "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "533996414208-a130ppp91kc0seu6jondvrth2i94i7qa.apps.googleusercontent.com",
-        "EXPO_PUBLIC_GOOGLE_IOS_URL_SCHEME": "com.googleusercontent.apps.533996414208-a130ppp91kc0seu6jondvrth2i94i7qa"
+        "EXPO_PUBLIC_GOOGLE_IOS_URL_SCHEME": "com.googleusercontent.apps.533996414208-a130ppp91kc0seu6jondvrth2i94i7qa",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "533996414208-meftj1qs2q24cq1hejafcusnblhuqlnp.apps.googleusercontent.com"
       }
     }
   },

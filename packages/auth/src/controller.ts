@@ -196,17 +196,16 @@ export class AuthController {
   /**
    * Complete native iOS Google Sign-In after obtaining an ID token.
    * Uses the same Django session / cookie jar path as password / Apple login.
+   * No nonce: Original Google Sign-In does not bind a custom nonce to signIn().
    */
   async completeGoogleNative(payload: {
     identityToken: string;
-    nonce: string;
     intent: "login" | "register";
     legalAcknowledgement?: boolean;
   }): Promise<OwnerLoginResult> {
     try {
       await this.api.post<WorkspaceSession>(endpoints.googleNativeComplete(), {
         identity_token: payload.identityToken,
-        nonce: payload.nonce,
         intent: payload.intent,
         legal_acknowledgement: Boolean(payload.legalAcknowledgement),
       });
@@ -225,11 +224,9 @@ export class AuthController {
    */
   async verifyGoogleNative(payload: {
     identityToken: string;
-    nonce: string;
   }): Promise<{ code: string; detail?: string }> {
     return this.api.post<{ code: string; detail?: string }>(endpoints.googleNativeComplete(), {
       identity_token: payload.identityToken,
-      nonce: payload.nonce,
       intent: "verify",
     });
   }

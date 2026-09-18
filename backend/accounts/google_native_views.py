@@ -20,8 +20,8 @@ class GoogleNativeCompleteView(APIView):
     """
     POST /api/auth/google/native/
 
-    Accepts a native Google ID token + raw nonce from the iOS app,
-    verifies audience against GOOGLE_NATIVE_IOS_CLIENT_ID.
+    Accepts a native Google ID token from the iOS app and verifies audience
+    against GOOGLE_OAUTH_CLIENT_ID (Web/server client / webClientId).
 
     Intents:
     - login / register: OwnerAuthProviderLink + complete_owner_authentication
@@ -34,14 +34,12 @@ class GoogleNativeCompleteView(APIView):
     def post(self, request):
         data = request.data if hasattr(request, "data") else {}
         identity_token = data.get("identity_token") or data.get("identityToken") or ""
-        raw_nonce = data.get("nonce") or data.get("raw_nonce") or ""
         intent = data.get("intent") or ""
         legal_acknowledgement = _coerce_bool(data.get("legal_acknowledgement"))
 
         return complete_google_native_authentication(
             request,
             identity_token=str(identity_token),
-            raw_nonce=str(raw_nonce),
             intent=str(intent),
             legal_acknowledgement=legal_acknowledgement,
         )

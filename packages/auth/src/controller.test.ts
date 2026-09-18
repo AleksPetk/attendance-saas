@@ -228,7 +228,7 @@ describe("AuthController", () => {
         const body = JSON.parse(String(init?.body || "{}"));
         assert.equal(body.intent, "login");
         assert.equal(body.identity_token, "id-token");
-        assert.equal(body.nonce, "raw-nonce");
+        assert.equal(body.nonce, undefined);
         assert.equal(requestHeaders["X-CSRFToken"], "csrf-initial");
         const response = new Response(JSON.stringify(session), { status: 200, headers: { "content-type": "application/json" } });
         Object.defineProperty(response, "_rawHeaders", { value: [
@@ -248,7 +248,6 @@ describe("AuthController", () => {
     await api.init();
     const result = await auth.completeGoogleNative({
       identityToken: "id-token",
-      nonce: "raw-nonce",
       intent: "login",
     });
     assert.equal(result.kind, "authenticated");
@@ -277,7 +276,6 @@ describe("AuthController", () => {
     await api.init();
     const result = await auth.completeGoogleNative({
       identityToken: "id-token",
-      nonce: "raw-nonce",
       intent: "login",
     });
     assert.equal(result.kind, "two_factor_required");
@@ -313,11 +311,11 @@ describe("AuthController", () => {
     const api = new ApiClient(createAppConfig({ apiBaseUrl: "https://workspace.checkstation.app/api" }), undefined, { fetchImpl: fakeFetch });
     const auth = new AuthController(api);
     await api.init();
-    const result = await auth.verifyGoogleNative({ identityToken: "id-token", nonce: "raw-nonce" });
+    const result = await auth.verifyGoogleNative({ identityToken: "id-token" });
     assert.equal(result.code, "verified");
     assert.equal(verifyBody?.intent, "verify");
     assert.equal(verifyBody?.identity_token, "id-token");
-    assert.equal(verifyBody?.nonce, "raw-nonce");
+    assert.equal(verifyBody?.nonce, undefined);
     assert.equal(workspaceHits, 0);
   });
 

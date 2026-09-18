@@ -141,7 +141,6 @@ export default function SignInScreen() {
       }
       const result = await auth.completeGoogleNative({
         identityToken: google.credential.identityToken,
-        nonce: google.credential.nonce,
         intent: "login",
       });
       if (result.kind === "two_factor_required") {

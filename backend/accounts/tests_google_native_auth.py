@@ -21,12 +21,13 @@ from organizations.models import Organization
 
 User = get_user_model()
 
-NATIVE_AUDIENCE = "1234567890-nativeios.apps.googleusercontent.com"
-BROWSER_AUDIENCE = "1234567890-browserweb.apps.googleusercontent.com"
+IOS_CLIENT_ID = "1234567890-nativeios.apps.googleusercontent.com"
+WEB_AUDIENCE = "1234567890-browserweb.apps.googleusercontent.com"
+OTHER_AUDIENCE = "9999999999-other.apps.googleusercontent.com"
 
 NATIVE_TEST_SETTINGS = {
-    "GOOGLE_NATIVE_IOS_CLIENT_ID": NATIVE_AUDIENCE,
-    "GOOGLE_OAUTH_CLIENT_ID": BROWSER_AUDIENCE,
+    "GOOGLE_NATIVE_IOS_CLIENT_ID": IOS_CLIENT_ID,
+    "GOOGLE_OAUTH_CLIENT_ID": WEB_AUDIENCE,
     "GOOGLE_OAUTH_CLIENT_SECRET": "browser-secret",
     "FRONTEND_BASE_URL": "http://localhost:5173",
 }
@@ -42,7 +43,7 @@ def create_owner(email="owner@example.com", *, password="secure-password", verif
 
 @override_settings(**NATIVE_TEST_SETTINGS)
 class VerifyGoogleNativeIdTokenTests(TestCase):
-    def _base_claims(self, *, aud=NATIVE_AUDIENCE, nonce="secure-raw-nonce", **extra):
+    def _base_claims(self, *, aud=WEB_AUDIENCE, **extra):
         now = int(time.time())
         claims = {
             "sub": "google-native-sub",
@@ -52,49 +53,51 @@ class VerifyGoogleNativeIdTokenTests(TestCase):
             "aud": aud,
             "iat": now,
             "exp": now + 3600,
-            "nonce": nonce,
+            # AppAuth may embed an opaque nonce; native path must ignore it.
+            "nonce": "opaque-appauth-nonce",
         }
         claims.update(extra)
         return claims
 
-    def test_valid_native_token_accepted(self):
+    def test_valid_token_with_web_audience_accepted(self):
         claims = self._base_claims()
         with patch(
             "google.oauth2.id_token.verify_oauth2_token",
             return_value=claims,
         ) as verify:
-            result = verify_google_native_id_token(
-                "fake-jwt",
-                expected_raw_nonce="secure-raw-nonce",
-            )
+            result = verify_google_native_id_token("fake-jwt")
         verify.assert_called_once()
-        self.assertEqual(verify.call_args.args[2], NATIVE_AUDIENCE)
+        self.assertEqual(verify.call_args.args[2], WEB_AUDIENCE)
         self.assertEqual(result["sub"], "google-native-sub")
-        self.assertEqual(result["aud"], NATIVE_AUDIENCE)
+        self.assertEqual(result["aud"], WEB_AUDIENCE)
 
-    def test_wrong_audience_rejected(self):
+    def test_ios_audience_rejected(self):
         with patch(
             "google.oauth2.id_token.verify_oauth2_token",
             side_effect=ValueError("Token has wrong audience"),
         ):
             with self.assertRaises(GoogleOAuthClientError) as ctx:
-                verify_google_native_id_token(
-                    "fake-jwt",
-                    expected_raw_nonce="secure-raw-nonce",
-                )
+                verify_google_native_id_token("fake-jwt")
         self.assertEqual(str(ctx.exception), "invalid_audience")
 
-    def test_browser_web_client_audience_rejected(self):
-        claims = self._base_claims(aud=BROWSER_AUDIENCE)
+    def test_claims_with_ios_audience_rejected_after_verify(self):
+        claims = self._base_claims(aud=IOS_CLIENT_ID)
         with patch(
             "google.oauth2.id_token.verify_oauth2_token",
             return_value=claims,
         ):
             with self.assertRaises(GoogleOAuthClientError) as ctx:
-                verify_google_native_id_token(
-                    "fake-jwt",
-                    expected_raw_nonce="secure-raw-nonce",
-                )
+                verify_google_native_id_token("fake-jwt")
+        self.assertEqual(str(ctx.exception), "invalid_audience")
+
+    def test_wrong_arbitrary_audience_rejected(self):
+        claims = self._base_claims(aud=OTHER_AUDIENCE)
+        with patch(
+            "google.oauth2.id_token.verify_oauth2_token",
+            return_value=claims,
+        ):
+            with self.assertRaises(GoogleOAuthClientError) as ctx:
+                verify_google_native_id_token("fake-jwt")
         self.assertEqual(str(ctx.exception), "invalid_audience")
 
     def test_expired_token_rejected(self):
@@ -103,10 +106,7 @@ class VerifyGoogleNativeIdTokenTests(TestCase):
             side_effect=ValueError("Token expired"),
         ):
             with self.assertRaises(GoogleOAuthClientError) as ctx:
-                verify_google_native_id_token(
-                    "fake-jwt",
-                    expected_raw_nonce="secure-raw-nonce",
-                )
+                verify_google_native_id_token("fake-jwt")
         self.assertEqual(str(ctx.exception), "expired_id_token")
 
     def test_invalid_token_rejected(self):
@@ -115,54 +115,49 @@ class VerifyGoogleNativeIdTokenTests(TestCase):
             side_effect=ValueError("Bad signature"),
         ):
             with self.assertRaises(GoogleOAuthClientError) as ctx:
-                verify_google_native_id_token(
-                    "fake-jwt",
-                    expected_raw_nonce="secure-raw-nonce",
-                )
+                verify_google_native_id_token("fake-jwt")
         self.assertEqual(str(ctx.exception), "invalid_id_token")
 
-    def test_nonce_mismatch_rejected(self):
-        claims = self._base_claims(nonce="correct-nonce")
+    def test_opaque_appauth_nonce_claim_ignored(self):
+        claims = self._base_claims(nonce="unmatchable-sdk-nonce")
         with patch(
             "google.oauth2.id_token.verify_oauth2_token",
             return_value=claims,
         ):
-            with self.assertRaises(GoogleOAuthClientError) as ctx:
-                verify_google_native_id_token(
-                    "fake-jwt",
-                    expected_raw_nonce="wrong-nonce",
-                )
-        self.assertEqual(str(ctx.exception), "invalid_nonce")
+            result = verify_google_native_id_token("fake-jwt")
+        self.assertEqual(result["sub"], "google-native-sub")
 
-    def test_missing_nonce_claim_accepted_when_sdk_omits_nonce(self):
+    def test_missing_nonce_claim_accepted(self):
         claims = self._base_claims()
         claims.pop("nonce")
         with patch(
             "google.oauth2.id_token.verify_oauth2_token",
             return_value=claims,
         ):
-            result = verify_google_native_id_token(
-                "fake-jwt",
-                expected_raw_nonce="unused-when-claim-absent",
-            )
+            result = verify_google_native_id_token("fake-jwt")
         self.assertEqual(result["sub"], "google-native-sub")
 
-    def test_native_verifier_does_not_use_browser_client_id_as_audience(self):
+    def test_native_verifier_uses_web_client_id_as_audience(self):
         claims = self._base_claims()
         with patch(
             "google.oauth2.id_token.verify_oauth2_token",
             return_value=claims,
         ) as verify:
-            verify_google_native_id_token("fake-jwt", expected_raw_nonce="secure-raw-nonce")
-        self.assertNotEqual(verify.call_args.args[2], BROWSER_AUDIENCE)
-        self.assertEqual(verify.call_args.args[2], NATIVE_AUDIENCE)
+            verify_google_native_id_token("fake-jwt")
+        self.assertEqual(verify.call_args.args[2], WEB_AUDIENCE)
+        self.assertNotEqual(verify.call_args.args[2], IOS_CLIENT_ID)
+
+    def test_missing_web_client_id_rejects(self):
+        with override_settings(GOOGLE_OAUTH_CLIENT_ID=""):
+            with self.assertRaises(GoogleOAuthClientError) as ctx:
+                verify_google_native_id_token("fake-jwt")
+        self.assertEqual(str(ctx.exception), "native_audience_not_configured")
 
 
 @override_settings(**NATIVE_TEST_SETTINGS)
 class GoogleNativeCompleteEndpointTests(TestCase):
     def setUp(self):
         self.client = Client()
-        self.raw_nonce = "mobile-raw-nonce-abc"
 
     def _post(self, payload):
         return self.client.post(
@@ -177,7 +172,7 @@ class GoogleNativeCompleteEndpointTests(TestCase):
         sub="google-native-sub",
         email="native@example.com",
         email_verified=True,
-        aud=NATIVE_AUDIENCE,
+        aud=WEB_AUDIENCE,
     ):
         return {
             "sub": sub,
@@ -185,7 +180,6 @@ class GoogleNativeCompleteEndpointTests(TestCase):
             "email_verified": email_verified,
             "iss": "https://accounts.google.com",
             "aud": aud,
-            "nonce": self.raw_nonce,
             "exp": int(timezone.now().timestamp()) + 3600,
         }
 
@@ -194,7 +188,17 @@ class GoogleNativeCompleteEndpointTests(TestCase):
             response = self._post(
                 {
                     "identity_token": "x",
-                    "nonce": self.raw_nonce,
+                    "intent": "login",
+                }
+            )
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response.json()["code"], GoogleOAuthResultCode.OAUTH_NOT_CONFIGURED)
+
+    def test_missing_web_client_returns_503(self):
+        with override_settings(GOOGLE_OAUTH_CLIENT_ID=""):
+            response = self._post(
+                {
+                    "identity_token": "x",
                     "intent": "login",
                 }
             )
@@ -206,9 +210,7 @@ class GoogleNativeCompleteEndpointTests(TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.json()["code"], GoogleOAuthResultCode.AUTHENTICATION_FAILED)
 
-        response = self._post(
-            {"identity_token": "tok", "nonce": self.raw_nonce, "intent": "link"}
-        )
+        response = self._post({"identity_token": "tok", "intent": "link"})
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.json()["code"], GoogleOAuthResultCode.INVALID_INTENT)
 
@@ -228,7 +230,6 @@ class GoogleNativeCompleteEndpointTests(TestCase):
             response = self._post(
                 {
                     "identity_token": "fake-token",
-                    "nonce": self.raw_nonce,
                     "intent": "login",
                 }
             )
@@ -246,7 +247,6 @@ class GoogleNativeCompleteEndpointTests(TestCase):
             response = self._post(
                 {
                     "identity_token": "fake-token",
-                    "nonce": self.raw_nonce,
                     "intent": "login",
                 }
             )
@@ -268,7 +268,6 @@ class GoogleNativeCompleteEndpointTests(TestCase):
             response = self._post(
                 {
                     "identity_token": "fake-token",
-                    "nonce": self.raw_nonce,
                     "intent": "register",
                     "legal_acknowledgement": True,
                 }
@@ -300,7 +299,6 @@ class GoogleNativeCompleteEndpointTests(TestCase):
             response = self._post(
                 {
                     "identity_token": "fake-token",
-                    "nonce": self.raw_nonce,
                     "intent": "register",
                     "legal_acknowledgement": True,
                 }
@@ -317,7 +315,6 @@ class GoogleNativeCompleteEndpointTests(TestCase):
             response = self._post(
                 {
                     "identity_token": "fake-token",
-                    "nonce": self.raw_nonce,
                     "intent": "register",
                     "legal_acknowledgement": True,
                 }
@@ -336,7 +333,6 @@ class GoogleNativeCompleteEndpointTests(TestCase):
             response = self._post(
                 {
                     "identity_token": "fake-token",
-                    "nonce": self.raw_nonce,
                     "intent": "register",
                     "legal_acknowledgement": False,
                 }
@@ -372,7 +368,6 @@ class GoogleNativeCompleteEndpointTests(TestCase):
             response = self._post(
                 {
                     "identity_token": "fake-token",
-                    "nonce": self.raw_nonce,
                     "intent": "login",
                 }
             )
@@ -406,7 +401,6 @@ class GoogleNativeCompleteEndpointTests(TestCase):
             response = self._post(
                 {
                     "identity_token": "fake-token",
-                    "nonce": self.raw_nonce,
                     "intent": "login",
                 }
             )
@@ -418,7 +412,6 @@ class GoogleNativeCompleteEndpointTests(TestCase):
 @override_settings(**NATIVE_TEST_SETTINGS)
 class GoogleNativeVerifyEndpointTests(TestCase):
     def setUp(self):
-        self.raw_nonce = "mobile-verify-nonce"
         self.owner, self.org = create_owner(email="verify-native@example.com")
         self.owner.set_unusable_password()
         self.owner.save(update_fields=["password"])
@@ -439,8 +432,7 @@ class GoogleNativeVerifyEndpointTests(TestCase):
             "email": email,
             "email_verified": True,
             "iss": "https://accounts.google.com",
-            "aud": NATIVE_AUDIENCE,
-            "nonce": self.raw_nonce,
+            "aud": WEB_AUDIENCE,
             "exp": int(timezone.now().timestamp()) + 3600,
         }
 
@@ -453,7 +445,6 @@ class GoogleNativeVerifyEndpointTests(TestCase):
                 "/api/auth/google/native/",
                 data={
                     "identity_token": "fake-token",
-                    "nonce": self.raw_nonce,
                     "intent": "verify",
                 },
                 content_type="application/json",
@@ -516,7 +507,6 @@ class GoogleNativeVerifyEndpointTests(TestCase):
                 "/api/auth/google/native/",
                 data={
                     "identity_token": "fake-token",
-                    "nonce": self.raw_nonce,
                     "intent": "verify",
                 },
                 content_type="application/json",

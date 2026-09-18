@@ -19,7 +19,7 @@ def google_oauth_client_secret() -> str:
 
 
 def google_native_ios_client_id() -> str:
-    """iOS OAuth client ID used as native Google ID-token audience."""
+    """iOS OAuth client ID for native app identity (not ID-token audience)."""
     return getattr(settings, "GOOGLE_NATIVE_IOS_CLIENT_ID", "").strip()
 
 
@@ -28,8 +28,11 @@ def google_oauth_is_configured() -> bool:
 
 
 def google_native_ios_is_configured() -> bool:
-    """Native iOS Google auth only needs the iOS OAuth client ID (ID-token aud)."""
-    return bool(google_native_ios_client_id())
+    """
+    Native iOS Google requires the iOS client ID (app identity) and the Web
+    client ID (ID-token audience via webClientId / serverClientID).
+    """
+    return bool(google_native_ios_client_id() and google_oauth_client_id())
 
 
 def google_oauth_state_ttl_seconds() -> int:

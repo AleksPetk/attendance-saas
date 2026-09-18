@@ -248,7 +248,6 @@ def complete_google_native_authentication(
     request,
     *,
     identity_token: str,
-    raw_nonce: str,
     intent: str,
     legal_acknowledgement: bool = False,
 ) -> Response:
@@ -267,7 +266,6 @@ def complete_google_native_authentication(
         )
 
     token = (identity_token or "").strip()
-    nonce = (raw_nonce or "").strip()
     if not token:
         return _error_response(
             GoogleOAuthResultCode.AUTHENTICATION_FAILED,
@@ -275,18 +273,13 @@ def complete_google_native_authentication(
         )
 
     try:
-        claims = verify_google_native_id_token(token, expected_raw_nonce=nonce)
+        claims = verify_google_native_id_token(token)
     except GoogleOAuthClientError as exc:
         code = str(exc) or "invalid_id_token"
         if code == "expired_id_token":
             return _error_response(
                 GoogleOAuthResultCode.AUTHENTICATION_FAILED,
                 detail="Google sign-in expired. Try again.",
-            )
-        if code == "invalid_nonce":
-            return _error_response(
-                GoogleOAuthResultCode.AUTHENTICATION_FAILED,
-                detail="Google sign-in could not be verified. Try again.",
             )
         if code == "invalid_audience":
             return _error_response(

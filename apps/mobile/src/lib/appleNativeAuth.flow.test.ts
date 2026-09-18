@@ -52,17 +52,31 @@ test("native Apple helper hashes the raw nonce for Apple and sends raw to backen
   assert.doesNotMatch(appleAuth, /WebView/);
 });
 
-test("native Google helper uses GoogleSignin and configures iosClientId only", () => {
+test("native Google helper configures iosClientId and webClientId without custom nonce", () => {
   assert.match(googleAuth, /GoogleSignin/);
   assert.match(googleAuth, /iosClientId/);
+  assert.match(googleAuth, /webClientId/);
   assert.match(googleAuth, /offlineAccess:\s*false/);
   assert.match(googleAuth, /requestNativeGoogleCredential/);
   assert.match(googleAuth, /isNativeGoogleAuthAvailable/);
+  assert.match(googleAuth, /getGoogleWebClientId/);
   assert.match(googleAuth, /type === "cancelled"/);
   assert.match(googleAuth, /kind: "cancelled"/);
   assert.match(googleAuth, /SIGN_IN_CANCELLED/);
   assert.match(googleAuth, /Platform\.OS !== "ios"/);
-  assert.doesNotMatch(googleAuth, /webClientId/);
+  assert.doesNotMatch(googleAuth, /createGoogleRawNonce/);
+  assert.doesNotMatch(googleAuth, /expo-crypto/);
+  assert.doesNotMatch(googleAuth, /nonce:/);
+});
+
+test("native Google Expo config exposes iOS client, URL scheme, and Web client IDs", () => {
+  assert.match(appConfig, /googleIosClientId/);
+  assert.match(appConfig, /googleWebClientId/);
+  assert.match(appConfig, /googleIosUrlScheme/);
+  assert.match(appConfig, /533996414208-a130ppp91kc0seu6jondvrth2i94i7qa\.apps\.googleusercontent\.com/);
+  assert.match(appConfig, /533996414208-meftj1qs2q24cq1hejafcusnblhuqlnp\.apps\.googleusercontent\.com/);
+  assert.match(appConfig, /com\.googleusercontent\.apps\.533996414208-a130ppp91kc0seu6jondvrth2i94i7qa/);
+  assert.match(appConfig, /EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID/);
 });
 
 test("OAuthProviderButtons wires Google and Apple native presses", () => {
@@ -111,4 +125,9 @@ test("AuthController Apple and Google completion use cookie jar session path", (
   assert.match(authController, /verifyAppleNative/);
   assert.match(authController, /verifyGoogleNative/);
   assert.match(authController, /intent:\s*"verify"/);
+  const googleComplete = authController.slice(authController.indexOf("completeGoogleNative"));
+  const googleCompleteBody = googleComplete.slice(0, googleComplete.indexOf("verifyGoogleNative"));
+  assert.doesNotMatch(googleCompleteBody, /nonce:/);
+  const googleVerify = authController.slice(authController.indexOf("verifyGoogleNative"));
+  assert.doesNotMatch(googleVerify.slice(0, 400), /nonce:/);
 });

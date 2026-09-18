@@ -171,7 +171,6 @@ function SensitiveSheet({ account, action, onClose, onSaved }: { account: Accoun
       }
       await auth.verifyGoogleNative({
         identityToken: google.credential.identityToken,
-        nonce: google.credential.nonce,
       });
       setOauthReauthReady(true);
     } catch (caught) {

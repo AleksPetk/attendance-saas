@@ -1,13 +1,10 @@
 import Constants from "expo-constants";
-import * as Crypto from "expo-crypto";
 import { Platform } from "react-native";
 
 export type GoogleNativeIntent = "login" | "register" | "verify";
 
 export type GoogleNativeCredential = {
   identityToken: string;
-  /** Optional; current Google Sign-In SDK often omits nonce in the ID token. */
-  nonce: string;
 };
 
 export type GoogleNativeSignInOutcome =
@@ -20,7 +17,11 @@ export type GoogleNativeSignInOutcome =
 
 type GoogleSignInModule = {
   GoogleSignin: {
-    configure: (options: { iosClientId: string; offlineAccess?: boolean }) => void;
+    configure: (options: {
+      iosClientId: string;
+      webClientId: string;
+      offlineAccess?: boolean;
+    }) => void;
     signIn: () => Promise<
       | { type: "success"; data: { idToken: string | null } }
       | { type: "cancelled"; data: null }
@@ -37,7 +38,7 @@ type GoogleSignInModule = {
 };
 
 let googleModule: GoogleSignInModule | null | undefined;
-let configuredClientId: string | null = null;
+let configuredKey: string | null = null;
 
 function loadGoogleModule(): GoogleSignInModule | null {
   if (googleModule !== undefined) return googleModule;
@@ -51,9 +52,21 @@ function loadGoogleModule(): GoogleSignInModule | null {
   return googleModule;
 }
 
+function looksLikeGoogleClientId(value: string): boolean {
+  if (!value) return false;
+  if (value.includes("CHECKSTATION_NATIVE_IOS_CLIENT_PLACEHOLDER")) return false;
+  if (value.includes("REPLACE_ME")) return false;
+  return value.includes(".apps.googleusercontent.com");
+}
+
 export function getGoogleIosClientId(): string {
   const extra = Constants.expoConfig?.extra as { googleIosClientId?: string } | undefined;
   return String(extra?.googleIosClientId || "").trim();
+}
+
+export function getGoogleWebClientId(): string {
+  const extra = Constants.expoConfig?.extra as { googleWebClientId?: string } | undefined;
+  return String(extra?.googleWebClientId || "").trim();
 }
 
 export function getGoogleIosUrlScheme(): string {
@@ -61,22 +74,12 @@ export function getGoogleIosUrlScheme(): string {
   return String(extra?.googleIosUrlScheme || "").trim();
 }
 
-/** True when iOS client ID is present and looks like a Google OAuth iOS client. */
+/**
+ * True when both the iOS client ID (app identity) and Web client ID
+ * (ID-token audience / serverClientID) are present.
+ */
 export function isGoogleNativeConfigured(): boolean {
-  const clientId = getGoogleIosClientId();
-  if (!clientId) return false;
-  if (clientId.includes("CHECKSTATION_NATIVE_IOS_CLIENT_PLACEHOLDER")) return false;
-  if (clientId.includes("REPLACE_ME")) return false;
-  return clientId.includes(".apps.googleusercontent.com");
-}
-
-export async function createGoogleRawNonce(byteLength = 32): Promise<string> {
-  const bytes = await Crypto.getRandomBytesAsync(byteLength);
-  let out = "";
-  for (let i = 0; i < bytes.length; i += 1) {
-    out += bytes[i].toString(16).padStart(2, "0");
-  }
-  return out;
+  return looksLikeGoogleClientId(getGoogleIosClientId()) && looksLikeGoogleClientId(getGoogleWebClientId());
 }
 
 export async function isNativeGoogleAuthAvailable(): Promise<boolean> {
@@ -86,15 +89,18 @@ export async function isNativeGoogleAuthAvailable(): Promise<boolean> {
 }
 
 function ensureConfigured(mod: GoogleSignInModule): boolean {
-  const clientId = getGoogleIosClientId();
+  const iosClientId = getGoogleIosClientId();
+  const webClientId = getGoogleWebClientId();
   if (!isGoogleNativeConfigured()) return false;
-  if (configuredClientId === clientId) return true;
+  const key = `${iosClientId}|${webClientId}`;
+  if (configuredKey === key) return true;
   try {
     mod.GoogleSignin.configure({
-      iosClientId: clientId,
+      iosClientId,
+      webClientId,
       offlineAccess: false,
     });
-    configuredClientId = clientId;
+    configuredKey = key;
     return true;
   } catch {
     return false;
@@ -115,6 +121,8 @@ function isCancelError(mod: GoogleSignInModule, error: unknown): boolean {
  * POST /api/auth/google/native/.
  *
  * Uses the system Google Sign-In sheet — not browser OAuth redirects.
+ * Does not generate or send an unbound nonce. Original Google Sign-In does not
+ * bind a custom nonce to signIn(); AppAuth may embed an opaque value we cannot match.
  */
 export async function requestNativeGoogleCredential(): Promise<GoogleNativeSignInOutcome> {
   if (Platform.OS !== "ios") {
@@ -132,7 +140,6 @@ export async function requestNativeGoogleCredential(): Promise<GoogleNativeSignI
     return { kind: "misconfigured" };
   }
 
-  const rawNonce = await createGoogleRawNonce();
   try {
     // Clear prior interactive session so account picker can appear.
     if (mod.GoogleSignin.hasPreviousSignIn()) {
@@ -155,8 +162,6 @@ export async function requestNativeGoogleCredential(): Promise<GoogleNativeSignI
       kind: "success",
       credential: {
         identityToken,
-        // Sent for forward-compat; backend accepts tokens without a nonce claim.
-        nonce: rawNonce,
       },
     };
   } catch (error) {

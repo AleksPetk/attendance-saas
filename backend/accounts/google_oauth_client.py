@@ -15,7 +15,6 @@ from accounts.google_oauth_settings import (
     GOOGLE_OAUTH_ISSUERS,
     GOOGLE_OAUTH_SCOPES,
     GOOGLE_OAUTH_TOKEN_URL,
-    google_native_ios_client_id,
     google_oauth_client_id,
     google_oauth_client_secret,
 )
@@ -123,22 +122,21 @@ def _audience_matches(claims: dict, expected_audience: str) -> bool:
 def verify_google_native_id_token(
     id_token_jwt: str,
     *,
-    expected_raw_nonce: str = "",
     expected_audience: str | None = None,
 ) -> dict:
     """
     Verify a native iOS Google Sign-In ID token.
 
-    Audience must be the iOS OAuth client ID (GOOGLE_NATIVE_IOS_CLIENT_ID),
-    not the browser web OAuth client ID.
+    Audience must be the Web/server OAuth client ID (GOOGLE_OAUTH_CLIENT_ID),
+    which Mobile configures as webClientId / GIDConfiguration.serverClientID.
+    The iOS OAuth client (GOOGLE_NATIVE_IOS_CLIENT_ID) identifies the app only.
 
-    Nonce:
-    - When Google embeds a `nonce` claim, it must match `expected_raw_nonce`
-      (raw value; unlike Apple, Google does not hash the nonce).
-    - Current @react-native-google-signin/google-signin does not expose a
-      nonce parameter, so tokens often omit `nonce`; missing claim is allowed.
+    Nonce is not verified for this path: Original
+    @react-native-google-signin/google-signin does not expose a custom nonce to
+    bind to GoogleSignin.signIn(); AppAuth may embed an opaque nonce that the
+    app cannot match. Browser Google OAuth continues to enforce its own nonce.
     """
-    audience = (expected_audience or google_native_ios_client_id()).strip()
+    audience = (expected_audience or google_oauth_client_id()).strip()
     if not audience:
         raise GoogleOAuthClientError("native_audience_not_configured")
 
@@ -168,17 +166,6 @@ def verify_google_native_id_token(
 
     if not _audience_matches(claims, audience):
         raise GoogleOAuthClientError("invalid_audience")
-
-    # Reject browser web-client tokens even if somehow accepted above.
-    browser_aud = google_oauth_client_id()
-    if browser_aud and browser_aud != audience and _audience_matches(claims, browser_aud):
-        raise GoogleOAuthClientError("invalid_audience")
-
-    token_nonce = str(claims.get("nonce") or "").strip()
-    expected_nonce = (expected_raw_nonce or "").strip()
-    if token_nonce:
-        if not expected_nonce or token_nonce != expected_nonce:
-            raise GoogleOAuthClientError("invalid_nonce")
 
     subject = str(claims.get("sub") or "").strip()
     if not subject:

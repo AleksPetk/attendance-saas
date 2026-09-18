@@ -435,8 +435,9 @@ GOOGLE_OAUTH_CLIENT_SECRET = env("GOOGLE_OAUTH_CLIENT_SECRET", default="")
 GOOGLE_OAUTH_REDIRECT_URI = env("GOOGLE_OAUTH_REDIRECT_URI", default="")
 GOOGLE_OAUTH_STATE_TTL_SECONDS = env("GOOGLE_OAUTH_STATE_TTL_SECONDS")
 GOOGLE_OAUTH_HTTP_TIMEOUT_SECONDS = env("GOOGLE_OAUTH_HTTP_TIMEOUT_SECONDS")
-# Native iOS Google Sign-In identity-token audience (iOS OAuth client ID).
-# Browser web client remains GOOGLE_OAUTH_CLIENT_ID. Not a secret.
+# Native iOS Google Sign-In app identity (iOS OAuth client ID).
+# ID-token audience for native is GOOGLE_OAUTH_CLIENT_ID (webClientId / serverClientID).
+# Not a secret.
 GOOGLE_NATIVE_IOS_CLIENT_ID = env("GOOGLE_NATIVE_IOS_CLIENT_ID", default="")
 
 # Owner Apple OAuth (optional). Password/Google login continue when unset.
