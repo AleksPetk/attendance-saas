@@ -27,6 +27,7 @@ from billing.apple_verify import (
 )
 from billing.operations import (
     apply_upgrade_to_business,
+    clear_future_paid_intent,
     list_customer_invoices,
     open_customer_portal,
     preview_upgrade_to_business,
@@ -35,6 +36,7 @@ from billing.operations import (
     request_downgrade_to_plus,
     request_resume_subscription,
     request_schedule_billing_change,
+    set_future_paid_intent,
     start_paid_checkout,
 )
 from billing.prices import stripe_api_configured
@@ -117,6 +119,38 @@ class BillingCheckoutView(APIView):
         if mode != "checkout":
             payload["billing"] = build_billing_state(organization)
         return Response(payload)
+
+
+class BillingFuturePlanView(APIView):
+    """Intent-only future paid plan (no Stripe Checkout, no StoreKit charge)."""
+
+    permission_classes = [IsAuthenticated, IsWorkspaceOwner]
+
+    def post(self, request):
+        organization = get_owned_organization(request.user)
+        try:
+            set_future_paid_intent(
+                organization,
+                plan_key=request.data.get("plan"),
+                interval=request.data.get("interval"),
+            )
+        except BillingStateError as exc:
+            return _error_response(exc)
+        organization.refresh_from_db()
+        return Response(build_billing_state(organization))
+
+
+class BillingFuturePlanClearView(APIView):
+    permission_classes = [IsAuthenticated, IsWorkspaceOwner]
+
+    def post(self, request):
+        organization = get_owned_organization(request.user)
+        try:
+            clear_future_paid_intent(organization)
+        except BillingStateError as exc:
+            return _error_response(exc)
+        organization.refresh_from_db()
+        return Response(build_billing_state(organization))
 
 
 class BillingUpgradePreviewView(APIView):

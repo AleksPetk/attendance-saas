@@ -25,6 +25,8 @@ test("mobile Plan presentation follows the admin template and promo style keys",
   assert.match(page, /PlanPromoHeadline/);
   assert.match(page, /PlanOptionCard/);
   assert.match(page, /shouldShowStripePromoOnMobile/);
+  assert.match(page, /appleTrialFutureSelectionMode/);
+  assert.match(page, /showAppleTrialSelect/);
   assert.doesNotMatch(page, /Launch Special/);
   assert.doesNotMatch(view, /Launch Special/);
   assert.match(view, /accessibilityState=\{\{ disabled: true \}\}/);

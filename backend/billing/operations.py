@@ -566,3 +566,133 @@ def list_customer_invoices(organization, *, limit=10):
         customer_id=billing.external_customer_id,
         limit=limit,
     )
+
+
+def set_future_paid_intent(organization, *, plan_key, interval):
+    """Record a future paid plan without starting Stripe or Apple billing.
+
+    Used by iOS during the built-in Business trial so the owner can choose
+    which App Store product to buy after the free week. Keeps
+    ``purchase_source=none`` and ``status=none`` — no charge, no StoreKit
+    transaction, no Stripe subscription, no entitlement change.
+    """
+    from billing.builtin_trial import builtin_trial_is_active
+    from billing.services import lock_workspace_billing
+
+    _deny_checkstation_billing(organization)
+    plan = str(plan_key or "").strip().lower()
+    interval_key = str(interval or "").strip().lower()
+    if plan not in {PLAN_PLUS, PLAN_BUSINESS}:
+        raise BillingStateError("Future plan must be plus or business.")
+    if interval_key not in PAID_INTERVALS:
+        raise BillingStateError("Future interval must be monthly or yearly.")
+    if not builtin_trial_is_active(organization):
+        raise BillingStateError(
+            "Future plan selection is only available during the built-in trial.",
+            code="builtin_trial_required",
+        )
+    org, billing = lock_workspace_billing(organization)
+    _ = org
+    if billing.purchase_source not in {"", PurchaseSource.NONE}:
+        raise BillingStateError(
+            "This workspace already has a billing provider.",
+            code="purchase_source_locked",
+        )
+    if billing.status in {
+        BillingStatus.TRIALING,
+        BillingStatus.ACTIVE,
+        BillingStatus.PAST_DUE,
+    }:
+        raise BillingStateError(
+            "This workspace already has an active subscription.",
+            code="subscription_active",
+        )
+    billing.purchase_source = PurchaseSource.NONE
+    billing.status = BillingStatus.NONE
+    billing.subscribed_plan = plan
+    billing.billing_interval = interval_key
+    billing.external_customer_id = ""
+    billing.external_subscription_id = ""
+    billing.trial_started_at = None
+    billing.trial_ends_at = None
+    billing.current_period_start = None
+    billing.current_period_end = None
+    billing.cancel_at_period_end = False
+    billing.pending_plan = ""
+    billing.pending_interval = ""
+    billing.pending_change_effective_at = None
+    billing.save(
+        update_fields=[
+            "purchase_source",
+            "status",
+            "subscribed_plan",
+            "billing_interval",
+            "external_customer_id",
+            "external_subscription_id",
+            "trial_started_at",
+            "trial_ends_at",
+            "current_period_start",
+            "current_period_end",
+            "cancel_at_period_end",
+            "pending_plan",
+            "pending_interval",
+            "pending_change_effective_at",
+            "updated_at",
+        ]
+    )
+    return billing
+
+
+def clear_future_paid_intent(organization):
+    """Clear an intent-only future paid plan (``purchase_source=none``).
+
+    Does not cancel Stripe deferred selections — those use the Stripe cancel path.
+    """
+    from billing.models import BillingInterval
+    from billing.services import lock_workspace_billing
+
+    _deny_checkstation_billing(organization)
+    org, billing = lock_workspace_billing(organization)
+    _ = org
+    if billing.purchase_source not in {"", PurchaseSource.NONE}:
+        raise BillingStateError(
+            "Clearing this selection requires the workspace billing provider path.",
+            code="purchase_source_locked",
+        )
+    if billing.status in {
+        BillingStatus.TRIALING,
+        BillingStatus.ACTIVE,
+        BillingStatus.PAST_DUE,
+    }:
+        raise BillingStateError(
+            "Cannot clear an active paid subscription as a future intent.",
+            code="subscription_active",
+        )
+    if not billing.subscribed_plan:
+        return billing
+    billing.subscribed_plan = ""
+    billing.billing_interval = BillingInterval.NONE
+    billing.trial_started_at = None
+    billing.trial_ends_at = None
+    billing.current_period_start = None
+    billing.current_period_end = None
+    billing.cancel_at_period_end = False
+    billing.pending_plan = ""
+    billing.pending_interval = ""
+    billing.pending_change_effective_at = None
+    billing.save(
+        update_fields=[
+            "subscribed_plan",
+            "billing_interval",
+            "trial_started_at",
+            "trial_ends_at",
+            "current_period_start",
+            "current_period_end",
+            "cancel_at_period_end",
+            "pending_plan",
+            "pending_interval",
+            "pending_change_effective_at",
+            "updated_at",
+        ]
+    )
+    return billing

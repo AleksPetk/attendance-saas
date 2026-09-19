@@ -53,13 +53,15 @@ def _plan_label(key):
     return PLAN_DISPLAY_NAMES.get(key, key)
 
 
-def _future_paid_plan_payload(billing):
-    """Deferred paid choice during built-in trial (commercially still Basic)."""
+def _future_paid_plan_payload(billing, *, starts_at=None):
+    """Future paid choice (Stripe deferred trialing, or none-source intent).
+
+    Commercially still Basic while the built-in trial is active. Intent-only
+    rows keep ``purchase_source=none`` / ``status=none`` and never charge.
+    """
     if not billing:
         return None
     if billing.cancel_at_period_end:
-        return None
-    if billing.status != BillingStatus.TRIALING:
         return None
     plan = billing.subscribed_plan
     interval = billing.billing_interval
@@ -67,12 +69,26 @@ def _future_paid_plan_payload(billing):
         return None
     if interval not in {"monthly", "yearly"}:
         return None
-    return {
-        "key": plan,
-        "display_name": _plan_label(plan),
-        "interval": interval,
-        "starts_at": _iso(billing.trial_ends_at),
-    }
+    # Stripe (or other provider) deferred first paid period.
+    if billing.status == BillingStatus.TRIALING:
+        return {
+            "key": plan,
+            "display_name": _plan_label(plan),
+            "interval": interval,
+            "starts_at": _iso(billing.trial_ends_at),
+        }
+    # Intent-only selection before any paid provider is started (Apple path).
+    if (
+        billing.purchase_source == PurchaseSource.NONE
+        and billing.status == BillingStatus.NONE
+    ):
+        return {
+            "key": plan,
+            "display_name": _plan_label(plan),
+            "interval": interval,
+            "starts_at": _iso(starts_at) if starts_at else None,
+        }
+    return None
 
 
 def build_billing_state(organization):
@@ -165,7 +181,23 @@ def build_billing_state(organization):
 
     cancel_scheduled = bool(billing and billing.cancel_at_period_end)
     change_scheduled = scheduled_change_pending(billing)
-    future_paid = _future_paid_plan_payload(billing) if builtin_active else None
+    builtin_ends_at = None
+    if builtin_active:
+        from billing.builtin_trial import get_builtin_trial
+
+        trial_row = get_builtin_trial(organization)
+        builtin_ends_at = trial_row.ends_at if trial_row else None
+    if builtin_active:
+        future_paid = _future_paid_plan_payload(billing, starts_at=builtin_ends_at)
+    elif (
+        billing
+        and billing.purchase_source == PurchaseSource.NONE
+        and billing.status == BillingStatus.NONE
+    ):
+        # Intent survived trial end — awaiting first Apple (or later Stripe) purchase.
+        future_paid = _future_paid_plan_payload(billing, starts_at=None)
+    else:
+        future_paid = None
 
     # During built-in trial the customer is commercially Basic. Plan cards are
     # always the four future-paid choices; cancel clears the deferred selection.
@@ -318,6 +350,15 @@ def build_billing_state(organization):
     elif billing and billing.pending_interval:
         pending_interval = billing.pending_interval
 
+    # Intent-only rows are not a live commercial subscription.
+    intent_only = bool(
+        future_paid
+        and billing
+        and billing.purchase_source == PurchaseSource.NONE
+        and billing.status == BillingStatus.NONE
+    )
+    commercial_subscribed = None if intent_only else (subscribed or None)
+
     return {
         "managed_by_platform": False,
         "commercial_billing_available": True,
@@ -326,10 +367,10 @@ def build_billing_state(organization):
             "display_name": _plan_label(effective),
         },
         "subscribed_plan": {
-            "key": subscribed or None,
-            "display_name": _plan_label(subscribed) if subscribed else None,
+            "key": commercial_subscribed,
+            "display_name": _plan_label(commercial_subscribed) if commercial_subscribed else None,
         },
-        "future_paid_plan": None,
+        "future_paid_plan": future_paid,
         "purchase_source": source,
         "purchase_source_display": source_flags["purchase_source_display"],
         "managed_by_source": source_flags["managed_by_source"],

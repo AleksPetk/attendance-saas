@@ -38,6 +38,9 @@ import {
   appleBlockedByOtherProvider,
   appleManaged,
   applePurchaseEligible,
+  appleTrialFutureSelectionMode,
+  futurePaidMatchesAppleProduct,
+  shouldLoadAppleStoreProducts,
   shouldShowStripePromoOnMobile,
   userFacingAppleBillingError,
 } from "../../src/billing/applePlanUi";
@@ -83,11 +86,13 @@ export default function PlanScreen() {
 
   const showAppleShop = appleIapSupported() && applePurchaseEligible(billing);
   const showAppleManage = appleIapSupported() && appleManaged(billing);
+  const showAppleTrialSelect = appleIapSupported() && appleTrialFutureSelectionMode(billing);
+  const loadAppleProducts = appleIapSupported() && shouldLoadAppleStoreProducts(billing);
   const blockedProvider = appleIapSupported() ? appleBlockedByOtherProvider(billing) : null;
-  const showStripeCards = shouldShowStripePromoOnMobile(billing) && !showAppleShop && !showAppleManage;
+  const showStripeCards = shouldShowStripePromoOnMobile(billing) && !showAppleShop && !showAppleManage && !showAppleTrialSelect;
 
   useEffect(() => {
-    if (!showAppleShop && !showAppleManage) {
+    if (!loadAppleProducts) {
       setAppleProducts([]);
       return;
     }
@@ -104,7 +109,7 @@ export default function PlanScreen() {
         if (!cancelled) setAppleLoading(false);
       });
     return () => { cancelled = true; };
-  }, [showAppleShop, showAppleManage, billing?.purchase_source]);
+  }, [loadAppleProducts, billing?.purchase_source, billing?.builtin_trial?.active]);
 
   const verifyWithBackend = useCallback(async (signedTransaction: string) => {
     const snapshot = await api.post<Snapshot>(endpoints.billingAppleVerify(), {
@@ -125,6 +130,10 @@ export default function PlanScreen() {
     try {
       const fresh = await api.get<Snapshot>(endpoints.billing());
       setBilling(fresh);
+      if (appleTrialFutureSelectionMode(fresh)) {
+        setError(t("plan.appleTrialSelectHint"));
+        return;
+      }
       if (!applePurchaseEligible(fresh) && !appleManaged(fresh)) {
         setError(userFacingAppleBillingError({ code: "purchase_source_locked" }, t("common.error")));
         return;
@@ -144,6 +153,44 @@ export default function PlanScreen() {
       setAppleBusy(false);
     }
   }, [api, billing, load, t, verifyWithBackend]);
+
+  const onSelectFuture = useCallback(async (productId: AppleProductId) => {
+    const meta = appleProductMeta(productId);
+    if (!meta) {
+      setError(t("common.error"));
+      return;
+    }
+    setAppleBusy(true);
+    setError("");
+    setInfo("");
+    try {
+      const snapshot = await api.post<Snapshot>(endpoints.billingFuturePlan(), {
+        plan: meta.plan,
+        interval: meta.interval,
+      });
+      setBilling(snapshot);
+      setInfo(t("plan.appleTrialSelectSuccess"));
+    } catch (caught) {
+      setError(userFacingAppleBillingError(caught, t("common.error")));
+    } finally {
+      setAppleBusy(false);
+    }
+  }, [api, t]);
+
+  const onClearFuture = useCallback(async () => {
+    setAppleBusy(true);
+    setError("");
+    setInfo("");
+    try {
+      const snapshot = await api.post<Snapshot>(endpoints.billingFuturePlanClear(), {});
+      setBilling(snapshot);
+      setInfo(t("plan.appleTrialClearSuccess"));
+    } catch (caught) {
+      setError(userFacingAppleBillingError(caught, t("common.error")));
+    } finally {
+      setAppleBusy(false);
+    }
+  }, [api, t]);
 
   const onRestore = useCallback(async () => {
     setAppleBusy(true);
@@ -189,6 +236,9 @@ export default function PlanScreen() {
   const promo = billing.catalog?.promotion;
   const summary = showStripeCards && promo?.active && promo.group === "new_basic" ? promotionSummary(billing.catalog, bt) : "";
   const date = (value?: string | null) => value ? formatDateTime(value, locale) : "";
+  const showAppleSection = showAppleShop || showAppleManage || showAppleTrialSelect;
+  const preferredFuture = billing.future_paid_plan;
+  const appleCards = appleProducts;
 
   return (
     <Screen style={styles.screen}>
@@ -205,7 +255,16 @@ export default function PlanScreen() {
             <StatusPill label={statusLabelForBilling(billing, bt)} tone="blue" />
           </View>
           {trial && billing.builtin_trial?.ends_at ? <Info label={bt("billing:currentPlan.trialEnds")} value={date(billing.builtin_trial.ends_at)} /> : null}
-          {trial ? <Info label={bt("billing:trialSelection.selectedPlan")} value={billing.future_paid_plan?.key ? `${billing.future_paid_plan.display_name || billing.future_paid_plan.key} · ${bt(`billing:interval.${billing.future_paid_plan.interval}`)}` : bt("billing:trialSelection.noneSelected")} /> : null}
+          {(trial || preferredFuture) ? (
+            <Info
+              label={bt("billing:trialSelection.selectedPlan")}
+              value={
+                preferredFuture?.key
+                  ? `${preferredFuture.display_name || preferredFuture.key} · ${bt(`billing:interval.${preferredFuture.interval}`)}`
+                  : bt("billing:trialSelection.noneSelected")
+              }
+            />
+          ) : null}
           {!trial && billing.interval ? <Info label={bt("billing:currentPlan.interval")} value={bt(`billing:interval.${billing.interval}`)} /> : null}
           {!trial && billing.interval && billing.subscribed_plan?.key && showStripeCards ? <Info label={bt("billing:currentPlan.price")} value={catalogListPriceWithInterval(billing, billing.subscribed_plan.key, billing.interval) || t("plan.notApplicable")} /> : null}
           {billing.trial_ends_at && !trial ? <Info label={bt("billing:currentPlan.paidPlanStarts")} value={date(billing.trial_ends_at)} /> : null}
@@ -242,13 +301,17 @@ export default function PlanScreen() {
           </SectionCard>
         ) : null}
 
-        {(showAppleShop || showAppleManage) ? (
-          <SectionCard title={t("plan.appleSectionTitle")} description={t("plan.appleSectionDescription")}>
+        {showAppleSection ? (
+          <SectionCard
+            title={showAppleTrialSelect ? t("plan.appleTrialSelectTitle") : t("plan.appleSectionTitle")}
+            description={showAppleTrialSelect ? t("plan.appleTrialSelectDescription") : t("plan.appleSectionDescription")}
+          >
+            {showAppleTrialSelect ? <Alert message={t("plan.appleTrialSelectHint")} variant="info" /> : null}
             {appleBusy ? <Text style={styles.summary}>{t("plan.appleWorking")}</Text> : null}
             {appleLoading ? <Text style={styles.summary}>{t("plan.appleLoadingProducts")}</Text> : null}
-            {!appleLoading && !appleProducts.length ? <Alert message={t("plan.appleProductsUnavailable")} /> : null}
+            {!appleLoading && !appleCards.length ? <Alert message={t("plan.appleProductsUnavailable")} /> : null}
             <View style={[styles.grid, tablet && styles.gridTablet]}>
-              {appleProducts.map((product) => {
+              {appleCards.map((product) => {
                 const meta = appleProductMeta(product.productId);
                 const current = Boolean(
                   meta
@@ -256,11 +319,20 @@ export default function PlanScreen() {
                   && billing.interval === meta.interval
                   && billing.purchase_source === "apple",
                 );
+                const selectedFuture = futurePaidMatchesAppleProduct(billing, meta?.plan, meta?.interval);
                 return (
                   <View key={product.productId} style={[styles.appleCard, tablet && styles.appleCardWide]}>
                     <Text style={styles.appleTitle}>{meta?.titleKey || product.title}</Text>
                     <Text style={styles.applePrice}>{product.displayPrice || "—"}</Text>
                     {current ? <Text style={styles.appleBadge}>{bt("billing:currentPlan.badge")}</Text> : null}
+                    {selectedFuture && !current ? <Text style={styles.appleBadge}>{bt("billing:trialSelection.selectedBadge")}</Text> : null}
+                    {showAppleTrialSelect ? (
+                      <Button
+                        disabled={appleBusy || appleLoading || selectedFuture}
+                        label={selectedFuture ? t("plan.appleTrialSelected") : t("plan.appleTrialSelect")}
+                        onPress={() => void onSelectFuture(product.productId)}
+                      />
+                    ) : null}
                     {showAppleShop || (showAppleManage && !current) ? (
                       <Button
                         disabled={appleBusy || appleLoading}
@@ -273,12 +345,17 @@ export default function PlanScreen() {
               })}
             </View>
             <View style={styles.appleActions}>
+              {showAppleTrialSelect && preferredFuture?.key ? (
+                <Button disabled={appleBusy} label={t("plan.appleTrialClear")} onPress={() => void onClearFuture()} variant="secondary" />
+              ) : null}
               {showAppleManage ? (
                 <Button disabled={appleBusy} label={t("plan.appleManage")} onPress={() => void onManage()} variant="secondary" />
               ) : null}
-              <Pressable disabled={appleBusy} onPress={() => void onRestore()} style={styles.restoreLink}>
-                <Text style={styles.restoreText}>{t("plan.appleRestore")}</Text>
-              </Pressable>
+              {!showAppleTrialSelect ? (
+                <Pressable disabled={appleBusy} onPress={() => void onRestore()} style={styles.restoreLink}>
+                  <Text style={styles.restoreText}>{t("plan.appleRestore")}</Text>
+                </Pressable>
+              ) : null}
             </View>
           </SectionCard>
         ) : null}
