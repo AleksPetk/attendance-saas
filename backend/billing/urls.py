@@ -1,6 +1,8 @@
 from django.urls import path
 
 from billing.views import (
+    AppleBillingVerifyView,
+    AppleServerNotificationView,
     BillingCancelDowngradeView,
     BillingCancelView,
     BillingCatalogView,
@@ -41,6 +43,21 @@ urlpatterns = [
     path("billing/resume/", BillingResumeView.as_view(), name="billing-resume"),
     path("billing/invoices/", BillingInvoicesView.as_view(), name="billing-invoices"),
     path("billing/portal/", BillingPortalView.as_view(), name="billing-portal"),
+    path(
+        "billing/apple/verify/",
+        AppleBillingVerifyView.as_view(),
+        name="billing-apple-verify",
+    ),
+    path(
+        "billing/apple/notifications",
+        AppleServerNotificationView.as_view(),
+        name="billing-apple-notifications",
+    ),
+    path(
+        "billing/apple/notifications/",
+        AppleServerNotificationView.as_view(),
+        name="billing-apple-notifications-slash",
+    ),
     path(
         "billing/webhooks/stripe",
         StripeWebhookView.as_view(),

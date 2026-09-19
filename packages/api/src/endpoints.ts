@@ -29,6 +29,7 @@ export const endpoints = {
   accountBackupEmailCancel: () => "/auth/account/backup-email/cancel/",
   billing: () => "/billing/",
   billingCatalog: () => "/billing/catalog/",
+  billingAppleVerify: () => "/billing/apple/verify/",
   members: () => "/members/",
   member: (id: number | string) => `/members/${id}/`,
   groups: () => "/groups/",

@@ -24,6 +24,7 @@ test("mobile Plan presentation follows the admin template and promo style keys",
   const view = read("apps/mobile/src/components/PlanPresentation.tsx");
   assert.match(page, /PlanPromoHeadline/);
   assert.match(page, /PlanOptionCard/);
+  assert.match(page, /shouldShowStripePromoOnMobile/);
   assert.doesNotMatch(page, /Launch Special/);
   assert.doesNotMatch(view, /Launch Special/);
   assert.match(view, /accessibilityState=\{\{ disabled: true \}\}/);

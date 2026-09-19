@@ -20,6 +20,11 @@ from billing.exceptions import (
     StripeProviderError,
     StripeSignatureError,
 )
+from billing.apple_notifications import process_apple_notification_signed_payload
+from billing.apple_verify import (
+    AppleVerificationError,
+    verify_and_activate_apple_subscription,
+)
 from billing.operations import (
     apply_upgrade_to_business,
     list_customer_invoices,
@@ -303,3 +308,77 @@ class StripeWebhookView(View):
         except Exception:
             return JsonResponse({"detail": "Webhook processing failed."}, status=500)
         return JsonResponse({"status": result})
+
+
+class AppleBillingVerifyView(APIView):
+    """Verify a StoreKit 2 signed transaction and bind it to the owner workspace."""
+
+    permission_classes = [IsAuthenticated, IsWorkspaceOwner]
+
+    def post(self, request):
+        organization = get_owned_organization(request.user)
+        signed_transaction = (
+            request.data.get("signed_transaction")
+            or request.data.get("signedTransaction")
+            or ""
+        )
+        signed_renewal = (
+            request.data.get("signed_renewal_info")
+            or request.data.get("signedRenewalInfo")
+            or ""
+        )
+        if not str(signed_transaction).strip():
+            return Response(
+                {
+                    "code": "apple_transaction_missing",
+                    "detail": "signed_transaction is required.",
+                },
+                status=400,
+            )
+        try:
+            verify_and_activate_apple_subscription(
+                organization,
+                signed_transaction=str(signed_transaction).strip(),
+                signed_renewal_info=str(signed_renewal or "").strip(),
+            )
+        except AppleVerificationError as exc:
+            return _error_response(exc)
+        except BillingStateError as exc:
+            return _error_response(exc)
+        return Response(build_billing_state(organization))
+
+
+@method_decorator(csrf_exempt, name="dispatch")
+class AppleServerNotificationView(View):
+    """App Store Server Notifications V2. JWS-verified. No session auth."""
+
+    http_method_names = ["post"]
+
+    def post(self, request):
+        try:
+            body = request.body.decode("utf-8") if request.body else ""
+            import json
+
+            data = json.loads(body) if body else {}
+        except (UnicodeDecodeError, ValueError):
+            return JsonResponse({"detail": "Invalid JSON body."}, status=400)
+        signed_payload = ""
+        if isinstance(data, dict):
+            signed_payload = data.get("signedPayload") or data.get("signed_payload") or ""
+        if not str(signed_payload).strip():
+            return JsonResponse(
+                {"detail": "signedPayload is required.", "code": "apple_notification_invalid"},
+                status=400,
+            )
+        try:
+            result = process_apple_notification_signed_payload(str(signed_payload).strip())
+        except BillingStateError as exc:
+            code = getattr(exc, "code", "billing_state_error")
+            status = 400
+            if code in {"apple_jws_invalid", "apple_root_ca_missing"}:
+                status = 400
+            return JsonResponse({"detail": str(exc), "code": code}, status=status)
+        except Exception:
+            logger.exception("Apple ASN V2 processing failed.")
+            return JsonResponse({"detail": "Notification processing failed."}, status=500)
+        return JsonResponse(result)

@@ -168,4 +168,5 @@ def billing_source_flags(*, organization=None, billing=None) -> dict:
             organization=organization, billing=billing, provider=PurchaseSource.GOOGLE
         ),
         "can_manage_stripe": source == PurchaseSource.STRIPE,
+        "can_manage_apple": source == PurchaseSource.APPLE,
     }

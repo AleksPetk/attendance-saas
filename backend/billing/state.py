@@ -19,6 +19,28 @@ from billing.builtin_trial import (
 from organizations.entitlements.catalog import PLAN_DISPLAY_NAMES
 
 
+def _apple_token_payload(*, organization, billing, source_flags) -> dict:
+    """Expose appAccountToken when Apple purchase or management is relevant."""
+    from billing.apple_verify import ensure_apple_app_account_token
+
+    can_apple = bool(
+        source_flags.get("can_start_apple") or source_flags.get("can_manage_apple")
+    )
+    if not can_apple or organization is None:
+        return {
+            "apple_app_account_token": None,
+            "can_manage_apple": bool(source_flags.get("can_manage_apple")),
+        }
+    try:
+        token = ensure_apple_app_account_token(organization)
+    except Exception:
+        token = (getattr(billing, "apple_app_account_token", "") or "") or None
+    return {
+        "apple_app_account_token": token or None,
+        "can_manage_apple": bool(source_flags.get("can_manage_apple")),
+    }
+
+
 def _iso(value):
     if value is None:
         return None
@@ -91,6 +113,8 @@ def build_billing_state(organization):
             "can_start_apple": False,
             "can_start_google": False,
             "can_manage_stripe": False,
+            "can_manage_apple": False,
+            "apple_app_account_token": None,
             "status": BillingStatus.NONE,
             "interval": None,
             "currency": currency_for_market(market),
@@ -184,6 +208,11 @@ def build_billing_state(organization):
             "can_start_apple": source_flags["can_start_apple"],
             "can_start_google": source_flags["can_start_google"],
             "can_manage_stripe": source_flags["can_manage_stripe"],
+            **_apple_token_payload(
+                organization=organization,
+                billing=billing,
+                source_flags=source_flags,
+            ),
             "status": status,
             "interval": None,
             "currency": currency_for_market(market),
@@ -309,6 +338,11 @@ def build_billing_state(organization):
         "can_start_apple": source_flags["can_start_apple"],
         "can_start_google": source_flags["can_start_google"],
         "can_manage_stripe": source_flags["can_manage_stripe"],
+        **_apple_token_payload(
+            organization=organization,
+            billing=billing,
+            source_flags=source_flags,
+        ),
         "status": status,
         "interval": interval if interval != "none" else None,
         "currency": currency_for_market(market),

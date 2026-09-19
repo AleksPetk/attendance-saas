@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Redirect } from "expo-router";
-import { RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { endpoints } from "@checkstation/api";
 import { canViewBilling } from "@checkstation/domain";
 import { formatDateTime } from "@checkstation/i18n";
-import { Alert, LoadingState, Screen } from "../../src/components/ui";
+import { Alert, Button, LoadingState, Screen } from "../../src/components/ui";
 import { PageHeader, SectionCard, StatusPill } from "../../src/components/mobile";
 import { PlanOptionCard, PlanPromoHeadline } from "../../src/components/PlanPresentation";
 import { CapacityMeter } from "../../src/components/CapacityMeter";
@@ -23,6 +23,24 @@ import {
   usageRows,
   type PlanOption,
 } from "../../src/lib/planOptions";
+import {
+  appleIapSupported,
+  finishAppleTransaction,
+  isUserCancelPurchaseError,
+  loadAppleSubscriptionProducts,
+  openAppleManageSubscriptions,
+  purchaseAppleSubscription,
+  restoreApplePurchases,
+  type AppleStoreProduct,
+} from "../../src/billing/appleIap";
+import { appleProductMeta, type AppleProductId } from "../../src/billing/appleProducts";
+import {
+  appleBlockedByOtherProvider,
+  appleManaged,
+  applePurchaseEligible,
+  shouldShowStripePromoOnMobile,
+  userFacingAppleBillingError,
+} from "../../src/billing/applePlanUi";
 import { colors, space, type } from "../../src/theme/tokens";
 
 type Snapshot = Record<string, any>;
@@ -36,13 +54,21 @@ export default function PlanScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
+  const [info, setInfo] = useState("");
+  const [appleProducts, setAppleProducts] = useState<AppleStoreProduct[]>([]);
+  const [appleLoading, setAppleLoading] = useState(false);
+  const [appleBusy, setAppleBusy] = useState(false);
   const bt = useMemo(() => billingTranslator(locale === "ja" ? "ja" : "en"), [locale]);
+
   const load = useCallback(async (refresh = false) => {
     if (!allowed) return;
     refresh ? setRefreshing(true) : setLoading(true);
     setError("");
     try {
-      const [snapshot, workspace] = await Promise.all([api.get<Snapshot>(endpoints.billing()), api.get<Snapshot>(endpoints.workspace())]);
+      const [snapshot, workspace] = await Promise.all([
+        api.get<Snapshot>(endpoints.billing()),
+        api.get<Snapshot>(endpoints.workspace()),
+      ]);
       setBilling(snapshot);
       setEntitlements(workspace.entitlements);
     } catch (caught) {
@@ -52,18 +78,116 @@ export default function PlanScreen() {
       setRefreshing(false);
     }
   }, [allowed, api, t]);
+
   useEffect(() => { void load(); }, [load]);
+
+  const showAppleShop = appleIapSupported() && applePurchaseEligible(billing);
+  const showAppleManage = appleIapSupported() && appleManaged(billing);
+  const blockedProvider = appleIapSupported() ? appleBlockedByOtherProvider(billing) : null;
+  const showStripeCards = shouldShowStripePromoOnMobile(billing) && !showAppleShop && !showAppleManage;
+
+  useEffect(() => {
+    if (!showAppleShop && !showAppleManage) {
+      setAppleProducts([]);
+      return;
+    }
+    let cancelled = false;
+    setAppleLoading(true);
+    void loadAppleSubscriptionProducts()
+      .then((products) => {
+        if (!cancelled) setAppleProducts(products);
+      })
+      .catch(() => {
+        if (!cancelled) setAppleProducts([]);
+      })
+      .finally(() => {
+        if (!cancelled) setAppleLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [showAppleShop, showAppleManage, billing?.purchase_source]);
+
+  const verifyWithBackend = useCallback(async (signedTransaction: string) => {
+    const snapshot = await api.post<Snapshot>(endpoints.billingAppleVerify(), {
+      signed_transaction: signedTransaction,
+    });
+    setBilling(snapshot);
+    return snapshot;
+  }, [api]);
+
+  const onPurchase = useCallback(async (productId: AppleProductId) => {
+    if (!billing?.apple_app_account_token) {
+      setError(t("common.error"));
+      return;
+    }
+    setAppleBusy(true);
+    setError("");
+    setInfo("");
+    try {
+      const fresh = await api.get<Snapshot>(endpoints.billing());
+      setBilling(fresh);
+      if (!applePurchaseEligible(fresh) && !appleManaged(fresh)) {
+        setError(userFacingAppleBillingError({ code: "purchase_source_locked" }, t("common.error")));
+        return;
+      }
+      const { purchase, signedTransaction } = await purchaseAppleSubscription({
+        productId,
+        appAccountToken: String(fresh.apple_app_account_token || billing.apple_app_account_token),
+      });
+      await verifyWithBackend(signedTransaction);
+      await finishAppleTransaction(purchase);
+      setInfo(t("plan.applePurchaseSuccess"));
+      await load(true);
+    } catch (caught) {
+      if (isUserCancelPurchaseError(caught)) return;
+      setError(userFacingAppleBillingError(caught, t("common.error")));
+    } finally {
+      setAppleBusy(false);
+    }
+  }, [api, billing, load, t, verifyWithBackend]);
+
+  const onRestore = useCallback(async () => {
+    setAppleBusy(true);
+    setError("");
+    setInfo("");
+    try {
+      const restored = await restoreApplePurchases();
+      if (!restored.length) {
+        setInfo(t("plan.appleRestoreNone"));
+        return;
+      }
+      for (const item of restored) {
+        await verifyWithBackend(item.signedTransaction);
+        await finishAppleTransaction(item.purchase);
+      }
+      setInfo(t("plan.appleRestoreSuccess"));
+      await load(true);
+    } catch (caught) {
+      setError(userFacingAppleBillingError(caught, t("common.error")));
+    } finally {
+      setAppleBusy(false);
+    }
+  }, [load, t, verifyWithBackend]);
+
+  const onManage = useCallback(async () => {
+    setError("");
+    try {
+      await openAppleManageSubscriptions();
+    } catch (caught) {
+      setError(userFacingAppleBillingError(caught, t("common.error")));
+    }
+  }, [t]);
+
   if (!allowed) return <Redirect href="/(app)/(tabs)/more" />;
   if (loading) return <Screen><LoadingState label={t("plan.loading")} /></Screen>;
   if (!billing) return <Screen style={styles.screen}><Alert message={error || t("common.error")} /></Screen>;
 
   const key = effectivePlanKey(billing, entitlements?.plan?.key);
   const trial = isBuiltinTrialSelectionMode(billing);
-  const upgrades = buildUpgradePlanOptions(billing, key, bt);
-  const downgrades = buildDowngradePlanOptions(billing, bt);
+  const upgrades = showStripeCards ? buildUpgradePlanOptions(billing, key, bt) : [];
+  const downgrades = showStripeCards ? buildDowngradePlanOptions(billing, bt) : [];
   const usage = usageRows(entitlements, bt);
   const promo = billing.catalog?.promotion;
-  const summary = promo?.active && promo.group === "new_basic" ? promotionSummary(billing.catalog, bt) : "";
+  const summary = showStripeCards && promo?.active && promo.group === "new_basic" ? promotionSummary(billing.catalog, bt) : "";
   const date = (value?: string | null) => value ? formatDateTime(value, locale) : "";
 
   return (
@@ -71,6 +195,7 @@ export default function PlanScreen() {
       <ScrollView contentContainerStyle={[styles.content, tablet && styles.contentTablet]} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void load(true)} tintColor={colors.blue} />}>
         <PageHeader title={bt("billing:currentPlan.title")} description={t("plan.description")} />
         <Alert message={error} />
+        {info ? <Alert message={info} variant="info" /> : null}
         <SectionCard>
           <View style={styles.planRow}>
             <View style={styles.copy}>
@@ -82,7 +207,7 @@ export default function PlanScreen() {
           {trial && billing.builtin_trial?.ends_at ? <Info label={bt("billing:currentPlan.trialEnds")} value={date(billing.builtin_trial.ends_at)} /> : null}
           {trial ? <Info label={bt("billing:trialSelection.selectedPlan")} value={billing.future_paid_plan?.key ? `${billing.future_paid_plan.display_name || billing.future_paid_plan.key} · ${bt(`billing:interval.${billing.future_paid_plan.interval}`)}` : bt("billing:trialSelection.noneSelected")} /> : null}
           {!trial && billing.interval ? <Info label={bt("billing:currentPlan.interval")} value={bt(`billing:interval.${billing.interval}`)} /> : null}
-          {!trial && billing.interval && billing.subscribed_plan?.key ? <Info label={bt("billing:currentPlan.price")} value={catalogListPriceWithInterval(billing, billing.subscribed_plan.key, billing.interval) || t("plan.notApplicable")} /> : null}
+          {!trial && billing.interval && billing.subscribed_plan?.key && showStripeCards ? <Info label={bt("billing:currentPlan.price")} value={catalogListPriceWithInterval(billing, billing.subscribed_plan.key, billing.interval) || t("plan.notApplicable")} /> : null}
           {billing.trial_ends_at && !trial ? <Info label={bt("billing:currentPlan.paidPlanStarts")} value={date(billing.trial_ends_at)} /> : null}
           {!trial && !billing.trial_ends_at && billing.current_period_end ? <Info label={bt(`billing:currentPlan.${billing.cancel_at_period_end ? "ends" : "renews"}`)} value={date(billing.current_period_end)} /> : null}
           {billing.purchase_source ? (
@@ -105,12 +230,65 @@ export default function PlanScreen() {
           {billing.scheduled_change?.active ? <Alert message={`${bt("billing:scheduledChange.title")}${billing.pending_change_effective_at ? ` · ${bt("billing:scheduledChange.begins", { date: date(billing.pending_change_effective_at) })}` : ""}`} variant="info" /> : null}
           {billing.cancel_at_period_end ? <Alert message={bt("billing:cancellation.scheduled")} variant="warning" /> : null}
         </SectionCard>
+
+        {blockedProvider === "stripe" ? (
+          <SectionCard>
+            <Alert message={t("plan.appleManagedByCheckStation")} variant="info" />
+          </SectionCard>
+        ) : null}
+        {blockedProvider === "google" ? (
+          <SectionCard>
+            <Alert message={t("plan.appleManagedByGoogle")} variant="info" />
+          </SectionCard>
+        ) : null}
+
+        {(showAppleShop || showAppleManage) ? (
+          <SectionCard title={t("plan.appleSectionTitle")} description={t("plan.appleSectionDescription")}>
+            {appleBusy ? <Text style={styles.summary}>{t("plan.appleWorking")}</Text> : null}
+            {appleLoading ? <Text style={styles.summary}>{t("plan.appleLoadingProducts")}</Text> : null}
+            {!appleLoading && !appleProducts.length ? <Alert message={t("plan.appleProductsUnavailable")} /> : null}
+            <View style={[styles.grid, tablet && styles.gridTablet]}>
+              {appleProducts.map((product) => {
+                const meta = appleProductMeta(product.productId);
+                const current = Boolean(
+                  meta
+                  && billing.subscribed_plan?.key === meta.plan
+                  && billing.interval === meta.interval
+                  && billing.purchase_source === "apple",
+                );
+                return (
+                  <View key={product.productId} style={[styles.appleCard, tablet && styles.appleCardWide]}>
+                    <Text style={styles.appleTitle}>{meta?.titleKey || product.title}</Text>
+                    <Text style={styles.applePrice}>{product.displayPrice || "—"}</Text>
+                    {current ? <Text style={styles.appleBadge}>{bt("billing:currentPlan.badge")}</Text> : null}
+                    {showAppleShop || (showAppleManage && !current) ? (
+                      <Button
+                        disabled={appleBusy || appleLoading}
+                        label={showAppleManage ? t("plan.appleChange") : t("plan.appleBuy")}
+                        onPress={() => void onPurchase(product.productId)}
+                      />
+                    ) : null}
+                  </View>
+                );
+              })}
+            </View>
+            <View style={styles.appleActions}>
+              {showAppleManage ? (
+                <Button disabled={appleBusy} label={t("plan.appleManage")} onPress={() => void onManage()} variant="secondary" />
+              ) : null}
+              <Pressable disabled={appleBusy} onPress={() => void onRestore()} style={styles.restoreLink}>
+                <Text style={styles.restoreText}>{t("plan.appleRestore")}</Text>
+              </Pressable>
+            </View>
+          </SectionCard>
+        ) : null}
+
         {upgrades.length ? <SectionCard title={bt(trial ? "billing:trialSelection.title" : "billing:upgrade.title")} description={bt(trial ? "billing:trialSelection.description" : "billing:upgrade.description")}><PlanPromoHeadline catalog={billing.catalog} />{summary ? <Text style={styles.summary}>{promo?.label ? `${promo.label}: ` : ""}{summary}</Text> : null}<OptionGrid options={upgrades} billing={billing} planKey={key} tablet={tablet} bt={bt} /></SectionCard> : null}
         {downgrades.length ? <SectionCard title={bt("billing:downgrade.title")} description={bt("billing:downgrade.description")}><OptionGrid options={downgrades} billing={billing} planKey={key} tablet={tablet} bt={bt} /></SectionCard> : null}
         <SectionCard title={bt("billing:usage.title")} description={bt("billing:usage.description")}>
           {usage.length ? usage.map((row) => <CapacityMeter key={row.key} count={row.usage} label={row.label} limit={row.limit} remainingLabel={row.limitNote || row.display} />) : <Text style={styles.summary}>{bt("billing:usage.unavailable")}</Text>}
         </SectionCard>
-        <Text style={styles.note}>{t("plan.nativeBillingNote")}</Text>
+        {Platform.OS === "ios" ? <Text style={styles.note}>{t("plan.nativeBillingNote")}</Text> : <Text style={styles.note}>{t("plan.nativeBillingNote")}</Text>}
       </ScrollView>
     </Screen>
   );
@@ -165,4 +343,12 @@ const styles = StyleSheet.create({
   grid: { gap: space.md },
   gridTablet: { flexDirection: "row", flexWrap: "wrap" },
   note: { ...type.caption, color: colors.textMuted },
+  appleCard: { borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, borderRadius: 12, padding: space.md, gap: space.sm, backgroundColor: colors.surface },
+  appleCardWide: { width: "48%", flexGrow: 1 },
+  appleTitle: { ...type.bodyStrong, color: colors.text },
+  applePrice: { fontSize: 22, fontWeight: "700", color: colors.text },
+  appleBadge: { ...type.caption, color: colors.blue },
+  appleActions: { gap: space.md, marginTop: space.md },
+  restoreLink: { paddingVertical: space.sm },
+  restoreText: { ...type.bodyStrong, color: colors.blue, textAlign: "center" },
 });

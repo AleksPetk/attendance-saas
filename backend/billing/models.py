@@ -123,6 +123,16 @@ class WorkspaceSubscription(models.Model):
     last_payment_warning_at = models.DateTimeField(null=True, blank=True)
     payment_warning_count = models.PositiveSmallIntegerField(default=0)
     payment_recovered_at = models.DateTimeField(null=True, blank=True)
+    apple_app_account_token = models.CharField(
+        max_length=36,
+        blank=True,
+        default="",
+        db_index=True,
+        help_text=(
+            "Stable UUID used as StoreKit appAccountToken for this workspace. "
+            "Generated before the first Apple purchase."
+        ),
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -133,6 +143,11 @@ class WorkspaceSubscription(models.Model):
             models.CheckConstraint(
                 condition=models.Q(purchase_source__in=PurchaseSource.values),
                 name="billing_workspacesubscription_source_valid",
+            ),
+            models.UniqueConstraint(
+                fields=["apple_app_account_token"],
+                condition=~Q(apple_app_account_token=""),
+                name="billing_ws_apple_app_account_token_uniq",
             ),
             models.CheckConstraint(
                 condition=models.Q(status__in=BillingStatus.values),

@@ -127,6 +127,15 @@ env = environ.Env(
     APPLE_OAUTH_STATE_TTL_SECONDS=(int, 600),
     APPLE_OAUTH_HTTP_TIMEOUT_SECONDS=(int, 15),
     APPLE_NATIVE_IOS_CLIENT_ID=(str, ""),
+    # App Store Server API / StoreKit verification (IAP). Never commit secrets.
+    APPLE_IAP_ISSUER_ID=(str, ""),
+    APPLE_IAP_KEY_ID=(str, ""),
+    APPLE_IAP_PRIVATE_KEY=(str, ""),
+    APPLE_IAP_BUNDLE_ID=(str, "app.checkstation.client"),
+    APPLE_IAP_APP_APPLE_ID=(str, ""),
+    APPLE_IAP_ROOT_CA_PEM=(str, ""),
+    APPLE_IAP_HTTP_TIMEOUT_SECONDS=(int, 15),
+    APPLE_IAP_SKIP_JWS_CHAIN_VERIFY=(bool, False),
 )
 
 env_file = REPO_ROOT / ".env"
@@ -452,6 +461,18 @@ APPLE_OAUTH_HTTP_TIMEOUT_SECONDS = env("APPLE_OAUTH_HTTP_TIMEOUT_SECONDS")
 # Native iOS Sign in with Apple identity-token audience (App ID / bundle).
 # Browser Services ID remains APPLE_OAUTH_CLIENT_ID. Not a secret.
 APPLE_NATIVE_IOS_CLIENT_ID = env("APPLE_NATIVE_IOS_CLIENT_ID", default="")
+
+# App Store Server API credentials for StoreKit subscription verification.
+# Create a key with App Store Server API access in App Store Connect.
+APPLE_IAP_ISSUER_ID = env("APPLE_IAP_ISSUER_ID", default="")
+APPLE_IAP_KEY_ID = env("APPLE_IAP_KEY_ID", default="")
+APPLE_IAP_PRIVATE_KEY = env("APPLE_IAP_PRIVATE_KEY", default="")
+APPLE_IAP_BUNDLE_ID = env("APPLE_IAP_BUNDLE_ID", default="app.checkstation.client")
+APPLE_IAP_APP_APPLE_ID = env("APPLE_IAP_APP_APPLE_ID", default="")
+APPLE_IAP_ROOT_CA_PEM = env("APPLE_IAP_ROOT_CA_PEM", default="")
+APPLE_IAP_HTTP_TIMEOUT_SECONDS = env("APPLE_IAP_HTTP_TIMEOUT_SECONDS")
+# Tests only — never enable in production.
+APPLE_IAP_SKIP_JWS_CHAIN_VERIFY = env("APPLE_IAP_SKIP_JWS_CHAIN_VERIFY")
 
 # Stripe TEST-mode billing. Empty placeholders until credentials exist.
 # Never commit live keys. Permanent list prices stay in billing.catalog.
