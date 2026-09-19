@@ -913,6 +913,23 @@ test("billing panel shows Stripe portal only when allowed", () => {
   assert.match(apple, /managed in Apple/);
   assert.doesNotMatch(apple, /Open Stripe Billing Portal/);
   assert.doesNotMatch(apple, /Recent invoices/);
+
+  const google = renderToStaticMarkup(
+    createElement(AccountBillingPanel, {
+      billing: {
+        ...basicBilling,
+        purchase_source: "google",
+        purchase_source_display: "Google Play",
+        status: "active",
+        actions: { ...basicBilling.actions, can_open_portal: false },
+      },
+    }),
+  );
+  assert.match(google, /Google Play/);
+  assert.match(google, /managed in Google Play/);
+  assert.doesNotMatch(google, /Open Stripe Billing Portal/);
+  assert.doesNotMatch(google, /Recent invoices/);
+  assert.equal(isBasicPaidCheckoutCandidate({ ...basicBilling, purchase_source: "google" }, "basic"), false);
 });
 
 test("billing panel renders invoice rows with external links", () => {

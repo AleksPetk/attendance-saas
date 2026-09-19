@@ -29,11 +29,9 @@ def _deny_checkstation_billing(organization):
 
 
 def _require_stripe_source(billing):
-    if billing is None or billing.purchase_source != PurchaseSource.STRIPE:
-        raise BillingStateError(
-            "This workspace is not on Stripe-managed billing.",
-            code="purchase_source_not_stripe",
-        )
+    from billing.source_lock import require_stripe_source
+
+    require_stripe_source(billing)
 
 
 def _return_urls():
@@ -82,11 +80,13 @@ def start_paid_checkout(organization, owner, *, plan_key, interval):
     if interval_key not in PAID_INTERVALS:
         raise BillingStateError("Checkout interval must be monthly or yearly.")
     billing = get_workspace_billing(organization)
-    if billing and billing.purchase_source == PurchaseSource.APPLE:
-        raise BillingStateError(
-            "Apple-managed subscriptions cannot use Stripe Checkout.",
-            code="purchase_source_apple",
-        )
+    from billing.source_lock import assert_can_start_provider
+
+    assert_can_start_provider(
+        organization=organization,
+        billing=billing,
+        provider=PurchaseSource.STRIPE,
+    )
     from billing.builtin_trial import builtin_trial_is_active
 
     # Built-in Business trial: selection is always a deferred future paid plan.

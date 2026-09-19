@@ -8,6 +8,8 @@
   "checkstationManaged": "This workspace is managed by CheckStation and does not use customer billing.",
   "notStripeBilling": "This workspace is not on Stripe-managed billing.",
   "appleBilling": "Apple-managed subscriptions cannot use Stripe Checkout.",
+  "googleBilling": "Google Play–managed subscriptions cannot use Stripe Checkout.",
+  "purchaseSourceLocked": "This workspace is already billed by another provider.",
   "billingGeneric": "Billing could not be completed.",
   "stripeNotConfigured": "Paid checkout is not configured in this environment.",
   "invalidLanguage": "Preferred language must be English or Japanese.",

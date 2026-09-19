@@ -8,6 +8,7 @@ class PurchaseSource(models.TextChoices):
     NONE = "none", "None"
     STRIPE = "stripe", "Stripe"
     APPLE = "apple", "Apple"
+    GOOGLE = "google", "Google"
 
 
 class BillingInterval(models.TextChoices):
@@ -258,10 +259,22 @@ class ProviderEventStatus(models.TextChoices):
     FAILED = "failed", "Failed"
 
 
+class BillingProvider(models.TextChoices):
+    """Providers that may emit webhook / notification events."""
+
+    STRIPE = PurchaseSource.STRIPE, "Stripe"
+    APPLE = PurchaseSource.APPLE, "Apple"
+    GOOGLE = PurchaseSource.GOOGLE, "Google"
+
+
 class ProviderEvent(models.Model):
     """Idempotency record for provider webhooks. Does not store payloads."""
 
-    provider = models.CharField(max_length=20, default=PurchaseSource.STRIPE)
+    provider = models.CharField(
+        max_length=20,
+        choices=BillingProvider.choices,
+        default=BillingProvider.STRIPE,
+    )
     external_event_id = models.CharField(max_length=255)
     event_type = models.CharField(max_length=120)
     status = models.CharField(
@@ -279,7 +292,11 @@ class ProviderEvent(models.Model):
             models.UniqueConstraint(
                 fields=["provider", "external_event_id"],
                 name="billing_providerevent_provider_event_unique",
-            )
+            ),
+            models.CheckConstraint(
+                condition=models.Q(provider__in=BillingProvider.values),
+                name="billing_providerevent_provider_valid",
+            ),
         ]
         indexes = [
             models.Index(fields=["provider", "event_type"]),
@@ -287,6 +304,95 @@ class ProviderEvent(models.Model):
 
     def __str__(self):
         return f"{self.provider}:{self.external_event_id}"
+
+
+class AppleEnvironment(models.TextChoices):
+    SANDBOX = "sandbox", "Sandbox"
+    PRODUCTION = "production", "Production"
+
+
+class AppleSubscriptionDetails(models.Model):
+    """Apple IAP identifiers for a workspace subscription (StoreKit later)."""
+
+    billing = models.OneToOneField(
+        WorkspaceSubscription,
+        on_delete=models.CASCADE,
+        related_name="apple_details",
+    )
+    original_transaction_id = models.CharField(max_length=255, blank=True, default="")
+    product_id = models.CharField(max_length=255, blank=True, default="")
+    environment = models.CharField(
+        max_length=20,
+        choices=AppleEnvironment.choices,
+        blank=True,
+        default="",
+    )
+    latest_expiration_at = models.DateTimeField(null=True, blank=True)
+    auto_renew = models.BooleanField(null=True, blank=True)
+    app_account_token = models.CharField(max_length=255, blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Apple subscription details"
+        verbose_name_plural = "Apple subscription details"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["original_transaction_id"],
+                condition=~Q(original_transaction_id=""),
+                name="billing_apple_details_original_txn_uniq",
+            ),
+            models.CheckConstraint(
+                condition=Q(environment="")
+                | Q(environment__in=AppleEnvironment.values),
+                name="billing_apple_details_environment_valid",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["app_account_token"]),
+            models.Index(fields=["product_id"]),
+        ]
+
+    def __str__(self):
+        return self.original_transaction_id or f"apple-details:{self.billing_id}"
+
+
+class GoogleSubscriptionDetails(models.Model):
+    """Google Play Billing identifiers for a workspace subscription (later)."""
+
+    billing = models.OneToOneField(
+        WorkspaceSubscription,
+        on_delete=models.CASCADE,
+        related_name="google_details",
+    )
+    purchase_token = models.CharField(max_length=512, blank=True, default="")
+    product_id = models.CharField(max_length=255, blank=True, default="")
+    base_plan_id = models.CharField(max_length=255, blank=True, default="")
+    package_name = models.CharField(max_length=255, blank=True, default="")
+    latest_expiration_at = models.DateTimeField(null=True, blank=True)
+    auto_renew = models.BooleanField(null=True, blank=True)
+    linked_purchase_token = models.CharField(max_length=512, blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Google subscription details"
+        verbose_name_plural = "Google subscription details"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["purchase_token"],
+                condition=~Q(purchase_token=""),
+                name="billing_google_details_purchase_token_uniq",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["product_id"]),
+            models.Index(fields=["package_name"]),
+            models.Index(fields=["linked_purchase_token"]),
+        ]
+
+    def __str__(self):
+        return self.purchase_token[:32] if self.purchase_token else f"google-details:{self.billing_id}"
 
 
 class WorkspaceBuiltinTrial(models.Model):

@@ -10,6 +10,15 @@ import { planCardPresentation, promotionalHeadlinePresentation, pricingPresentat
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../../../..");
 const read = (path: string) => readFileSync(resolve(root, path), "utf8");
 
+test("mobile Plan shows canonical billing provider labels", () => {
+  const page = read("apps/mobile/app/(app)/plan.tsx");
+  assert.match(page, /purchase_source_display/);
+  assert.match(page, /billingProviderCheckStation/);
+  assert.match(page, /billingProviderApple/);
+  assert.match(page, /billingProviderGoogle/);
+  assert.match(page, /billingProviderNone/);
+});
+
 test("mobile Plan presentation follows the admin template and promo style keys", () => {
   const page = read("apps/mobile/app/(app)/plan.tsx");
   const view = read("apps/mobile/src/components/PlanPresentation.tsx");

@@ -303,7 +303,9 @@ export function scheduleChangePreviewCopy(billing, planKey, interval) {
 Entitlement may be Basic or built-in Business; commercial status is the gate.
 */
 export function isBasicPaidCheckoutCandidate(billing, planKey) {
-  if (!billing || billing.purchase_source === "apple") return false;
+  if (!billing) return false;
+  const source = billing.purchase_source;
+  if (source === "apple" || source === "google") return false;
   if (billing.managed_by_platform) return false;
   const status = billing.status;
   return !status || status === "none" || status === "canceled";
@@ -537,7 +539,22 @@ export function AccountBillingPanel({
   const canPortal = Boolean(billing?.actions?.can_open_portal);
   const isStripe = billing?.purchase_source === "stripe";
   const isApple = billing?.purchase_source === "apple";
+  const isGoogle = billing?.purchase_source === "google";
   const showStripeBilling = isStripe && canPortal;
+
+  const purchaseSourceLabel = (() => {
+    if (billing?.purchase_source_display) return billing.purchase_source_display;
+    if (billing?.purchase_source === "stripe") {
+      return i18n.t("billing:billingPanel.sourceCheckStation");
+    }
+    if (billing?.purchase_source === "apple") {
+      return i18n.t("billing:billingPanel.sourceApple");
+    }
+    if (billing?.purchase_source === "google") {
+      return i18n.t("billing:billingPanel.sourceGoogle");
+    }
+    return i18n.t("billing:billingPanel.sourceNone");
+  })();
 
   const invoiceRows = showStripeBilling
     ? invoicesLoading
@@ -620,7 +637,9 @@ export function AccountBillingPanel({
       { className: "account-panel-intro" },
       isApple
         ? i18n.t("billing:billingPanel.introApple")
-        : i18n.t("billing:billingPanel.introStripe"),
+        : isGoogle
+          ? i18n.t("billing:billingPanel.introGoogle")
+          : i18n.t("billing:billingPanel.introStripe"),
     ),
     portalNotice
       ? createElement(
@@ -661,11 +680,7 @@ export function AccountBillingPanel({
         : MetaPairs([
             [
               i18n.t("billing:billingPanel.purchaseSource"),
-              billing?.purchase_source === "stripe"
-                ? i18n.t("billing:billingPanel.sourceStripe")
-                : billing?.purchase_source === "apple"
-                  ? i18n.t("billing:billingPanel.sourceApple")
-                  : i18n.t("billing:billingPanel.sourceNone"),
+              purchaseSourceLabel,
             ],
             [i18n.t("billing:billingPanel.status"), statusLabel(billing)],
             [
@@ -693,6 +708,16 @@ export function AccountBillingPanel({
             i18n.t("billing:billingPanel.applePortalNote"),
           ),
         )
+      : isGoogle
+        ? createElement(
+            PanelBlock,
+            { title: i18n.t("billing:billingPanel.billingPortal") },
+            createElement(
+              "p",
+              { className: "account-panel-note" },
+              i18n.t("billing:billingPanel.googlePortalNote"),
+            ),
+          )
       : isStripe && canPortal
         ? createElement(
             PanelBlock,

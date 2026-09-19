@@ -681,6 +681,30 @@ class BillingPhase2ApiTests(TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.data["code"], "purchase_source_apple")
 
+    def test_google_source_blocks_stripe_checkout(self):
+        activate_paid_subscription(
+            self.org,
+            subscribed_plan="plus",
+            billing_interval="monthly",
+            purchase_source=PurchaseSource.GOOGLE,
+            current_period_start=timezone.now(),
+            current_period_end=timezone.now() + timedelta(days=30),
+            external_customer_id="",
+            external_subscription_id="google_sub",
+        )
+        response = self.api.post(
+            "/api/billing/checkout/",
+            {"plan": "plus", "interval": "monthly"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data["code"], "purchase_source_google")
+        state = self.api.get("/api/billing/").data
+        self.assertEqual(state["purchase_source"], "google")
+        self.assertEqual(state["purchase_source_display"], "Google Play")
+        self.assertFalse(state["can_manage_stripe"])
+        self.assertFalse(state["actions"]["can_checkout_plus"])
+
 
 @override_settings(**STRIPE_TEST_SETTINGS)
 class BillingWebhookTests(TestCase):

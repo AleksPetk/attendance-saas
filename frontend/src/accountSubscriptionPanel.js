@@ -258,6 +258,8 @@ export function AccountSubscriptionPanel({
       : null;
   const stripeConfigured = Boolean(billing?.stripe_configured);
   const isApple = billing?.purchase_source === "apple";
+  const isGoogle = billing?.purchase_source === "google";
+  const isStoreManaged = isApple || isGoogle;
   const catalogPromo = catalogPromotion(billing?.catalog);
   const discountT = (key, opts) => i18n.t(`billing:promoDiscount.${key}`, opts);
   const catalogPromoSummary = localizedPromotionSummary(billing?.catalog, discountT);
@@ -789,6 +791,8 @@ export function AccountSubscriptionPanel({
             ? i18n.t("billing:currentPlan.loading")
             : isApple
               ? i18n.t("billing:currentPlan.appleNote")
+              : isGoogle
+                ? i18n.t("billing:currentPlan.googleNote")
               : billing?.builtin_trial?.active
                 ? i18n.t("billing:currentPlan.trialNote")
                 : i18n.t("billing:currentPlan.stripeNote"),
@@ -796,6 +800,17 @@ export function AccountSubscriptionPanel({
       ),
       billing && !billingLoading
         ? MetaPairs([
+            [
+              i18n.t("billing:billingPanel.purchaseSource"),
+              billing.purchase_source_display
+                || (billing.purchase_source === "stripe"
+                  ? i18n.t("billing:billingPanel.sourceCheckStation")
+                  : billing.purchase_source === "apple"
+                    ? i18n.t("billing:billingPanel.sourceApple")
+                    : billing.purchase_source === "google"
+                      ? i18n.t("billing:billingPanel.sourceGoogle")
+                      : i18n.t("billing:billingPanel.sourceNone")),
+            ],
             [i18n.t("billing:currentPlan.billingStatus"), statusLabelForBilling(billing)],
             [
               i18n.t("billing:currentPlan.trialEnds"),
@@ -987,7 +1002,7 @@ export function AccountSubscriptionPanel({
             i18n.t("billing:upgrade.highestPlan"),
           )
         : null,
-      !stripeConfigured && !isApple
+      !stripeConfigured && !isStoreManaged
         ? createElement(
             "p",
             { className: "account-panel-note" },
@@ -1000,6 +1015,12 @@ export function AccountSubscriptionPanel({
             { className: "account-panel-note" },
             i18n.t("billing:upgrade.appleNote"),
           )
+        : isGoogle
+          ? createElement(
+              "p",
+              { className: "account-panel-note" },
+              i18n.t("billing:upgrade.googleNote"),
+            )
         : null,
       pricingCatalogResolved
         ? createElement(PromotionalText, {

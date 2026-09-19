@@ -9,6 +9,7 @@ from billing.markets import (
     resolve_billing_market,
 )
 from billing.services import get_workspace_billing, scheduled_change_pending
+from billing.source_lock import billing_source_flags, can_start_provider
 from billing.builtin_trial import (
     builtin_trial_is_active,
     builtin_trial_public_payload,
@@ -72,6 +73,7 @@ def build_billing_state(organization):
             "can_open_portal": False,
             "can_change_interval": False,
         }
+        source_flags = billing_source_flags(billing=None)
         return {
             "managed_by_platform": True,
             "commercial_billing_available": False,
@@ -82,6 +84,13 @@ def build_billing_state(organization):
             "subscribed_plan": {"key": None, "display_name": None},
             "future_paid_plan": None,
             "purchase_source": PurchaseSource.NONE,
+            "purchase_source_display": source_flags["purchase_source_display"],
+            "managed_by_source": source_flags["managed_by_source"],
+            "source_locked": False,
+            "can_start_stripe": False,
+            "can_start_apple": False,
+            "can_start_google": False,
+            "can_manage_stripe": False,
             "status": BillingStatus.NONE,
             "interval": None,
             "currency": currency_for_market(market),
@@ -105,13 +114,21 @@ def build_billing_state(organization):
     billing = get_workspace_billing(organization)
     market = market_for_existing_subscription(billing, workspace=organization)
     effective = organization.plan
-    source = billing.purchase_source if billing else PurchaseSource.NONE
+    source_flags = billing_source_flags(organization=organization, billing=billing)
+    source = source_flags["purchase_source"]
     status = billing.status if billing else BillingStatus.NONE
     interval = billing.billing_interval if billing else "none"
     subscribed = billing.subscribed_plan if billing else ""
     stripe_ok = stripe_api_configured(market=market)
     is_stripe = source == PurchaseSource.STRIPE
-    is_apple = source == PurchaseSource.APPLE
+    can_start_stripe = bool(
+        stripe_ok
+        and can_start_provider(
+            organization=organization,
+            billing=billing,
+            provider=PurchaseSource.STRIPE,
+        )
+    )
     access_active = commercial_access_active(billing)
     builtin_active = builtin_trial_is_active(organization)
     payment_issue = None
@@ -130,8 +147,8 @@ def build_billing_state(organization):
     # always the four future-paid choices; cancel clears the deferred selection.
     if builtin_active:
         actions = {
-            "can_checkout_plus": bool(stripe_ok and not is_apple),
-            "can_checkout_business": bool(stripe_ok and not is_apple),
+            "can_checkout_plus": can_start_stripe,
+            "can_checkout_business": can_start_stripe,
             "can_schedule_downgrade_to_plus": False,
             "can_cancel_scheduled_downgrade": False,
             "can_cancel_scheduled_change": False,
@@ -160,6 +177,13 @@ def build_billing_state(organization):
             "subscribed_plan": {"key": None, "display_name": None},
             "future_paid_plan": future_paid,
             "purchase_source": source,
+            "purchase_source_display": source_flags["purchase_source_display"],
+            "managed_by_source": source_flags["managed_by_source"],
+            "source_locked": source_flags["source_locked"],
+            "can_start_stripe": source_flags["can_start_stripe"] and stripe_ok,
+            "can_start_apple": source_flags["can_start_apple"],
+            "can_start_google": source_flags["can_start_google"],
+            "can_manage_stripe": source_flags["can_manage_stripe"],
             "status": status,
             "interval": None,
             "currency": currency_for_market(market),
@@ -190,11 +214,7 @@ def build_billing_state(organization):
     reselect_after_trial_cancel = bool(
         cancel_scheduled and status == BillingStatus.TRIALING
     )
-    can_checkout = (
-        stripe_ok
-        and not is_apple
-        and ((not access_active) or reselect_after_trial_cancel)
-    )
+    can_checkout = can_start_stripe and ((not access_active) or reselect_after_trial_cancel)
     # Committed commercial subscription that can be changed (not cancel-pending).
     commercial_changeable = bool(
         is_stripe
@@ -282,6 +302,13 @@ def build_billing_state(organization):
         },
         "future_paid_plan": None,
         "purchase_source": source,
+        "purchase_source_display": source_flags["purchase_source_display"],
+        "managed_by_source": source_flags["managed_by_source"],
+        "source_locked": source_flags["source_locked"],
+        "can_start_stripe": source_flags["can_start_stripe"] and stripe_ok,
+        "can_start_apple": source_flags["can_start_apple"],
+        "can_start_google": source_flags["can_start_google"],
+        "can_manage_stripe": source_flags["can_manage_stripe"],
         "status": status,
         "interval": interval if interval != "none" else None,
         "currency": currency_for_market(market),

@@ -59,9 +59,13 @@ def _require_interval(interval: str) -> str:
 
 def _require_purchase_source(source: str) -> str:
     key = str(source or "").strip().lower()
-    if key not in {PurchaseSource.STRIPE, PurchaseSource.APPLE}:
+    if key not in {
+        PurchaseSource.STRIPE,
+        PurchaseSource.APPLE,
+        PurchaseSource.GOOGLE,
+    }:
         raise BillingStateError(
-            "A paid purchase source (stripe or apple) is required."
+            "A paid purchase source (stripe, apple, or google) is required."
         )
     return key
 

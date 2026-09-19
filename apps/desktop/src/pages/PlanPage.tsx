@@ -83,7 +83,23 @@ export function PlanPage() {
         {!trial && billing.interval && billing.subscribed_plan?.key ? <Info label={wt("billing:currentPlan.price")} value={catalogListPriceWithInterval(billing, billing.subscribed_plan.key, billing.interval)} /> : null}
         {billing.trial_ends_at && !trial ? <Info label={wt("billing:currentPlan.paidPlanStarts")} value={date(billing.trial_ends_at)} /> : null}
         {!trial && !billing.trial_ends_at && billing.current_period_end ? <Info label={wt(`billing:currentPlan.${billing.cancel_at_period_end ? "ends" : "renews"}`)} value={date(billing.current_period_end)} /> : null}
-        {billing.purchase_source && billing.purchase_source !== "none" ? <Info label={t("plan.management")} value={billing.managed_by_platform ? t("plan.platformManaged") : t("plan.workspaceManaged")} /> : null}
+        {billing.purchase_source ? (
+          <Info
+            label={t("plan.management")}
+            value={
+              billing.managed_by_platform
+                ? t("plan.platformManaged")
+                : billing.purchase_source_display
+                  || (billing.purchase_source === "stripe"
+                    ? t("plan.billingProviderCheckStation")
+                    : billing.purchase_source === "apple"
+                      ? t("plan.billingProviderApple")
+                      : billing.purchase_source === "google"
+                        ? t("plan.billingProviderGoogle")
+                        : t("plan.billingProviderNone"))
+            }
+          />
+        ) : null}
       </dl>
       {scheduled ? <Alert tone="info">{scheduled.lead}{scheduled.bullets?.map((line: string) => <p key={line}>{line}</p>)}</Alert> : null}
       {billing.cancel_at_period_end ? <Alert tone="warning">{wt("billing:cancellation.scheduled")}</Alert> : null}

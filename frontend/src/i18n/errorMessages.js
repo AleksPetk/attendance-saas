@@ -10,6 +10,8 @@ const ERROR_CODE_KEYS = {
   checkstation_managed_account: "checkstationManaged",
   purchase_source_not_stripe: "notStripeBilling",
   purchase_source_apple: "appleBilling",
+  purchase_source_google: "googleBilling",
+  purchase_source_locked: "purchaseSourceLocked",
   billing_state_error: "billingGeneric",
   stripe_price_missing: "stripeNotConfigured",
   invalid_preferred_language: "invalidLanguage",
