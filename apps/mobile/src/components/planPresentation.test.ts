@@ -27,10 +27,15 @@ test("mobile Plan presentation follows the admin template and promo style keys",
   assert.match(page, /shouldShowStripePromoOnMobile/);
   assert.match(page, /appleTrialFutureSelectionMode/);
   assert.match(page, /showAppleTrialSelect/);
+  assert.match(page, /catalog=\{billing\.catalog\}/);
+  assert.match(page, /buildApplePlanCards/);
+  assert.match(page, /appleDisplayPriceForCard/);
+  assert.doesNotMatch(page, /styles\.appleCard/);
   assert.doesNotMatch(page, /Launch Special/);
   assert.doesNotMatch(view, /Launch Special/);
-  assert.match(view, /accessibilityState=\{\{ disabled: true \}\}/);
-  assert.doesNotMatch(view, /Linking|StoreKit|checkout|onPress=/);
+  assert.match(view, /onAction/);
+  assert.match(view, /planCardPresentation\(catalog, flags\)/);
+  assert.doesNotMatch(view, /Linking|StoreKit|checkout/);
   assert.match(view, /pricingPresentation\.js/);
 });
 

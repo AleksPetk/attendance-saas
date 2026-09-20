@@ -42,40 +42,74 @@ export function isUserCancelPurchaseError(error: unknown): boolean {
   );
 }
 
+let appleIapConnectionDepth = 0;
+
+/**
+ * Keep StoreKit connected for nested Plan-screen work.
+ * Ending the connection after every fetchProducts call was causing empty
+ * results / flaky lookups on TestFlight (OpenIAP requires an active session).
+ */
 export async function withAppleIapConnection<T>(fn: () => Promise<T>): Promise<T> {
   if (!appleIapSupported()) {
     throw new Error("Apple billing is only available on iOS.");
   }
-  await initConnection();
+  const started = appleIapConnectionDepth === 0;
+  if (started) {
+    await initConnection();
+  }
+  appleIapConnectionDepth += 1;
   try {
     return await fn();
   } finally {
-    try {
-      await endConnection();
-    } catch {
-      // ignore disconnect errors
+    appleIapConnectionDepth = Math.max(0, appleIapConnectionDepth - 1);
+    if (started && appleIapConnectionDepth === 0) {
+      try {
+        await endConnection();
+      } catch {
+        // ignore disconnect errors
+      }
     }
   }
 }
 
+function normalizeFetchedProducts(products: unknown): AppleStoreProduct[] {
+  const list = (Array.isArray(products) ? products : []) as Array<
+    ProductSubscription & { productId?: string; id?: string }
+  >;
+  const byId = new Map<string, (typeof list)[number]>();
+  for (const product of list) {
+    const id = String(product.id || product.productId || "").trim();
+    if (id) byId.set(id, product);
+  }
+  const ordered: AppleStoreProduct[] = [];
+  for (const productId of APPLE_PRODUCT_ID_LIST) {
+    const product = byId.get(productId);
+    if (!product) continue;
+    ordered.push({
+      productId,
+      displayPrice: String(product.displayPrice || ""),
+      title: String(product.title || productId),
+      description: String(product.description || ""),
+    });
+  }
+  return ordered;
+}
+
+/**
+ * Load App Store subscription prices for the four CheckStation SKUs.
+ * Tries `subs` first, then `all` — some OpenIAP/StoreKit responses only
+ * populate the all/product path even for auto-renewable subscriptions.
+ */
 export async function loadAppleSubscriptionProducts(): Promise<AppleStoreProduct[]> {
   return withAppleIapConnection(async () => {
-    const products = await fetchProducts({
-      skus: [...APPLE_PRODUCT_ID_LIST],
-      type: "subs",
-    });
-    const list = (Array.isArray(products) ? products : []) as ProductSubscription[];
-    const byId = new Map(list.map((p) => [String(p.id || (p as { productId?: string }).productId || ""), p]));
-    const ordered: AppleStoreProduct[] = [];
-    for (const productId of APPLE_PRODUCT_ID_LIST) {
-      const product = byId.get(productId);
-      if (!product) continue;
-      ordered.push({
-        productId,
-        displayPrice: String(product.displayPrice || ""),
-        title: String(product.title || productId),
-        description: String(product.description || ""),
-      });
+    const skus = [...APPLE_PRODUCT_ID_LIST];
+    let ordered = normalizeFetchedProducts(
+      await fetchProducts({ skus, type: "subs" }),
+    );
+    if (!ordered.length) {
+      ordered = normalizeFetchedProducts(
+        await fetchProducts({ skus, type: "all" }),
+      );
     }
     return ordered;
   });

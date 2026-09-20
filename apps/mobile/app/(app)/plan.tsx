@@ -35,6 +35,11 @@ import {
 } from "../../src/billing/appleIap";
 import { appleProductMeta, type AppleProductId } from "../../src/billing/appleProducts";
 import {
+  appleDisplayPriceForCard,
+  appleStoreProductMap,
+  buildApplePlanCards,
+} from "../../src/billing/applePlanCards";
+import {
   appleBlockedByOtherProvider,
   appleManaged,
   applePurchaseEligible,
@@ -61,6 +66,7 @@ export default function PlanScreen() {
   const [appleProducts, setAppleProducts] = useState<AppleStoreProduct[]>([]);
   const [appleLoading, setAppleLoading] = useState(false);
   const [appleBusy, setAppleBusy] = useState(false);
+  const [appleStoreError, setAppleStoreError] = useState(false);
   const bt = useMemo(() => billingTranslator(locale === "ja" ? "ja" : "en"), [locale]);
 
   const load = useCallback(async (refresh = false) => {
@@ -94,16 +100,23 @@ export default function PlanScreen() {
   useEffect(() => {
     if (!loadAppleProducts) {
       setAppleProducts([]);
+      setAppleStoreError(false);
+      setAppleLoading(false);
       return;
     }
     let cancelled = false;
     setAppleLoading(true);
+    setAppleStoreError(false);
     void loadAppleSubscriptionProducts()
       .then((products) => {
-        if (!cancelled) setAppleProducts(products);
+        if (cancelled) return;
+        setAppleProducts(products);
+        setAppleStoreError(products.length === 0);
       })
       .catch(() => {
-        if (!cancelled) setAppleProducts([]);
+        if (cancelled) return;
+        setAppleProducts([]);
+        setAppleStoreError(true);
       })
       .finally(() => {
         if (!cancelled) setAppleLoading(false);
@@ -238,7 +251,9 @@ export default function PlanScreen() {
   const date = (value?: string | null) => value ? formatDateTime(value, locale) : "";
   const showAppleSection = showAppleShop || showAppleManage || showAppleTrialSelect;
   const preferredFuture = billing.future_paid_plan;
-  const appleCards = appleProducts;
+  const appleCards = buildApplePlanCards(billing, bt);
+  const appleStoreById = appleStoreProductMap(appleProducts);
+  const applePriceUnavailable = t("plan.applePriceUnavailable");
 
   return (
     <Screen style={styles.screen}>
@@ -309,38 +324,55 @@ export default function PlanScreen() {
             {showAppleTrialSelect ? <Alert message={t("plan.appleTrialSelectHint")} variant="info" /> : null}
             {appleBusy ? <Text style={styles.summary}>{t("plan.appleWorking")}</Text> : null}
             {appleLoading ? <Text style={styles.summary}>{t("plan.appleLoadingProducts")}</Text> : null}
-            {!appleLoading && !appleCards.length ? <Alert message={t("plan.appleProductsUnavailable")} /> : null}
+            {!appleLoading && appleStoreError ? <Alert message={t("plan.appleProductsUnavailable")} variant="info" /> : null}
+            <PlanPromoHeadline catalog={billing.catalog} />
             <View style={[styles.grid, tablet && styles.gridTablet]}>
-              {appleCards.map((product) => {
-                const meta = appleProductMeta(product.productId);
+              {appleCards.map((card) => {
+                const store = appleStoreById.get(card.productId);
+                const storeReady = Boolean(store?.displayPrice);
                 const current = Boolean(
-                  meta
-                  && billing.subscribed_plan?.key === meta.plan
-                  && billing.interval === meta.interval
+                  billing.subscribed_plan?.key === card.plan
+                  && billing.interval === card.interval
                   && billing.purchase_source === "apple",
                 );
-                const selectedFuture = futurePaidMatchesAppleProduct(billing, meta?.plan, meta?.interval);
+                const selectedFuture = futurePaidMatchesAppleProduct(billing, card.plan, card.interval);
+                const periodKey = card.interval === "yearly" ? "billing:currentPlan.perYear" : "billing:currentPlan.perMonth";
+                let actionLabel = "";
+                let onAction: (() => void) | undefined;
+                let actionDisabled = appleBusy || appleLoading;
+                if (showAppleTrialSelect) {
+                  // Trial future-plan selection is catalog-backed — StoreKit is not required.
+                  actionLabel = selectedFuture ? t("plan.appleTrialSelected") : t("plan.appleTrialSelect");
+                  actionDisabled = actionDisabled || selectedFuture;
+                  onAction = () => void onSelectFuture(card.productId);
+                } else if (showAppleShop || (showAppleManage && !current)) {
+                  actionLabel = showAppleManage ? t("plan.appleChange") : t("plan.appleBuy");
+                  actionDisabled = actionDisabled || !storeReady;
+                  onAction = storeReady ? () => void onPurchase(card.productId) : undefined;
+                }
+                const badge = selectedFuture && !current
+                  ? bt("billing:trialSelection.selectedBadge")
+                  : current
+                    ? bt("billing:currentPlan.badge")
+                    : "";
                 return (
-                  <View key={product.productId} style={[styles.appleCard, tablet && styles.appleCardWide]}>
-                    <Text style={styles.appleTitle}>{meta?.titleKey || product.title}</Text>
-                    <Text style={styles.applePrice}>{product.displayPrice || "—"}</Text>
-                    {current ? <Text style={styles.appleBadge}>{bt("billing:currentPlan.badge")}</Text> : null}
-                    {selectedFuture && !current ? <Text style={styles.appleBadge}>{bt("billing:trialSelection.selectedBadge")}</Text> : null}
-                    {showAppleTrialSelect ? (
-                      <Button
-                        disabled={appleBusy || appleLoading || selectedFuture}
-                        label={selectedFuture ? t("plan.appleTrialSelected") : t("plan.appleTrialSelect")}
-                        onPress={() => void onSelectFuture(product.productId)}
-                      />
-                    ) : null}
-                    {showAppleShop || (showAppleManage && !current) ? (
-                      <Button
-                        disabled={appleBusy || appleLoading}
-                        label={showAppleManage ? t("plan.appleChange") : t("plan.appleBuy")}
-                        onPress={() => void onPurchase(product.productId)}
-                      />
-                    ) : null}
-                  </View>
+                  <PlanOptionCard
+                    key={card.productId}
+                    actionDisabled={actionDisabled}
+                    actionLabel={actionLabel}
+                    badge={badge}
+                    catalog={billing.catalog}
+                    flags={{ current, selectedFuture }}
+                    listPrice=""
+                    note=""
+                    onAction={onAction}
+                    period={bt(periodKey)}
+                    price={appleDisplayPriceForCard(store, applePriceUnavailable)}
+                    recommendedBadge={false}
+                    renews=""
+                    title={card.title}
+                    wide={tablet}
+                  />
                 );
               })}
             </View>
@@ -420,11 +452,6 @@ const styles = StyleSheet.create({
   grid: { gap: space.md },
   gridTablet: { flexDirection: "row", flexWrap: "wrap" },
   note: { ...type.caption, color: colors.textMuted },
-  appleCard: { borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, borderRadius: 12, padding: space.md, gap: space.sm, backgroundColor: colors.surface },
-  appleCardWide: { width: "48%", flexGrow: 1 },
-  appleTitle: { ...type.bodyStrong, color: colors.text },
-  applePrice: { fontSize: 22, fontWeight: "700", color: colors.text },
-  appleBadge: { ...type.caption, color: colors.blue },
   appleActions: { gap: space.md, marginTop: space.md },
   restoreLink: { paddingVertical: space.sm },
   restoreText: { ...type.bodyStrong, color: colors.blue, textAlign: "center" },

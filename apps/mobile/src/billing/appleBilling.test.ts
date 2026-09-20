@@ -90,9 +90,48 @@ test("future paid plan matching drives trial selection badges", () => {
   assert.equal(futurePaidMatchesAppleProduct(billing, "plus", "monthly"), false);
 });
 
+test("Apple Plan cards always come from catalog, not StoreKit availability", () => {
+  const page = read("apps/mobile/app/(app)/plan.tsx");
+  const cards = read("apps/mobile/src/billing/applePlanCards.ts");
+  const iap = read("apps/mobile/src/billing/appleIap.ts");
+  assert.match(cards, /buildApplePlanCards/);
+  assert.match(cards, /APPLE_PRODUCT_ID_LIST/);
+  assert.match(page, /buildApplePlanCards\(billing, bt\)/);
+  assert.match(page, /appleStoreProductMap/);
+  assert.match(page, /appleDisplayPriceForCard/);
+  assert.match(page, /listPrice=""/);
+  assert.match(page, /applePriceUnavailable/);
+  assert.doesNotMatch(page, /const appleCards = appleProducts/);
+  assert.doesNotMatch(page, /!appleCards\.length \? <Alert message=\{t\("plan\.appleProductsUnavailable"\)\} \/>/);
+  // Trial selection must not require StoreKit prices.
+  assert.match(page, /Trial future-plan selection is catalog-backed/);
+  // StoreKit fetch: keep connection + subs-then-all fallback.
+  assert.match(iap, /appleIapConnectionDepth/);
+  assert.match(iap, /type: "subs"/);
+  assert.match(iap, /type: "all"/);
+});
+
+test("buildApplePlanCards enumerates all four App Store SKUs from catalog", async () => {
+  const { buildApplePlanCards, appleDisplayPriceForCard, appleStoreProductMap } = await import("./applePlanCards");
+  const cards = buildApplePlanCards(
+    { catalog: { plans: { plus: { display_name: "Plus" }, business: { display_name: "Business" } } } },
+    (key) => (key.endsWith("yearly") ? "Yearly" : key.endsWith("monthly") ? "Monthly" : key),
+  );
+  assert.equal(cards.length, 4);
+  assert.deepEqual(cards.map((c) => c.productId), APPLE_PRODUCT_ID_LIST);
+  assert.equal(cards[0].title, "Plus Monthly");
+  assert.equal(appleDisplayPriceForCard({ productId: APPLE_PRODUCT_IDS.plusMonthly, displayPrice: "¥1,200", title: "", description: "" }, "pending"), "¥1,200");
+  assert.equal(appleDisplayPriceForCard(undefined, "pending"), "pending");
+  const map = appleStoreProductMap([
+    { productId: APPLE_PRODUCT_IDS.businessYearly, displayPrice: "$99", title: "B", description: "" },
+  ]);
+  assert.equal(map.get(APPLE_PRODUCT_IDS.businessYearly)?.displayPrice, "$99");
+  assert.equal(map.has(APPLE_PRODUCT_IDS.plusMonthly), false);
+});
+
 test("Apple Plan screen gates Stripe promo off and never purchases during trial", () => {
   const page = read("apps/mobile/app/(app)/plan.tsx");
-  assert.match(page, /displayPrice/);
+  assert.match(page, /appleDisplayPriceForCard/);
   assert.match(page, /shouldShowStripePromoOnMobile/);
   assert.match(page, /appleTrialFutureSelectionMode/);
   assert.match(page, /billingFuturePlan/);
@@ -104,7 +143,6 @@ test("Apple Plan screen gates Stripe promo off and never purchases during trial"
   assert.match(page, /openAppleManageSubscriptions/);
   assert.match(page, /restoreApplePurchases/);
   assert.match(page, /loadAppleSubscriptionProducts/);
-  // Trial selection posts intent; purchase path refuses while trial is active.
   assert.match(page, /const onSelectFuture = useCallback\(async \(productId: AppleProductId\) => \{[\s\S]*?billingFuturePlan\(\)/);
   assert.match(page, /if \(appleTrialFutureSelectionMode\(fresh\)\)/);
   assert.match(page, /purchaseAppleSubscription/);

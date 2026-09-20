@@ -1,5 +1,5 @@
 import { LinearGradient } from "expo-linear-gradient";
-import { Platform, StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { planCardPresentation, promotionalHeadlinePresentation } from "../../../../frontend/src/pricingPresentation.js";
 import { space } from "../theme/tokens";
 
@@ -49,6 +49,8 @@ export function PlanOptionCard({
   renews,
   actionLabel,
   wide = false,
+  onAction,
+  actionDisabled = false,
 }: {
   catalog: Catalog;
   flags: CardFlags;
@@ -62,8 +64,13 @@ export function PlanOptionCard({
   renews: string;
   actionLabel: string;
   wide?: boolean;
+  /** When set, the themed CTA is tappable (Apple IAP / trial select). Stripe OptionGrid stays display-only. */
+  onAction?: () => void;
+  actionDisabled?: boolean;
 }) {
   const theme = planCardPresentation(catalog, flags);
+  const interactive = typeof onAction === "function";
+  const disabled = !interactive || actionDisabled;
   return (
     <View style={[styles.shadow, wide && styles.shadowWide, theme.shadowColor !== "transparent" && { shadowColor: theme.shadowColor, shadowOpacity: 1 }]}>
       <View style={[styles.card, { borderColor: theme.borderColor, borderStyle: theme.borderStyle as "solid" | "dashed" }]}>
@@ -78,11 +85,19 @@ export function PlanOptionCard({
         {listPrice ? <Text style={[styles.meta, styles.struck, { color: theme.listPriceColor }]}>{listPrice}</Text> : null}
         {note ? <Text style={[styles.meta, { color: theme.noteColor }]}>{note}</Text> : null}
         {renews ? <Text style={[styles.meta, { color: theme.noteColor }]}>{renews}</Text> : null}
-        <View accessibilityRole="button" accessibilityState={{ disabled: true }} style={[styles.action, { borderColor: theme.button.borderColor, opacity: 0.55 }]}>
-          <LinearGradient colors={theme.button.colors as [string, string, ...string[]]} end={theme.button.ends.end} start={theme.button.ends.start} style={styles.actionFill}>
-            <Text style={[styles.actionLabel, { color: theme.button.textColor }]}>{actionLabel}</Text>
-          </LinearGradient>
-        </View>
+        {actionLabel ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ disabled }}
+            disabled={disabled}
+            onPress={interactive ? onAction : undefined}
+            style={[styles.action, { borderColor: theme.button.borderColor, opacity: disabled ? 0.55 : 1 }]}
+          >
+            <LinearGradient colors={theme.button.colors as [string, string, ...string[]]} end={theme.button.ends.end} start={theme.button.ends.start} style={styles.actionFill}>
+              <Text style={[styles.actionLabel, { color: theme.button.textColor }]}>{actionLabel}</Text>
+            </LinearGradient>
+          </Pressable>
+        ) : null}
       </View>
     </View>
   );

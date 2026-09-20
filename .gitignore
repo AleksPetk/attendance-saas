@@ -120,3 +120,7 @@ backend/media/
 
 # Local master/source assets (optimized production copies live elsewhere)
 /original_assets/
+
+# Local iOS signing material (never commit)
+apps/mobile/.signing-local/
+
