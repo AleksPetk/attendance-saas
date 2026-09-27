@@ -1,12 +1,16 @@
 /**
  * StoreKit helpers via expo-iap (iOS/iPadOS only).
  * Entitlement is never granted client-side — always verify with the backend.
+ *
+ * Connection model: OpenIAP requires a live session for fetchProducts /
+ * purchases. Keep one session for the app lifetime. Do not endConnection
+ * after each Plan load — that cancels initTask, nulls productManager, and
+ * races the next ensureConnection (surfaces as empty products / not-prepared).
  */
 
 import { Platform } from "react-native";
 import {
   deepLinkToSubscriptions,
-  endConnection,
   fetchProducts,
   finishTransaction,
   getAvailablePurchases,
@@ -42,37 +46,44 @@ export function isUserCancelPurchaseError(error: unknown): boolean {
   );
 }
 
-let appleIapConnectionDepth = 0;
+let appleIapSessionReady = false;
+let appleIapSessionPromise: Promise<void> | null = null;
 
 /**
- * Keep StoreKit connected for nested Plan-screen work.
- * Ending the connection after every fetchProducts call was causing empty
- * results / flaky lookups on TestFlight (OpenIAP requires an active session).
+ * Ensure a single OpenIAP/StoreKit session is initialized for this process.
+ * Safe to call repeatedly; does not tear down after product fetches.
  */
-export async function withAppleIapConnection<T>(fn: () => Promise<T>): Promise<T> {
+export async function ensureAppleIapSession(): Promise<void> {
   if (!appleIapSupported()) {
     throw new Error("Apple billing is only available on iOS.");
   }
-  const started = appleIapConnectionDepth === 0;
-  if (started) {
-    await initConnection();
-  }
-  appleIapConnectionDepth += 1;
-  try {
-    return await fn();
-  } finally {
-    appleIapConnectionDepth = Math.max(0, appleIapConnectionDepth - 1);
-    if (started && appleIapConnectionDepth === 0) {
-      try {
-        await endConnection();
-      } catch {
-        // ignore disconnect errors
+  if (appleIapSessionReady) return;
+  if (!appleIapSessionPromise) {
+    appleIapSessionPromise = (async () => {
+      const connected = await initConnection();
+      if (!connected) {
+        appleIapSessionPromise = null;
+        throw new Error("Apple billing connection failed.");
       }
-    }
+      appleIapSessionReady = true;
+    })();
+  }
+  try {
+    await appleIapSessionPromise;
+  } catch (error) {
+    appleIapSessionPromise = null;
+    appleIapSessionReady = false;
+    throw error;
   }
 }
 
-function normalizeFetchedProducts(products: unknown): AppleStoreProduct[] {
+/** @deprecated Prefer ensureAppleIapSession — kept name for call-site clarity. */
+export async function withAppleIapConnection<T>(fn: () => Promise<T>): Promise<T> {
+  await ensureAppleIapSession();
+  return fn();
+}
+
+export function normalizeFetchedProducts(products: unknown): AppleStoreProduct[] {
   const list = (Array.isArray(products) ? products : []) as Array<
     ProductSubscription & { productId?: string; id?: string }
   >;
@@ -97,8 +108,8 @@ function normalizeFetchedProducts(products: unknown): AppleStoreProduct[] {
 
 /**
  * Load App Store subscription prices for the four CheckStation SKUs.
- * Tries `subs` first, then `all` — some OpenIAP/StoreKit responses only
- * populate the all/product path even for auto-renewable subscriptions.
+ * Path: expo-iap fetchProducts → OpenIAP → StoreKit.Product.products(for:).
+ * Tries `subs` first, then `all` (OpenIAP type filtering).
  */
 export async function loadAppleSubscriptionProducts(): Promise<AppleStoreProduct[]> {
   return withAppleIapConnection(async () => {

@@ -30,6 +30,7 @@ test("mobile Plan presentation follows the admin template and promo style keys",
   assert.match(page, /catalog=\{billing\.catalog\}/);
   assert.match(page, /buildApplePlanCards/);
   assert.match(page, /appleDisplayPriceForCard/);
+  assert.match(page, /listPrice=""/);
   assert.doesNotMatch(page, /styles\.appleCard/);
   assert.doesNotMatch(page, /Launch Special/);
   assert.doesNotMatch(view, /Launch Special/);
@@ -37,6 +38,11 @@ test("mobile Plan presentation follows the admin template and promo style keys",
   assert.match(view, /planCardPresentation\(catalog, flags\)/);
   assert.doesNotMatch(view, /Linking|StoreKit|checkout/);
   assert.match(view, /pricingPresentation\.js/);
+  // PlanPromoHeadline only on Stripe upgrades path (inside upgrades.length), never in Apple section.
+  const appleSection = page.slice(page.indexOf("showAppleSection"), page.indexOf("upgrades.length"));
+  assert.doesNotMatch(appleSection, /PlanPromoHeadline/);
+  assert.match(appleSection, /catalog=\{billing\.catalog\}/);
+  assert.match(appleSection, /listPrice=""/);
 });
 
 test("card and promo presentation stay on the Workspace template catalogs", () => {

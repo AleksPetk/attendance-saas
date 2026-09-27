@@ -27,9 +27,10 @@ export function appleBlockedByOtherProvider(billing: BillingSnapshot | null | un
 }
 
 export function shouldShowStripePromoOnMobile(billing: BillingSnapshot | null | undefined): boolean {
-  // Apple purchase / manage UI must never show Stripe promo pricing.
-  // iOS trial future-selection is gated separately in plan.tsx via appleIapSupported().
-  if (applePurchaseEligible(billing) || appleManaged(billing)) return false;
+  // Apple purchase / manage / trial-select UI must never show Stripe promo pricing or headlines.
+  if (applePurchaseEligible(billing) || appleManaged(billing) || appleTrialFutureSelectionMode(billing)) {
+    return false;
+  }
   return true;
 }
 

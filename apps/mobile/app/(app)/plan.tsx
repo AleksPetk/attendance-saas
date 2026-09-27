@@ -325,7 +325,6 @@ export default function PlanScreen() {
             {appleBusy ? <Text style={styles.summary}>{t("plan.appleWorking")}</Text> : null}
             {appleLoading ? <Text style={styles.summary}>{t("plan.appleLoadingProducts")}</Text> : null}
             {!appleLoading && appleStoreError ? <Alert message={t("plan.appleProductsUnavailable")} variant="info" /> : null}
-            <PlanPromoHeadline catalog={billing.catalog} />
             <View style={[styles.grid, tablet && styles.gridTablet]}>
               {appleCards.map((card) => {
                 const store = appleStoreById.get(card.productId);
@@ -392,7 +391,17 @@ export default function PlanScreen() {
           </SectionCard>
         ) : null}
 
-        {upgrades.length ? <SectionCard title={bt(trial ? "billing:trialSelection.title" : "billing:upgrade.title")} description={bt(trial ? "billing:trialSelection.description" : "billing:upgrade.description")}><PlanPromoHeadline catalog={billing.catalog} />{summary ? <Text style={styles.summary}>{promo?.label ? `${promo.label}: ` : ""}{summary}</Text> : null}<OptionGrid options={upgrades} billing={billing} planKey={key} tablet={tablet} bt={bt} /></SectionCard> : null}
+        {upgrades.length ? (
+          <SectionCard
+            title={bt(trial ? "billing:trialSelection.title" : "billing:upgrade.title")}
+            description={bt(trial ? "billing:trialSelection.description" : "billing:upgrade.description")}
+          >
+            {/* Stripe/Admin promo headline + offer summary — never on Apple paths (showStripeCards already false there). */}
+            <PlanPromoHeadline catalog={billing.catalog} />
+            {summary ? <Text style={styles.summary}>{promo?.label ? `${promo.label}: ` : ""}{summary}</Text> : null}
+            <OptionGrid options={upgrades} billing={billing} planKey={key} tablet={tablet} bt={bt} />
+          </SectionCard>
+        ) : null}
         {downgrades.length ? <SectionCard title={bt("billing:downgrade.title")} description={bt("billing:downgrade.description")}><OptionGrid options={downgrades} billing={billing} planKey={key} tablet={tablet} bt={bt} /></SectionCard> : null}
         <SectionCard title={bt("billing:usage.title")} description={bt("billing:usage.description")}>
           {usage.length ? usage.map((row) => <CapacityMeter key={row.key} count={row.usage} label={row.label} limit={row.limit} remainingLabel={row.limitNote || row.display} />) : <Text style={styles.summary}>{bt("billing:usage.unavailable")}</Text>}

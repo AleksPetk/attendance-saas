@@ -60,8 +60,7 @@ test("iOS trial future-selection mode hides Stripe promo and loads Apple product
   assert.equal(appleTrialFutureSelectionMode(trialNone), true);
   assert.equal(shouldLoadAppleStoreProducts(trialNone), true);
   assert.equal(applePurchaseEligible(trialNone), false);
-  // Helper alone still allows Stripe promo; plan.tsx ANDs with !showAppleTrialSelect (iOS-only).
-  assert.equal(shouldShowStripePromoOnMobile(trialNone), true);
+  assert.equal(shouldShowStripePromoOnMobile(trialNone), false);
 
   assert.equal(
     shouldShowStripePromoOnMobile({ purchase_source: "none", can_start_apple: true }),
@@ -105,10 +104,19 @@ test("Apple Plan cards always come from catalog, not StoreKit availability", () 
   assert.doesNotMatch(page, /!appleCards\.length \? <Alert message=\{t\("plan\.appleProductsUnavailable"\)\} \/>/);
   // Trial selection must not require StoreKit prices.
   assert.match(page, /Trial future-plan selection is catalog-backed/);
-  // StoreKit fetch: keep connection + subs-then-all fallback.
-  assert.match(iap, /appleIapConnectionDepth/);
+  // StoreKit fetch: session-scoped connection + subs-then-all fallback.
+  assert.match(iap, /ensureAppleIapSession/);
+  assert.match(iap, /appleIapSessionReady/);
   assert.match(iap, /type: "subs"/);
   assert.match(iap, /type: "all"/);
+  // Session stays live — do not import or call endConnection after fetches.
+  assert.doesNotMatch(iap, /\bendConnection\b\s*,/);
+  assert.doesNotMatch(iap, /await endConnection\s*\(/);
+  // Apple section must not render Admin promo / discount headline.
+  assert.doesNotMatch(
+    page,
+    /appleProductsUnavailable[\s\S]{0,200}<PlanPromoHeadline/,
+  );
 });
 
 test("buildApplePlanCards enumerates all four App Store SKUs from catalog", async () => {
