@@ -34,7 +34,15 @@ def _require_stripe_source(billing):
     require_stripe_source(billing)
 
 
-def _return_urls():
+def _return_urls(*, desktop_return_url: str = ""):
+    desktop = str(desktop_return_url or "").strip()
+    if desktop:
+        from core.desktop_return import append_desktop_return_query
+
+        success = append_desktop_return_query(desktop, {"checkout": "success"})
+        cancel = append_desktop_return_query(desktop, {"checkout": "cancelled"})
+        portal = append_desktop_return_query(desktop, {"portal": "return"})
+        return success, cancel, portal
     success = f"{frontend_url('account', 'subscription')}?checkout=success"
     cancel = f"{frontend_url('account', 'subscription')}?checkout=cancelled"
     portal = f"{frontend_url('account', 'billing')}?portal=return"
@@ -51,10 +59,11 @@ def _create_or_reuse_checkout_session(
     billing_start_at=None,
     coupon_id=None,
     coupon_slot=None,
+    desktop_return_url: str = "",
 ):
     from billing.checkout_attempts import create_or_resume_checkout_session
 
-    success_url, cancel_url, _portal = _return_urls()
+    success_url, cancel_url, _portal = _return_urls(desktop_return_url=desktop_return_url)
     return create_or_resume_checkout_session(
         organization,
         owner,
@@ -69,7 +78,7 @@ def _create_or_reuse_checkout_session(
     )
 
 
-def start_paid_checkout(organization, owner, *, plan_key, interval):
+def start_paid_checkout(organization, owner, *, plan_key, interval, desktop_return_url: str = ""):
     _deny_checkstation_billing(organization)
     market = resolve_billing_market(organization)
     require_stripe_api(market=market)
@@ -135,6 +144,7 @@ def start_paid_checkout(organization, owner, *, plan_key, interval):
         billing_start_at=billing_start_at_for_checkout(organization),
         coupon_id=coupon_id,
         coupon_slot=coupon_slot,
+        desktop_return_url=desktop_return_url,
     )
 
 
@@ -533,7 +543,7 @@ def request_schedule_billing_change(organization, *, plan, interval):
     )
 
 
-def open_customer_portal(organization):
+def open_customer_portal(organization, *, desktop_return_url: str = ""):
     _deny_checkstation_billing(organization)
     require_stripe_api()
     billing = get_workspace_billing(organization)
@@ -543,7 +553,7 @@ def open_customer_portal(organization):
             "No Stripe customer is on file for this workspace.",
             code="stripe_customer_missing",
         )
-    _success, _cancel, portal_return = _return_urls()
+    _success, _cancel, portal_return = _return_urls(desktop_return_url=desktop_return_url)
     provider = get_billing_provider()
     return provider.create_portal_session(
         customer_id=billing.external_customer_id,

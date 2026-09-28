@@ -101,12 +101,28 @@ class BillingCheckoutView(APIView):
 
     def post(self, request):
         organization = get_owned_organization(request.user)
+        desktop_return_url = ""
+        raw_desktop = request.data.get("desktop_return_url") or ""
+        if str(raw_desktop).strip():
+            from core.desktop_return import DesktopReturnUrlError, require_safe_desktop_return_url
+
+            try:
+                desktop_return_url = require_safe_desktop_return_url(raw_desktop)
+            except DesktopReturnUrlError:
+                return Response(
+                    {
+                        "code": "invalid_desktop_return_url",
+                        "detail": "Invalid desktop return URL.",
+                    },
+                    status=400,
+                )
         try:
             result = start_paid_checkout(
                 organization,
                 request.user,
                 plan_key=request.data.get("plan"),
                 interval=request.data.get("interval"),
+                desktop_return_url=desktop_return_url,
             )
         except (BillingStateError, StripeConfigurationError, StripeProviderError) as exc:
             return _error_response(exc)
@@ -274,8 +290,26 @@ class BillingPortalView(APIView):
 
     def post(self, request):
         organization = get_owned_organization(request.user)
+        desktop_return_url = ""
+        raw_desktop = request.data.get("desktop_return_url") or ""
+        if str(raw_desktop).strip():
+            from core.desktop_return import DesktopReturnUrlError, require_safe_desktop_return_url
+
+            try:
+                desktop_return_url = require_safe_desktop_return_url(raw_desktop)
+            except DesktopReturnUrlError:
+                return Response(
+                    {
+                        "code": "invalid_desktop_return_url",
+                        "detail": "Invalid desktop return URL.",
+                    },
+                    status=400,
+                )
         try:
-            result = open_customer_portal(organization)
+            result = open_customer_portal(
+                organization,
+                desktop_return_url=desktop_return_url,
+            )
         except (BillingStateError, StripeConfigurationError, StripeProviderError) as exc:
             return _error_response(exc)
         return Response({"portal_url": result.portal_url})

@@ -10,6 +10,7 @@ from accounts.account_recovery_views import (
 )
 from accounts.apple_native_views import AppleNativeCompleteView
 from accounts.apple_oauth_views import AppleOAuthCallbackView, AppleOAuthStartView
+from accounts.desktop_auth_handoff import DesktopAuthHandoffView
 from accounts.google_native_views import GoogleNativeCompleteView
 from accounts.google_oauth_views import GoogleOAuthCallbackView, GoogleOAuthStartView
 from accounts.owner_sign_in_method_views import (
@@ -179,5 +180,10 @@ urlpatterns = [
         "auth/apple/native/",
         AppleNativeCompleteView.as_view(),
         name="apple-native-complete",
+    ),
+    path(
+        "auth/desktop-handoff/",
+        DesktopAuthHandoffView.as_view(),
+        name="desktop-auth-handoff",
     ),
 ]

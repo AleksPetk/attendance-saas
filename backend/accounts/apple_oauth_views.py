@@ -26,6 +26,7 @@ from accounts.apple_oauth_state import (
     VALID_INTENTS,
     create_apple_oauth_state,
 )
+from core.desktop_return import DesktopReturnUrlError, require_safe_desktop_return_url
 
 logger = logging.getLogger("accounts.apple_oauth")
 User = get_user_model()
@@ -93,6 +94,7 @@ class AppleOAuthStartView(APIView):
 
         legal_acknowledgement = False
         owner_user_id = None
+        desktop_return_url = ""
 
         if intent == INTENT_REGISTER:
             legal_acknowledgement = _truthy_query_param(
@@ -106,6 +108,31 @@ class AppleOAuthStartView(APIView):
                             "the Privacy Policy."
                         ),
                         "code": AppleOAuthResultCode.LEGAL_ACKNOWLEDGEMENT_REQUIRED,
+                    },
+                    status=400,
+                )
+
+        raw_desktop_return = (
+            request.query_params.get("desktop_return_url")
+            or request.query_params.get("desktop_return")
+            or ""
+        )
+        if str(raw_desktop_return).strip():
+            if intent not in (INTENT_LOGIN, INTENT_REGISTER):
+                return Response(
+                    {
+                        "detail": "Desktop return URL is only valid for login or register.",
+                        "code": AppleOAuthResultCode.INVALID_INTENT,
+                    },
+                    status=400,
+                )
+            try:
+                desktop_return_url = require_safe_desktop_return_url(raw_desktop_return)
+            except DesktopReturnUrlError:
+                return Response(
+                    {
+                        "detail": "Invalid desktop return URL.",
+                        "code": "invalid_desktop_return_url",
                     },
                     status=400,
                 )
@@ -127,6 +154,7 @@ class AppleOAuthStartView(APIView):
             intent=intent,
             legal_acknowledgement=legal_acknowledgement,
             owner_user_id=owner_user_id,
+            desktop_return_url=desktop_return_url,
         )
         redirect_uri = apple_oauth_redirect_uri(request)
         authorization_url = build_apple_authorization_url(
