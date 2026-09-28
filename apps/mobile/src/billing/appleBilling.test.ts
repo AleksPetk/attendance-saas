@@ -104,19 +104,30 @@ test("Apple Plan cards always come from catalog, not StoreKit availability", () 
   assert.doesNotMatch(page, /!appleCards\.length \? <Alert message=\{t\("plan\.appleProductsUnavailable"\)\} \/>/);
   // Trial selection must not require StoreKit prices.
   assert.match(page, /Trial future-plan selection is catalog-backed/);
-  // StoreKit fetch: session-scoped connection + subs-then-all fallback.
+  // StoreKit fetch: session-scoped connection + subs-then-all fallback + retries.
   assert.match(iap, /ensureAppleIapSession/);
   assert.match(iap, /appleIapSessionReady/);
+  assert.match(iap, /warmAppleIapSession/);
+  assert.match(iap, /purchaseUpdatedListener/);
   assert.match(iap, /type: "subs"/);
   assert.match(iap, /type: "all"/);
+  assert.match(iap, /PRODUCT_FETCH_ATTEMPTS/);
+  // Restore must AppStore.sync via expo-iap restorePurchases before reading entitlements.
+  assert.match(iap, /expoIapRestorePurchases/);
+  assert.match(iap, /getAvailablePurchases/);
   // Session stays live — do not import or call endConnection after fetches.
   assert.doesNotMatch(iap, /\bendConnection\b\s*,/);
   assert.doesNotMatch(iap, /await endConnection\s*\(/);
+  assert.doesNotMatch(iap, /[^.\w]endConnection\s*\(/);
   // Apple section must not render Admin promo / discount headline.
   assert.doesNotMatch(
     page,
     /appleProductsUnavailable[\s\S]{0,200}<PlanPromoHeadline/,
   );
+  // Pull-to-refresh and restore must re-request StoreKit prices (not only billing API).
+  assert.match(page, /appleStoreEpoch/);
+  assert.match(page, /reloadAppleStore/);
+  assert.match(page, /if \(refresh && appleIapSupported\(\)\) reloadAppleStore\(\)/);
 });
 
 test("buildApplePlanCards enumerates all four App Store SKUs from catalog", async () => {

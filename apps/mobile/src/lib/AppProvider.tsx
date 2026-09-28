@@ -3,6 +3,7 @@ import { fetch as expoFetch } from "expo/fetch";
 import { ApiClient } from "@checkstation/api";
 import { AuthController, type AuthState } from "@checkstation/auth";
 import { createTranslator, resolveLocale, type AppLocale } from "@checkstation/i18n";
+import { warmAppleIapSession } from "../billing/appleIap";
 import { loadMobileConfig } from "./config";
 import { createSecureCookieJar } from "./secureCookieJar";
 
@@ -46,6 +47,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     void auth.bootstrap().finally(() => setReady(true));
     return unsub;
   }, [auth]);
+
+  useEffect(() => {
+    // One process-lifetime Apple IAP session shared by Plan fetch/restore/purchase.
+    warmAppleIapSession();
+  }, []);
 
   const t = useMemo(() => createTranslator(locale), [locale]);
   const refreshWorkspace = useMemo(() => async () => {

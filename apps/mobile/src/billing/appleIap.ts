@@ -2,10 +2,12 @@
  * StoreKit helpers via expo-iap (iOS/iPadOS only).
  * Entitlement is never granted client-side — always verify with the backend.
  *
- * Connection model: OpenIAP requires a live session for fetchProducts /
- * purchases. Keep one session for the app lifetime. Do not endConnection
- * after each Plan load — that cancels initTask, nulls productManager, and
- * races the next ensureConnection (surfaces as empty products / not-prepared).
+ * Connection model (one process-lifetime session):
+ * - Register purchase listeners once, then initConnection() once.
+ * - Never call endConnection from app code (OpenIAP nulls productManager and
+ *   races the next fetch → empty products / not-prepared).
+ * - Product load, restore, and purchase all share ensureAppleIapSession().
+ * - iOS restore must AppStore.sync before reading entitlements (expo-iap restorePurchases).
  */
 
 import { Platform } from "react-native";
@@ -15,7 +17,10 @@ import {
   finishTransaction,
   getAvailablePurchases,
   initConnection,
+  purchaseErrorListener,
+  purchaseUpdatedListener,
   requestPurchase,
+  restorePurchases as expoIapRestorePurchases,
   type ProductSubscription,
   type Purchase,
 } from "expo-iap";
@@ -27,6 +32,9 @@ export type AppleStoreProduct = {
   title: string;
   description: string;
 };
+
+const PRODUCT_FETCH_ATTEMPTS = 3;
+const PRODUCT_FETCH_RETRY_MS = 450;
 
 export function appleIapSupported(): boolean {
   return Platform.OS === "ios";
@@ -48,6 +56,22 @@ export function isUserCancelPurchaseError(error: unknown): boolean {
 
 let appleIapSessionReady = false;
 let appleIapSessionPromise: Promise<void> | null = null;
+let appleIapListenersAttached = false;
+
+function attachAppleIapListenersOnce(): void {
+  if (appleIapListenersAttached || !appleIapSupported()) return;
+  appleIapListenersAttached = true;
+  // Match expo-iap useIAP: listeners must exist before initConnection so early
+  // purchase-updated / purchase-error events are not dropped. Keep them for the
+  // process lifetime (do not endConnection on Plan unmount).
+  purchaseUpdatedListener(() => {
+    // Purchase results are also returned from requestPurchase; listener keeps
+    // the native bridge session warm for restore / unfinished transactions.
+  });
+  purchaseErrorListener(() => {
+    // Errors surface through requestPurchase / restore promise rejections.
+  });
+}
 
 /**
  * Ensure a single OpenIAP/StoreKit session is initialized for this process.
@@ -60,6 +84,7 @@ export async function ensureAppleIapSession(): Promise<void> {
   if (appleIapSessionReady) return;
   if (!appleIapSessionPromise) {
     appleIapSessionPromise = (async () => {
+      attachAppleIapListenersOnce();
       const connected = await initConnection();
       if (!connected) {
         appleIapSessionPromise = null;
@@ -77,10 +102,42 @@ export async function ensureAppleIapSession(): Promise<void> {
   }
 }
 
+/** Warm the StoreKit session at app start (no teardown). */
+export function warmAppleIapSession(): void {
+  if (!appleIapSupported()) return;
+  void ensureAppleIapSession().catch(() => {
+    // Plan load / restore / purchase will retry via ensureAppleIapSession.
+  });
+}
+
 /** @deprecated Prefer ensureAppleIapSession — kept name for call-site clarity. */
 export async function withAppleIapConnection<T>(fn: () => Promise<T>): Promise<T> {
   await ensureAppleIapSession();
   return fn();
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isRetryableAppleStoreError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return true;
+  const code = String((error as { code?: string }).code || "").toLowerCase();
+  const message = String((error as { message?: string }).message || "").toLowerCase();
+  if (isUserCancelPurchaseError(error)) return false;
+  return (
+    !code
+    || code.includes("not-prepared")
+    || code.includes("not_prepared")
+    || code.includes("init-connection")
+    || code.includes("init_connection")
+    || code.includes("service-error")
+    || code.includes("network")
+    || code.includes("query-product")
+    || message.includes("not ready")
+    || message.includes("not prepared")
+    || message.includes("connection")
+  );
 }
 
 export function normalizeFetchedProducts(products: unknown): AppleStoreProduct[] {
@@ -106,23 +163,44 @@ export function normalizeFetchedProducts(products: unknown): AppleStoreProduct[]
   return ordered;
 }
 
+async function fetchAppleSubscriptionProductsOnce(): Promise<AppleStoreProduct[]> {
+  const skus = [...APPLE_PRODUCT_ID_LIST];
+  let ordered = normalizeFetchedProducts(
+    await fetchProducts({ skus, type: "subs" }),
+  );
+  if (!ordered.length) {
+    ordered = normalizeFetchedProducts(
+      await fetchProducts({ skus, type: "all" }),
+    );
+  }
+  return ordered;
+}
+
 /**
  * Load App Store subscription prices for the four CheckStation SKUs.
  * Path: expo-iap fetchProducts → OpenIAP → StoreKit.Product.products(for:).
- * Tries `subs` first, then `all` (OpenIAP type filtering).
+ * Tries `subs` first, then `all`, with short retries for cold-start empty/racy results.
  */
 export async function loadAppleSubscriptionProducts(): Promise<AppleStoreProduct[]> {
   return withAppleIapConnection(async () => {
-    const skus = [...APPLE_PRODUCT_ID_LIST];
-    let ordered = normalizeFetchedProducts(
-      await fetchProducts({ skus, type: "subs" }),
-    );
-    if (!ordered.length) {
-      ordered = normalizeFetchedProducts(
-        await fetchProducts({ skus, type: "all" }),
-      );
+    let lastError: unknown = null;
+    for (let attempt = 1; attempt <= PRODUCT_FETCH_ATTEMPTS; attempt += 1) {
+      try {
+        const ordered = await fetchAppleSubscriptionProductsOnce();
+        if (ordered.length > 0) return ordered;
+        lastError = null;
+      } catch (error) {
+        lastError = error;
+        if (!isRetryableAppleStoreError(error) || attempt >= PRODUCT_FETCH_ATTEMPTS) {
+          throw error;
+        }
+      }
+      if (attempt < PRODUCT_FETCH_ATTEMPTS) {
+        await sleep(PRODUCT_FETCH_RETRY_MS * attempt);
+      }
     }
-    return ordered;
+    if (lastError) throw lastError;
+    return [];
   });
 }
 
@@ -131,6 +209,11 @@ export function purchaseJws(purchase: Purchase): string {
   if (token) return token;
   const ios = purchase as Purchase & { jwsRepresentationIOS?: string; jwsRepresentation?: string };
   return String(ios.jwsRepresentationIOS || ios.jwsRepresentation || "").trim();
+}
+
+function purchaseProductId(purchase: Purchase): string {
+  const row = purchase as Purchase & { id?: string };
+  return String(purchase.productId || row.id || "").trim();
 }
 
 export async function purchaseAppleSubscription(params: {
@@ -159,16 +242,24 @@ export async function purchaseAppleSubscription(params: {
   });
 }
 
+/**
+ * Restore Apple subscriptions for this Apple ID.
+ * Matches expo-iap restorePurchases: AppStore.sync() then getAvailablePurchases.
+ */
 export async function restoreApplePurchases(): Promise<
   Array<{ purchase: Purchase; signedTransaction: string }>
 > {
   return withAppleIapConnection(async () => {
+    // expo-iap restorePurchases = AppStore.sync() (iOS) then refresh entitlements.
+    // Without sync, Restore only flashes Plan UI and currentEntitlements stay empty.
+    await expoIapRestorePurchases();
     const purchases = await getAvailablePurchases({ onlyIncludeActiveItemsIOS: true });
     const out: Array<{ purchase: Purchase; signedTransaction: string }> = [];
     for (const purchase of purchases || []) {
       const signedTransaction = purchaseJws(purchase);
       if (!signedTransaction) continue;
-      if (!APPLE_PRODUCT_ID_LIST.includes(purchase.productId as AppleProductId)) continue;
+      const productId = purchaseProductId(purchase);
+      if (!APPLE_PRODUCT_ID_LIST.includes(productId as AppleProductId)) continue;
       out.push({ purchase, signedTransaction });
     }
     return out;

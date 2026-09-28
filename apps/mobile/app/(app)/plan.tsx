@@ -67,7 +67,12 @@ export default function PlanScreen() {
   const [appleLoading, setAppleLoading] = useState(false);
   const [appleBusy, setAppleBusy] = useState(false);
   const [appleStoreError, setAppleStoreError] = useState(false);
+  const [appleStoreEpoch, setAppleStoreEpoch] = useState(0);
   const bt = useMemo(() => billingTranslator(locale === "ja" ? "ja" : "en"), [locale]);
+
+  const reloadAppleStore = useCallback(() => {
+    setAppleStoreEpoch((value) => value + 1);
+  }, []);
 
   const load = useCallback(async (refresh = false) => {
     if (!allowed) return;
@@ -80,13 +85,14 @@ export default function PlanScreen() {
       ]);
       setBilling(snapshot);
       setEntitlements(workspace.entitlements);
+      if (refresh && appleIapSupported()) reloadAppleStore();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : t("common.error"));
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [allowed, api, t]);
+  }, [allowed, api, reloadAppleStore, t]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -122,7 +128,7 @@ export default function PlanScreen() {
         if (!cancelled) setAppleLoading(false);
       });
     return () => { cancelled = true; };
-  }, [loadAppleProducts, billing?.purchase_source, billing?.builtin_trial?.active]);
+  }, [loadAppleProducts, billing?.purchase_source, billing?.builtin_trial?.active, appleStoreEpoch]);
 
   const verifyWithBackend = useCallback(async (signedTransaction: string) => {
     const snapshot = await api.post<Snapshot>(endpoints.billingAppleVerify(), {
@@ -211,6 +217,7 @@ export default function PlanScreen() {
     setInfo("");
     try {
       const restored = await restoreApplePurchases();
+      reloadAppleStore();
       if (!restored.length) {
         setInfo(t("plan.appleRestoreNone"));
         return;
@@ -226,7 +233,7 @@ export default function PlanScreen() {
     } finally {
       setAppleBusy(false);
     }
-  }, [load, t, verifyWithBackend]);
+  }, [load, reloadAppleStore, t, verifyWithBackend]);
 
   const onManage = useCallback(async () => {
     setError("");
@@ -383,9 +390,12 @@ export default function PlanScreen() {
                 <Button disabled={appleBusy} label={t("plan.appleManage")} onPress={() => void onManage()} variant="secondary" />
               ) : null}
               {!showAppleTrialSelect ? (
-                <Pressable disabled={appleBusy} onPress={() => void onRestore()} style={styles.restoreLink}>
-                  <Text style={styles.restoreText}>{t("plan.appleRestore")}</Text>
-                </Pressable>
+                <View style={styles.restoreBlock}>
+                  <Pressable disabled={appleBusy} onPress={() => void onRestore()} style={styles.restoreLink}>
+                    <Text style={styles.restoreText}>{t("plan.appleRestore")}</Text>
+                  </Pressable>
+                  {info ? <Text style={styles.restoreStatus}>{info}</Text> : null}
+                </View>
               ) : null}
             </View>
           </SectionCard>
@@ -462,6 +472,8 @@ const styles = StyleSheet.create({
   gridTablet: { flexDirection: "row", flexWrap: "wrap" },
   note: { ...type.caption, color: colors.textMuted },
   appleActions: { gap: space.md, marginTop: space.md },
+  restoreBlock: { gap: space.xs },
   restoreLink: { paddingVertical: space.sm },
   restoreText: { ...type.bodyStrong, color: colors.blue, textAlign: "center" },
+  restoreStatus: { ...type.caption, color: colors.textSecondary, textAlign: "center" },
 });
