@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 
 import jwt
 from cryptography import x509
+from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 from django.conf import settings
 
@@ -120,8 +121,8 @@ def _verify_chain(certs: list[x509.Certificate], *, now: datetime | None = None)
                 ) from exc
     terminal = certs[-1]
     try:
-        if terminal.public_bytes(x509.Encoding.DER) == root.public_bytes(
-            x509.Encoding.DER
+        if terminal.public_bytes(serialization.Encoding.DER) == root.public_bytes(
+            serialization.Encoding.DER
         ):
             return
         terminal.verify_directly_issued_by(root)

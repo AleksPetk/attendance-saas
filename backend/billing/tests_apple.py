@@ -355,3 +355,44 @@ class AppleBillingTests(TestCase):
         )
         self.assertEqual(response.status_code, 400)
         self.assertIn(response.data["code"], {"purchase_source_locked", "purchase_source_apple"})
+
+
+class AppleJwsChainEncodingTests(TestCase):
+    """Regression: terminal DER compare must use serialization.Encoding (cryptography 46+)."""
+
+    def test_verify_chain_terminal_root_uses_serialization_encoding(self):
+        from datetime import datetime, timedelta, timezone as dt_timezone
+
+        from cryptography import x509
+        from cryptography.hazmat.primitives import hashes, serialization
+        from cryptography.hazmat.primitives.asymmetric import ec
+        from cryptography.x509.oid import NameOID
+
+        from billing import apple_jws
+        from billing.apple_jws import _load_apple_root_ca, _verify_chain
+
+        key = ec.generate_private_key(ec.SECP256R1())
+        name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "CheckStation Test Root")])
+        now = datetime.now(dt_timezone.utc)
+        cert = (
+            x509.CertificateBuilder()
+            .subject_name(name)
+            .issuer_name(name)
+            .public_key(key.public_key())
+            .serial_number(x509.random_serial_number())
+            .not_valid_before(now - timedelta(days=1))
+            .not_valid_after(now + timedelta(days=30))
+            .sign(key, hashes.SHA256())
+        )
+        pem = cert.public_bytes(serialization.Encoding.PEM).decode("ascii")
+
+        # Source must not use the removed x509.Encoding API for DER bytes.
+        source = open(apple_jws.__file__, encoding="utf-8").read()
+        self.assertIn("serialization.Encoding.DER", source)
+        self.assertNotIn("x509.Encoding.DER", source)
+
+        with override_settings(APPLE_IAP_ROOT_CA_PEM=pem):
+            root = _load_apple_root_ca()
+            # Equality path: terminal cert IS the configured root.
+            # Pre-fix this raised AttributeError → misleading chain-termination error.
+            _verify_chain([root])
