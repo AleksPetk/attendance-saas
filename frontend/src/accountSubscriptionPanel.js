@@ -260,6 +260,8 @@ export function AccountSubscriptionPanel({
   const isApple = billing?.purchase_source === "apple";
   const isGoogle = billing?.purchase_source === "google";
   const isStoreManaged = isApple || isGoogle;
+  // Admin / acquisition / checkout-promo copy is Stripe/web-only — never for Apple/Google.
+  const showWebPromo = !isStoreManaged;
   const catalogPromo = catalogPromotion(billing?.catalog);
   const discountT = (key, opts) => i18n.t(`billing:promoDiscount.${key}`, opts);
   const catalogPromoSummary = localizedPromotionSummary(billing?.catalog, discountT);
@@ -1022,20 +1024,20 @@ export function AccountSubscriptionPanel({
               i18n.t("billing:upgrade.googleNote"),
             )
         : null,
-      pricingCatalogResolved
+      pricingCatalogResolved && showWebPromo
         ? createElement(PromotionalText, {
             catalog: billing?.catalog,
             className: "account-panel-note account-promotional-text",
           })
         : null,
-      pricingCatalogResolved && isAcquisitionPromotion(billing?.catalog)
+      pricingCatalogResolved && showWebPromo && isAcquisitionPromotion(billing?.catalog)
         ? createElement(
             "p",
             { className: "account-panel-note account-promo-banner", role: "status" },
             `${catalogPromo.label || "Promotion"}: ${catalogPromoSummary || ""}`,
           )
         : null,
-      pricingCatalogResolved && checkoutPromoWarning
+      pricingCatalogResolved && showWebPromo && checkoutPromoWarning
         ? createElement(
             "p",
             {

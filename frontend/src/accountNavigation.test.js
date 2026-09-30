@@ -1118,6 +1118,124 @@ test("subscription panel hides Stripe interval controls for Apple source", () =>
   assert.doesNotMatch(html, /Schedule Business yearly/);
 });
 
+const webPromoCatalogExtras = {
+  promotional_text: {
+    enabled: true,
+    text: "正式リリース記念 — 今だけ50%OFF！",
+  },
+  promotion: {
+    active: true,
+    group: "new_basic",
+    label: "Launch offer",
+    summary: "50% off first year",
+    checkout_applies_promotion: false,
+    offers: [],
+  },
+};
+
+test("subscription panel hides web promo for Apple-managed billing", () => {
+  const billing = {
+    ...basicBilling,
+    effective_plan: { key: "plus", display_name: "Plus" },
+    subscribed_plan: { key: "plus", display_name: "Plus" },
+    purchase_source: "apple",
+    status: "active",
+    interval: "monthly",
+    catalog: {
+      ...basicBilling.catalog,
+      ...webPromoCatalogExtras,
+    },
+    actions: {
+      ...basicBilling.actions,
+      can_checkout_plus: false,
+      can_checkout_business: false,
+      can_change_interval: false,
+      can_schedule_billing_change: false,
+    },
+  };
+  const html = renderToStaticMarkup(
+    createElement(AccountSubscriptionPanel, {
+      session: {
+        workspace: {
+          entitlements: {
+            ...basicEntitlements,
+            plan: { key: "plus", display_name: "Plus" },
+          },
+        },
+      },
+      billing,
+    }),
+  );
+  assert.doesNotMatch(html, /正式リリース記念 — 今だけ50%OFF！/);
+  assert.doesNotMatch(html, /account-promo-banner/);
+  assert.doesNotMatch(html, /Launch offer/);
+  assert.doesNotMatch(html, /Promotional pricing is shown for reference only/);
+  assert.match(html, /Apple-managed billing cannot use Stripe Checkout/);
+  assert.match(html, /Apple/);
+});
+
+test("subscription panel keeps web promo for Stripe-managed billing", () => {
+  const billing = {
+    ...basicBilling,
+    effective_plan: { key: "plus", display_name: "Plus" },
+    subscribed_plan: { key: "plus", display_name: "Plus" },
+    purchase_source: "stripe",
+    status: "active",
+    interval: "monthly",
+    catalog: {
+      ...basicBilling.catalog,
+      ...webPromoCatalogExtras,
+    },
+    actions: {
+      ...basicBilling.actions,
+      can_checkout_plus: false,
+      can_checkout_business: false,
+      can_schedule_billing_change: true,
+      can_change_interval: true,
+      can_upgrade_to_business: true,
+      can_cancel: true,
+      can_open_portal: true,
+    },
+  };
+  const html = renderToStaticMarkup(
+    createElement(AccountSubscriptionPanel, {
+      session: {
+        workspace: {
+          entitlements: {
+            ...basicEntitlements,
+            plan: { key: "plus", display_name: "Plus" },
+          },
+        },
+      },
+      billing,
+    }),
+  );
+  assert.match(html, /正式リリース記念 — 今だけ50%OFF！/);
+  assert.match(html, /account-promo-banner/);
+  assert.match(html, /Launch offer/);
+  assert.match(html, /Promotional pricing is shown for reference only/);
+});
+
+test("subscription panel keeps web promo for Basic / purchase_source none", () => {
+  const billing = {
+    ...basicBilling,
+    catalog: {
+      ...basicBilling.catalog,
+      ...webPromoCatalogExtras,
+    },
+  };
+  const html = renderToStaticMarkup(
+    createElement(AccountSubscriptionPanel, {
+      session: { workspace: { entitlements: basicEntitlements } },
+      billing,
+    }),
+  );
+  assert.equal(billing.purchase_source, "none");
+  assert.match(html, /正式リリース記念 — 今だけ50%OFF！/);
+  assert.match(html, /account-promo-banner/);
+  assert.match(html, /Launch offer/);
+});
+
 test("checkout confirming banner does not claim fake success", () => {
   const html = renderToStaticMarkup(
     createElement(AccountSubscriptionPanel, {
