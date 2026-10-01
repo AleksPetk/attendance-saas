@@ -26,7 +26,7 @@
         "expo-image-picker",
         {
           "photosPermission": "CheckStation uses your photo library so you can choose a profile photo for a participant.",
-          "cameraPermission": false,
+          "cameraPermission": "Allow CheckStation to use the camera to take member photos.",
           "microphonePermission": false
         }
       ]
@@ -34,7 +34,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "app.checkstation.client",
-      "buildNumber": "21",
+      "buildNumber": "33",
       "usesAppleSignIn": true,
       "infoPlist": {
         "CFBundleDisplayName": "CheckStation",

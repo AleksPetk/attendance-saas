@@ -1,7 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 import { Alert as NativeAlert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Redirect, router, useFocusEffect } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
 import { ApiError, endpoints } from "@checkstation/api";
 import {
   MEMBERS,
@@ -19,10 +18,10 @@ import {
   type MemberProfileFilter,
   type MemberSortOrder,
 } from "@checkstation/domain";
-import { Alert, Button, LoadingState, Screen } from "../../../src/components/ui";
-import { AddButton, EmptyPanel, FilterTabs, PageHeader, SearchField, StatusPill } from "../../../src/components/mobile";
-import { Avatar } from "../../../src/components/Avatar";
+import { Alert, LoadingState, Screen } from "../../../src/components/ui";
+import { AddButton, EmptyPanel, FilterTabs, PageHeader, SearchField } from "../../../src/components/mobile";
 import { CapacityMeter } from "../../../src/components/CapacityMeter";
+import { MemberListRow, type MemberSwipeableRef } from "../../../src/components/MemberListRow";
 import { PlanCapacityNotice, PlanLockSelectionPanel } from "../../../src/components/PlanCapacity";
 import { useApp } from "../../../src/lib/AppProvider";
 import { useFormFactor } from "../../../src/lib/formFactor";
@@ -60,6 +59,7 @@ export default function MembersScreen() {
   const [error, setError] = useState("");
   const [selectionOpen, setSelectionOpen] = useState(false);
   const [busyId, setBusyId] = useState<number | null>(null);
+  const openRowRef = useRef<MemberSwipeableRef | null>(null);
   const allowed = canViewGlobalMembers(authState.session);
   const canManage = canManageWorkspace(authState.session);
   const owner = canManageOwnerAccount(authState.session);
@@ -132,6 +132,18 @@ export default function MembersScreen() {
     );
   }
 
+  const sectionProps = {
+    mustSelect,
+    status,
+    canManage,
+    busyId,
+    openRowRef,
+    onArchive: (member: Member) => confirmLifecycle(member, "archive"),
+    onRestore: (member: Member) => void lifecycle(member, "restore"),
+    onDelete: (member: Member) => confirmLifecycle(member, "permanently-delete"),
+    t,
+  };
+
   return (
     <Screen style={styles.screen}>
       <ScrollView contentContainerStyle={[styles.content, tablet && styles.contentTablet]} keyboardDismissMode="on-drag" refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void load(true)} tintColor={colors.blue} />}>
@@ -183,11 +195,11 @@ export default function MembersScreen() {
           />
         ) : showPlanSections ? (
           <>
-            <MemberSection title={t("members.sections.available")} members={availableMembers} mustSelect={mustSelect} status={status} canManage={canManage} busyId={busyId} onArchive={(member) => confirmLifecycle(member, "archive")} onRestore={(member) => void lifecycle(member, "restore")} onDelete={(member) => confirmLifecycle(member, "permanently-delete")} t={t} />
-            <MemberSection title={t("members.sections.locked")} members={lockedMembers} mustSelect={mustSelect} status={status} canManage={canManage} busyId={busyId} onArchive={(member) => confirmLifecycle(member, "archive")} onRestore={(member) => void lifecycle(member, "restore")} onDelete={(member) => confirmLifecycle(member, "permanently-delete")} t={t} />
+            <MemberSection title={t("members.sections.available")} members={availableMembers} {...sectionProps} />
+            <MemberSection title={t("members.sections.locked")} members={lockedMembers} {...sectionProps} />
           </>
         ) : (
-          <MemberSection members={visibleRows} mustSelect={mustSelect} status={status} canManage={canManage} busyId={busyId} onArchive={(member) => confirmLifecycle(member, "archive")} onRestore={(member) => void lifecycle(member, "restore")} onDelete={(member) => confirmLifecycle(member, "permanently-delete")} t={t} />
+          <MemberSection members={visibleRows} {...sectionProps} />
         )}
       </ScrollView>
     </Screen>
@@ -201,6 +213,7 @@ function MemberSection({
   status,
   canManage,
   busyId,
+  openRowRef,
   onArchive,
   onRestore,
   onDelete,
@@ -212,6 +225,7 @@ function MemberSection({
   status: Status;
   canManage: boolean;
   busyId: number | null;
+  openRowRef: React.MutableRefObject<MemberSwipeableRef | null>;
   onArchive: (member: Member) => void;
   onRestore: (member: Member) => void;
   onDelete: (member: Member) => void;
@@ -224,37 +238,28 @@ function MemberSection({
         {members.map((member) => {
           const locked = isPlanLocked(member) && status !== "archived";
           const blocked = locked || mustSelect;
+          const showSwipeActions = canManage && !mustSelect && !locked;
           return (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityState={{ disabled: blocked }}
-              disabled={blocked}
+            <MemberListRow
               key={member.id}
-              onPress={() => router.push(`/(app)/member/${member.id}`)}
-              style={({ pressed }) => [styles.row, pressed && styles.rowPressed, blocked && styles.locked]}
-            >
-              <Avatar name={member.name} url={member.photo_url} />
-              <View style={styles.rowMain}>
-                <View style={styles.rowTitleLine}>
-                  <Text numberOfLines={1} style={styles.name}>{member.name}</Text>
-                  {locked ? <StatusPill label={t("members.planLocked")} tone="warning" /> : status === "archived" ? <StatusPill label={t("members.archivedLabel")} /> : null}
-                </View>
-                <Text numberOfLines={1} style={styles.secondary}>{member.email || member.phone || t("members.noContact")}</Text>
-                {canManage && !mustSelect && !locked ? (
-                  <View style={styles.rowActions}>
-                    {status === "active" ? (
-                      <Button label={t("members.archive")} onPress={() => onArchive(member)} variant="secondary" disabled={busyId === member.id} />
-                    ) : (
-                      <>
-                        <Button label={t("members.restore")} onPress={() => onRestore(member)} variant="secondary" disabled={busyId === member.id} />
-                        <Button label={t("members.delete")} onPress={() => onDelete(member)} variant="danger" disabled={busyId === member.id} />
-                      </>
-                    )}
-                  </View>
-                ) : null}
-              </View>
-              <Ionicons color={colors.textMuted} name={blocked ? "lock-closed-outline" : "chevron-forward"} size={18} />
-            </Pressable>
+              member={member}
+              status={status}
+              blocked={blocked}
+              locked={locked}
+              showSwipeActions={showSwipeActions}
+              busy={busyId === member.id}
+              contactFallback={t("members.noContact")}
+              archivedLabel={t("members.archivedLabel")}
+              planLockedLabel={t("members.planLocked")}
+              archiveLabel={t("members.swipeArchive")}
+              restoreLabel={t("members.swipeRestore")}
+              deleteLabel={t("members.delete")}
+              openRowRef={openRowRef}
+              onOpenDetail={() => router.push(`/(app)/member/${member.id}`)}
+              onArchive={() => onArchive(member)}
+              onRestore={() => onRestore(member)}
+              onDelete={() => onDelete(member)}
+            />
           );
         })}
       </View>
@@ -312,12 +317,4 @@ const styles = StyleSheet.create({
   section: { gap: space.sm },
   sectionTitle: { ...type.bodyStrong, color: colors.text },
   list: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radii.lg, overflow: "hidden" },
-  row: { minHeight: 72, flexDirection: "row", alignItems: "center", gap: space.md, padding: space.md, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
-  rowPressed: { backgroundColor: colors.surfaceMuted },
-  locked: { opacity: 0.65 },
-  rowMain: { flex: 1, gap: 3 },
-  rowTitleLine: { flexDirection: "row", alignItems: "center", gap: space.sm },
-  name: { ...type.bodyStrong, color: colors.text, flexShrink: 1 },
-  secondary: { ...type.caption, color: colors.textMuted },
-  rowActions: { flexDirection: "row", flexWrap: "wrap", gap: space.sm, marginTop: space.sm },
 });

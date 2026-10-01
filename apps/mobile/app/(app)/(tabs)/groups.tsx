@@ -1,17 +1,14 @@
 import { useCallback, useRef, useState } from "react";
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert as NativeAlert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { router, useFocusEffect } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
 import { ApiError, endpoints } from "@checkstation/api";
 import {
   ACTIVE_STANDARD_GROUPS,
   ARCHIVED_GROUPS,
   canManageGroupConfiguration,
   canManageOwnerAccount,
-  enabledGroupActions,
   filterAndSortGroups,
   groupCapacityNotice,
-  groupParticipantCounts,
   groupUsageMetrics,
   hasPlanFeature,
   isGroupScopedStaff,
@@ -24,7 +21,14 @@ import {
   type GroupTypeFilter,
 } from "@checkstation/domain";
 import { Alert, LoadingState, Screen } from "../../../src/components/ui";
-import { AddButton, EmptyPanel, FilterTabs, PageHeader, SearchField, StatusPill } from "../../../src/components/mobile";
+import { AddButton, EmptyPanel, FilterTabs, PageHeader, SearchField } from "../../../src/components/mobile";
+import {
+  GroupListRow,
+  groupActionSummary,
+  groupCompositionLabel,
+  type GroupListItem,
+  type GroupSwipeableRef,
+} from "../../../src/components/GroupListRow";
 import { CapacityMeter } from "../../../src/components/CapacityMeter";
 import { PlanCapacityNotice, PlanLockSelectionPanel } from "../../../src/components/PlanCapacity";
 import { useApp } from "../../../src/lib/AppProvider";
@@ -32,27 +36,15 @@ import { useFormFactor } from "../../../src/lib/formFactor";
 import { topComfortGap } from "../../../src/components/safeArea";
 import { colors, radii, space, type } from "../../../src/theme/tokens";
 
-type Group = {
-  id: number;
-  name: string;
-  status?: string;
-  group_type?: string;
-  participant_count?: number;
-  member_count?: number;
-  group_only_participant_count?: number;
-  is_plan_locked?: boolean;
-  plan_unlocked?: boolean;
-  created_at?: string;
-  actions?: { check_in_enabled?: boolean; check_out_enabled?: boolean; breaks_enabled?: boolean; max_breaks?: number | null };
-  readiness?: { setup_complete?: boolean };
-};
+type Group = GroupListItem & { created_at?: string };
 type Status = "active" | "archived";
+type LifecycleAction = "archive" | "restore" | "permanently-delete";
 
 const TYPES: GroupTypeFilter[] = ["all", "standard", "structured"];
 const SORTS: GroupSortOrder[] = ["newest", "oldest", "participants_desc", "participants_asc", "structured_first", "standard_first", "name_asc", "name_desc"];
 
 export default function GroupsScreen() {
-  const { api, authState, revision, t } = useApp();
+  const { api, authState, revision, refreshWorkspace, t } = useApp();
   const { tablet, columns } = useFormFactor();
   const [rows, setRows] = useState<Group[]>([]);
   const [status, setStatus] = useState<Status>("active");
@@ -62,7 +54,9 @@ export default function GroupsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
+  const [busyId, setBusyId] = useState<number | null>(null);
   const [selectionOpen, setSelectionOpen] = useState(false);
+  const openRowRef = useRef<GroupSwipeableRef | null>(null);
   const canConfigure = canManageGroupConfiguration(authState.session);
   const staffScoped = isGroupScopedStaff(authState.session);
   const owner = canManageOwnerAccount(authState.session);
@@ -94,12 +88,56 @@ export default function GroupsScreen() {
 
   useFocusEffect(useCallback(() => { void load(); }, [load, revision]));
 
+  async function lifecycle(group: Group, action: LifecycleAction) {
+    setBusyId(group.id);
+    setError("");
+    try {
+      if (action === "archive") await api.post(endpoints.groupArchive(group.id), {});
+      else if (action === "restore") await api.post(endpoints.groupRestore(group.id), {});
+      else await api.post(endpoints.groupPermanentDelete(group.id), {});
+      await refreshWorkspace();
+      await load(true);
+    } catch (caught) {
+      setError(caught instanceof ApiError ? caught.message : t("common.error"));
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  function confirmLifecycle(group: Group, action: "archive" | "permanently-delete") {
+    NativeAlert.alert(
+      t(action === "archive" ? "groups.archiveTitle" : "groups.deleteTitle"),
+      t(action === "archive" ? "groups.archiveConfirm" : "groups.deleteConfirm", { name: group.name }),
+      [
+        { text: t("common.cancel"), style: "cancel" },
+        {
+          text: t(action === "archive" ? "groups.swipeArchive" : "groups.delete"),
+          style: "destructive",
+          onPress: () => void lifecycle(group, action),
+        },
+      ],
+    );
+  }
+
   const visible = filterAndSortGroups(rows, { type, sort });
   const entitlements = authState.session?.workspace?.entitlements;
   const standardUsage = groupUsageMetrics(entitlements?.usage_totals?.active_standard_groups ?? entitlements?.usage?.active_standard_groups, entitlements?.limits?.active_standard_groups);
   const structuredUsage = groupUsageMetrics(entitlements?.usage_totals?.active_structured_groups ?? entitlements?.usage?.active_structured_groups, entitlements?.limits?.active_structured_groups);
   const { available, locked } = partitionByPlanLock(visible);
   const showPlanSections = available.length > 0 && locked.length > 0;
+
+  const sectionProps = {
+    status,
+    mustSelect,
+    canConfigure,
+    structuredAccess,
+    busyId,
+    openRowRef,
+    onArchive: (group: Group) => confirmLifecycle(group, "archive"),
+    onRestore: (group: Group) => void lifecycle(group, "restore"),
+    onDelete: (group: Group) => confirmLifecycle(group, "permanently-delete"),
+    t,
+  };
 
   return (
     <Screen style={styles.screen}>
@@ -144,11 +182,11 @@ export default function GroupsScreen() {
           />
         ) : showPlanSections ? (
           <>
-            <GroupGrid columns={columns} groups={available} status={status} mustSelect={mustSelect} structuredAccess={structuredAccess} t={t} title={t("groups.sections.available")} />
-            <GroupGrid columns={columns} groups={locked} status={status} mustSelect={mustSelect} structuredAccess={structuredAccess} t={t} title={t("groups.sections.locked")} />
+            <GroupGrid columns={columns} groups={available} title={t("groups.sections.available")} {...sectionProps} />
+            <GroupGrid columns={columns} groups={locked} title={t("groups.sections.locked")} {...sectionProps} />
           </>
         ) : (
-          <GroupGrid columns={columns} groups={visible} status={status} mustSelect={mustSelect} structuredAccess={structuredAccess} t={t} />
+          <GroupGrid columns={columns} groups={visible} {...sectionProps} />
         )}
       </ScrollView>
     </Screen>
@@ -160,7 +198,13 @@ function GroupGrid({
   columns,
   status,
   mustSelect,
+  canConfigure,
   structuredAccess,
+  busyId,
+  openRowRef,
+  onArchive,
+  onRestore,
+  onDelete,
   t,
   title,
 }: {
@@ -168,7 +212,13 @@ function GroupGrid({
   columns: number;
   status: Status;
   mustSelect: boolean;
+  canConfigure: boolean;
   structuredAccess: boolean;
+  busyId: number | null;
+  openRowRef: React.MutableRefObject<GroupSwipeableRef | null>;
+  onArchive: (group: Group) => void;
+  onRestore: (group: Group) => void;
+  onDelete: (group: Group) => void;
   t: (key: string, vars?: Record<string, string | number>) => string;
   title?: string;
 }) {
@@ -176,59 +226,46 @@ function GroupGrid({
     <View style={styles.section}>
       {title ? <Text style={styles.sectionTitle}>{title}</Text> : null}
       <View style={[styles.grid, columns > 1 && styles.gridMulti]}>
-        {groups.map((group) => (
-          <View key={group.id} style={columns > 1 ? { width: columns === 3 ? "32%" : "48%" } : undefined}>
-            <GroupCard group={group} mustSelect={mustSelect} status={status} structuredAccess={structuredAccess} t={t} />
-          </View>
-        ))}
+        {groups.map((group) => {
+          const planLocked = isPlanLocked(group);
+          const blocked = planLocked || mustSelect;
+          // Same swipe UX for Standard and Structured; lifecycle endpoints are shared.
+          const showSwipeActions = canConfigure && !mustSelect && (status === "archived" || !planLocked);
+          return (
+            <View key={group.id} style={columns > 1 ? { width: columns === 3 ? "32%" : "48%" } : undefined}>
+              <GroupListRow
+                group={group}
+                status={status}
+                blocked={blocked}
+                showSwipeActions={showSwipeActions}
+                busy={busyId === group.id}
+                structuredAccess={structuredAccess}
+                archiveLabel={t("groups.swipeArchive")}
+                restoreLabel={t("groups.swipeRestore")}
+                deleteLabel={t("groups.delete")}
+                activeLabel={t("groups.activeLabel")}
+                archivedLabel={t("groups.archivedLabel")}
+                planLockedLabel={t("groups.planLocked")}
+                setupIncompleteLabel={t("groups.setupIncomplete")}
+                standardGroupLabel={t("groups.standardGroup")}
+                structuredGroupLabel={t("groups.structuredGroup")}
+                groupIdLabel={t("groups.groupId", { id: group.id })}
+                participantComposition={groupCompositionLabel(group, t)}
+                noAttendanceActions={t("groups.noAttendanceActions")}
+                planLockedCopy={t("groups.planLockedCopy")}
+                upgradeForStructured={t("groups.upgradeForStructured")}
+                actionSummary={groupActionSummary(group, t)}
+                openRowRef={openRowRef}
+                onOpenDetail={() => router.push(`/(app)/group/${group.id}`)}
+                onArchive={() => onArchive(group)}
+                onRestore={() => onRestore(group)}
+                onDelete={() => onDelete(group)}
+              />
+            </View>
+          );
+        })}
       </View>
     </View>
-  );
-}
-
-function GroupCard({
-  group,
-  status,
-  mustSelect,
-  structuredAccess,
-  t,
-}: {
-  group: Group;
-  status: Status;
-  mustSelect: boolean;
-  structuredAccess: boolean;
-  t: (key: string, vars?: Record<string, string | number>) => string;
-}) {
-  const locked = isPlanLocked(group);
-  const structured = group.group_type === "structured";
-  const structuredFeatureLocked = structured && !structuredAccess;
-  const blocked = locked || mustSelect;
-  const incomplete = status === "active" && group.readiness && !group.readiness.setup_complete;
-  const counts = groupParticipantCounts(group);
-  const actions = enabledGroupActions(group.actions);
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityState={{ disabled: blocked }}
-      disabled={blocked}
-      onPress={() => router.push(`/(app)/group/${group.id}`)}
-      style={({ pressed }) => [styles.card, pressed && styles.cardPressed, blocked && styles.cardMuted]}
-    >
-      <View style={[styles.groupIcon, structured && styles.structuredIcon]}>
-        <Ionicons color={structured ? colors.blue : colors.green} name={structured ? "grid-outline" : "layers-outline"} size={22} />
-      </View>
-      <View style={styles.cardMain}>
-        <View style={styles.cardTop}>
-          <Text numberOfLines={1} style={styles.name}>{group.name}</Text>
-          {locked ? <StatusPill label={t("groups.planLocked")} tone="warning" /> : incomplete ? <StatusPill label={t("groups.setupIncomplete")} tone="warning" /> : status === "archived" ? <StatusPill label={t("groups.archivedLabel")} /> : <StatusPill label={t("groups.activeLabel")} tone="green" />}
-        </View>
-        <Text style={styles.meta}>{structured ? t("groups.structuredGroup") : t("groups.standardGroup")} · {t("groups.groupId", { id: group.id })}</Text>
-        <Text style={styles.meta}>{t("groups.participantComposition", { total: counts.total, members: counts.members, groupOnly: counts.groupOnly })}</Text>
-        <Text style={styles.id}>{actions.length ? actions.map((action) => action.kind === "breaks" ? t("groups.breaksAction", { max: action.maxBreaks }) : t(action.kind === "check_in" ? "groups.checkInAction" : "groups.checkOutAction")).join(" · ") : t("groups.noAttendanceActions")}</Text>
-        {locked ? <Text style={styles.lockedCopy}>{structuredFeatureLocked ? t("groups.upgradeForStructured") : t("groups.planLockedCopy")}</Text> : null}
-      </View>
-      <Ionicons color={colors.textMuted} name={blocked ? "lock-closed-outline" : "chevron-forward"} size={18} />
-    </Pressable>
   );
 }
 
@@ -285,15 +322,4 @@ const styles = StyleSheet.create({
   sectionTitle: { ...type.bodyStrong, color: colors.text },
   grid: { gap: space.md },
   gridMulti: { flexDirection: "row", flexWrap: "wrap" },
-  card: { minHeight: 94, flexDirection: "row", alignItems: "flex-start", gap: space.md, padding: space.lg, borderWidth: 1, borderColor: colors.border, borderRadius: radii.lg, backgroundColor: colors.surface },
-  cardPressed: { backgroundColor: colors.surfaceMuted },
-  cardMuted: { opacity: 0.72 },
-  groupIcon: { width: 46, height: 46, borderRadius: 14, backgroundColor: colors.successSoft, alignItems: "center", justifyContent: "center" },
-  structuredIcon: { backgroundColor: colors.blueSoft },
-  cardMain: { flex: 1, gap: 3 },
-  cardTop: { flexDirection: "row", alignItems: "center", gap: space.sm },
-  name: { ...type.bodyStrong, color: colors.text, flexShrink: 1 },
-  meta: { ...type.caption, color: colors.textSecondary },
-  id: { fontSize: 12, color: colors.textMuted },
-  lockedCopy: { ...type.caption, color: colors.warningText, marginTop: space.xs },
 });

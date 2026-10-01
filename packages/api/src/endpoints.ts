@@ -50,6 +50,7 @@ export const endpoints = {
   groupAvailableMembers: (groupId: number | string) => `/groups/${groupId}/available-members/`,
   groupArchive: (groupId: number | string) => `/groups/${groupId}/archive/`,
   groupRestore: (groupId: number | string) => `/groups/${groupId}/restore/`,
+  groupPermanentDelete: (groupId: number | string) => `/groups/${groupId}/permanently-delete/`,
   groupClasses: (groupId: number | string) => `/groups/${groupId}/classes/`,
   groupClass: (groupId: number | string, sectionId: number | string) => `/groups/${groupId}/classes/${sectionId}/`,
   groupClassArchive: (groupId: number | string, sectionId: number | string) => `/groups/${groupId}/classes/${sectionId}/archive/`,

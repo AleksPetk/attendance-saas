@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { Alert as NativeAlert, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useSheetSafePadding } from "./safeArea";
 import { Button } from "./ui";
 import { PageHeader } from "./mobile";
@@ -11,7 +12,10 @@ export function ManagementSheet({ title, children, onClose, dirty = false, busy 
   title: string; children: ReactNode; onClose: () => void; dirty?: boolean; busy?: boolean;
 }) {
   const { t } = useApp();
+  const insets = useSafeAreaInsets();
   const sheetPadding = useSheetSafePadding();
+  // Match Add Member: keep enough scroll room so Save / photo stay reachable above keyboard.
+  const bottomPad = space.xxxl + Math.max(insets.bottom, space.md) + 160;
   const close = () => {
     if (busy) return;
     if (!dirty) return onClose();
@@ -20,13 +24,44 @@ export function ManagementSheet({ title, children, onClose, dirty = false, busy 
       { text: t("manage.discard"), style: "destructive", onPress: onClose },
     ]);
   };
-  return <Modal visible animationType="slide" presentationStyle="pageSheet" onRequestClose={close}>
-    <View style={[styles.safe, sheetPadding]}>
-      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-        <View style={styles.header}><PageHeader title={title} action={<Button label={t("common.cancel")} variant="secondary" disabled={busy} onPress={close} />} /></View>
-        <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive" contentContainerStyle={styles.content}>{children}</ScrollView>
-      </KeyboardAvoidingView>
-    </View>
-  </Modal>;
+  return (
+    <Modal visible animationType="slide" presentationStyle="pageSheet" onRequestClose={close}>
+      <View style={[styles.safe, sheetPadding]}>
+        <KeyboardAvoidingView
+          style={styles.flex}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
+          <View style={styles.header}>
+            <PageHeader
+              title={title}
+              action={<Button label={t("common.cancel")} variant="secondary" disabled={busy} onPress={close} />}
+            />
+          </View>
+          <ScrollView
+            automaticallyAdjustKeyboardInsets
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="interactive"
+            contentContainerStyle={[styles.content, { paddingBottom: bottomPad }]}
+          >
+            {children}
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </View>
+    </Modal>
+  );
 }
-const styles = StyleSheet.create({ safe: { flex: 1, backgroundColor: colors.bg }, flex: { flex: 1 }, header: { padding: space.lg, width: "100%", maxWidth: 720, alignSelf: "center" }, content: { padding: space.lg, paddingBottom: space.xxxl, gap: space.lg, width: "100%", maxWidth: 720, alignSelf: "center" } });
+
+const styles = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: colors.bg },
+  flex: { flex: 1 },
+  header: { padding: space.lg, width: "100%", maxWidth: 720, alignSelf: "center" },
+  content: {
+    padding: space.lg,
+    paddingBottom: space.xxxl,
+    gap: space.lg,
+    width: "100%",
+    maxWidth: 720,
+    alignSelf: "center",
+    flexGrow: 1,
+  },
+});
