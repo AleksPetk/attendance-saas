@@ -387,6 +387,8 @@ export function buildKioskPreviewHtml(options: {
   actionBackLabel?: string;
   actionBusy?: boolean;
   confirmationMessage?: string;
+  /** Optional full-width action below the card grid / identify form (e.g. Back to Classes). */
+  belowGridActionLabel?: string;
 }): string {
   const { config, mode } = options;
   const media = options.media || {};
@@ -403,7 +405,16 @@ export function buildKioskPreviewHtml(options: {
   const tag = options.interactivePeople ? "button" : "article";
   const gridColumns = options.gridColumns === 4 ? 4 : 2;
   const viewportProfile = options.viewportProfile || "tablet";
-  const liveShell = Boolean(options.interactivePeople || options.interactiveIdentify || flowStage !== "browse");
+  const belowGridActionLabel = String(options.belowGridActionLabel || "").trim();
+  const belowGridActionHtml = belowGridActionLabel
+    ? `<button type="button" class="btn-secondary kiosk-submit kiosk-back-to-classes" data-kiosk-below-grid-action="1">${escapeHtml(belowGridActionLabel)}</button>`
+    : "";
+  const liveShell = Boolean(
+    options.interactivePeople
+    || options.interactiveIdentify
+    || flowStage !== "browse"
+    || Boolean(belowGridActionLabel),
+  );
   const showSecondField = options.inputFieldCount === 2 || Boolean(options.secondFieldLabel);
   const codeLabel = options.participantCodeLabel || "Participant code";
   const formTitle = options.formTitle || codeLabel;
@@ -452,8 +463,8 @@ export function buildKioskPreviewHtml(options: {
     });
   } else {
     slotHtml = mode === "card"
-      ? `<div class="kiosk-people-grid desktop-kiosk-builder-samples">${peopleHtml}</div>`
-      : inputHtml;
+      ? `<div class="kiosk-people-grid desktop-kiosk-builder-samples">${peopleHtml}</div>${belowGridActionHtml}`
+      : `${inputHtml}${belowGridActionHtml}`;
   }
 
   const body = `
@@ -550,9 +561,25 @@ export function buildKioskPreviewHtml(options: {
   </script>`
     : "";
 
+  const belowGridActionScript = belowGridActionLabel && flowStage === "browse"
+    ? `<script>
+    (function(){
+      var action = document.querySelector('[data-kiosk-below-grid-action]');
+      if (!action) return;
+      action.addEventListener('click', function(){
+        if (action.disabled) return;
+        if (window.ReactNativeWebView) {
+          window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'below-grid-action' }));
+        }
+      });
+    })();
+    true;
+  </script>`
+    : "";
+
   return documentShell(
     "kr-preview-body",
-    body + interactivePeopleScript + interactiveIdentifyScript + interactiveActionScript + phoneTitleFitScript(viewportProfile),
+    body + interactivePeopleScript + interactiveIdentifyScript + interactiveActionScript + belowGridActionScript + phoneTitleFitScript(viewportProfile),
     kioskPreviewGridOverrideCss(gridColumns) + phoneKioskResponsiveCss(viewportProfile, options.safeInsets),
   );
 }

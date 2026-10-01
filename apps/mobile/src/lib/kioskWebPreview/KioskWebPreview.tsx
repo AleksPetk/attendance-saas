@@ -42,10 +42,12 @@ export function KioskWebLivePreview({
   actionBackLabel,
   actionBusy = false,
   confirmationMessage = "",
+  belowGridActionLabel,
   onPersonSelect,
   onIdentifySubmit,
   onActionSelect,
   onActionBack,
+  onBelowGridAction,
   style,
   pointerEvents,
   testID = "kiosk-web-live-preview",
@@ -77,10 +79,12 @@ export function KioskWebLivePreview({
   actionBackLabel?: string;
   actionBusy?: boolean;
   confirmationMessage?: string;
+  belowGridActionLabel?: string;
   onPersonSelect?: (id: string) => void;
   onIdentifySubmit?: (payload: { identifier: string; second: string; pin: string }) => void;
   onActionSelect?: (action: string) => void;
   onActionBack?: () => void;
+  onBelowGridAction?: () => void;
   style?: StyleProp<ViewStyle>;
   pointerEvents?: "auto" | "none" | "box-none" | "box-only";
   testID?: string;
@@ -115,6 +119,7 @@ export function KioskWebLivePreview({
         actionBackLabel,
         actionBusy,
         confirmationMessage,
+        belowGridActionLabel,
       }),
     [
       config,
@@ -147,6 +152,7 @@ export function KioskWebLivePreview({
       actionBackLabel,
       actionBusy,
       confirmationMessage,
+      belowGridActionLabel,
     ],
   );
 
@@ -195,6 +201,10 @@ export function KioskWebLivePreview({
             }
             if (payload.type === "action" && payload.action && onActionSelect) {
               onActionSelect(String(payload.action));
+              return;
+            }
+            if (payload.type === "below-grid-action" && onBelowGridAction) {
+              onBelowGridAction();
               return;
             }
             if (payload.type === "back" && onActionBack) onActionBack();
