@@ -98,7 +98,19 @@ def compute_current_attendance_state(
         elif ar.action_type == ActionType.BREAK_END:
             last_break_end = ar
 
-    is_checked_in = bool(last_check_in) and (not last_check_out or last_check_in.performed_at > last_check_out.performed_at)
+    def _is_newer(left, right):
+        """Compare ActionRecords by performed_at, then id (same-timestamp safe)."""
+        if left is None:
+            return False
+        if right is None:
+            return True
+        if left.performed_at != right.performed_at:
+            return left.performed_at > right.performed_at
+        return left.pk > right.pk
+
+    is_checked_in = bool(last_check_in) and (
+        not last_check_out or _is_newer(last_check_in, last_check_out)
+    )
     if not is_checked_in:
         return {
             "is_checked_in": False,
@@ -119,7 +131,9 @@ def compute_current_attendance_state(
     cycle_last_break_start = break_qs.filter(action_type=ActionType.BREAK_START).order_by("performed_at", "id").last()
     cycle_last_break_end = break_qs.filter(action_type=ActionType.BREAK_END).order_by("performed_at", "id").last()
 
-    is_on_break = bool(cycle_last_break_start) and (not cycle_last_break_end or cycle_last_break_start.performed_at > cycle_last_break_end.performed_at)
+    is_on_break = bool(cycle_last_break_start) and (
+        not cycle_last_break_end or _is_newer(cycle_last_break_start, cycle_last_break_end)
+    )
 
     return {
         "is_checked_in": True,
@@ -222,9 +236,6 @@ def perform_action_record_from_kiosk(
     now=None,
     timezone_name=None,
 ):
-    if now is None:
-        now = timezone.now()
-
     if not group_is_operationally_active(group):
         raise AttendanceValidationError(
             "group_archived",
@@ -233,74 +244,99 @@ def perform_action_record_from_kiosk(
 
     if participant_kind == "member":
         if membership is None:
-            raise AttendanceValidationError("missing_membership", "Member actions require GroupMembership for effective values.")
-        if membership.status != GroupMembershipStatus.ACTIVE:
             raise AttendanceValidationError(
-                "member_not_operational",
-                "This Member is not active in this Group.",
+                "missing_membership",
+                "Member actions require GroupMembership for effective values.",
             )
-        if not member_is_operationally_active(membership.member):
-            raise AttendanceValidationError(
-                "member_archived",
-                "Archived Members cannot perform attendance actions.",
-            )
-        state = compute_current_attendance_state(group=group, participant_kind="member", member_id=membership.member_id)
     elif participant_kind == "group_only_participant":
         if group_only_participant is None:
-            raise AttendanceValidationError("missing_participant", "Group-only participant actions require participant identity.")
-        state = compute_current_attendance_state(group=group, participant_kind="group_only_participant", participant_id=group_only_participant.id)
+            raise AttendanceValidationError(
+                "missing_participant",
+                "Group-only participant actions require participant identity.",
+            )
     else:
         raise AttendanceValidationError("invalid_participant_kind", "Invalid participant kind.")
 
-    allowed = get_valid_actions_for_state(group=group, state=state)
-    if action_type not in allowed:
-        raise AttendanceValidationError(
-            "invalid_action_for_state",
-            f"Action {action_type} is not valid for this participant's current attendance state.",
-        )
-
-    if participant_kind == "member":
-        member_obj = membership.member
-        snapshot = snapshot or {
-            "participant_name_snapshot": membership.effective_name,
-            "participant_email_snapshot": (membership.participation_email or "").strip(),
-            "participant_check_in_identifier_snapshot": membership.effective_check_in_identifier,
-        }
-    else:
-        snapshot = snapshot or {
-            "participant_name_snapshot": group_only_participant.name,
-            "participant_email_snapshot": group_only_participant.email,
-            "participant_check_in_identifier_snapshot": group_only_participant.check_in_identifier,
-        }
-
-    section = None
-    source_section_id = None
-    class_name_snapshot = ""
-    if group_is_structured(group):
-        if participant_kind == "member":
-            section = membership.section
-        else:
-            section = group_only_participant.section
-        if section is not None:
-            source_section_id = section.pk
-            class_name_snapshot = section.name
-
-    ar = None
+    # Serialize state read + ActionRecord create for the same participant so
+    # concurrent kiosk performs cannot both pass on stale pre-action state.
     with transaction.atomic():
+        # Capture time after the lock so concurrent actions never share a pre-lock
+        # timestamp that collapses ActionRecord ordering.
+        if now is None:
+            now = timezone.now()
+        if participant_kind == "member":
+            membership = GroupMembership.objects.select_for_update().get(pk=membership.pk)
+            if membership.status != GroupMembershipStatus.ACTIVE:
+                raise AttendanceValidationError(
+                    "member_not_operational",
+                    "This Member is not active in this Group.",
+                )
+            if not member_is_operationally_active(membership.member):
+                raise AttendanceValidationError(
+                    "member_archived",
+                    "Archived Members cannot perform attendance actions.",
+                )
+            member_obj = membership.member
+            state = compute_current_attendance_state(
+                group=group,
+                participant_kind="member",
+                member_id=membership.member_id,
+                now=now,
+            )
+            snapshot = snapshot or {
+                "participant_name_snapshot": membership.effective_name,
+                "participant_email_snapshot": (membership.participation_email or "").strip(),
+                "participant_check_in_identifier_snapshot": membership.effective_check_in_identifier,
+            }
+            section = membership.section if group_is_structured(group) else None
+        else:
+            group_only_participant = GroupOnlyParticipant.objects.select_for_update().get(
+                pk=group_only_participant.pk
+            )
+            member_obj = None
+            state = compute_current_attendance_state(
+                group=group,
+                participant_kind="group_only_participant",
+                participant_id=group_only_participant.id,
+                now=now,
+            )
+            snapshot = snapshot or {
+                "participant_name_snapshot": group_only_participant.name,
+                "participant_email_snapshot": group_only_participant.email,
+                "participant_check_in_identifier_snapshot": group_only_participant.check_in_identifier,
+            }
+            section = (
+                group_only_participant.section if group_is_structured(group) else None
+            )
+
+        allowed = get_valid_actions_for_state(group=group, state=state)
+        if action_type not in allowed:
+            raise AttendanceValidationError(
+                "invalid_action_for_state",
+                f"Action {action_type} is not valid for this participant's current attendance state.",
+            )
+
+        source_section_id = section.pk if section is not None else None
+        class_name_snapshot = section.name if section is not None else ""
+
         ar = ActionRecord.objects.create(
             organization=group.organization,
             group=group,
             source_group_id=group.pk,
             participant_kind=participant_kind,
             member=member_obj if participant_kind == "member" else None,
-            group_only_participant=group_only_participant if participant_kind == "group_only_participant" else None,
+            group_only_participant=(
+                group_only_participant if participant_kind == "group_only_participant" else None
+            ),
             action_type=action_type,
             source=ActionSource.KIOSK,
             performed_at=now,
             kiosk_note_snapshot="kiosk",
             participant_name_snapshot=snapshot["participant_name_snapshot"],
             participant_email_snapshot=snapshot.get("participant_email_snapshot", ""),
-            participant_check_in_identifier_snapshot=snapshot.get("participant_check_in_identifier_snapshot", ""),
+            participant_check_in_identifier_snapshot=snapshot.get(
+                "participant_check_in_identifier_snapshot", ""
+            ),
             group_name_snapshot=group.name,
             group_type_snapshot=group.group_type,
             section=section,

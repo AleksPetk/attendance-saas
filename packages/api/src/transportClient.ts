@@ -59,8 +59,10 @@ const SESSION_EXPIRY_EXEMPT_PREFIXES = [
   "/auth/owner-2fa/challenge/",
   "/auth/google/",
   "/auth/apple/",
+  "/auth/desktop-handoff/",
   "/contact/",
   "/billing/catalog/",
+  "/kiosk/exit/",
 ];
 
 /**

@@ -5,7 +5,7 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.exceptions import NotFound, ValidationError
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -280,12 +280,20 @@ class GroupKioskStartView(OwnedWorkspaceMixin, APIView):
 
     def post(self, request, group_pk):
         """Lock this Check Station app session to the Group kiosk."""
+        from attendance.kiosk_exit_token import issue_kiosk_exit_token
+
         group = self.get_object(group_pk)
         blocked = ensure_kiosk_launch_ready(group)
         if blocked:
             return Response(blocked, status=status.HTTP_409_CONFLICT)
         lock_kiosk_session(request, group.pk)
         payload = {"ok": True, "group_id": group.pk, "group_name": group.name}
+        # Scoped exit credential outlives the Django login session so PIN exit
+        # remains possible after session expiry without storing a raw exit PIN.
+        payload["kiosk_exit_token"] = issue_kiosk_exit_token(
+            organization_id=self.organization.pk,
+            group_id=group.pk,
+        )
         attach_kiosk_status(request, payload)
         return Response(payload)
 
@@ -1012,13 +1020,25 @@ class GroupKioskExitView(APIView):
     """
     Clear the app-session kiosk lock after the Group kiosk exit code is verified.
 
-    Wrong codes leave the lock in place. Verification is server-side against the
-    locked Group's KioskSettings exit code hash.
+    Two authorization paths (both still require the correct exit PIN):
+
+    A. Authenticated owner/staff session with an active kiosk lock (existing).
+    B. Scoped kiosk_exit_token issued at kiosk start (survives session expiry).
+
+    The scoped token cannot access workspace APIs; it only unlocks this exit
+    verification. Wrong codes leave the lock / token in place.
     """
 
-    permission_classes = [IsAuthenticated]
+    # SessionAuthentication still runs (CSRF + cookie). Anonymous callers may
+    # exit only with a valid scoped kiosk_exit_token + correct PIN.
+    permission_classes = [AllowAny]
 
     def post(self, request):
+        from attendance.kiosk_exit_token import (
+            lookup_kiosk_exit_token,
+            revoke_active_kiosk_exit_token,
+            revoke_kiosk_exit_token,
+        )
         from attendance.kiosk_lock import locked_group_id
         from core.auth_rate_limits import (
             check_kiosk_exit_allowed,
@@ -1027,32 +1047,105 @@ class GroupKioskExitView(APIView):
         )
         from organizations.permissions import get_active_workspace_organization
 
-        actor = request.user
-        if customer_must_verify_email(actor):
-            raise EmailNotVerified()
-
         exit_code = str(request.data.get("exit_code") or "").strip()
         if not exit_code:
             return Response({"detail": "Exit code is required."}, status=400)
 
-        group_id = locked_group_id(request)
-        if not group_id:
+        raw_exit_token = str(request.data.get("kiosk_exit_token") or "").strip()
+        token_record = lookup_kiosk_exit_token(raw_exit_token) if raw_exit_token else None
+
+        user = getattr(request, "user", None)
+        authenticated = bool(getattr(user, "is_authenticated", False))
+
+        if authenticated:
+            if customer_must_verify_email(user):
+                raise EmailNotVerified()
+
+            group_id = locked_group_id(request)
+            if not group_id:
+                # No lock — treat as already exited; still revoke any presented token.
+                if raw_exit_token:
+                    revoke_kiosk_exit_token(raw_exit_token)
+                clear_kiosk_lock(request)
+                payload = {"ok": True}
+                payload.update(kiosk_status_payload(request))
+                return Response(payload)
+
+            organization = get_active_workspace_organization(user)
+            if organization is None:
+                return Response({"detail": "Workspace not found."}, status=403)
+
+            group = Group.objects.filter(pk=group_id, organization=organization).first()
+            if group is None:
+                return Response({"detail": "Kiosk Group is not available."}, status=403)
+
+            if not check_kiosk_exit_allowed(
+                request,
+                organization_id=organization.pk,
+                group_id=group.pk,
+            ):
+                return Response(
+                    {
+                        "detail": "Too many attempts. Wait a moment and try again.",
+                        "code": "rate_limited",
+                    },
+                    status=429,
+                )
+
+            settings_obj = ensure_group_kiosk_settings(group)
+            if not settings_obj.check_exit_code(exit_code):
+                record_kiosk_exit_failure(
+                    request,
+                    organization_id=organization.pk,
+                    group_id=group.pk,
+                )
+                return Response({"detail": "Exit code verification failed."}, status=403)
+
+            clear_kiosk_exit_failures(
+                request,
+                organization_id=organization.pk,
+                group_id=group.pk,
+            )
             clear_kiosk_lock(request)
+            revoke_active_kiosk_exit_token(
+                organization_id=organization.pk,
+                group_id=group.pk,
+            )
+            if raw_exit_token:
+                revoke_kiosk_exit_token(raw_exit_token)
             payload = {"ok": True}
             payload.update(kiosk_status_payload(request))
             return Response(payload)
 
-        organization = get_active_workspace_organization(actor)
-        if organization is None:
-            return Response({"detail": "Workspace not found."}, status=403)
+        # Path B: scoped kiosk exit token (session expired / anonymous).
+        if token_record is None:
+            return Response(
+                {
+                    "detail": "Authentication credentials were not provided.",
+                    "code": "not_authenticated",
+                },
+                status=401,
+            )
 
-        group = Group.objects.filter(pk=group_id, organization=organization).first()
+        requested_group_id = request.data.get("group_id")
+        try:
+            requested_group_id = int(requested_group_id) if requested_group_id is not None else None
+        except (TypeError, ValueError):
+            requested_group_id = None
+        if requested_group_id is not None and requested_group_id != token_record.group_id:
+            return Response({"detail": "Kiosk Group is not available."}, status=403)
+
+        group = Group.objects.filter(
+            pk=token_record.group_id,
+            organization_id=token_record.organization_id,
+        ).first()
         if group is None:
+            revoke_kiosk_exit_token(raw_exit_token)
             return Response({"detail": "Kiosk Group is not available."}, status=403)
 
         if not check_kiosk_exit_allowed(
             request,
-            organization_id=organization.pk,
+            organization_id=token_record.organization_id,
             group_id=group.pk,
         ):
             return Response(
@@ -1067,17 +1160,24 @@ class GroupKioskExitView(APIView):
         if not settings_obj.check_exit_code(exit_code):
             record_kiosk_exit_failure(
                 request,
-                organization_id=organization.pk,
+                organization_id=token_record.organization_id,
                 group_id=group.pk,
             )
             return Response({"detail": "Exit code verification failed."}, status=403)
 
         clear_kiosk_exit_failures(
             request,
-            organization_id=organization.pk,
+            organization_id=token_record.organization_id,
             group_id=group.pk,
         )
+        revoke_kiosk_exit_token(raw_exit_token)
+        # Session may already be gone; clear lock if a cookie session still exists.
         clear_kiosk_lock(request)
-        payload = {"ok": True}
-        payload.update(kiosk_status_payload(request))
+        payload = {
+            "ok": True,
+            "kiosk_locked": False,
+            "kiosk_group_id": None,
+            "kiosk_available": False,
+            "session_recovery": "sign_in",
+        }
         return Response(payload)

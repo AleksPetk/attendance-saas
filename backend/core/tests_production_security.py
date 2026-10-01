@@ -206,6 +206,17 @@ class ProtectedMediaTests(TestCase):
         response = self.client.get(self.media_url)
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.get("Content-Type", "").startswith("image/"))
+        self.assertTrue(response.get("ETag"))
+        self.assertTrue(response.get("Last-Modified"))
+
+    def test_conditional_get_returns_304_with_matching_etag(self):
+        self.client.force_login(self.owner)
+        first = self.client.get(self.media_url)
+        self.assertEqual(first.status_code, 200)
+        etag = first["ETag"]
+        second = self.client.get(self.media_url, HTTP_IF_NONE_MATCH=etag)
+        self.assertEqual(second.status_code, 304)
+        self.assertEqual(second["ETag"], etag)
 
     def test_other_owner_cannot_fetch_member_photo(self):
         self.client.force_login(self.other_owner)

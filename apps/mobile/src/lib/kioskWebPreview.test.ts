@@ -184,6 +184,36 @@ test("interactive people emit person selection payloads", () => {
   assert.match(html, /type: 'person'/);
 });
 
+test("structured Back to Classes sits below the people grid and posts below-grid-action", () => {
+  const config = normalizeKioskVisualDesign({});
+  const html = buildKioskPreviewHtml({
+    config,
+    mode: "card",
+    people: [{ id: "m:12", name: "Ada", code: "A1", email: "" }],
+    interactivePeople: true,
+    belowGridActionLabel: "Back to Classes",
+  });
+  assert.match(html, /kiosk-people-grid[\s\S]*data-kiosk-below-grid-action="1"/);
+  assert.match(html, /kiosk-back-to-classes/);
+  assert.match(html, /Back to Classes/);
+  assert.match(html, /type: 'below-grid-action'/);
+  assert.doesNotMatch(html, /data-kiosk-below-grid-action[\s\S]*kiosk-people-grid/);
+});
+
+test("live structured kiosk uses shared grid columns and below-grid Back to Classes", () => {
+  const liveSource = readFileSync(
+    fileURLToPath(new URL("../../app/kiosk/[groupId].tsx", import.meta.url)),
+    "utf8",
+  );
+  assert.match(liveSource, /gridColumns=\{gridColumns\}/);
+  assert.match(liveSource, /classCardWidth/);
+  assert.match(liveSource, /flexDirection: "row"/);
+  assert.match(liveSource, /flexWrap: "wrap"/);
+  assert.match(liveSource, /belowGridActionLabel=\{selectedClass \? backToClassesLabel : undefined\}/);
+  assert.match(liveSource, /onBelowGridAction/);
+  assert.doesNotMatch(liveSource, /webBackButton/);
+});
+
 test("interactive Input identify emits payload and applies selected input_template", () => {
   const config = normalizeKioskVisualDesign({
     main: { input_template: "glass" },

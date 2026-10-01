@@ -1,4 +1,5 @@
 import type { ApiClient } from "@checkstation/api";
+import { loadAuthenticatedMediaCached } from "./kioskMediaCache";
 
 /**
  * Resolve kiosk/member media paths the same way Desktop/browser do:
@@ -33,19 +34,44 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
   return btoa(binary);
 }
 
+export type LoadAuthenticatedMediaOptions = {
+  /** Workspace namespace for private disk cache. Required for durable caching. */
+  workspaceKey?: string | number | null;
+  fetchImpl?: typeof fetch;
+};
+
 /**
  * Load protected /media/ (or absolute) assets with the session Cookie jar.
  * Returns a data: URI so WebView <img> can render without exposing tokens in the URL.
- * Does not persist or duplicate photos — transient display only (matches Desktop blob pattern).
+ *
+ * When workspaceKey is provided, bytes are persisted under the app-private cache
+ * directory and reused on later opens (with conditional revalidation).
  */
 export async function loadAuthenticatedMediaDataUri(
   api: ApiClient,
   url: string | null | undefined,
-  fetchImpl: typeof fetch = fetch,
+  fetchImplOrOptions: typeof fetch | LoadAuthenticatedMediaOptions = fetch,
 ): Promise<string> {
+  const options: LoadAuthenticatedMediaOptions =
+    typeof fetchImplOrOptions === "function"
+      ? { fetchImpl: fetchImplOrOptions }
+      : (fetchImplOrOptions || {});
+  const fetchImpl = options.fetchImpl || fetch;
+
   const absolute = resolveMobileMediaUrl(url, api.apiBaseUrl);
   if (!absolute) throw new Error("empty media url");
   if (absolute.startsWith("data:")) return absolute;
+
+  const workspaceKey = options.workspaceKey != null && String(options.workspaceKey).trim()
+    ? String(options.workspaceKey)
+    : "";
+
+  if (workspaceKey) {
+    return loadAuthenticatedMediaCached(api, absolute, {
+      workspaceKey,
+      fetchImpl,
+    });
+  }
 
   const headers: Record<string, string> = {};
   const cookie = api.jar.cookieHeader();

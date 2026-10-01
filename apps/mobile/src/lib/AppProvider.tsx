@@ -1,10 +1,12 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { fetch as expoFetch } from "expo/fetch";
 import { ApiClient } from "@checkstation/api";
 import { AuthController, type AuthState } from "@checkstation/auth";
 import { createTranslator, resolveLocale, type AppLocale } from "@checkstation/i18n";
 import { warmAppleIapSession } from "../billing/appleIap";
 import { loadMobileConfig } from "./config";
+import { clearAllKioskMediaCache, clearKioskMediaCacheForWorkspace } from "./kioskMediaCache";
+import { clearAllKioskExitTokens } from "./kioskExitCredential";
 import { createSecureCookieJar } from "./secureCookieJar";
 
 type AppContextValue = {
@@ -47,6 +49,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     void auth.bootstrap().finally(() => setReady(true));
     return unsub;
   }, [auth]);
+
+  const previousWorkspaceId = useRef<number | string | null>(null);
+  useEffect(() => {
+    const nextId = authState.session?.workspace?.id ?? null;
+    if (authState.status === "anonymous") {
+      void clearAllKioskMediaCache();
+      void clearAllKioskExitTokens();
+      previousWorkspaceId.current = null;
+      return;
+    }
+    if (
+      previousWorkspaceId.current != null
+      && nextId != null
+      && String(previousWorkspaceId.current) !== String(nextId)
+    ) {
+      void clearKioskMediaCacheForWorkspace(String(previousWorkspaceId.current));
+      void clearAllKioskExitTokens();
+    }
+    if (nextId != null) previousWorkspaceId.current = nextId;
+  }, [authState.session?.workspace?.id, authState.status]);
 
   useEffect(() => {
     // One process-lifetime Apple IAP session shared by Plan fetch/restore/purchase.

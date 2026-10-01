@@ -1,15 +1,28 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Pressable, ScrollView, StatusBar, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
+import { AppState, type AppStateStatus, Pressable, ScrollView, StatusBar, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
-import { endpoints } from "@checkstation/api";
+import { endpoints, isMissingCredentialsError } from "@checkstation/api";
 import { type ActionType } from "@checkstation/domain";
 import { kioskActionPayload, kioskIdentityPayload, type KioskIdentity } from "../../src/lib/kioskRequests";
 import { LoadingState } from "../../src/components/ui";
 import { AuthenticatedImage } from "../../src/components/Avatar";
 import { useApp } from "../../src/lib/AppProvider";
 import { loadAuthenticatedMediaDataUri } from "../../src/lib/authenticatedMedia";
+import {
+  isKioskRefreshIdle,
+  KIOSK_SOFT_REFRESH_MS,
+  resolveStructuredClassAfterRefresh,
+  shouldRefreshOnForeground,
+  shouldRunPeriodicRefresh,
+} from "../../src/lib/kioskLiveRefresh";
+import {
+  clearAllKioskExitTokens,
+  clearKioskExitToken,
+  loadKioskExitToken,
+  saveKioskExitToken,
+} from "../../src/lib/kioskExitCredential";
 import { kioskPreviewGridColumns, kioskSafeInsetsForViewport, kioskViewportProfile, phoneKioskPresentation } from "../../src/lib/kioskEditorLayout";
 import { KioskWebLivePreview } from "../../src/lib/kioskWebPreview/KioskWebPreview";
 import { kioskOverlayColor, normalizeKioskDesignDocument, type KioskDesignDocument } from "../../src/lib/kioskVisualDesign";
@@ -105,7 +118,7 @@ type PerformResult = {
 
 export default function KioskScreen() {
   const { groupId } = useLocalSearchParams<{ groupId: string }>();
-  const { api, auth, t } = useApp();
+  const { api, auth, authState, t } = useApp();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
@@ -116,6 +129,7 @@ export default function KioskScreen() {
     () => kioskSafeInsetsForViewport(viewportProfile, insets),
     [insets.bottom, insets.left, insets.right, insets.top, viewportProfile],
   );
+  const workspaceMediaKey = String(authState.session?.workspace?.id ?? groupId ?? "unknown");
 
   const [loading, setLoading] = useState(true);
   const [kiosk, setKiosk] = useState<Record<string, unknown> | null>(null);
@@ -128,11 +142,29 @@ export default function KioskScreen() {
   const [secondValue, setSecondValue] = useState("");
   const performLock = useRef(false);
   const returnTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const refreshInFlight = useRef(false);
+  const pendingSoftRefresh = useRef(false);
+  const lastRefreshAtRef = useRef<number | null>(null);
+  const wasBackgroundedRef = useRef(false);
+  const appActiveRef = useRef(AppState.currentState === "active");
+  const selectedClassRef = useRef<KioskClass | null>(null);
+  const idleSnapshotRef = useRef({
+    busy: false,
+    performLocked: false,
+    hasParticipant: false,
+    hasPendingPerson: false,
+    hasSuccessMessage: false,
+    showExit: false,
+    classPinBusy: false,
+    sessionExpired: false,
+    refreshInFlight: false,
+  });
   useEffect(() => () => { if (returnTimer.current) clearTimeout(returnTimer.current); }, []);
   const [selectedClass, setSelectedClass] = useState<KioskClass | null>(null);
   const [classPin, setClassPin] = useState("");
   const [classPinBusy, setClassPinBusy] = useState(false);
   const [classPinError, setClassPinError] = useState("");
+  const [sessionExpired, setSessionExpired] = useState(false);
 
   const [identifier, setIdentifier] = useState("");
   const [pin, setPin] = useState("");
@@ -153,41 +185,197 @@ export default function KioskScreen() {
   }>({});
   const [resolvedParticipantPhoto, setResolvedParticipantPhoto] = useState<string | null>(null);
 
-  useFocusEffect(useCallback(() => {
-    let cancelled = false;
-    void (async () => {
-      try {
-        await api.post(endpoints.kiosk(groupId), {});
-        const data = await api.get<Record<string, unknown>>(endpoints.kiosk(groupId));
-        if (!cancelled) {
-          setKiosk(data);
-          setDesign(normalizeKioskDesignDocument((data as any).visual_design));
-          const saved = (data.kiosk_settings || data.kiosk || {}) as Partial<KioskConfig>;
-          const kc: KioskConfig = {
-            use_pin: saved.use_pin ?? false,
-            kiosk_mode: saved.kiosk_mode || "card",
-            theme: saved.theme || "classic",
-            title: saved.title || "",
-            welcome_text: saved.welcome_text || "",
-            confirmation: saved.confirmation || { template: "clean", return_seconds: 3, sound_enabled: true, vibration_enabled: false, check_in_message: "", check_out_message: "", break_start_message: "", break_end_message: "" },
-            card_display: { show_name: true, show_participant_code: true, show_email: false, ...saved.card_display },
-            input_fields: saved.input_fields || ["participant_code"],
-            structured: Boolean(saved.structured),
-            require_class_pin: Boolean(saved.require_class_pin),
-            participant_code_label: saved.participant_code_label || "Code",
-          };
-          setKioskConfig(kc);
-          if ((data as any).people) setPeople((data as any).people as KioskPerson[]);
-          if ((data as any).classes) setClasses((data as any).classes as KioskClass[]);
+  selectedClassRef.current = selectedClass;
+  idleSnapshotRef.current = {
+    busy,
+    performLocked: performLock.current,
+    hasParticipant: Boolean(participant),
+    hasPendingPerson: Boolean(pendingPerson),
+    hasSuccessMessage: Boolean(successMessage),
+    showExit,
+    classPinBusy,
+    sessionExpired,
+    refreshInFlight: refreshInFlight.current,
+  };
+
+  const markSessionExpired = useCallback(() => {
+    setSessionExpired(true);
+    setBusy(false);
+    performLock.current = false;
+    setPendingPerson(null);
+    setParticipant(null);
+    setSuccessMessage("");
+    setMessage("");
+  }, []);
+
+  const applyKioskPayload = useCallback(async (data: Record<string, unknown>) => {
+    const saved = (data.kiosk_settings || data.kiosk || {}) as Partial<KioskConfig>;
+    const kc: KioskConfig = {
+      use_pin: saved.use_pin ?? false,
+      kiosk_mode: saved.kiosk_mode || "card",
+      theme: saved.theme || "classic",
+      title: saved.title || "",
+      welcome_text: saved.welcome_text || "",
+      confirmation: saved.confirmation || { template: "clean", return_seconds: 3, sound_enabled: true, vibration_enabled: false, check_in_message: "", check_out_message: "", break_start_message: "", break_end_message: "" },
+      card_display: { show_name: true, show_participant_code: true, show_email: false, ...saved.card_display },
+      input_fields: saved.input_fields || ["participant_code"],
+      structured: Boolean(saved.structured),
+      require_class_pin: Boolean(saved.require_class_pin),
+      participant_code_label: saved.participant_code_label || "Code",
+    };
+    const nextClasses = ((data as { classes?: KioskClass[] }).classes || []) as KioskClass[];
+    const classResolution = resolveStructuredClassAfterRefresh(selectedClassRef.current, nextClasses);
+
+    setKiosk(data);
+    setDesign(normalizeKioskDesignDocument((data as { visual_design?: unknown }).visual_design));
+    setKioskConfig(kc);
+    setClasses(nextClasses);
+
+    if (kc.structured) {
+      setSelectedClass(classResolution.selected);
+      setClassReady(classResolution.classReady);
+      if (classResolution.clearPeople) {
+        setPeople([]);
+      } else if (classResolution.selected) {
+        try {
+          const classPeople = await api.get<{ people: KioskPerson[] }>(
+            `${endpoints.kiosk(groupId)}classes/${classResolution.selected.id}/people/`,
+          );
+          setPeople(classPeople.people || []);
+        } catch (err) {
+          if (isMissingCredentialsError(err)) {
+            markSessionExpired();
+            return;
+          }
         }
-      } catch (err) {
-        if (!cancelled) setMessage(err instanceof Error ? err.message : t("common.error"));
-      } finally {
-        if (!cancelled) setLoading(false);
       }
-    })();
-    return () => { cancelled = true; };
-  }, [api, groupId, t]));
+    } else if ((data as { people?: KioskPerson[] }).people) {
+      setPeople((data as { people: KioskPerson[] }).people);
+    }
+  }, [api, groupId, markSessionExpired]);
+
+  const refreshKiosk = useCallback(async (opts?: { soft?: boolean; force?: boolean }) => {
+    const soft = Boolean(opts?.soft);
+    const force = Boolean(opts?.force);
+    if (sessionExpired && soft) return;
+    if (refreshInFlight.current) {
+      pendingSoftRefresh.current = true;
+      return;
+    }
+    if (!force && soft && !isKioskRefreshIdle({
+      ...idleSnapshotRef.current,
+      performLocked: performLock.current,
+      refreshInFlight: refreshInFlight.current,
+    })) {
+      pendingSoftRefresh.current = true;
+      return;
+    }
+
+    refreshInFlight.current = true;
+    try {
+      if (!soft) {
+        const start = await api.post<{ kiosk_exit_token?: string }>(endpoints.kiosk(groupId), {});
+        const issued = String(start?.kiosk_exit_token || "").trim();
+        if (issued) {
+          await saveKioskExitToken(groupId, issued);
+        }
+      }
+      const data = await api.get<Record<string, unknown>>(endpoints.kiosk(groupId));
+      await applyKioskPayload(data);
+      lastRefreshAtRef.current = Date.now();
+      if (!soft) setLoading(false);
+    } catch (err) {
+      if (isMissingCredentialsError(err)) {
+        markSessionExpired();
+        if (!soft) setLoading(false);
+        return;
+      }
+      if (!soft) {
+        setMessage(err instanceof Error ? err.message : t("common.error"));
+        setLoading(false);
+      }
+      // Soft refresh failures keep last successful kiosk content.
+    } finally {
+      refreshInFlight.current = false;
+      if (
+        pendingSoftRefresh.current
+        && isKioskRefreshIdle({
+          ...idleSnapshotRef.current,
+          performLocked: performLock.current,
+          refreshInFlight: false,
+          sessionExpired,
+        })
+        && !sessionExpired
+      ) {
+        pendingSoftRefresh.current = false;
+        void refreshKiosk({ soft: true });
+      }
+    }
+  }, [api, applyKioskPayload, groupId, markSessionExpired, sessionExpired, t]);
+
+  useFocusEffect(useCallback(() => {
+    void refreshKiosk({ soft: false, force: true });
+    return () => {};
+  }, [refreshKiosk]));
+
+  useEffect(() => {
+    const onAppState = (next: AppStateStatus) => {
+      if (next === "active") {
+        const should = shouldRefreshOnForeground({
+          wasBackgrounded: wasBackgroundedRef.current,
+          now: Date.now(),
+          lastRefreshAt: lastRefreshAtRef.current,
+        });
+        appActiveRef.current = true;
+        wasBackgroundedRef.current = false;
+        if (should) void refreshKiosk({ soft: true });
+      } else if (next === "background" || next === "inactive") {
+        appActiveRef.current = false;
+        wasBackgroundedRef.current = true;
+      }
+    };
+    const sub = AppState.addEventListener("change", onAppState);
+    return () => sub.remove();
+  }, [refreshKiosk]);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (!shouldRunPeriodicRefresh({
+        now: Date.now(),
+        lastRefreshAt: lastRefreshAtRef.current,
+        appActive: appActiveRef.current,
+      })) {
+        return;
+      }
+      void refreshKiosk({ soft: true });
+    }, KIOSK_SOFT_REFRESH_MS);
+    return () => clearInterval(timer);
+  }, [refreshKiosk]);
+
+  useEffect(() => {
+    if (
+      pendingSoftRefresh.current
+      && isKioskRefreshIdle({
+        ...idleSnapshotRef.current,
+        performLocked: performLock.current,
+        refreshInFlight: refreshInFlight.current,
+      })
+      && !sessionExpired
+      && !refreshInFlight.current
+    ) {
+      pendingSoftRefresh.current = false;
+      void refreshKiosk({ soft: true });
+    }
+  }, [
+    busy,
+    participant,
+    pendingPerson,
+    successMessage,
+    showExit,
+    classPinBusy,
+    sessionExpired,
+    refreshKiosk,
+  ]);
 
   // The production server owns action availability, including check-out-only Groups.
   const actions = participant ? allowedActions : [];
@@ -265,6 +453,21 @@ export default function KioskScreen() {
       }),
     [people, resolvedPhotos],
   );
+  const backToClassesLabel = t("classes.back");
+  const clearSelectedClass = () => {
+    returnToKiosk();
+    setSelectedClass(null);
+    setClassReady(false);
+    setPeople([]);
+  };
+  const classGridGap = space.md;
+  const classGridHorizontalPad = phonePresentation
+    ? phonePresentation.horizontalPadding * 2 + kioskInsets.left + kioskInsets.right
+    : space.lg * 2;
+  const classCardWidth = Math.max(
+    120,
+    (width - classGridHorizontalPad - classGridGap * (gridColumns - 1)) / gridColumns,
+  );
   useEffect(() => {
     let cancelled = false;
     setResolvedKioskMedia({});
@@ -272,7 +475,10 @@ export default function KioskScreen() {
       const resolve = async (url: string | null | undefined) => {
         if (!url) return undefined;
         try {
-          return await loadAuthenticatedMediaDataUri(api, url, expoFetch as typeof fetch);
+          return await loadAuthenticatedMediaDataUri(api, url, {
+            workspaceKey: workspaceMediaKey,
+            fetchImpl: expoFetch as typeof fetch,
+          });
         } catch {
           return undefined;
         }
@@ -285,7 +491,7 @@ export default function KioskScreen() {
       if (!cancelled) setResolvedKioskMedia({ headerLogoUrl, footerLogoUrl, backgroundUrl });
     })();
     return () => { cancelled = true; };
-  }, [api, design?.footer_logo_url, design?.header_logo_url, design?.main_background_image_url]);
+  }, [api, design?.footer_logo_url, design?.header_logo_url, design?.main_background_image_url, workspaceMediaKey]);
 
   useEffect(() => {
     let cancelled = false;
@@ -300,7 +506,10 @@ export default function KioskScreen() {
       const next: Record<string, string> = {};
       await Promise.all(targets.map(async (entry) => {
         try {
-          next[entry.id] = await loadAuthenticatedMediaDataUri(api, entry.url, expoFetch as typeof fetch);
+          next[entry.id] = await loadAuthenticatedMediaDataUri(api, entry.url, {
+            workspaceKey: workspaceMediaKey,
+            fetchImpl: expoFetch as typeof fetch,
+          });
         } catch {
           /* keep initials fallback when media fails */
         }
@@ -308,7 +517,7 @@ export default function KioskScreen() {
       if (!cancelled) setResolvedPhotos(next);
     })();
     return () => { cancelled = true; };
-  }, [api, people]);
+  }, [api, people, workspaceMediaKey]);
 
   useEffect(() => {
     let cancelled = false;
@@ -319,16 +528,20 @@ export default function KioskScreen() {
     }
     void (async () => {
       try {
-        const uri = await loadAuthenticatedMediaDataUri(api, url, expoFetch as typeof fetch);
+        const uri = await loadAuthenticatedMediaDataUri(api, url, {
+          workspaceKey: workspaceMediaKey,
+          fetchImpl: expoFetch as typeof fetch,
+        });
         if (!cancelled) setResolvedParticipantPhoto(uri);
       } catch {
         if (!cancelled) setResolvedParticipantPhoto(null);
       }
     })();
     return () => { cancelled = true; };
-  }, [api, participant?.photo_url]);
+  }, [api, participant?.photo_url, workspaceMediaKey]);
 
   async function selectPerson(person: KioskPerson, pinValue?: string) {
+    if (sessionExpired) return;
     if ((person.requires_pin || kioskConfig?.use_pin) && pinValue === undefined) {
       setPendingPerson(person); setCardPin(""); setMessage(""); return;
     }
@@ -341,11 +554,15 @@ export default function KioskScreen() {
       setAttendanceState(data.attendance_state);
       setAllowedActions(data.allowed_actions);
       setPendingPerson(null);
-    } catch (err) { setMessage(err instanceof Error ? err.message : t("common.error")); }
+    } catch (err) {
+      if (isMissingCredentialsError(err)) { markSessionExpired(); return; }
+      setMessage(err instanceof Error ? err.message : t("common.error"));
+    }
     finally { setBusy(false); }
   }
 
   async function identifyInput(values?: { identifier?: string; second?: string; pin?: string }) {
+    if (sessionExpired) return;
     const nextIdentifier = String(values?.identifier ?? identifier).trim();
     const nextSecond = String(values?.second ?? secondValue).trim();
     const nextPin = String(values?.pin ?? pin).trim();
@@ -366,13 +583,14 @@ export default function KioskScreen() {
       setAttendanceState(data.attendance_state);
       setAllowedActions(data.allowed_actions);
     } catch (err) {
+      if (isMissingCredentialsError(err)) { markSessionExpired(); return; }
       setParticipant(null);
       setMessage(err instanceof Error ? err.message : t("common.error"));
     } finally { setBusy(false); }
   }
 
   async function perform(action: ActionType) {
-    if (!participant || performLock.current) return;
+    if (sessionExpired || !participant || performLock.current) return;
     performLock.current = true; setBusy(true); setMessage(""); setSuccessMessage("");
     try {
       const data = await api.post<PerformResult>(endpoints.kioskPerform(groupId), kioskActionPayload(
@@ -387,41 +605,79 @@ export default function KioskScreen() {
         returnToKiosk();
         if (kioskConfig?.structured) { setSelectedClass(null); setClassReady(false); setPeople([]); }
       }, Math.max(0, delay) * 1000);
-    } catch (err) { setMessage(err instanceof Error ? err.message : t("common.error")); }
+    } catch (err) {
+      if (isMissingCredentialsError(err)) { markSessionExpired(); return; }
+      setMessage(err instanceof Error ? err.message : t("common.error"));
+    }
     finally { performLock.current = false; setBusy(false); }
   }
 
   async function loadClassPeople(section: KioskClass) {
+    if (sessionExpired) return;
     setClassPinBusy(true); setClassPinError("");
     try {
       const data = await api.get<{ people: KioskPerson[] }>(endpoints.kiosk(groupId) + "classes/" + section.id + "/people/");
       setPeople(data.people); setClassReady(true);
-    } catch (err) { setClassPinError(err instanceof Error ? err.message : t("common.error")); }
+    } catch (err) {
+      if (isMissingCredentialsError(err)) { markSessionExpired(); return; }
+      setClassPinError(err instanceof Error ? err.message : t("common.error"));
+    }
     finally { setClassPinBusy(false); }
   }
   function openClass(section: KioskClass) {
+    if (sessionExpired) return;
     setSelectedClass(section); setClassReady(false); setClassPin(""); setClassPinError(""); setPeople([]);
     if (!kioskConfig?.require_class_pin) void loadClassPeople(section);
   }
 
   async function exitKiosk() {
+    const recoveringFromExpiry = sessionExpired;
     setBusy(true);
     try {
-      await api.post(endpoints.kioskExit(), { group_id: Number(groupId), exit_code: exitCode.trim() });
-      await auth.bootstrap();
-      router.replace("/(app)/(tabs)/home");
+      const scopedToken = await loadKioskExitToken(groupId);
+      await api.post(endpoints.kioskExit(), {
+        group_id: Number(groupId),
+        exit_code: exitCode.trim(),
+        ...(scopedToken ? { kiosk_exit_token: scopedToken } : {}),
+      });
+      await clearKioskExitToken(groupId);
+      setSessionExpired(false);
+      setShowExit(false);
+      setExitCode("");
+      if (recoveringFromExpiry) {
+        try {
+          await clearAllKioskExitTokens();
+        } catch {
+          /* ignore */
+        }
+        await auth.bootstrap();
+        router.replace("/(auth)/sign-in");
+      } else {
+        await auth.bootstrap();
+        router.replace("/(app)/(tabs)/home");
+      }
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : t("common.error"));
+      if (isMissingCredentialsError(err) && recoveringFromExpiry) {
+        setMessage(
+          t("kiosk.sessionExpired.exitBlocked")
+          || "Session expired. Exit could not be verified. Check the exit code and try again.",
+        );
+        setShowExit(true);
+      } else {
+        setMessage(err instanceof Error ? err.message : t("common.error"));
+      }
     } finally { setBusy(false); }
   }
 
   async function verifyClassPin() {
+    if (sessionExpired) return;
     setClassPinBusy(true); setClassPinError("");
     try {
       await api.post(endpoints.kioskIdentify(groupId).replace("/identify/", `/classes/${selectedClass!.id}/verify-pin/`), { pin: classPin.trim() });
       setClassPin("");
       await loadClassPeople(selectedClass!);
     } catch (err) {
+      if (isMissingCredentialsError(err)) { markSessionExpired(); return; }
       setClassPinError(err instanceof Error ? err.message : t("common.error"));
     } finally { setClassPinBusy(false); }
   }
@@ -467,9 +723,13 @@ export default function KioskScreen() {
               gridColumns={gridColumns}
               viewportProfile={viewportProfile}
               safeInsets={kioskInsets}
+              belowGridActionLabel={selectedClass ? backToClassesLabel : undefined}
               onPersonSelect={(id) => {
                 const person = people.find((entry) => kioskPersonPreviewId(entry) === id);
                 if (person && !busy) void selectPerson(person);
+              }}
+              onBelowGridAction={() => {
+                if (!busy) clearSelectedClass();
               }}
               testID="kiosk-live-web-cards"
             />
@@ -490,15 +750,6 @@ export default function KioskScreen() {
             >
               <Text style={[styles.webExitButtonText, viewportProfile === "phone-landscape" && { fontSize: 22, lineHeight: 22 }]}>✕</Text>
             </Pressable>
-            {selectedClass ? (
-              <Pressable
-                disabled={busy}
-                onPress={() => { returnToKiosk(); setSelectedClass(null); setClassReady(false); setPeople([]); }}
-                style={styles.webBackButton}
-              >
-                <Text style={styles.backLinkText}>{t("classes.back")}</Text>
-              </Pressable>
-            ) : null}
             {message ? (
               <View style={styles.webMessageBanner}>
                 <Text style={styles.errorText}>{message}</Text>
@@ -528,8 +779,12 @@ export default function KioskScreen() {
               gridColumns={gridColumns}
               viewportProfile={viewportProfile}
               safeInsets={kioskInsets}
+              belowGridActionLabel={selectedClass ? backToClassesLabel : undefined}
               onIdentifySubmit={(payload) => {
                 if (!busy && payload.identifier.trim()) void identifyInput(payload);
+              }}
+              onBelowGridAction={() => {
+                if (!busy) clearSelectedClass();
               }}
               testID="kiosk-live-web-input"
             />
@@ -550,15 +805,6 @@ export default function KioskScreen() {
             >
               <Text style={[styles.webExitButtonText, viewportProfile === "phone-landscape" && { fontSize: 22, lineHeight: 22 }]}>✕</Text>
             </Pressable>
-            {selectedClass ? (
-              <Pressable
-                disabled={busy}
-                onPress={() => { returnToKiosk(); setSelectedClass(null); setClassReady(false); setPeople([]); }}
-                style={styles.webBackButton}
-              >
-                <Text style={styles.backLinkText}>{t("classes.back")}</Text>
-              </Pressable>
-            ) : null}
             {message ? (
               <View style={styles.webMessageBanner}>
                 <Text style={styles.errorText}>{message}</Text>
@@ -679,21 +925,24 @@ export default function KioskScreen() {
               ) : null}
 
               <Text style={{ color: colors.danger }}>{classPinError}</Text>
-              {selectedClass ? <Pressable disabled={busy} onPress={() => { returnToKiosk(); setSelectedClass(null); setClassReady(false); setPeople([]); }}><Text style={styles.backLinkText}>{t("classes.back")}</Text></Pressable> : null}
               {pendingPerson ? <View style={styles.inputSection}><Text style={styles.sectionTitle}>{pendingPerson.name}</Text><TextInput accessibilityLabel={t("kiosk.pin")} secureTextEntry style={styles.input} value={cardPin} onChangeText={setCardPin} /><Pressable disabled={busy || !cardPin} onPress={() => void selectPerson(pendingPerson, cardPin)} style={styles.actionButton}><Text>{t("kiosk.verify")}</Text></Pressable><Pressable disabled={busy} onPress={() => setPendingPerson(null)}><Text>{t("common.cancel")}</Text></Pressable></View> : null}
               {kioskConfig?.structured && !selectedClass && classes.length > 0 ? (
-                <View style={styles.classGrid}>
-                  <Text style={[styles.sectionTitle, { color: mainTextColor }]}>
+                <View style={[styles.classGrid, { gap: classGridGap }]}>
+                  <Text style={[styles.sectionTitle, styles.classGridTitle, { color: mainTextColor }]}>
                     {t("kiosk.selectClass") || "Select a class"}
                   </Text>
                   {classes.map((cls) => (
                     <Pressable
                       key={cls.id}
                       onPress={() => openClass(cls)}
-                      style={({ pressed }) => [styles.classCard, pressed && { opacity: 0.8 }]}
+                      style={({ pressed }) => [
+                        styles.classCard,
+                        { width: classCardWidth },
+                        pressed && { opacity: 0.8 },
+                      ]}
                     >
-                      <Text style={[styles.className, { color: mainTextColor }]}>{cls.name}</Text>
-                      <Text style={styles.classCount}>{cls.participant_count} {t("groups.participants", { count: cls.participant_count })}</Text>
+                      <Text style={[styles.className, { color: mainTextColor }]} numberOfLines={2}>{cls.name}</Text>
+                      <Text style={styles.classCount} numberOfLines={1}>{cls.participant_count} {t("groups.participants", { count: cls.participant_count })}</Text>
                     </Pressable>
                   ))}
                 </View>
@@ -721,6 +970,15 @@ export default function KioskScreen() {
                       <Text style={styles.actionButtonText}>{t("kiosk.verify") || "Verify"}</Text>
                     </Pressable>
                   </View>
+                  <Pressable
+                    disabled={busy}
+                    accessibilityRole="button"
+                    accessibilityLabel={backToClassesLabel}
+                    onPress={clearSelectedClass}
+                    style={({ pressed }) => [styles.backToClassesButton, pressed && { opacity: 0.85 }]}
+                  >
+                    <Text style={styles.backToClassesButtonText}>{backToClassesLabel}</Text>
+                  </Pressable>
                 </View>
               ) : null}
 
@@ -757,7 +1015,30 @@ export default function KioskScreen() {
                       <Text style={styles.actionButtonText}>{t("kiosk.identify")}</Text>
                     </Pressable>
                   </View>
+                  {selectedClass ? (
+                    <Pressable
+                      disabled={busy}
+                      accessibilityRole="button"
+                      accessibilityLabel={backToClassesLabel}
+                      onPress={clearSelectedClass}
+                      style={({ pressed }) => [styles.backToClassesButton, pressed && { opacity: 0.85 }]}
+                    >
+                      <Text style={styles.backToClassesButtonText}>{backToClassesLabel}</Text>
+                    </Pressable>
+                  ) : null}
                 </View>
+              ) : null}
+
+              {selectedClass && classReady && !participant && !successMessage && kioskConfig?.kiosk_mode === "card" && people.length === 0 ? (
+                <Pressable
+                  disabled={busy}
+                  accessibilityRole="button"
+                  accessibilityLabel={backToClassesLabel}
+                  onPress={clearSelectedClass}
+                  style={({ pressed }) => [styles.backToClassesButton, pressed && { opacity: 0.85 }]}
+                >
+                  <Text style={styles.backToClassesButtonText}>{backToClassesLabel}</Text>
+                </Pressable>
               ) : null}
             </ScrollView>
             </KioskSurface> : null}
@@ -794,10 +1075,33 @@ export default function KioskScreen() {
           </>
         )}
 
+        {sessionExpired && !showExit ? (
+          <View style={styles.exitOverlay} testID="kiosk-session-expired">
+            <View style={styles.exitPanel}>
+              <Text style={styles.exitTitle}>{t("kiosk.sessionExpired.title") || "Session expired"}</Text>
+              <Text style={[styles.errorText, { color: colors.textMuted }]}>
+                {t("kiosk.sessionExpired.body") || "An administrator needs to sign in again."}
+              </Text>
+              <Pressable
+                onPress={() => setShowExit(true)}
+                style={[styles.actionButton, { backgroundColor: colors.danger, width: "100%" }]}
+              >
+                <Text style={styles.actionButtonText}>{t("kiosk.exit") || "Exit kiosk"}</Text>
+              </Pressable>
+            </View>
+          </View>
+        ) : null}
+
         {showExit ? (
           <View style={styles.exitOverlay}>
             <View style={styles.exitPanel}>
               <Text style={styles.exitTitle}>{t("kiosk.exit") || "Exit kiosk"}</Text>
+              {sessionExpired ? (
+                <Text style={[styles.errorText, { color: colors.textMuted }]}>
+                  {t("kiosk.sessionExpired.exitHint")
+                    || "Enter the kiosk exit code. Workspace access stays locked until this code is verified."}
+                </Text>
+              ) : null}
               <TextInput
                 style={[styles.input, { color: colors.text, borderColor: colors.border, width: "100%" }]}
                 value={exitCode}
@@ -806,9 +1110,10 @@ export default function KioskScreen() {
                 placeholder={t("kiosk.exitCode") || "Exit code"}
                 placeholderTextColor={colors.placeholder}
               />
+              {message ? <Text style={styles.errorText}>{message}</Text> : null}
               <View style={styles.exitActions}>
                 <Pressable
-                  onPress={() => { setShowExit(false); setExitCode(""); }}
+                  onPress={() => { setShowExit(false); setExitCode(""); if (!sessionExpired) setMessage(""); }}
                   style={[styles.actionButton, { backgroundColor: colors.surfaceMuted, flex: 1 }]}
                 >
                   <Text style={[styles.actionButtonText, { color: colors.text }]}>{t("common.cancel") || "Cancel"}</Text>
@@ -854,17 +1159,18 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 17, fontWeight: "600", textAlign: "center" },
   webExitButton: { position: "absolute", top: 10, right: 12, width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(15,23,42,0.35)" },
   webExitButtonText: { color: "#fff", fontSize: 18, fontWeight: "700" },
-  webBackButton: { position: "absolute", top: 14, left: 14, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: "rgba(255,255,255,0.88)" },
   webMessageBanner: { position: "absolute", left: 16, right: 16, bottom: 24, backgroundColor: "rgba(220, 38, 38, 0.12)", borderRadius: 10, padding: space.md },
   inputSection: { gap: space.md },
   inputRow: { gap: space.sm },
   input: { minHeight: 48, borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, fontSize: 16, backgroundColor: "rgba(255,255,255,0.9)" },
   actionButton: { minHeight: 48, borderRadius: 10, alignItems: "center", justifyContent: "center", paddingHorizontal: space.xl },
   actionButtonText: { fontSize: 16, fontWeight: "700", color: "#fff" },
-  backLinkText: { fontSize: 14, fontWeight: "600", color: colors.blue, textDecorationLine: "underline" },
-  classGrid: { gap: space.md },
-  classCard: { backgroundColor: colors.surface, borderRadius: 14, padding: space.xlg, borderWidth: 1, borderColor: colors.border },
-  className: { fontSize: 17, fontWeight: "600" },
+  backToClassesButton: { width: "100%", minHeight: 48, borderRadius: 10, alignItems: "center", justifyContent: "center", paddingHorizontal: space.xl, marginTop: space.sm, backgroundColor: "rgba(255,255,255,0.92)", borderWidth: 1, borderColor: colors.border },
+  backToClassesButtonText: { fontSize: 16, fontWeight: "700", color: colors.text },
+  classGrid: { flexDirection: "row", flexWrap: "wrap", width: "100%" },
+  classGridTitle: { width: "100%", marginBottom: space.xs },
+  classCard: { backgroundColor: colors.surface, borderRadius: 14, padding: space.md, borderWidth: 1, borderColor: colors.border, minWidth: 0 },
+  className: { fontSize: 16, fontWeight: "600" },
   classCount: { fontSize: 13, color: colors.textMuted, marginTop: 4 },
   errorBanner: { backgroundColor: "rgba(220, 38, 38, 0.12)", borderRadius: 10, padding: space.md },
   errorText: { fontSize: 14, color: colors.danger, textAlign: "center" },
