@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Redirect, useFocusEffect } from "expo-router";
-import { Alert as NativeAlert, Pressable, RefreshControl, ScrollView, StyleSheet, Switch, Text, View, useWindowDimensions } from "react-native";
+import { Alert as NativeAlert, RefreshControl, ScrollView, StyleSheet, Switch, Text, View, useWindowDimensions } from "react-native";
 import { ApiError, endpoints, fieldErrorsFromBody } from "@checkstation/api";
 import { canAccessStaffManagement, canManageStaffAccounts, memberUsageMetrics } from "@checkstation/domain";
 import { Alert, Button, Field, LoadingState, Screen, SegmentedControl } from "../../src/components/ui";
-import { AddButton, PageHeader, SearchField, StatusPill } from "../../src/components/mobile";
+import { AddButton, PageHeader, SearchField } from "../../src/components/mobile";
 import { CapacityMeter } from "../../src/components/CapacityMeter";
 import { ManagementSheet } from "../../src/components/ManagementSheet";
+import { StaffListRow, type StaffSwipeableRef } from "../../src/components/StaffListRow";
 import { useApp } from "../../src/lib/AppProvider";
 import { colors, space, type } from "../../src/theme/tokens";
 
@@ -27,6 +28,7 @@ export default function StaffScreen() {
   const [editor, setEditor] = useState<Editor | null>(null);
   const [busy, setBusy] = useState(false);
   const inFlight = useRef(false);
+  const openRowRef = useRef<StaffSwipeableRef | null>(null);
   const load = useCallback(async () => {
     if (!allowed) return;
     setLoading(true); setError("");
@@ -110,38 +112,39 @@ export default function StaffScreen() {
       {!loading && filtered.length ? <View style={styles.accountGroups}>{sections.filter((section) => section.rows.length > 0).map((section) => <View key={`${section.status}-${section.role}`} style={styles.accountSection}>
         <Text accessibilityRole="header" style={styles.sectionLabel}>{section.title} ({section.rows.length})</Text>
         <View style={styles.accountGrid}>
-          {section.rows.map((staff) => <View key={staff.id} style={[styles.account, wide && styles.accountHalf]}>
-            <View style={styles.accountIdentity}><Text style={styles.name}>{staff.username}</Text><Text style={styles.meta}>{staff.email || t("staff.noEmail")}</Text></View>
-            <View style={styles.badges}>
-              <StatusPill label={t(staff.role === "admin" ? "staff.admin" : "nav.staff")} tone="blue" />
-              <StatusPill label={t(staff.status === "active" ? "members.active" : "staff.inactive")} tone={staff.status === "active" ? "green" : "neutral"} />
-              {staff.is_plan_locked ? <StatusPill label={t("members.planLocked")} tone="warning" /> : null}
+          {section.rows.map((staff) => (
+            <View key={staff.id} style={[styles.account, wide && styles.accountHalf]}>
+              <StaffListRow
+                staff={staff}
+                busy={busy}
+                showSwipeActions
+                roleLabel={t(staff.role === "admin" ? "staff.admin" : "nav.staff")}
+                statusLabel={t(staff.status === "active" ? "members.active" : "staff.inactive")}
+                noEmailLabel={t("staff.noEmail")}
+                planLockedLabel={t("members.planLocked")}
+                noGroupAccessLabel={t("staff.noGroupAccess")}
+                moreGroupsLabel={(count) => t("staff.moreGroups", { count })}
+                editLabel={t("staff.edit")}
+                groupAccessLabel={t("staff.groupAccess")}
+                resetPasswordLabel={t("staff.resetPassword")}
+                deactivateLabel={t("staff.deactivate")}
+                reactivateLabel={t("staff.activate")}
+                deleteLabel={t("staff.delete")}
+                onEdit={() => setEditor({ mode: "edit", staff })}
+                onGroupAccess={() => setEditor({ mode: "access", staff })}
+                onResetPassword={() => setEditor({ mode: "password", staff })}
+                onDeactivate={() => confirm(staff)}
+                onReactivate={() => confirm(staff)}
+                onDelete={() => confirm(staff, true)}
+                openRowRef={openRowRef}
+              />
             </View>
-            {staff.role === "staff" ? <View style={styles.badges}>
-              {staff.group_access?.length ? <>
-                {staff.group_access.slice(0, 2).map((group) => <Text key={group.group_id} numberOfLines={1} style={styles.groupChip}>{group.name}</Text>)}
-                {staff.group_access.length > 2 ? <Text style={styles.meta}>{t("staff.moreGroups", { count: staff.group_access.length - 2 })}</Text> : null}
-              </> : <Text style={styles.meta}>{t("staff.noGroupAccess")}</Text>}
-            </View> : null}
-            <View style={styles.actions}>
-              <AccountAction disabled={busy} label={t("staff.edit")} onPress={() => setEditor({ mode: "edit", staff })} />
-              {staff.role === "staff" ? <AccountAction disabled={busy} label={t("staff.groupAccess")} onPress={() => setEditor({ mode: "access", staff })} /> : null}
-              <AccountAction disabled={busy} label={t("staff.resetPassword")} onPress={() => setEditor({ mode: "password", staff })} />
-              <AccountAction disabled={busy} emphasis={staff.status === "inactive" ? "positive" : undefined} label={t(staff.status === "active" ? "staff.deactivate" : "staff.activate")} onPress={() => confirm(staff)} />
-              {staff.status === "inactive" ? <AccountAction disabled={busy} emphasis="danger" label={t("staff.delete")} onPress={() => confirm(staff, true)} /> : null}
-            </View>
-          </View>)}
+          ))}
         </View>
       </View>)}</View> : null}
     </ScrollView>
     {editor ? <StaffEditor editor={editor} onClose={() => setEditor(null)} onSaved={() => { setEditor(null); void load(); }} /> : null}
   </Screen>;
-}
-
-function AccountAction({ label, onPress, disabled, emphasis }: { label: string; onPress: () => void; disabled: boolean; emphasis?: "positive" | "danger" }) {
-  return <Pressable accessibilityRole="button" accessibilityState={{ disabled }} disabled={disabled} onPress={onPress} style={({ pressed }) => [styles.actionButton, emphasis === "positive" && styles.actionPositive, emphasis === "danger" && styles.actionDanger, pressed && !disabled && { backgroundColor: colors.surfaceSubtle }, disabled && { opacity: 0.5 }]}>
-    <Text style={[styles.actionLabel, emphasis === "positive" && { color: colors.primary }, emphasis === "danger" && { color: colors.dangerText }]}>{label}</Text>
-  </Pressable>;
 }
 
 function StaffEditor({ editor, onClose, onSaved }: { editor: Editor; onClose: () => void; onSaved: () => void }) {
@@ -219,18 +222,10 @@ const styles = StyleSheet.create({
   accountSection: { gap: space.sm },
   sectionLabel: { ...type.bodyStrong, color: colors.textSecondary },
   accountGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", gap: space.md, alignItems: "flex-start" },
-  account: { width: "100%", padding: space.md, borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, gap: space.sm },
+  account: { width: "100%" },
   accountHalf: { width: "48%" },
-  accountIdentity: { gap: space.xs },
-  badges: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: space.sm },
-  groupChip: { ...type.caption, color: colors.textSecondary, backgroundColor: colors.surfaceSubtle, paddingHorizontal: space.sm, paddingVertical: space.xs, borderRadius: 8, maxWidth: "100%", flexShrink: 1 },
   heading: { flexDirection: "row", alignItems: "center", gap: space.md, paddingVertical: space.sm },
   copy: { flex: 1 },
   name: { ...type.bodyStrong, color: colors.text },
   meta: { ...type.caption, color: colors.textMuted },
-  actions: { flexDirection: "row", flexWrap: "wrap", gap: space.sm, paddingTop: space.sm, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
-  actionButton: { minHeight: 44, maxWidth: "100%", flexShrink: 1, paddingHorizontal: space.md, paddingVertical: space.sm, borderWidth: 1, borderColor: colors.borderStrong, borderRadius: 8, justifyContent: "center", alignItems: "center", backgroundColor: colors.surface },
-  actionLabel: { ...type.captionStrong, color: colors.textSecondary, textAlign: "center" },
-  actionPositive: { borderColor: colors.blue, backgroundColor: colors.primarySoft },
-  actionDanger: { borderColor: colors.dangerBorder, backgroundColor: colors.dangerSoft },
 });
