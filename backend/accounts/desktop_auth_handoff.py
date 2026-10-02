@@ -1,7 +1,7 @@
 """
-One-time desktop auth handoff after browser Apple (web) OAuth.
+One-time desktop auth handoff after browser Apple/Google (web) OAuth.
 
-Apple form_post establishes identity on the backend, but the system browser
+Browser OAuth establishes identity on the backend, but the system browser
 session cookies are not shared with Electron. A short-lived opaque handoff
 token lets the desktop app establish its own Django session.
 """

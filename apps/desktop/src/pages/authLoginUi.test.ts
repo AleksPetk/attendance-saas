@@ -20,7 +20,7 @@ test("desktop auth layout puts globe language menu on the card, not left EN/JA p
   assert.doesNotMatch(authLayout, />JA</);
 });
 
-test("desktop sign-in OAuth buttons enable Google via shared native completion; Apple uses DIRECT web OAuth", () => {
+test("desktop sign-in OAuth buttons: DIRECT Google web handoff + MAS native; Apple DIRECT web", () => {
   assert.match(signIn, /DesktopAuthProviderButtons/);
   const buttons = readFileSync(join(here, "../components/DesktopAuthProviderButtons.tsx"), "utf8");
   assert.match(buttons, /auth-provider-buttons/);
@@ -32,6 +32,7 @@ test("desktop sign-in OAuth buttons enable Google via shared native completion; 
   assert.match(buttons, /apple-sign-in\.png/);
   assert.equal(existsSync(join(root, "src/assets/auth/google-g.png")), true);
   assert.equal(existsSync(join(root, "src/assets/auth/apple-sign-in.png")), true);
+  assert.match(buttons, /requestGoogleWebOAuth/);
   assert.match(buttons, /completeGoogleNative/);
   assert.match(buttons, /completeDesktopAuthHandoff/);
   assert.match(buttons, /requestAppleWebOAuth/);

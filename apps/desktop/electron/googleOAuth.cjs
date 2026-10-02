@@ -1,12 +1,13 @@
 /**
- * Desktop Google Sign-In via system-browser OAuth (PKCE + loopback).
+ * MAS desktop Google Sign-In via system-browser OAuth (PKCE + loopback).
  *
  * Obtains a Google ID token, then the renderer completes CheckStation auth with
  * AuthController.completeGoogleNative → POST /api/auth/google/native/.
  *
  * Uses the Google Cloud Desktop OAuth client ID + client secret for token
  * exchange (still with PKCE). ID-token audience is that Desktop client ID
- * (backend GOOGLE_NATIVE_DESKTOP_CLIENT_ID). Never log the secret or tokens.
+ * (backend GOOGLE_NATIVE_DESKTOP_CLIENT_ID). DIRECT uses googleWebOAuth.cjs
+ * (Web client + desktop handoff) instead. Never log the secret or tokens.
  */
 
 const http = require("http");

@@ -75,8 +75,18 @@ type DesktopBridge = {
   requestGoogleIdentityToken?: () => Promise<
     | { kind: "success"; identityToken: string }
     | { kind: "cancelled" }
+    | { kind: "unavailable" }
     | { kind: "misconfigured" }
     | { kind: "missing_token" }
+    | { kind: "error"; message?: string }
+  >;
+  requestGoogleWebOAuth?: (request?: {
+    intent?: "login" | "register";
+    legalAcknowledgement?: boolean;
+  }) => Promise<
+    | { kind: "success"; resultCode: string; handoff: string }
+    | { kind: "failed"; resultCode: string }
+    | { kind: "unavailable" }
     | { kind: "error"; message?: string }
   >;
   requestAppleWebOAuth?: (request?: {

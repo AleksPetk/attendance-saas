@@ -15,6 +15,11 @@ from accounts.email_uniqueness import (
     get_provisional_unverified_owner,
     normalize_owner_email,
 )
+from accounts.desktop_auth_handoff import (
+    OUTCOME_AUTHENTICATED,
+    OUTCOME_TWO_FACTOR_REQUIRED,
+    create_desktop_auth_handoff,
+)
 from accounts.google_oauth_client import (
     GoogleOAuthClientError,
     exchange_authorization_code,
@@ -35,12 +40,18 @@ from accounts.google_oauth_state import (
 )
 from accounts.owner_sensitive_auth import record_owner_oauth_reauth
 from accounts.owner_auth_provider_models import OwnerAuthProvider, OwnerAuthProviderLink
-from accounts.owner_authentication import complete_owner_authentication
+from accounts.owner_authentication import (
+    complete_owner_authentication,
+    get_active_owner_organization,
+)
+from accounts.owner_two_factor import has_confirmed_owner_totp
 from accounts.provisional_ownership import (
     ProvisionalClaimError,
     claim_provisional_owner_with_oauth,
 )
 from accounts.services import provision_verified_owner
+from accounts.verification import customer_must_verify_email
+from core.desktop_return import append_desktop_return_query
 
 logger = logging.getLogger("accounts.google_oauth")
 User = get_user_model()
@@ -73,12 +84,55 @@ class GoogleIdentity:
     email_verified: bool
 
 
-def redirect_google_oauth_result(result_code: str) -> HttpResponseRedirect:
+def redirect_google_oauth_result(
+    result_code: str,
+    *,
+    desktop_return_url: str = "",
+    handoff_user=None,
+    handoff_outcome: str = "",
+) -> HttpResponseRedirect:
+    desktop = str(desktop_return_url or "").strip()
+    if desktop:
+        params = {"result": result_code}
+        if (
+            handoff_user is not None
+            and handoff_outcome
+            and result_code
+            in (
+                GoogleOAuthResultCode.SUCCESS,
+                GoogleOAuthResultCode.TWO_FACTOR_REQUIRED,
+            )
+        ):
+            params["handoff"] = create_desktop_auth_handoff(
+                handoff_user,
+                outcome=handoff_outcome,
+                provider="google",
+            )
+        return HttpResponseRedirect(append_desktop_return_query(desktop, params))
     return HttpResponseRedirect(google_oauth_frontend_result_url(result_code))
 
 
 def redirect_google_account_security_result(result_code: str) -> HttpResponseRedirect:
     return HttpResponseRedirect(google_oauth_account_security_result_url(result_code))
+
+
+def _desktop_return_from_request(request) -> str:
+    return str(getattr(request, "_google_desktop_return_url", "") or "").strip()
+
+
+def _redirect_google(
+    request,
+    result_code: str,
+    *,
+    handoff_user=None,
+    handoff_outcome: str = "",
+) -> HttpResponseRedirect:
+    return redirect_google_oauth_result(
+        result_code,
+        desktop_return_url=_desktop_return_from_request(request),
+        handoff_user=handoff_user,
+        handoff_outcome=handoff_outcome,
+    )
 
 
 def parse_google_identity(claims: dict) -> GoogleIdentity:
@@ -127,6 +181,35 @@ def create_google_provider_link(user, identity: GoogleIdentity) -> OwnerAuthProv
 
 
 def _finalize_owner_login(request, user) -> HttpResponseRedirect:
+    desktop = _desktop_return_from_request(request)
+    if desktop:
+        # Do not establish a session on the system-browser OAuth callback —
+        # Electron exchanges the handoff token on its own cookie jar.
+        if customer_must_verify_email(user):
+            return redirect_google_oauth_result(
+                GoogleOAuthResultCode.EMAIL_NOT_VERIFIED,
+                desktop_return_url=desktop,
+            )
+        organization = get_active_owner_organization(user)
+        if organization is None:
+            return redirect_google_oauth_result(
+                GoogleOAuthResultCode.AUTHENTICATION_FAILED,
+                desktop_return_url=desktop,
+            )
+        if has_confirmed_owner_totp(user):
+            return redirect_google_oauth_result(
+                GoogleOAuthResultCode.TWO_FACTOR_REQUIRED,
+                desktop_return_url=desktop,
+                handoff_user=user,
+                handoff_outcome=OUTCOME_TWO_FACTOR_REQUIRED,
+            )
+        return redirect_google_oauth_result(
+            GoogleOAuthResultCode.SUCCESS,
+            desktop_return_url=desktop,
+            handoff_user=user,
+            handoff_outcome=OUTCOME_AUTHENTICATED,
+        )
+
     response = complete_owner_authentication(request, user)
     if response.status_code == 200:
         return redirect_google_oauth_result(GoogleOAuthResultCode.SUCCESS)
@@ -177,10 +260,11 @@ def handle_google_oauth_login(request, identity: GoogleIdentity) -> HttpResponse
     # Unverified provisional signups do not establish ownership — direct the
     # user to register so verified Google can claim the address.
     if identity.email and email_ownership_established(identity.email):
-        return redirect_google_oauth_result(
-            GoogleOAuthResultCode.EXISTING_ACCOUNT_CONNECT_REQUIRED
+        return _redirect_google(
+            request,
+            GoogleOAuthResultCode.EXISTING_ACCOUNT_CONNECT_REQUIRED,
         )
-    return redirect_google_oauth_result(GoogleOAuthResultCode.NO_ACCOUNT)
+    return _redirect_google(request, GoogleOAuthResultCode.NO_ACCOUNT)
 
 
 def handle_google_oauth_register(
@@ -190,16 +274,17 @@ def handle_google_oauth_register(
     legal_acknowledgement: bool,
 ) -> HttpResponseRedirect:
     if not legal_acknowledgement:
-        return redirect_google_oauth_result(
-            GoogleOAuthResultCode.LEGAL_ACKNOWLEDGEMENT_REQUIRED
+        return _redirect_google(
+            request,
+            GoogleOAuthResultCode.LEGAL_ACKNOWLEDGEMENT_REQUIRED,
         )
 
     validation_error = _validate_google_identity_for_registration(identity)
     if validation_error is not None:
-        return redirect_google_oauth_result(validation_error)
+        return _redirect_google(request, validation_error)
 
     if get_google_provider_link(subject=identity.subject) is not None:
-        return redirect_google_oauth_result(GoogleOAuthResultCode.GOOGLE_ALREADY_LINKED)
+        return _redirect_google(request, GoogleOAuthResultCode.GOOGLE_ALREADY_LINKED)
 
     from billing.markets import lock_market_for_new_registration
 
@@ -209,8 +294,9 @@ def handle_google_oauth_register(
     if provisional is not None:
         # Another account may already own this address as backup/pending.
         if email_ownership_established(identity.email, exclude_user=provisional):
-            return redirect_google_oauth_result(
-                GoogleOAuthResultCode.EXISTING_ACCOUNT_CONNECT_REQUIRED
+            return _redirect_google(
+                request,
+                GoogleOAuthResultCode.EXISTING_ACCOUNT_CONNECT_REQUIRED,
             )
         try:
             user = claim_provisional_owner_with_oauth(
@@ -222,17 +308,20 @@ def handle_google_oauth_register(
             )
         except ProvisionalClaimError:
             if email_ownership_established(identity.email):
-                return redirect_google_oauth_result(
-                    GoogleOAuthResultCode.EXISTING_ACCOUNT_CONNECT_REQUIRED
+                return _redirect_google(
+                    request,
+                    GoogleOAuthResultCode.EXISTING_ACCOUNT_CONNECT_REQUIRED,
                 )
-            return redirect_google_oauth_result(
-                GoogleOAuthResultCode.AUTHENTICATION_FAILED
+            return _redirect_google(
+                request,
+                GoogleOAuthResultCode.AUTHENTICATION_FAILED,
             )
         return _finalize_owner_login(request, user)
 
     if email_ownership_established(identity.email):
-        return redirect_google_oauth_result(
-            GoogleOAuthResultCode.EXISTING_ACCOUNT_CONNECT_REQUIRED
+        return _redirect_google(
+            request,
+            GoogleOAuthResultCode.EXISTING_ACCOUNT_CONNECT_REQUIRED,
         )
 
     try:
@@ -258,10 +347,11 @@ def handle_google_oauth_register(
             except ProvisionalClaimError:
                 pass
         if email_ownership_established(identity.email):
-            return redirect_google_oauth_result(
-                GoogleOAuthResultCode.EXISTING_ACCOUNT_CONNECT_REQUIRED
+            return _redirect_google(
+                request,
+                GoogleOAuthResultCode.EXISTING_ACCOUNT_CONNECT_REQUIRED,
             )
-        return redirect_google_oauth_result(GoogleOAuthResultCode.AUTHENTICATION_FAILED)
+        return _redirect_google(request, GoogleOAuthResultCode.AUTHENTICATION_FAILED)
 
     return _finalize_owner_login(request, user)
 def handle_google_oauth_link(
@@ -346,6 +436,8 @@ def process_google_oauth_callback(request, *, code: str | None, state: str | Non
             result = GoogleOAuthResultCode.INVALID_STATE
         return redirect_google_oauth_result(result)
 
+    request._google_desktop_return_url = str(pending.desktop_return_url or "").strip()
+
     redirect_uri = google_oauth_redirect_uri(request)
     try:
         token_data = exchange_authorization_code(redirect_uri=redirect_uri, code=code)
@@ -354,7 +446,7 @@ def process_google_oauth_callback(request, *, code: str | None, state: str | Non
             expected_nonce=pending.nonce,
         )
     except GoogleOAuthClientError:
-        return redirect_google_oauth_result(GoogleOAuthResultCode.AUTHENTICATION_FAILED)
+        return _redirect_google(request, GoogleOAuthResultCode.AUTHENTICATION_FAILED)
 
     identity = parse_google_identity(claims)
 
@@ -382,4 +474,4 @@ def process_google_oauth_callback(request, *, code: str | None, state: str | Non
             identity,
             owner_user_id=int(pending.owner_user_id),
         )
-    return redirect_google_oauth_result(GoogleOAuthResultCode.INVALID_INTENT)
+    return _redirect_google(request, GoogleOAuthResultCode.INVALID_INTENT)

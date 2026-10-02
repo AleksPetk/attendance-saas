@@ -42,9 +42,32 @@ function appleResultMessage(
   }
 }
 
+function googleResultMessage(
+  t: (key: string, vars?: Record<string, string | number>) => string,
+  resultCode: string,
+): string {
+  switch (resultCode) {
+    case "no_account":
+      return t("auth.googleNoAccount");
+    case "existing_account_connect_required":
+      return t("auth.googleExistingAccount");
+    case "email_not_verified":
+      return t("auth.googleEmailNotVerified");
+    case "email_missing":
+      return t("auth.googleEmailMissing");
+    case "legal_acknowledgement_required":
+      return t("auth.legalRequired");
+    case "oauth_not_configured":
+      return t("auth.googleUnavailable");
+    default:
+      return t("auth.googleFailed");
+  }
+}
+
 /**
  * OAuth provider buttons matching Browser Workspace / Desktop Login.
- * Google: system-browser PKCE → AuthController.completeGoogleNative.
+ * Google DIRECT: system-browser web OAuth → desktop handoff → session.
+ * Google MAS: system-browser PKCE → AuthController.completeGoogleNative.
  * Apple DIRECT: system-browser web OAuth → desktop handoff → session.
  * Apple MAS: ASAuthorization → AuthController.completeAppleNative.
  */
@@ -63,6 +86,82 @@ export function DesktopAuthProviderButtons({
   const appleMode = desktopAppleAuthMode(distribution);
   const appleEnabled = appleMode === "web_compatible" || appleMode === "native";
 
+  async function onGoogleDirectClick() {
+    const bridge = window.checkstationDesktop;
+    if (!bridge?.requestGoogleWebOAuth) {
+      onError?.(t("auth.googleUnavailable"));
+      return;
+    }
+    const google = await bridge.requestGoogleWebOAuth({
+      intent,
+      legalAcknowledgement: intent === "register" ? legalAcknowledgement : false,
+    });
+    if (google.kind === "unavailable") {
+      onError?.(t("auth.googleUnavailable"));
+      return;
+    }
+    if (google.kind === "error") {
+      onError?.(google.message || t("auth.googleFailed"));
+      return;
+    }
+    if (google.kind === "failed") {
+      onError?.(googleResultMessage(t, google.resultCode || ""));
+      return;
+    }
+    if (google.kind !== "success" || !google.handoff) {
+      onError?.(t("auth.googleFailed"));
+      return;
+    }
+    const result = await auth.completeDesktopAuthHandoff({ handoff: google.handoff });
+    onGoogleResult?.(result);
+  }
+
+  async function onGoogleMasClick() {
+    const bridge = window.checkstationDesktop;
+    if (!bridge?.requestGoogleIdentityToken) {
+      onError?.(t("auth.googleUnavailable"));
+      return;
+    }
+
+    const configured = bridge.isGoogleOAuthConfigured
+      ? await bridge.isGoogleOAuthConfigured()
+      : true;
+    if (!configured) {
+      onError?.(t("auth.googleMisconfigured"));
+      return;
+    }
+
+    const google = await bridge.requestGoogleIdentityToken();
+    if (google.kind === "cancelled") return;
+    if (google.kind === "unavailable") {
+      onError?.(t("auth.googleUnavailable"));
+      return;
+    }
+    if (google.kind === "misconfigured") {
+      onError?.(t("auth.googleMisconfigured"));
+      return;
+    }
+    if (google.kind === "missing_token") {
+      onError?.(t("auth.googleMissingToken"));
+      return;
+    }
+    if (google.kind === "error") {
+      onError?.(t("auth.googleFailed"));
+      return;
+    }
+    if (google.kind !== "success" || !google.identityToken) {
+      onError?.(t("auth.googleFailed"));
+      return;
+    }
+
+    const result = await auth.completeGoogleNative({
+      identityToken: google.identityToken,
+      intent,
+      legalAcknowledgement: intent === "register" ? legalAcknowledgement : false,
+    });
+    onGoogleResult?.(result);
+  }
+
   async function onGoogleClick() {
     if (busy) return;
     if (intent === "register" && !legalAcknowledgement) {
@@ -70,44 +169,14 @@ export function DesktopAuthProviderButtons({
       return;
     }
 
-    const bridge = window.checkstationDesktop;
-    if (!bridge?.requestGoogleIdentityToken) {
-      onError?.(t("auth.googleUnavailable"));
-      return;
-    }
-
     onBusyChange?.(true);
     onError?.("");
     try {
-      const configured = bridge.isGoogleOAuthConfigured
-        ? await bridge.isGoogleOAuthConfigured()
-        : true;
-      if (!configured) {
-        onError?.(t("auth.googleMisconfigured"));
-        return;
+      if (distribution === "mas") {
+        await onGoogleMasClick();
+      } else {
+        await onGoogleDirectClick();
       }
-
-      const google = await bridge.requestGoogleIdentityToken();
-      if (google.kind === "cancelled") return;
-      if (google.kind === "misconfigured") {
-        onError?.(t("auth.googleMisconfigured"));
-        return;
-      }
-      if (google.kind === "missing_token") {
-        onError?.(t("auth.googleMissingToken"));
-        return;
-      }
-      if (google.kind === "error") {
-        onError?.(t("auth.googleFailed"));
-        return;
-      }
-
-      const result = await auth.completeGoogleNative({
-        identityToken: google.identityToken,
-        intent,
-        legalAcknowledgement: intent === "register" ? legalAcknowledgement : false,
-      });
-      onGoogleResult?.(result);
     } catch (caught) {
       onError?.(caught instanceof Error ? caught.message : t("auth.googleFailed"));
     } finally {

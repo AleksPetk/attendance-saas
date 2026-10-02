@@ -17,8 +17,16 @@ contextBridge.exposeInMainWorld("checkstationDesktop", {
   /** Active macOS distribution variant (direct | mas) and related mode flags. */
   getDesktopDistribution: () => ipcRenderer.invoke("checkstation:desktopDistribution"),
   isGoogleOAuthConfigured: () => ipcRenderer.invoke("checkstation:googleOAuthConfigured"),
-  /** Opens system-browser Google OAuth; returns ID token outcome (do not log token). */
+  /**
+   * MAS only: system-browser Desktop-client Google PKCE → ID token.
+   * Do not log the identity token.
+   */
   requestGoogleIdentityToken: () => ipcRenderer.invoke("checkstation:googleOAuthSignIn"),
+  /**
+   * DIRECT only: system-browser Web Google OAuth → loopback handoff.
+   * Do not log the handoff token.
+   */
+  requestGoogleWebOAuth: (request) => ipcRenderer.invoke("checkstation:googleWebOAuthSignIn", request || {}),
   /**
    * DIRECT only: system-browser Apple web OAuth → loopback handoff.
    * Do not log the handoff token.

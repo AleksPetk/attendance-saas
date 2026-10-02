@@ -56,6 +56,7 @@ const {
   requestGoogleIdentityToken,
   isGoogleDesktopOAuthConfigured,
 } = require("./googleOAuth.cjs");
+const { requestGoogleWebOAuth } = require("./googleWebOAuth.cjs");
 const { requestAppleWebOAuth } = require("./appleOAuth.cjs");
 const { requestAppleNativeIdentity } = require("./appleNativeAuth.cjs");
 const {
@@ -193,12 +194,34 @@ app.whenReady().then(() => {
   ipcMain.handle("checkstation:kioskExitCredentialList", () => kioskExitCredentialStore.listValid());
   ipcMain.handle("checkstation:getProductTourPrefs", () => readProductTourPrefs());
   ipcMain.handle("checkstation:setProductTourPrefs", (_event, next) => writeProductTourPrefs(next || {}));
-  ipcMain.handle("checkstation:googleOAuthConfigured", () => isGoogleDesktopOAuthConfigured());
+  ipcMain.handle("checkstation:googleOAuthConfigured", () => {
+    // DIRECT uses production Web Google OAuth (no Desktop client secret required).
+    // MAS uses the Desktop OAuth client + PKCE native path.
+    if (desktopDistributionInfo.distribution === "direct") {
+      return true;
+    }
+    return isGoogleDesktopOAuthConfigured();
+  });
   ipcMain.handle("checkstation:desktopDistribution", () => desktopDistributionInfo);
   ipcMain.handle("checkstation:googleOAuthSignIn", async () => {
-    // Returns outcome only — never persist or log the identity token here.
-    // On success only, restore/focus the existing main window (macOS steal focus).
+    // MAS only: Desktop-client PKCE → identity token for /auth/google/native/.
+    // Never persist or log the identity token here.
+    if (desktopDistributionInfo.distribution !== "mas") {
+      return { kind: "unavailable" };
+    }
     return requestGoogleIdentityToken({
+      bringToForeground: bringCheckStationToForeground,
+    });
+  });
+  ipcMain.handle("checkstation:googleWebOAuthSignIn", async (_event, request) => {
+    // DIRECT only: system-browser Web Google OAuth + loopback handoff.
+    // Never log the handoff token.
+    if (desktopDistributionInfo.distribution !== "direct") {
+      return { kind: "unavailable" };
+    }
+    return requestGoogleWebOAuth({
+      intent: request?.intent === "register" ? "register" : "login",
+      legalAcknowledgement: Boolean(request?.legalAcknowledgement),
       bringToForeground: bringCheckStationToForeground,
     });
   });

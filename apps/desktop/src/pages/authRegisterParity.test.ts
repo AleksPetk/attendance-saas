@@ -31,11 +31,12 @@ test("desktop register consent opens live legal documents inside the app", () =>
   assert.doesNotMatch(legal, /window\.open|location\.assign/);
 });
 
-test("desktop register shows Google via shared native completion without browser OAuth redirects", () => {
+test("desktop register shows Google DIRECT handoff and MAS native without browser OAuth redirects", () => {
   assert.match(page, /DesktopAuthProviderButtons/);
   assert.match(page, /divider/);
   assert.match(page, /intent="register"/);
   const buttons = readFileSync(join(here, "../components/DesktopAuthProviderButtons.tsx"), "utf8");
+  assert.match(buttons, /requestGoogleWebOAuth/);
   assert.match(buttons, /completeGoogleNative/);
   assert.match(buttons, /completeDesktopAuthHandoff/);
   assert.doesNotMatch(buttons, /oauthPublicStartUrl/);

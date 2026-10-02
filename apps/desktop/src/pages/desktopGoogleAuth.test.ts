@@ -11,14 +11,24 @@ const register = readFileSync(join(here, "AuthAccountFlowPage.tsx"), "utf8");
 const preload = readFileSync(join(here, "../../electron/preload.cjs"), "utf8");
 const main = readFileSync(join(here, "../../electron/main.cjs"), "utf8");
 const googleOAuth = readFileSync(join(here, "../../electron/googleOAuth.cjs"), "utf8");
+const googleWebOAuth = readFileSync(join(here, "../../electron/googleWebOAuth.cjs"), "utf8");
 const appProvider = readFileSync(join(here, "../lib/AppProvider.tsx"), "utf8");
 
-test("desktop Google uses system-browser PKCE bridge then completeGoogleNative", () => {
+test("DIRECT Google uses web OAuth handoff; MAS uses native PKCE", () => {
+  assert.match(buttons, /distribution === "mas"/);
+  assert.match(buttons, /onGoogleMasClick|onGoogleDirectClick/);
+  assert.match(buttons, /requestGoogleWebOAuth/);
+  assert.match(buttons, /completeDesktopAuthHandoff/);
   assert.match(buttons, /requestGoogleIdentityToken/);
   assert.match(buttons, /completeGoogleNative/);
   assert.match(buttons, /intent/);
   assert.match(buttons, /legalAcknowledgement/);
-  assert.doesNotMatch(buttons, /oauthPublicStartUrl|\/api\/auth\/.*\/start/);
+  // DIRECT must not send native ID tokens into /auth/google/native/.
+  assert.doesNotMatch(
+    buttons.slice(buttons.indexOf("onGoogleDirectClick"), buttons.indexOf("onGoogleMasClick")),
+    /completeGoogleNative|identityToken/,
+  );
+  assert.doesNotMatch(buttons, /oauthPublicStartUrl/);
   assert.doesNotMatch(buttons, /console\.(log|debug|info).*identityToken|identity_token/);
 });
 
@@ -39,12 +49,17 @@ test("sign-in and register wire Google intent without changing email/password", 
   assert.match(register, /endpoints\.register\(\)/);
 });
 
-test("electron main/preload expose Google OAuth without logging tokens", () => {
+test("electron main gates DIRECT web Google vs MAS native Google", () => {
   assert.match(preload, /requestGoogleIdentityToken/);
+  assert.match(preload, /requestGoogleWebOAuth/);
   assert.match(preload, /isGoogleOAuthConfigured/);
   assert.match(preload, /getDesktopDistribution/);
   assert.match(main, /checkstation:googleOAuthSignIn/);
+  assert.match(main, /checkstation:googleWebOAuthSignIn/);
   assert.match(main, /requestGoogleIdentityToken/);
+  assert.match(main, /requestGoogleWebOAuth/);
+  assert.match(main, /distribution !== "mas"/);
+  assert.match(main, /distribution !== "direct"/);
   assert.match(main, /GOOGLE_DESKTOP_OAUTH_CLIENT_SECRET/);
   assert.match(main, /process\.resourcesPath/);
   assert.match(main, /bringToForeground:\s*bringCheckStationToForeground/);
@@ -52,23 +67,32 @@ test("electron main/preload expose Google OAuth without logging tokens", () => {
   assert.match(main, /setTimeout\(focusOnce,\s*80\)/);
   assert.match(main, /setTimeout\(focusOnce,\s*320\)/);
   assert.match(main, /checkstation:desktopDistribution/);
+  // MAS native path keeps Desktop client PKCE.
   assert.match(googleOAuth, /code_challenge/);
   assert.match(googleOAuth, /127\.0\.0\.1/);
   assert.match(googleOAuth, /shell\.openExternal|openExternal/);
   assert.match(googleOAuth, /GOOGLE_DESKTOP_OAUTH_CLIENT_SECRET/);
   assert.match(googleOAuth, /client_secret/);
   assert.match(googleOAuth, /bringToForeground/);
-  assert.match(googleOAuth, /Returning to CheckStation/);
-  assert.match(googleOAuth, /window\.close\(\)/);
   assert.doesNotMatch(googleOAuth, /console\.(log|debug|info)/);
+  // DIRECT web path uses start + handoff, not native Desktop client credentials.
+  assert.match(googleWebOAuth, /auth\/google\/start\//);
+  assert.match(googleWebOAuth, /desktop_return_url/);
+  assert.match(googleWebOAuth, /google-oauth-result/);
+  assert.doesNotMatch(googleWebOAuth, /GOOGLE_DESKTOP_OAUTH_CLIENT/);
+  assert.doesNotMatch(googleWebOAuth, /code_challenge/);
+  assert.doesNotMatch(googleWebOAuth, /client_secret/);
+  assert.doesNotMatch(googleWebOAuth, /identityToken/);
   assert.match(appProvider, /requestGoogleIdentityToken\?:/);
+  assert.match(appProvider, /requestGoogleWebOAuth\?:/);
   assert.match(appProvider, /getDesktopDistribution\?:/);
 });
 
-test("desktop Google cancels and provider errors map to UI outcomes", () => {
+test("MAS Google cancels and provider errors map to UI outcomes", () => {
   assert.match(buttons, /google\.kind === "cancelled"/);
   assert.match(buttons, /google\.kind === "misconfigured"/);
   assert.match(buttons, /google\.kind === "missing_token"/);
   assert.match(buttons, /google\.kind === "error"/);
   assert.match(buttons, /auth\.googleFailed/);
+  assert.match(buttons, /auth\.googleNoAccount/);
 });

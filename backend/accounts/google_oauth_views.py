@@ -24,6 +24,7 @@ from accounts.google_oauth_state import (
     VALID_INTENTS,
     create_google_oauth_state,
 )
+from core.desktop_return import DesktopReturnUrlError, require_safe_desktop_return_url
 
 logger = logging.getLogger("accounts.google_oauth")
 User = get_user_model()
@@ -120,11 +121,39 @@ class GoogleOAuthStartView(APIView):
                 return denied
             owner_user_id = request.user.pk
 
+        desktop_return_url = ""
+        raw_desktop_return = (
+            request.query_params.get("desktop_return_url")
+            or request.query_params.get("desktop_return")
+            or ""
+        )
+        if str(raw_desktop_return).strip():
+            # Desktop loopback is only for login/register (Electron system browser).
+            if intent not in (INTENT_LOGIN, INTENT_REGISTER):
+                return Response(
+                    {
+                        "detail": "Desktop return is not supported for this intent.",
+                        "code": GoogleOAuthResultCode.INVALID_INTENT,
+                    },
+                    status=400,
+                )
+            try:
+                desktop_return_url = require_safe_desktop_return_url(raw_desktop_return)
+            except DesktopReturnUrlError:
+                return Response(
+                    {
+                        "detail": "Invalid desktop return URL.",
+                        "code": "invalid_desktop_return_url",
+                    },
+                    status=400,
+                )
+
         pending = create_google_oauth_state(
             request,
             intent=intent,
             legal_acknowledgement=legal_acknowledgement,
             owner_user_id=owner_user_id,
+            desktop_return_url=desktop_return_url,
         )
         redirect_uri = google_oauth_redirect_uri(request)
         authorization_url = build_google_authorization_url(

@@ -778,3 +778,127 @@ class GoogleOAuthLinkFlowTests(TestCase):
             result_code_from_redirect(second["Location"]),
             GoogleOAuthResultCode.GOOGLE_ALREADY_LINKED,
         )
+
+
+@override_settings(
+    **GOOGLE_TEST_SETTINGS,
+    CACHES={"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}},
+)
+class GoogleOAuthDesktopHandoffTests(TestCase):
+    """DIRECT desktop Google uses Web OAuth + loopback handoff (Apple parity)."""
+
+    def setUp(self):
+        self.client = Client()
+        self.desktop_return = "http://127.0.0.1:54321/google-oauth-result"
+
+    def _start_desktop_login(self):
+        response = self.client.get(
+            "/api/auth/google/start/",
+            {
+                "intent": "login",
+                "desktop_return_url": self.desktop_return,
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        pending = load_google_oauth_state(response.wsgi_request)
+        self.assertEqual(pending.desktop_return_url, self.desktop_return)
+        return pending
+
+    def test_start_rejects_unsafe_desktop_return_url(self):
+        response = self.client.get(
+            "/api/auth/google/start/",
+            {
+                "intent": "login",
+                "desktop_return_url": "https://evil.example/callback",
+            },
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["code"], "invalid_desktop_return_url")
+
+    def test_start_rejects_desktop_return_for_link_intent(self):
+        owner, _organization = create_owner()
+        session_client = Client()
+        session_client.force_login(owner)
+        response = session_client.get(
+            "/api/auth/google/start/",
+            {
+                "intent": "link",
+                "desktop_return_url": self.desktop_return,
+            },
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["code"], GoogleOAuthResultCode.INVALID_INTENT)
+
+    def test_desktop_login_success_returns_loopback_handoff_without_browser_session(self):
+        owner, organization = create_owner(email="desktop-google@gmail.com")
+        OwnerAuthProviderLink.objects.create(
+            user=owner,
+            provider=OwnerAuthProvider.GOOGLE,
+            provider_subject="google-sub-desktop",
+            provider_email="desktop-google@gmail.com",
+            provider_email_verified=True,
+        )
+        pending = self._start_desktop_login()
+        claims = google_claims(
+            sub="google-sub-desktop",
+            email="desktop-google@gmail.com",
+            nonce=pending.nonce,
+        )
+        with patch(
+            "accounts.google_oauth.exchange_authorization_code",
+            return_value={"id_token": "fake-id-token"},
+        ), patch(
+            "accounts.google_oauth.verify_google_id_token",
+            return_value=claims,
+        ):
+            response = self.client.get(
+                "/api/auth/google/callback/",
+                {"code": "auth-code", "state": pending.state},
+            )
+        self.assertEqual(response.status_code, 302)
+        location = response["Location"]
+        self.assertTrue(location.startswith(self.desktop_return))
+        query = parse_qs(urlparse(location).query)
+        self.assertEqual(query["result"][0], GoogleOAuthResultCode.SUCCESS)
+        handoff = query["handoff"][0]
+        self.assertTrue(handoff)
+
+        # Browser callback must not establish the owner session on this client.
+        workspace = self.client.get("/api/workspace/")
+        self.assertIn(workspace.status_code, (401, 403))
+
+        # Electron exchanges handoff on its own cookie jar.
+        handoff_response = self.client.post(
+            "/api/auth/desktop-handoff/",
+            {"handoff": handoff},
+            content_type="application/json",
+        )
+        self.assertEqual(handoff_response.status_code, 200)
+        workspace = self.client.get("/api/workspace/")
+        self.assertEqual(workspace.status_code, 200)
+        self.assertEqual(workspace.json()["workspace_id"], organization.workspace_id)
+
+    def test_desktop_login_no_account_returns_loopback_without_handoff(self):
+        pending = self._start_desktop_login()
+        claims = google_claims(
+            sub="google-sub-unknown",
+            email="unknown-desktop@gmail.com",
+            nonce=pending.nonce,
+        )
+        with patch(
+            "accounts.google_oauth.exchange_authorization_code",
+            return_value={"id_token": "fake-id-token"},
+        ), patch(
+            "accounts.google_oauth.verify_google_id_token",
+            return_value=claims,
+        ):
+            response = self.client.get(
+                "/api/auth/google/callback/",
+                {"code": "auth-code", "state": pending.state},
+            )
+        self.assertEqual(response.status_code, 302)
+        location = response["Location"]
+        self.assertTrue(location.startswith(self.desktop_return))
+        query = parse_qs(urlparse(location).query)
+        self.assertEqual(query["result"][0], GoogleOAuthResultCode.NO_ACCOUNT)
+        self.assertNotIn("handoff", query)

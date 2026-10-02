@@ -32,6 +32,8 @@ class GoogleOAuthPendingState:
     created_at: str
     legal_acknowledgement: bool = False
     owner_user_id: int | None = None
+    # Optional Electron loopback URL (http://127.0.0.1:{port}/...) for DIRECT desktop.
+    desktop_return_url: str = ""
 
 
 def _parse_timestamp(raw: str | None):
@@ -52,6 +54,7 @@ def create_google_oauth_state(
     intent: str,
     legal_acknowledgement: bool = False,
     owner_user_id: int | None = None,
+    desktop_return_url: str = "",
 ) -> GoogleOAuthPendingState:
     if intent not in VALID_INTENTS:
         raise ValueError(f"Unsupported Google OAuth intent: {intent}")
@@ -67,6 +70,7 @@ def create_google_oauth_state(
         created_at=timezone.now().isoformat(),
         legal_acknowledgement=bool(legal_acknowledgement),
         owner_user_id=owner_user_id,
+        desktop_return_url=str(desktop_return_url or "").strip(),
     )
     request.session[OWNER_GOOGLE_OAUTH_SESSION_KEY] = {
         "state": pending.state,
@@ -76,6 +80,7 @@ def create_google_oauth_state(
         "created_at": pending.created_at,
         "legal_acknowledgement": pending.legal_acknowledgement,
         "owner_user_id": pending.owner_user_id,
+        "desktop_return_url": pending.desktop_return_url,
     }
     request.session.modified = True
     return pending
@@ -94,6 +99,7 @@ def load_google_oauth_state(request) -> GoogleOAuthPendingState | None:
             created_at=str(raw["created_at"]),
             legal_acknowledgement=bool(raw.get("legal_acknowledgement")),
             owner_user_id=raw.get("owner_user_id"),
+            desktop_return_url=str(raw.get("desktop_return_url") or ""),
         )
     except (KeyError, TypeError, ValueError):
         return None

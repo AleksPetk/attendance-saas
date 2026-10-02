@@ -52,10 +52,12 @@ describe("desktop distribution wiring", () => {
     assert.equal(packageJson.build, undefined);
   });
 
-  it("wires distribution IPC and keeps shared Google OAuth", () => {
+  it("wires distribution IPC and keeps MAS Google OAuth native path ungated in module", () => {
     assert.match(main, /getDesktopDistributionInfo/);
     assert.match(main, /checkstation:desktopDistribution/);
+    assert.match(main, /checkstation:googleWebOAuthSignIn/);
     assert.match(preload, /getDesktopDistribution/);
+    assert.match(preload, /requestGoogleWebOAuth/);
     assert.match(googleOAuth, /requestGoogleIdentityToken/);
     assert.doesNotMatch(googleOAuth, /desktopDistribution|CHECKSTATION_DESKTOP_DISTRIBUTION/);
     assert.match(builderConfig, /desktopBundleId|resolveDesktopDistribution/);
