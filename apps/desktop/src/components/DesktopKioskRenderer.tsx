@@ -14,6 +14,7 @@ type Props = {
   helperText?: string;
   showExit?: boolean;
   respectSectionEnabled?: boolean;
+  cacheNamespace?: string;
 };
 
 /**
@@ -23,11 +24,11 @@ type Props = {
  * renderer: the shared kiosk styles use it to apply saved layout, card, input,
  * and flow presets. Media is resolved through Electron's authenticated bridge.
  */
-export function DesktopKioskRenderer({ children, design, kioskMode, onExit, exitLabel, helperText = "", showExit = true, respectSectionEnabled = false }: Props) {
+export function DesktopKioskRenderer({ children, design, kioskMode, onExit, exitLabel, helperText = "", showExit = true, respectSectionEnabled = false, cacheNamespace }: Props) {
   const { config } = design;
-  const headerLogo = useAuthenticatedAsset(design.header_logo_url);
-  const footerLogo = useAuthenticatedAsset(design.footer_logo_url);
-  const mainImage = useAuthenticatedAsset(design.main_background_image_url);
+  const headerLogo = useAuthenticatedAsset(design.header_logo_url, cacheNamespace);
+  const footerLogo = useAuthenticatedAsset(design.footer_logo_url, cacheNamespace);
+  const mainImage = useAuthenticatedAsset(design.main_background_image_url, cacheNamespace);
   const cardTemplate = resolveKioskCardTemplate(config.main);
   const layout = kioskMode === "card" ? cardTemplate.layout : config.main.layout_preset;
   const flowTemplate = desktopKioskFlowTemplate(design, kioskMode);

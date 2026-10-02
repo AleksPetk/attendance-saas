@@ -22,7 +22,10 @@ export type CheckStationAppConfig = {
   /** Bundle / application id placeholders until store IDs are finalized. */
   iosBundleId: string;
   androidPackage: string;
+  /** DIRECT (non-MAS) macOS desktop bundle id. */
   macosBundleId: string;
+  /** Mac App Store desktop bundle id (separate from DIRECT). */
+  macosMasBundleId: string;
   windowsAppId: string;
 };
 
@@ -37,6 +40,7 @@ const DEFAULTS: CheckStationAppConfig = {
   iosBundleId: "app.checkstation.client",
   androidPackage: "app.checkstation.mobile",
   macosBundleId: "app.checkstation.desktop",
+  macosMasBundleId: "app.checkstation.client",
   windowsAppId: "app.checkstation.desktop",
 };
 

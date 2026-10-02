@@ -1,0 +1,7 @@
+{
+  "name": "mac_apple_native",
+  "version": "0.0.0",
+  "private": true,
+  "gypfile": true,
+  "description": "N-API shim for CheckStation MAS in-process Apple SIWA/StoreKit"
+}

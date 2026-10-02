@@ -31,7 +31,7 @@ export function AccountSecurity({ account, onRefresh }: { account: SecurityAccou
       <p className="desktop-account-note">{text.oauthGap}</p>
     </Card>
     <div className="desktop-account-email-grid">
-      <Card title={t("security.changePassword")}><details className="desktop-account-disclosure"><summary>{text.passwordSummary}</summary><p className="desktop-account-note">{password ? t("staff.passwordHint") : text.oauthSensitive}</p><Button variant="secondary" disabled={!password} onClick={() => setAction("password")}>{t("security.changePassword")}</Button></details></Card>
+      <Card title={t("security.changePasswordSection")}><details className="desktop-account-disclosure"><summary>{text.passwordSummary}</summary><p className="desktop-account-note">{password ? t("staff.passwordHint") : text.oauthSensitive}</p><Button variant="secondary" disabled={!password} onClick={() => setAction("password")}>{t("security.changePassword")}</Button></details></Card>
       <Card title={t("security.twoFactor")}><div className="desktop-account-security-summary"><div><strong>{t("security.authenticator")}</strong><Badge tone={enabled ? "green" : "neutral"}>{t(enabled ? "security.enabled" : "security.notEnabled")}</Badge></div><p className="desktop-account-note">{text.twoFactorHint}</p><div className="toolbar">{enabled ? <><Button className="button-sm" variant="secondary" onClick={() => setAction("regenerate")}>{t("security.regenerate")}</Button><Button className="button-sm" variant="secondary" onClick={() => setAction("disable")}>{t("security.disable")}</Button></> : <Button className="button-sm" onClick={() => setAction("setup")}>{t("security.setup")}</Button>}</div></div></Card>
     </div>
     <Card title={text.danger}><p className="desktop-account-note">{text.deleteWarning}</p><Button className="button-sm" variant="danger" onClick={() => setSensitive("delete")}>{text.deleteAccount}</Button></Card>
@@ -73,9 +73,9 @@ const japanese: typeof english = {
   connected: "接続済み", notConnected: "未接続", connect: "接続", disconnect: "接続を解除",
   oauthGap: "デスクトップアプリでのGoogle・Apple接続はまだ利用できません。既存の接続はCheckStationアカウントから取得して表示しています。",
   oauthSensitive: "この操作にはプロバイダーによる再認証が必要です。安全なデスクトップGoogle・Apple再認証はまだ利用できません。",
-  passwordSummary: "パスワードを変更", twoFactorHint: "認証アプリとリカバリーコードでアカウントを保護します。",
-  danger: "危険な操作", deleteAccount: "アカウントを削除", permanentlyDelete: "完全に削除",
-  deleteWarning: "オーナーアカウント、Workspace、お客様が作成した運用データを完全に削除します。元に戻せません。既存のサブスクリプションとプロバイダーの保護措置が適用され、有効なサブスクリプションがある場合は削除できないことがあります。",
-  finalDeleteConfirmation: "アカウントとWorkspaceを完全に削除しますか？元に戻せません。",
+  passwordSummary: "パスワードを変更", twoFactorHint: "サインイン時に追加のセキュリティステップを設定します。",
+  danger: "危険な操作", deleteAccount: "アカウントを削除", permanentlyDelete: "アカウントを完全に削除",
+  deleteWarning: "CheckStation アカウント、このワークスペース、およびお客様が作成した運用データを完全に削除します。この操作は元に戻せません。",
+  finalDeleteConfirmation: "この操作は元に戻せません。CheckStation アカウントとワークスペースを完全に削除しますか？",
   confirmPhrase: "確認のためDELETEと入力", disconnectHint: "本人確認後にサインイン方法を解除します。利用可能なサインイン方法を少なくとも1つ残す必要があります。",
 };

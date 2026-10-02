@@ -4,6 +4,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 const shell = readFileSync(fileURLToPath(new URL("../shell/DesktopShell.tsx", import.meta.url)), "utf8");
+const languageMenu = readFileSync(fileURLToPath(new URL("../components/DesktopLanguageMenu.tsx", import.meta.url)), "utf8");
 const dashboard = readFileSync(fileURLToPath(new URL("../pages/HomePage.tsx", import.meta.url)), "utf8");
 const ui = readFileSync(fileURLToPath(new URL("../components/ui.tsx", import.meta.url)), "utf8");
 const bell = readFileSync(fileURLToPath(new URL("../components/DesktopAnnouncementBell.tsx", import.meta.url)), "utf8");
@@ -27,7 +28,7 @@ test("desktop shell uses canonical branding, Dashboard terminology, and Workspac
   assert.match(shell, /<div className="topbar-actions">[\s\S]*<DesktopAnnouncementBell[\s\S]*<BrandMark className="topbar-brand-logo"/);
   assert.match(shell, /className="topbar-copy"/);
   assert.match(shell, /className="topbar-eyebrow"/);
-  assert.match(shell, /className="desktop-language-trigger"/);
+  assert.match(languageMenu, /className="desktop-language-trigger"/);
   assert.match(shell, /className=\{`desktop-refresh-trigger/);
   assert.match(shell, /<div className="topbar-actions"><button aria-label="Refresh"[\s\S]*<DesktopLanguageMenu[\s\S]*<DesktopAnnouncementBell[\s\S]*<BrandMark/);
   assert.match(shell, /M20 11a8 8 0 1 0-2\.34 5\.66/);
@@ -36,15 +37,15 @@ test("desktop shell uses canonical branding, Dashboard terminology, and Workspac
   assert.match(shell, /desktopRefresh.refresh\(\)/);
   assert.match(shell, /disabled=\{refreshing\}/);
   assert.match(shell, /title="Refresh"/);
-  assert.match(shell, /<DesktopLanguageMenu locale=\{locale\} onSelect=\{setLocale\}/);
-  assert.match(shell, /role="menuitemradio"/);
-  assert.match(shell, /window\.addEventListener\("pointerdown"/);
-  assert.match(shell, /event\.key === "Escape"/);
+  assert.match(shell, /<DesktopLanguageMenu label=\{t\("common\.changeLanguage"\)\} locale=\{locale\} onSelect=\{setLocale\}/);
+  assert.match(languageMenu, /role="menuitemradio"/);
+  assert.match(languageMenu, /window\.addEventListener\("pointerdown"/);
+  assert.match(languageMenu, /event\.key === "Escape"/);
   assert.doesNotMatch(shell, /onClick=\{\(\) => setLocale\(locale === "en" \? "ja" : "en"\)\}/);
   assert.match(shell, /session\?\.workspace\?\.identity/);
   assert.match(shell, /entitlements\?\.plan\?\.display_name/);
   assert.match(shell, /className="sidebar-account-email"/);
-  assert.match(shell, />Sign out<\/button>/);
+  assert.match(shell, /\{t\("common\.signOut"\)\}<\/button>/);
   assert.doesNotMatch(shell, /session\?\.workspace\?\.workspace_id/);
   assert.doesNotMatch(shell, />EN<\/Button>|>JA<\/Button>/);
   assert.match(bell, /endpoints\.announcements\(\)/);

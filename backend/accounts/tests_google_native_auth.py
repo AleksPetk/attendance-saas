@@ -147,8 +147,22 @@ class VerifyGoogleNativeIdTokenTests(TestCase):
         self.assertEqual(verify.call_args.args[2], WEB_AUDIENCE)
         self.assertNotEqual(verify.call_args.args[2], IOS_CLIENT_ID)
 
+    def test_desktop_audience_accepted(self):
+        desktop = "1234567890-desktop.apps.googleusercontent.com"
+        claims = self._base_claims(aud=desktop)
+        with override_settings(GOOGLE_NATIVE_DESKTOP_CLIENT_ID=desktop):
+            with patch(
+                "google.oauth2.id_token.verify_oauth2_token",
+                side_effect=[ValueError("Token has wrong audience"), claims],
+            ) as verify:
+                result = verify_google_native_id_token("fake-jwt")
+        self.assertEqual(result["sub"], "google-native-sub")
+        self.assertEqual(verify.call_count, 2)
+        self.assertEqual(verify.call_args_list[0].args[2], WEB_AUDIENCE)
+        self.assertEqual(verify.call_args_list[1].args[2], desktop)
+
     def test_missing_web_client_id_rejects(self):
-        with override_settings(GOOGLE_OAUTH_CLIENT_ID=""):
+        with override_settings(GOOGLE_OAUTH_CLIENT_ID="", GOOGLE_NATIVE_DESKTOP_CLIENT_ID=""):
             with self.assertRaises(GoogleOAuthClientError) as ctx:
                 verify_google_native_id_token("fake-jwt")
         self.assertEqual(str(ctx.exception), "native_audience_not_configured")
@@ -183,8 +197,28 @@ class GoogleNativeCompleteEndpointTests(TestCase):
             "exp": int(timezone.now().timestamp()) + 3600,
         }
 
+    def test_desktop_only_config_allows_endpoint(self):
+        desktop = "1234567890-desktop.apps.googleusercontent.com"
+        with override_settings(
+            GOOGLE_NATIVE_IOS_CLIENT_ID="",
+            GOOGLE_OAUTH_CLIENT_ID="",
+            GOOGLE_NATIVE_DESKTOP_CLIENT_ID=desktop,
+        ):
+            with patch(
+                "accounts.google_native_auth.verify_google_native_id_token",
+                return_value=self._claims(aud=desktop),
+            ):
+                response = self._post(
+                    {
+                        "identity_token": "x",
+                        "intent": "login",
+                    }
+                )
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["code"], GoogleOAuthResultCode.NO_ACCOUNT)
+
     def test_not_configured_returns_503(self):
-        with override_settings(GOOGLE_NATIVE_IOS_CLIENT_ID=""):
+        with override_settings(GOOGLE_NATIVE_IOS_CLIENT_ID="", GOOGLE_NATIVE_DESKTOP_CLIENT_ID=""):
             response = self._post(
                 {
                     "identity_token": "x",
@@ -195,7 +229,7 @@ class GoogleNativeCompleteEndpointTests(TestCase):
         self.assertEqual(response.json()["code"], GoogleOAuthResultCode.OAUTH_NOT_CONFIGURED)
 
     def test_missing_web_client_returns_503(self):
-        with override_settings(GOOGLE_OAUTH_CLIENT_ID=""):
+        with override_settings(GOOGLE_OAUTH_CLIENT_ID="", GOOGLE_NATIVE_DESKTOP_CLIENT_ID=""):
             response = self._post(
                 {
                     "identity_token": "x",

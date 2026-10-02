@@ -15,6 +15,7 @@ from accounts.google_oauth_settings import (
     GOOGLE_OAUTH_ISSUERS,
     GOOGLE_OAUTH_SCOPES,
     GOOGLE_OAUTH_TOKEN_URL,
+    google_native_id_token_audiences,
     google_oauth_client_id,
     google_oauth_client_secret,
 )
@@ -125,19 +126,29 @@ def verify_google_native_id_token(
     expected_audience: str | None = None,
 ) -> dict:
     """
-    Verify a native iOS Google Sign-In ID token.
+    Verify a native Google Sign-In ID token (iOS or Desktop).
 
-    Audience must be the Web/server OAuth client ID (GOOGLE_OAUTH_CLIENT_ID),
-    which Mobile configures as webClientId / GIDConfiguration.serverClientID.
-    The iOS OAuth client (GOOGLE_NATIVE_IOS_CLIENT_ID) identifies the app only.
+    Accepted audiences (unless ``expected_audience`` is forced):
+    - Web/server OAuth client ID (GOOGLE_OAUTH_CLIENT_ID) — iOS uses this as
+      webClientId / GIDConfiguration.serverClientID
+    - Desktop OAuth client ID (GOOGLE_NATIVE_DESKTOP_CLIENT_ID) — Electron
+      system-browser PKCE ID-token audience
+
+    The iOS OAuth client (GOOGLE_NATIVE_IOS_CLIENT_ID) identifies the iOS app
+    only and is not an ID-token audience.
 
     Nonce is not verified for this path: Original
     @react-native-google-signin/google-signin does not expose a custom nonce to
     bind to GoogleSignin.signIn(); AppAuth may embed an opaque nonce that the
     app cannot match. Browser Google OAuth continues to enforce its own nonce.
     """
-    audience = (expected_audience or google_oauth_client_id()).strip()
-    if not audience:
+    if expected_audience is not None:
+        audiences = [(expected_audience or "").strip()]
+        audiences = [a for a in audiences if a]
+    else:
+        audiences = list(google_native_id_token_audiences())
+
+    if not audiences:
         raise GoogleOAuthClientError("native_audience_not_configured")
 
     try:
@@ -146,25 +157,34 @@ def verify_google_native_id_token(
     except ImportError as exc:
         raise GoogleOAuthClientError("google_auth_unavailable") from exc
 
-    try:
-        claims = id_token.verify_oauth2_token(
-            id_token_jwt,
-            google_requests.Request(),
-            audience,
-        )
-    except ValueError as exc:
-        message = str(exc).lower()
+    claims = None
+    last_error: Exception | None = None
+    request = google_requests.Request()
+    for audience in audiences:
+        try:
+            claims = id_token.verify_oauth2_token(
+                id_token_jwt,
+                request,
+                audience,
+            )
+            break
+        except ValueError as exc:
+            last_error = exc
+            continue
+
+    if claims is None:
+        message = str(last_error or "").lower()
         if "expired" in message:
-            raise GoogleOAuthClientError("expired_id_token") from exc
+            raise GoogleOAuthClientError("expired_id_token") from last_error
         if "audience" in message:
-            raise GoogleOAuthClientError("invalid_audience") from exc
-        raise GoogleOAuthClientError("invalid_id_token") from exc
+            raise GoogleOAuthClientError("invalid_audience") from last_error
+        raise GoogleOAuthClientError("invalid_id_token") from last_error
 
     issuer = claims.get("iss")
     if issuer not in GOOGLE_OAUTH_ISSUERS:
         raise GoogleOAuthClientError("invalid_issuer")
 
-    if not _audience_matches(claims, audience):
+    if not any(_audience_matches(claims, audience) for audience in audiences):
         raise GoogleOAuthClientError("invalid_audience")
 
     subject = str(claims.get("sub") or "").strip()

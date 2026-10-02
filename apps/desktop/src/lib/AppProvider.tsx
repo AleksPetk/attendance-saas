@@ -1,16 +1,46 @@
-import { useMemo, useEffect, useState, createContext, useContext } from "react";
+import { useMemo, useEffect, useState, useRef, createContext, useContext } from "react";
 import { ApiClient, CookieJar, TransportApiClient } from "@checkstation/api";
 import { AuthController, type AuthState } from "@checkstation/auth";
 import { createAppConfig } from "@checkstation/config";
 import { createTranslator, resolveLocale, type AppLocale } from "@checkstation/i18n";
 import { desktopRefresh, installForegroundRefresh } from "./foregroundRefresh";
 import { useForegroundRefresh } from "./useForegroundRefresh";
+import { clearAllKioskExitTokens, clearKioskExitTokensForWorkspace, hydrateKioskExitCredentialsFromDisk, armKioskLockFromRestoredCredentials } from "./kioskExitCredential";
+import { clearDesktopKioskActive, getDesktopKioskActiveGroupId } from "./kioskSessionLock";
 
 type DesktopBridge = {
   platform: string;
   startupReady?: () => void;
   initSession: () => Promise<void>;
   clearSession: () => Promise<void>;
+  clearMediaCache?: (request?: { workspaceKey?: string | null }) => Promise<{ ok: boolean }>;
+  kioskExitCredentialSave?: (request: {
+    workspaceKey: string;
+    groupId: string;
+    token: string;
+    ttlMs?: number;
+  }) => Promise<{ ok: boolean; reason?: string }>;
+  kioskExitCredentialLoad?: (request: {
+    workspaceKey: string;
+    groupId: string;
+  }) => Promise<{
+    token: string;
+    groupId: string;
+    workspaceKey: string;
+    savedAt: number;
+    expiresAt: number;
+  } | null>;
+  kioskExitCredentialClear?: (request?: {
+    workspaceKey?: string;
+    groupId?: string;
+  }) => Promise<{ ok: boolean }>;
+  kioskExitCredentialList?: () => Promise<Array<{
+    token: string;
+    groupId: string;
+    workspaceKey: string;
+    savedAt: number;
+    expiresAt: number;
+  }>>;
   http: (req: {
     path: string;
     method?: string;
@@ -18,15 +48,99 @@ type DesktopBridge = {
     credentials?: boolean;
     timeoutMs?: number;
     responseType?: "base64";
+    cacheNamespace?: string;
     formData?: Array<
       | { name: string; kind: "text"; value: string }
       | { name: string; kind: "file"; value: string; filename: string; type: string }
     >;
   }) => Promise<
-    | { ok: true; status: number; data: unknown }
-    | { ok: false; status: number; data: unknown; path: string; method: string }
+    | { ok: true; status: number; data: unknown; fromCache?: boolean; cacheHit?: string | null }
+    | { ok: false; status: number; data: unknown; path: string; method: string; fromCache?: boolean; cacheHit?: string | null }
   >;
   saveFile?: (req: { defaultPath: string; base64: string }) => Promise<{ saved: boolean; path?: string }>;
+  getProductTourPrefs?: () => Promise<{ version?: number; seen?: boolean; locale?: "en" | "ja" }>;
+  setProductTourPrefs?: (prefs: {
+    seen?: boolean;
+    locale?: "en" | "ja";
+  }) => Promise<{ version?: number; seen?: boolean; locale?: "en" | "ja" }>;
+  isGoogleOAuthConfigured?: () => Promise<boolean>;
+  getDesktopDistribution?: () => Promise<{
+    distribution: "direct" | "mas";
+    bundleId: string;
+    releaseOutputDir: string;
+    billingMode: "stripe_web" | "apple_iap";
+    appleAuthMode: "web_compatible" | "native";
+    googleAuthEnabled: boolean;
+  }>;
+  requestGoogleIdentityToken?: () => Promise<
+    | { kind: "success"; identityToken: string }
+    | { kind: "cancelled" }
+    | { kind: "misconfigured" }
+    | { kind: "missing_token" }
+    | { kind: "error"; message?: string }
+  >;
+  requestAppleWebOAuth?: (request?: {
+    intent?: "login" | "register";
+    legalAcknowledgement?: boolean;
+  }) => Promise<
+    | { kind: "success"; resultCode: string; handoff: string }
+    | { kind: "failed"; resultCode: string }
+    | { kind: "unavailable" }
+    | { kind: "error"; message?: string }
+  >;
+  requestAppleNativeSignIn?: () => Promise<
+    | { kind: "success"; identityToken: string; nonce: string; fullName?: { givenName?: string; familyName?: string } | null }
+    | { kind: "cancelled" }
+    | { kind: "unavailable" }
+    | { kind: "signing_required" }
+    | { kind: "missing_token" }
+    | { kind: "error"; message?: string }
+  >;
+  loadStoreKitProducts?: () => Promise<
+    | { kind: "success"; products: Array<{ productId: string; displayPrice: string; title?: string; description?: string }> }
+    | { kind: "signing_required"; products: [] }
+    | { kind: "unavailable"; products: [] }
+    | { kind: "error"; message?: string; products: [] }
+  >;
+  purchaseStoreKitSubscription?: (request: {
+    productId: string;
+    appAccountToken: string;
+  }) => Promise<
+    | { kind: "success"; productId: string; signedTransaction: string }
+    | { kind: "cancelled" }
+    | { kind: "pending" }
+    | { kind: "signing_required" }
+    | { kind: "unavailable" }
+    | { kind: "error"; message?: string }
+  >;
+  restoreStoreKitPurchases?: () => Promise<
+    | { kind: "success"; transactions: Array<{ productId: string; signedTransaction: string }> }
+    | { kind: "signing_required"; transactions: [] }
+    | { kind: "unavailable"; transactions: [] }
+    | { kind: "error"; message?: string; transactions: [] }
+  >;
+  openAppleManageSubscriptions?: () => Promise<
+    | { kind: "success" }
+    | { kind: "signing_required" }
+    | { kind: "unavailable" }
+    | { kind: "error"; message?: string }
+  >;
+  prepareBillingReturn?: () => Promise<
+    | { kind: "ready"; id: string; desktopReturnUrl: string }
+    | { kind: "unavailable" }
+  >;
+  openBillingReturn?: (request: {
+    id: string;
+    url: string;
+    title?: string;
+    body?: string;
+  }) => Promise<
+    | { kind: "returned"; checkout?: string; portal?: string }
+    | { kind: "timeout" }
+    | { kind: "unavailable" }
+    | { kind: "error"; message?: string }
+  >;
+  cancelBillingReturn?: (request: { id: string }) => Promise<{ ok: boolean }>;
 };
 
 declare global {
@@ -93,11 +207,52 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const unsub = auth.subscribe(setAuthState);
-    void auth.bootstrap().finally(() => setReady(true));
+    void (async () => {
+      await hydrateKioskExitCredentialsFromDisk();
+      await auth.bootstrap();
+      armKioskLockFromRestoredCredentials(auth.getState().status);
+      setReady(true);
+    })();
     return unsub;
   }, [auth]);
 
+  const previousWorkspaceId = useRef<number | string | null>(null);
+  const previousStatus = useRef<AuthState["status"]>("unknown");
+  useEffect(() => {
+    const nextId = authState.session?.workspace?.id ?? null;
+    const prevStatus = previousStatus.current;
+    previousStatus.current = authState.status;
+
+    if (authState.status === "anonymous") {
+      // Session expiry while kiosk is active must keep the exit token + media cache.
+      if (getDesktopKioskActiveGroupId()) {
+        return;
+      }
+      if (prevStatus === "authenticated" || prevStatus === "kiosk_locked") {
+        clearAllKioskExitTokens();
+        clearDesktopKioskActive();
+        void window.checkstationDesktop?.clearMediaCache?.();
+      }
+      previousWorkspaceId.current = null;
+      return;
+    }
+
+    if (
+      previousWorkspaceId.current != null
+      && nextId != null
+      && String(previousWorkspaceId.current) !== String(nextId)
+    ) {
+      clearKioskExitTokensForWorkspace(previousWorkspaceId.current);
+      clearDesktopKioskActive();
+      void window.checkstationDesktop?.clearMediaCache?.({
+        workspaceKey: String(previousWorkspaceId.current),
+      });
+    }
+    if (nextId != null) previousWorkspaceId.current = nextId;
+  }, [authState.session?.workspace?.id, authState.status]);
+
   const t = useMemo(() => createTranslator(locale), [locale]);
+  useEffect(() => { document.documentElement.lang = locale; }, [locale]);
   useForegroundRefresh(async () => {
     if (authState.status === "authenticated") await auth.refreshWorkspace();
   });
@@ -131,10 +286,16 @@ export async function downloadDesktopApiFile(path: string, defaultName: string) 
   return bridge.saveFile({ defaultPath: name, base64: data.base64 });
 }
 
-export async function loadDesktopApiAsset(path: string): Promise<string> {
+export async function loadDesktopApiAsset(path: string, cacheNamespace?: string): Promise<string> {
   const bridge = window.checkstationDesktop;
   if (!bridge) return path;
-  const result = await bridge.http({ path, method: "GET", credentials: true, responseType: "base64" });
+  const result = await bridge.http({
+    path,
+    method: "GET",
+    credentials: true,
+    responseType: "base64",
+    cacheNamespace: cacheNamespace || undefined,
+  });
   if (!result.ok) throw new Error(`Image request failed (${result.status})`);
   const data = result.data as { base64?: string; contentType?: string };
   if (!data.base64) throw new Error("The image was empty.");

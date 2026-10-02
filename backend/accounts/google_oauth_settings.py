@@ -23,6 +23,17 @@ def google_native_ios_client_id() -> str:
     return getattr(settings, "GOOGLE_NATIVE_IOS_CLIENT_ID", "").strip()
 
 
+def google_native_desktop_client_id() -> str:
+    """
+    Desktop (Electron) Google OAuth client ID.
+
+    Used as the ID-token audience for system-browser PKCE desktop sign-in.
+    Not a secret. Distinct from the Web client (browser redirect OAuth) and the
+    iOS client (native Google Sign-In app identity).
+    """
+    return getattr(settings, "GOOGLE_NATIVE_DESKTOP_CLIENT_ID", "").strip()
+
+
 def google_oauth_is_configured() -> bool:
     return bool(google_oauth_client_id() and google_oauth_client_secret())
 
@@ -34,6 +45,35 @@ def google_native_ios_is_configured() -> bool:
     """
     return bool(google_native_ios_client_id() and google_oauth_client_id())
 
+
+def google_native_desktop_is_configured() -> bool:
+    """Desktop Google native completion requires a Desktop OAuth client ID."""
+    return bool(google_native_desktop_client_id())
+
+
+def google_native_is_configured() -> bool:
+    """
+    True when at least one native Google client path can complete
+    POST /api/auth/google/native/ (iOS and/or Desktop).
+    """
+    return google_native_ios_is_configured() or google_native_desktop_is_configured()
+
+
+def google_native_id_token_audiences() -> tuple[str, ...]:
+    """
+    Accepted ID-token audiences for POST /api/auth/google/native/.
+
+    - Web client ID: iOS Google Sign-In (webClientId / serverClientID)
+    - Desktop client ID: Electron system-browser PKCE
+    """
+    audiences: list[str] = []
+    web = google_oauth_client_id()
+    if web:
+        audiences.append(web)
+    desktop = google_native_desktop_client_id()
+    if desktop and desktop not in audiences:
+        audiences.append(desktop)
+    return tuple(audiences)
 
 def google_oauth_state_ttl_seconds() -> int:
     return int(getattr(settings, "GOOGLE_OAUTH_STATE_TTL_SECONDS", 600))

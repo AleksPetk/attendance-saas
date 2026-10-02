@@ -30,12 +30,16 @@ import {
 } from "../lib/help";
 import { useApp } from "../lib/AppProvider";
 import { useForegroundRefresh } from "../lib/useForegroundRefresh";
+import { productTourUi } from "../productTour/productTourContent";
+import { useProductTour } from "../productTour/ProductTourHost";
 import { DesktopGuidedHelp } from "../tutorials/DesktopGuidedHelp";
 
-type View = "guided" | "resources" | "faq" | "status" | "contact";
+type View = "discover" | "guided" | "resources" | "faq" | "status" | "contact";
 
 export function HelpPage() {
   const { api, authState, locale, t } = useApp();
+  const { openReplay } = useProductTour();
+  const tourUi = productTourUi(locale);
   const location = useLocation();
   const [view, setView] = useState<View>(
     (location.state as { view?: View } | null)?.view || "resources",
@@ -101,12 +105,12 @@ export function HelpPage() {
 
   useEffect(() => {
     if (view === "status") void loadStatus();
-    else if (view !== "guided" && view !== "contact") void loadContent();
+    else if (view !== "guided" && view !== "contact" && view !== "discover") void loadContent();
   }, [loadContent, loadStatus, view]);
 
   useForegroundRefresh(async () => {
     if (view === "status") await loadStatus(true);
-    else if (view !== "guided" && view !== "contact") await loadContent(true);
+    else if (view !== "guided" && view !== "contact" && view !== "discover") await loadContent(true);
   });
 
   async function openArticle(slug: string) {
@@ -160,6 +164,7 @@ export function HelpPage() {
         value={view}
         onChange={setView}
         options={[
+          { value: "discover", label: tourUi.discoverCheckStation },
           { value: "guided", label: locale === "ja" ? "ガイド付きヘルプ" : "Guided Help" },
           { value: "resources", label: t("help.resources") },
           { value: "faq", label: t("help.faqTitle") },
@@ -168,7 +173,12 @@ export function HelpPage() {
         ]}
       />
       <Alert>{error}</Alert>
-      {view === "guided" ? (
+      {view === "discover" ? (
+        <Card title={tourUi.discoverCheckStation} className="product-tour-discover">
+          <p>{tourUi.discoverLead}</p>
+          <Button onClick={() => openReplay("replay-help")}>{tourUi.discoverAction}</Button>
+        </Card>
+      ) : view === "guided" ? (
         <DesktopGuidedHelp />
       ) : view === "resources" ? (
         <Resources docs={docs} loading={loading} onOpen={openArticle} />

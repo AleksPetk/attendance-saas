@@ -12,7 +12,7 @@ const members: Step[] = [
   s(["Archive and restore", "アーカイブと復元"], ["Archive is on the list. Archived Members can be restored. Group-specific emails and PINs do not edit the reusable profile.", "一覧からアーカイブし、アーカイブ済みから復元できます。グループ用メール・PINは共通プロフィールとは別の設定です。"], "/people", ".members-status-switch", "members"),
 ];
 const groups = [
-  s(["Group types and capacity", "グループ種類と利用枠"], ["Usage follows your plan. Standard Groups manage participants directly; Structured Groups organize participants into Classes.", "利用枠はプランに従います。通常グループは参加者を直接管理し、構造化グループはクラス単位で管理します。"], "/groups", ".groups-usage"),
+  s(["Group types and capacity", "グループ種類と利用枠"], ["Usage follows your plan. Standard Groups manage participants directly; Structured Groups organize participants into Classes.", "利用枠はプランに従います。スタンダードグループは参加者を直接管理し、構造化グループはクラス単位で管理します。"], "/groups", ".groups-usage"),
   s(["Find or create a Group", "グループを探す・作成"], ["Use Active/Archived, search, type, and sort. Create Group follows existing permissions and plan limits.", "有効・アーカイブ、検索、種類、並び順で探せます。作成は既存の権限とプラン上限に従います。"], "/groups", ".groups-filter-card"),
   s(["Group cards", "グループカード"], ["Cards show Group ID, type, enabled actions, and participant counts. Open a card to manage the Group.", "カードにID・種類・有効アクション・参加者数が表示されます。開いて管理します。"], "/groups", ".groups-card-grid"),
   s(["Configuration", "設定"], ["Group Configuration owns name, attendance actions, email/PIN requirements, and notifications.", "名前・出席アクション・メール／PIN要件・通知はグループ設定で管理します。"], "/groups/$group", ".group-configuration", "configure", 2),
@@ -37,22 +37,22 @@ const email: Step[] = [
   s(["Forwarding and overrides", "転送先とグループ用メール"], ["Forwarding supports up to three addresses. Participants also support Group email overrides without changing the linked Member profile.", "転送先は最大3件です。参加者のグループ用メール変更は、紐づくメンバープロフィールに影響しません。"], "/groups/$group", ".group-configuration-columns", "configure", 2),
 ];
 const staff = [
-  s(["Workspace ID", "ワークスペースID"], ["Staff use this ID, username, and password to sign in. Copy ID shares the real identifier.", "スタッフはこのID・ユーザー名・パスワードでログインします。IDコピーで正しいIDを共有できます。"], "/staff", ".staff-workspace-id-card", "staff"),
-  s(["Admins and Staff", "管理者とスタッフ"], ["Usage comes from your plan. Accounts are grouped by role and active/inactive status. Create account keeps existing rules.", "利用枠はプランに従います。役割と有効・無効で分類され、作成は既存ルールに従います。"], "/staff", ".staff-controls-head", "staff"),
+  s(["Workspace ID", "ワークスペース ID"], ["Staff use this ID, username, and password to sign in. Copy ID shares the real identifier.", "スタッフはこのID・ユーザー名・パスワードでログインします。IDコピーで正しいIDを共有できます。"], "/staff", ".staff-workspace-id-card", "staff"),
+  s(["Admins and Staff", "管理者とスタッフ"], ["Usage comes from your plan. Accounts are grouped by role and active/inactive status. Create account keeps existing rules.", "利用枠はプランに従います。ロールと有効・無効で分類され、作成は既存ルールに従います。"], "/staff", ".staff-controls-head", "staff"),
   s(["Group access and status", "グループ権限と状態"], ["Group chips summarize Staff access. Existing actions edit, reset passwords, deactivate/reactivate, and separately delete permanently. This guide performs none of them.", "グループチップにスタッフ権限が表示されます。編集・パスワードリセット・無効化／再有効化・完全削除は既存の操作です。このガイドでは行いません。"], "/staff", ".staff-account-groups", "staff"),
 ];
 const account = [
-  s(["Email and recovery", "メールと復旧"], ["Login and backup email verification state is shared with Workspace. Keep recovery details current.", "ログインメール・予備メールの確認状態はWorkspaceと共通です。復旧情報を最新に保ちましょう。"], "/account", ".desktop-account-email-grid", "account"),
-  s(["Sign-in methods", "ログイン方法"], ["Password, Google, and Apple state comes from one account. Desktop OAuth availability is shown honestly; this guide does not connect or disconnect anything.", "パスワード・Google・Appleは同じアカウントの状態です。OAuth対応状況が表示され、このガイドでは連携を変更しません。"], "/account", ".desktop-account-email-grid + .card", "account"),
-  s(["Password and 2FA", "パスワードと二要素認証"], ["Manage passwords, authenticator setup, and recovery codes here. Enabled 2FA protects desktop password login too. The guide never changes security settings.", "パスワード・認証アプリ・復旧コードを管理します。二要素認証はデスクトップログインも保護します。このガイドでは変更しません。"], "/account", ".desktop-account-security-summary", "account"),
+  s(["Email and recovery", "メールと復旧"], ["Login and backup email verification state is shared with Workspace. Keep recovery details current.", "ログインメール・バックアップメールの確認状態はワークスペースと共通です。復旧情報を最新に保ちましょう。"], "/account", ".desktop-account-email-grid", "account"),
+  s(["Sign-in methods", "サインイン方法"], ["Password, Google, and Apple state comes from one account. Desktop OAuth availability is shown honestly; this guide does not connect or disconnect anything.", "パスワード・Google・Appleは同じアカウントの状態です。OAuth対応状況が表示され、このガイドでは連携を変更しません。"], "/account", ".desktop-account-email-grid + .card", "account"),
+  s(["Password and 2FA", "パスワードと二段階認証"], ["Manage passwords, authenticator setup, and recovery codes here. Enabled 2FA protects desktop password login too. The guide never changes security settings.", "パスワード・認証アプリ・復旧コードを管理します。二段階認証はデスクトップログインも保護します。このガイドでは変更しません。"], "/account", ".desktop-account-security-summary", "account"),
   s(["Account deletion", "アカウント削除"], ["Account deletion is permanent and uses the existing confirmation flow. It is different from archiving Groups or deactivating Staff.", "アカウント削除は完全削除で確認手順が必要です。グループのアーカイブ・スタッフの無効化とは異なります。"], "/account", ".page > .card:last-of-type", "account"),
   s(["Plan and limits", "プランと利用枠"], ["Plan shows current access, subscription status, offers, and real limits. Desktop purchase controls are disabled; the guide cannot change billing.", "プランには利用権・契約状態・オファー・利用枠が表示されます。購入操作は無効で、このガイドから課金を変更できません。"], "/plan", ".desktop-plan-preview", "plan"),
 ];
 const overview = [
-  s(["Your desktop Workspace", "デスクトップWorkspace"], ["The sidebar keeps workspace areas within reach. This tour highlights real UI without changing your data.", "サイドバーから各機能へアクセスできます。このガイドは実際の画面を案内し、データを変更しません。"], "/", ".sidebar nav"),
+  s(["Your desktop Workspace", "デスクトップワークスペース"], ["The sidebar keeps workspace areas within reach. This tour highlights real UI without changing your data.", "サイドバーから各機能へアクセスできます。このガイドは実際の画面を案内し、データを変更しません。"], "/", ".sidebar nav"),
   s(["Dashboard", "ダッシュボード"], ["Real counts and recent attendance give a quick workspace summary.", "実際の利用数と最近の出席から状況を確認できます。"], "/", ".stats"),
   members[0], groups[0], history[0], staff[0], account[0], account[4],
-  s(["Help", "ヘルプ"], ["Replay desktop guides here. Resources, FAQ, and live System status are also available.", "操作ガイドを再実行できます。資料・FAQ・システム状態も確認できます。"], "/help", ".page > .segmented"),
+  s(["Help", "ヘルプ"], ["Replay desktop guides here. Resources, FAQ, and live System status are also available.", "操作ガイドを再実行できます。資料・FAQ・ステータスも確認できます。"], "/help", ".page > .segmented"),
   s(["Refresh", "更新"], ["Reload current page data without restarting the app.", "再起動せず現在のページのデータを再取得します。"], "/", ".desktop-refresh-trigger"),
   s(["Language", "言語"], ["The globe opens a selector. Explicitly choose English or 日本語.", "地球アイコンでメニューを開き、Englishまたは日本語を選びます。"], "/", ".desktop-language-trigger"),
   s(["Announcements", "お知らせ"], ["The bell shows real announcements and unread state.", "ベルに実際のお知らせと未読状態が表示されます。"], "/", ".workspace-announcement-bell", "account"),
@@ -60,14 +60,14 @@ const overview = [
   groups[4], groups[5], kiosks[4], groups[3], history[2],
 ];
 export const guides: Guide[] = [
-  { id: "workspace-overview", title: ["Workspace Overview", "Workspaceの概要"], description: ["Meet the desktop workspace and how its parts fit together.", "デスクトップの各機能とつながりを確認します。"], minutes: 6, steps: overview },
+  { id: "workspace-overview", title: ["Workspace Overview", "ワークスペースの概要"], description: ["Meet the desktop workspace and how its parts fit together.", "デスクトップの各機能とつながりを確認します。"], minutes: 6, steps: overview },
   { id: "members", title: ["Members", "メンバー"], description: ["Profiles, photos, search, and archiving.", "プロフィール・写真・検索・アーカイブ。"], minutes: 2, steps: members },
   { id: "groups", title: ["Groups", "グループ"], description: ["Types, participants, configuration, and Kiosks.", "種類・参加者・設定・キオスク。"], minutes: 3, steps: [groups[0], groups[1], groups[2], groups[4], groups[5], groups[3]] },
   { id: "kiosks", title: ["Kiosks Overview", "キオスクの概要"], description: ["Settings, design, readiness, and safe launch.", "設定・デザイン・準備状態・安全な起動。"], minutes: 3, steps: kiosks },
   { id: "history", title: ["Attendance & History", "出席と履歴"], description: ["Activity, reports, filtering, and exports.", "アクティビティ・レポート・絞り込み・出力。"], minutes: 2, steps: history },
   { id: "email", title: ["Email & Notifications", "メールと通知"], description: ["Notification rules, senders, and email overrides.", "通知ルール・送信者・グループ用メール。"], minutes: 2, steps: email },
-  { id: "staff", title: ["Staff & Permissions", "スタッフと権限"], description: ["Workspace ID, roles, access, and account status.", "ID・役割・権限・アカウント状態。"], minutes: 2, steps: staff },
-  { id: "account", title: ["Account & Security", "アカウントとセキュリティ"], description: ["Recovery, sign-in methods, 2FA, and Plan.", "復旧・ログイン方法・二要素認証・プラン。"], minutes: 3, steps: account },
+  { id: "staff", title: ["Staff & Permissions", "スタッフと権限"], description: ["Workspace ID, roles, access, and account status.", "ID・ロール・権限・アカウント状態。"], minutes: 2, steps: staff },
+  { id: "account", title: ["Account & Security", "アカウントとセキュリティ"], description: ["Recovery, sign-in methods, 2FA, and Plan.", "復旧・サインイン方法・二段階認証・プラン。"], minutes: 3, steps: account },
 ];
 export function availableSteps(guide: Guide, session: WorkspaceSession | null | undefined) {
   const access = { members: canViewGlobalMembers(session), staff: canAccessStaffManagement(session, canManageStaffAccounts(session)), account: canManageOwnerAccount(session), plan: canViewBilling(session), configure: canManageWorkspace(session) };

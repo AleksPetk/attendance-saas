@@ -6,7 +6,12 @@
   "scripts": {
     "dev": "concurrently -k \"vite\" \"wait-on http://127.0.0.1:5174 && electron .\"",
     "build": "vite build",
-    "build:electron": "vite build && electron-builder --dir",
+    "build:electron": "node scripts/build-electron-variant.cjs direct",
+    "build:electron:direct": "node scripts/build-electron-variant.cjs direct",
+    "build:electron:mas": "node scripts/build-electron-variant.cjs mas",
+    "build:mac-apple-native": "node native/MacApple/build-native.cjs",
+    "mas:signing:check": "node scripts/resolve-mas-signing.cjs",
+    "mas:signing:verify": "node scripts/verify-mas-signing.cjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "echo 'desktop lint placeholder'",
     "test": "node --import tsx --test src/**/*.test.ts && node --test electron/**/*.test.cjs"
@@ -32,31 +37,5 @@
     "typescript": "^5.8.3",
     "vite": "^6.2.0",
     "wait-on": "^8.0.2"
-  },
-  "build": {
-    "appId": "app.checkstation.desktop",
-    "productName": "CheckStation",
-    "electronVersion": "44.2.0",
-    "directories": {
-      "output": "release",
-      "buildResources": "assets"
-    },
-    "files": [
-      "dist/**/*",
-      "electron/**/*",
-      "assets/app-icon.png"
-    ],
-    "mac": {
-      "icon": "app-icon.png",
-      "target": [
-        "dir"
-      ],
-      "category": "public.app-category.business"
-    },
-    "win": {
-      "target": [
-        "dir"
-      ]
-    }
   }
 }

@@ -178,6 +178,24 @@ export class AuthController {
   }
 
   /**
+   * Complete DIRECT desktop Apple (web) OAuth after the system browser returns
+   * a one-time handoff token. Establishes the Electron Django session via
+   * /auth/desktop-handoff/ (same cookie jar path as password login).
+   */
+  async completeDesktopAuthHandoff(payload: { handoff: string }): Promise<OwnerLoginResult> {
+    try {
+      await this.api.post(endpoints.desktopAuthHandoff(), {
+        handoff: payload.handoff,
+      });
+    } catch (error) {
+      const mapped = this.mapOwnerFirstFactorError(error);
+      if (mapped) return mapped;
+      throw error;
+    }
+    return this.finishOwnerFirstFactor();
+  }
+
+  /**
    * Re-verify the linked Apple identity for a sensitive action (e.g. account deletion).
    * Records `_owner_oauth_reauth` on the existing authenticated session — does not
    * replace login / finishOwnerFirstFactor.

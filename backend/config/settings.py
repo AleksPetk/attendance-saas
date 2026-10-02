@@ -119,6 +119,7 @@ env = environ.Env(
     GOOGLE_OAUTH_STATE_TTL_SECONDS=(int, 600),
     GOOGLE_OAUTH_HTTP_TIMEOUT_SECONDS=(int, 15),
     GOOGLE_NATIVE_IOS_CLIENT_ID=(str, ""),
+    GOOGLE_NATIVE_DESKTOP_CLIENT_ID=(str, ""),
     APPLE_OAUTH_CLIENT_ID=(str, ""),
     APPLE_OAUTH_TEAM_ID=(str, ""),
     APPLE_OAUTH_KEY_ID=(str, ""),
@@ -445,9 +446,12 @@ GOOGLE_OAUTH_REDIRECT_URI = env("GOOGLE_OAUTH_REDIRECT_URI", default="")
 GOOGLE_OAUTH_STATE_TTL_SECONDS = env("GOOGLE_OAUTH_STATE_TTL_SECONDS")
 GOOGLE_OAUTH_HTTP_TIMEOUT_SECONDS = env("GOOGLE_OAUTH_HTTP_TIMEOUT_SECONDS")
 # Native iOS Google Sign-In app identity (iOS OAuth client ID).
-# ID-token audience for native is GOOGLE_OAUTH_CLIENT_ID (webClientId / serverClientID).
+# ID-token audience for iOS native is GOOGLE_OAUTH_CLIENT_ID (webClientId / serverClientID).
 # Not a secret.
 GOOGLE_NATIVE_IOS_CLIENT_ID = env("GOOGLE_NATIVE_IOS_CLIENT_ID", default="")
+# Desktop (Electron) Google OAuth client ID (Google Cloud type: Desktop).
+# ID-token audience for desktop PKCE native completion. Not a secret.
+GOOGLE_NATIVE_DESKTOP_CLIENT_ID = env("GOOGLE_NATIVE_DESKTOP_CLIENT_ID", default="")
 
 # Owner Apple OAuth (optional). Password/Google login continue when unset.
 APPLE_OAUTH_CLIENT_ID = env("APPLE_OAUTH_CLIENT_ID", default="")

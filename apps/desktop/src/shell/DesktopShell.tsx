@@ -1,8 +1,9 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { canAccessStaffManagement, canManageOwnerAccount, canManageStaffAccounts, canViewBilling, canViewGlobalMembers, shouldShowLockedStaffNav, workspacePlanKey } from "@checkstation/domain";
 import { Brand, BrandMark, Badge } from "../components/ui";
 import { DesktopAnnouncementBell } from "../components/DesktopAnnouncementBell";
+import { DesktopLanguageMenu } from "../components/DesktopLanguageMenu";
 import { useApp } from "../lib/AppProvider";
 import { desktopRefresh } from "../lib/foregroundRefresh";
 
@@ -10,7 +11,8 @@ export function DesktopShell() {
   const { t, auth, authState, locale, setLocale } = useApp(); const location = useLocation(); const navigate = useNavigate(); const session = authState.session;
   const [refreshing, setRefreshing] = useState(false);
   const identity = String(session?.workspace?.identity || session?.actor?.email || "");
-  const role = titleCase(String(session?.role || session?.workspace?.role || ""));
+  const roleValue = String(session?.role || session?.workspace?.role || "").toLowerCase();
+  const role = ["owner", "admin", "staff"].includes(roleValue) ? t(`workspace.role.${roleValue}`) : titleCase(roleValue);
   const plan = String(session?.workspace?.entitlements?.plan?.display_name || titleCase(workspacePlanKey(session)));
   const roleCanManageStaff = canManageStaffAccounts(session);
   const staffUnlocked = canAccessStaffManagement(session, roleCanManageStaff);
@@ -31,39 +33,11 @@ export function DesktopShell() {
     setRefreshing(true);
     void desktopRefresh.refresh().finally(() => setRefreshing(false));
   }
-  return <div className="app-shell"><aside className="sidebar"><Brand showMark={false} /><nav className="sidebar-nav">{items.filter((item) => item.show).map((item) => item.locked ? <button aria-disabled="true" className="nav-link is-plan-locked" key={item.to} title={t("nav.staffLockedHint")} type="button"><NavIcon name={item.icon} />{item.label}<span aria-label={t("common.upgradeRequired")} className="nav-lock-badge">{t("common.locked")}</span></button> : <NavLink className={({ isActive }) => `nav-link${isActive ? " is-active" : ""}`} end={item.to === "/"} key={item.to} to={item.to}><NavIcon name={item.icon} />{item.label}</NavLink>)}</nav><div className="sidebar-footer"><div className="sidebar-account-info"><span className="sidebar-account-email">{identity}</span><div className="sidebar-account-role"><span>{role}</span><span aria-hidden="true">·</span><Badge tone="blue">{plan}</Badge></div></div><button className="sidebar-signout" onClick={() => void auth.logout()} type="button">Sign out</button></div></aside><main className="desktop-main"><header className="topbar"><div className="topbar-copy"><span className="topbar-eyebrow">{t("app.name").toUpperCase()}</span><h1>{page?.label || t("app.name")}</h1></div><div className="topbar-actions"><button aria-label="Refresh" className={`desktop-refresh-trigger${refreshing ? " is-refreshing" : ""}`} disabled={refreshing} onClick={refreshCurrentPage} title="Refresh" type="button"><RefreshIcon /></button><DesktopLanguageMenu locale={locale} onSelect={setLocale} /><DesktopAnnouncementBell onViewStatus={() => navigate("/help", { state: { view: "status" } })} /><BrandMark className="topbar-brand-logo" decorative={false} /></div></header><Outlet /></main></div>;
+  return <div className="app-shell"><aside className="sidebar"><Brand showMark={false} subtitle={t("workspace.subtitle")} /><nav className="sidebar-nav">{items.filter((item) => item.show).map((item) => item.locked ? <button aria-disabled="true" className="nav-link is-plan-locked" key={item.to} title={t("nav.staffLockedHint")} type="button"><NavIcon name={item.icon} />{item.label}<span aria-label={t("common.upgradeRequired")} className="nav-lock-badge">{t("common.locked")}</span></button> : <NavLink className={({ isActive }) => `nav-link${isActive ? " is-active" : ""}`} end={item.to === "/"} key={item.to} to={item.to}><NavIcon name={item.icon} />{item.label}</NavLink>)}</nav><div className="sidebar-footer"><div className="sidebar-account-info"><span className="sidebar-account-email">{identity}</span><div className="sidebar-account-role"><span>{role}</span><span aria-hidden="true">·</span><Badge tone="blue">{plan}</Badge></div></div><button className="sidebar-signout" onClick={() => void auth.logout()} type="button">{t("common.signOut")}</button></div></aside><main className="desktop-main"><header className="topbar"><div className="topbar-copy"><span className="topbar-eyebrow">{t("app.name").toUpperCase()}</span><h1>{page?.label || t("app.name")}</h1></div><div className="topbar-actions"><button aria-label="Refresh" className={`desktop-refresh-trigger${refreshing ? " is-refreshing" : ""}`} disabled={refreshing} onClick={refreshCurrentPage} title="Refresh" type="button"><RefreshIcon /></button><DesktopLanguageMenu label={t("common.changeLanguage")} locale={locale} onSelect={setLocale} /><DesktopAnnouncementBell onViewStatus={() => navigate("/help", { state: { view: "status" } })} /><BrandMark className="topbar-brand-logo" decorative={false} /></div></header><Outlet /></main></div>;
 }
 
 function titleCase(value: string) {
   return value ? `${value.charAt(0).toUpperCase()}${value.slice(1).toLowerCase()}` : "";
-}
-
-function DesktopLanguageMenu({ locale, onSelect }: { locale: "en" | "ja"; onSelect: (locale: "en" | "ja") => void }) {
-  const [open, setOpen] = useState(false);
-  const menuId = useId();
-  const rootRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const closeOnOutsideClick = (event: PointerEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
-    };
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
-    };
-    window.addEventListener("pointerdown", closeOnOutsideClick);
-    window.addEventListener("keydown", closeOnEscape);
-    return () => {
-      window.removeEventListener("pointerdown", closeOnOutsideClick);
-      window.removeEventListener("keydown", closeOnEscape);
-    };
-  }, [open]);
-
-  return <div className="desktop-language-root" ref={rootRef}><button aria-controls={menuId} aria-expanded={open} aria-haspopup="menu" aria-label="Language" className="desktop-language-trigger" onClick={() => setOpen((current) => !current)} title="Language" type="button"><GlobeIcon /></button>{open ? <div aria-label="Language" className="desktop-language-menu" id={menuId} role="menu">{([ ["en", "English"], ["ja", "日本語"] ] as const).map(([code, label]) => { const active = locale === code; return <button aria-checked={active} className={`desktop-language-option${active ? " is-active" : ""}`} key={code} onClick={() => { onSelect(code); setOpen(false); }} role="menuitemradio" type="button"><span>{label}</span>{active ? <span aria-hidden="true" className="desktop-language-check">✓</span> : null}</button>; })}</div> : null}</div>;
-}
-
-function GlobeIcon() {
-  return <svg aria-hidden="true" fill="none" height="24" viewBox="0 0 24 24" width="24"><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18" /></svg>;
 }
 
 function RefreshIcon() {

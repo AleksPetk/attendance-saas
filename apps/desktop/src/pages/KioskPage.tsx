@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { useNavigate, useParams } from "react-router-dom";
-import { endpoints } from "@checkstation/api";
+import { endpoints, isMissingCredentialsError } from "@checkstation/api";
 import { normalizeKioskDesignDocument, type ActionType, type KioskDesignDocument } from "@checkstation/domain";
 // @ts-expect-error The Workspace runtime helper is authored in JavaScript and is shared unchanged here.
 import { playConfirmationTone, primeConfirmationAudio, shouldRunConfirmationEffects } from "../../../../frontend/src/kiosk/confirmationEffects.js";
@@ -11,6 +11,21 @@ import { DesktopKioskRenderer, desktopKioskFlowTemplate, desktopKioskTemplateAcc
 import { Loading, formatError } from "../components/ui";
 import { useApp } from "../lib/AppProvider";
 import { beginDesktopKioskExitGuard, isDesktopKioskExitGuardActive } from "../lib/kioskExitGuard";
+import {
+  clearAllKioskExitTokens,
+  clearKioskExitToken,
+  loadKioskExitTokenPersistent,
+  saveKioskExitToken,
+} from "../lib/kioskExitCredential";
+import {
+  KIOSK_FOREGROUND_MIN_ELAPSED_MS,
+  KIOSK_SOFT_REFRESH_MS,
+  isKioskRefreshIdle,
+  resolveStructuredClassAfterRefresh,
+  shouldRefreshOnForeground,
+  shouldRunPeriodicRefresh,
+} from "../lib/kioskLiveRefresh";
+import { clearDesktopKioskActive, setDesktopKioskActive, markDesktopKioskSessionExpired, clearDesktopKioskSessionExpired, isDesktopKioskSessionExpired } from "../lib/kioskSessionLock";
 import { useForegroundRefresh } from "../lib/useForegroundRefresh";
 import { kioskCardHelperKey, type KioskHelperStep } from "../lib/kioskCardHelper";
 import { initials, kioskParticipantDisplayName } from "../lib/kioskInitials";
@@ -42,7 +57,7 @@ type KioskClass = { id: number; name: string; participant_count: number };
 
 export function KioskPage() {
   const { groupId = "" } = useParams();
-  const { api, auth, locale, t } = useApp();
+  const { api, auth, authState, locale, t } = useApp();
   const navigate = useNavigate();
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const confirmationSequence = useRef(0);
@@ -50,6 +65,24 @@ export function KioskPage() {
   const entered = useRef(false);
   const exiting = useRef(false);
   const requestSequence = useRef(0);
+  const refreshInFlight = useRef(false);
+  const pendingSoftRefresh = useRef(false);
+  const lastRefreshAtRef = useRef<number | null>(null);
+  const wasBackgroundedRef = useRef(false);
+  const selectedClassRef = useRef<KioskClass | null>(null);
+  const performLock = useRef(false);
+  const idleSnapshotRef = useRef({
+    busy: false,
+    performLocked: false,
+    hasParticipant: false,
+    hasPendingPerson: false,
+    hasSuccessMessage: false,
+    showExit: false,
+    classPinBusy: false,
+    sessionExpired: false,
+    refreshInFlight: false,
+  });
+
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<Record<string, any>>({});
   const [identifier, setIdentifier] = useState("");
@@ -68,47 +101,237 @@ export function KioskPage() {
   const [classes, setClasses] = useState<KioskClass[]>([]);
   const [selectedClass, setSelectedClass] = useState<KioskClass | null>(null);
   const [classPin, setClassPin] = useState("");
+  const [classPinBusy, setClassPinBusy] = useState(false);
   const [confirmationEffect, setConfirmationEffect] = useState<ConfirmationEffect | null>(null);
+  const [sessionExpired, setSessionExpired] = useState(() => isDesktopKioskSessionExpired());
 
-  const load = useCallback(async (showLoading = false) => {
-    if (!groupId) return;
-    // Exit in progress: never POST enter (would re-lock the server session).
-    if (exiting.current || isDesktopKioskExitGuardActive()) {
-      if (showLoading) setLoading(false);
-      return;
-    }
-    const sequence = ++requestSequence.current;
-    if (showLoading) setLoading(true);
-    try {
-      // Browser parity: only enter when this session is not already kiosk-locked.
-      // After unlock, kiosk_locked is false — the exit guard / exiting ref block re-enter.
-      const alreadyLocked = Boolean(auth.getState().session?.kiosk_locked);
-      if (!entered.current && !alreadyLocked) {
-        await api.post(endpoints.kiosk(groupId), {});
-        entered.current = true;
-      } else if (!entered.current && alreadyLocked) {
-        entered.current = true;
-      }
-      const response = await api.get<Record<string, any>>(endpoints.kiosk(groupId));
-      if (sequence !== requestSequence.current) return;
-      setData(response);
-      setClasses(response.classes || []);
-      setMessage("");
-    } catch (caught) {
-      if (sequence === requestSequence.current) setMessage(formatError(caught, t("common.error")));
-    } finally {
-      if (sequence === requestSequence.current) setLoading(false);
-    }
-  }, [api, auth, groupId, t]);
+  selectedClassRef.current = selectedClass;
+  idleSnapshotRef.current = {
+    busy,
+    performLocked: performLock.current,
+    hasParticipant: Boolean(participant),
+    hasPendingPerson: Boolean(pending),
+    hasSuccessMessage: Boolean(success),
+    showExit: exitOpen,
+    classPinBusy,
+    sessionExpired,
+    refreshInFlight: refreshInFlight.current,
+  };
+
+  const markSessionExpired = useCallback(() => {
+    markDesktopKioskSessionExpired();
+    setSessionExpired(true);
+    setBusy(false);
+    performLock.current = false;
+    setPending(null);
+    setParticipant(null);
+    setSuccess("");
+    setPendingAction(null);
+    setMessage("");
+    setExitError("");
+  }, []);
 
   useEffect(() => {
-    void load(true);
+    if (authState.status === "anonymous" && groupId) {
+      markSessionExpired();
+    }
+  }, [authState.status, groupId, markSessionExpired]);
+
+  const applyKioskPayload = useCallback(async (response: Record<string, any>) => {
+    const saved = (response.kiosk_settings || response.kiosk || {}) as Partial<KioskConfig>;
+    const structured = Boolean(saved.structured);
+    const nextClasses = (response.classes || []) as KioskClass[];
+    const classResolution = resolveStructuredClassAfterRefresh(selectedClassRef.current, nextClasses);
+
+    if (structured) {
+      setClasses(nextClasses);
+      setSelectedClass(classResolution.selected);
+      if (classResolution.clearPeople) {
+        setData((old) => ({ ...response, people: [] }));
+      } else if (classResolution.selected) {
+        // Preserve class screen: apply top-level payload without top-level people,
+        // then reload the selected class roster.
+        setData((old) => ({ ...response, people: old.people || [] }));
+        try {
+          const classPeople = await api.get<{ people: Person[] }>(
+            `${endpoints.kiosk(groupId)}classes/${classResolution.selected.id}/people/`,
+          );
+          setData((old) => ({ ...old, people: classPeople.people || [] }));
+        } catch (caught) {
+          if (isMissingCredentialsError(caught)) {
+            markSessionExpired();
+            return;
+          }
+          // Keep previous class people on soft failure.
+        }
+      } else {
+        setData({ ...response, people: [] });
+      }
+    } else {
+      setClasses(nextClasses);
+      setData(response);
+    }
+  }, [api, groupId, markSessionExpired]);
+
+  const refreshKiosk = useCallback(async (opts?: { soft?: boolean; force?: boolean; showLoading?: boolean }) => {
+    if (!groupId) return;
+    if (exiting.current || isDesktopKioskExitGuardActive()) {
+      if (opts?.showLoading) setLoading(false);
+      return;
+    }
+    const soft = Boolean(opts?.soft);
+    const force = Boolean(opts?.force);
+    if (sessionExpired && soft) return;
+
+    if (refreshInFlight.current) {
+      if (soft) pendingSoftRefresh.current = true;
+      return;
+    }
+    if (!force && soft && !isKioskRefreshIdle({
+      ...idleSnapshotRef.current,
+      performLocked: performLock.current,
+      refreshInFlight: refreshInFlight.current,
+    })) {
+      pendingSoftRefresh.current = true;
+      return;
+    }
+
+    const sequence = ++requestSequence.current;
+    refreshInFlight.current = true;
+    if (opts?.showLoading) setLoading(true);
+
+    try {
+      const alreadyLocked = Boolean(auth.getState().session?.kiosk_locked);
+      if (!soft && !entered.current && !alreadyLocked) {
+        const start = await api.post<{ kiosk_exit_token?: string }>(endpoints.kiosk(groupId), {});
+        const issued = String(start?.kiosk_exit_token || "").trim();
+        if (issued) {
+          await saveKioskExitToken(groupId, issued, {
+            workspaceKey: auth.getState().session?.workspace?.id ?? "unknown",
+          });
+        }
+        setDesktopKioskActive(groupId);
+        entered.current = true;
+      } else if (!entered.current) {
+        entered.current = true;
+        setDesktopKioskActive(groupId);
+      }
+
+      const response = await api.get<Record<string, any>>(endpoints.kiosk(groupId));
+      if (sequence !== requestSequence.current) return;
+      await applyKioskPayload(response);
+      lastRefreshAtRef.current = Date.now();
+      if (!soft) setMessage("");
+    } catch (caught) {
+      if (isMissingCredentialsError(caught)) {
+        markSessionExpired();
+        if (!soft && sequence === requestSequence.current) setLoading(false);
+        return;
+      }
+      if (!soft && sequence === requestSequence.current) {
+        setMessage(formatError(caught, t("common.error")));
+      }
+      // Soft refresh failures keep last successful kiosk content.
+    } finally {
+      refreshInFlight.current = false;
+      if (sequence === requestSequence.current && !soft) setLoading(false);
+      if (
+        pendingSoftRefresh.current
+        && isKioskRefreshIdle({
+          ...idleSnapshotRef.current,
+          performLocked: performLock.current,
+          refreshInFlight: false,
+          sessionExpired,
+        })
+        && !sessionExpired
+      ) {
+        pendingSoftRefresh.current = false;
+        void refreshKiosk({ soft: true });
+      }
+    }
+  }, [api, applyKioskPayload, auth, groupId, markSessionExpired, sessionExpired, t]);
+
+  const refreshKioskRef = useRef(refreshKiosk);
+  refreshKioskRef.current = refreshKiosk;
+
+  useEffect(() => {
+    if (isDesktopKioskSessionExpired()) {
+      setSessionExpired(true);
+      setLoading(false);
+      if (groupId) setDesktopKioskActive(groupId);
+      return () => {
+        requestSequence.current += 1;
+        if (timer.current) clearTimeout(timer.current);
+      };
+    }
+    void refreshKioskRef.current({ soft: false, force: true, showLoading: true });
     return () => {
       requestSequence.current += 1;
       if (timer.current) clearTimeout(timer.current);
     };
-  }, [load]);
-  useForegroundRefresh(() => load());
+  }, [groupId]);
+
+  useForegroundRefresh(async () => {
+    if (document.visibilityState === "hidden") {
+      wasBackgroundedRef.current = true;
+      return;
+    }
+    const should = shouldRefreshOnForeground({
+      wasBackgrounded: wasBackgroundedRef.current,
+      now: Date.now(),
+      lastRefreshAt: lastRefreshAtRef.current,
+      minElapsedMs: KIOSK_FOREGROUND_MIN_ELAPSED_MS,
+    });
+    wasBackgroundedRef.current = false;
+    if (should) await refreshKioskRef.current({ soft: true });
+  });
+
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") wasBackgroundedRef.current = true;
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, []);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (!shouldRunPeriodicRefresh({
+        now: Date.now(),
+        lastRefreshAt: lastRefreshAtRef.current,
+        appActive: document.visibilityState !== "hidden",
+      })) {
+        return;
+      }
+      void refreshKioskRef.current({ soft: true });
+    }, KIOSK_SOFT_REFRESH_MS);
+    return () => clearInterval(interval);
+  }, [groupId]);
+
+  useEffect(() => {
+    if (
+      pendingSoftRefresh.current
+      && isKioskRefreshIdle({
+        ...idleSnapshotRef.current,
+        performLocked: performLock.current,
+        refreshInFlight: refreshInFlight.current,
+      })
+      && !sessionExpired
+      && !refreshInFlight.current
+    ) {
+      pendingSoftRefresh.current = false;
+      void refreshKioskRef.current({ soft: true });
+    }
+  }, [
+    busy,
+    participant,
+    pending,
+    success,
+    exitOpen,
+    classPinBusy,
+    sessionExpired,
+  ]);
+
 
   useEffect(() => {
     if (!shouldRunConfirmationEffects({
@@ -136,6 +359,7 @@ export function KioskPage() {
   const people = (data.people || []) as Person[];
   const flowFamily = desktopKioskFlowTemplate(design, config.kiosk_mode);
   const flowAccent = desktopKioskTemplateAccent(flowFamily);
+  const mediaNamespace = String(authState.session?.workspace?.id || auth.getState().session?.workspace?.id || "unknown");
 
   function identity(person: Person) {
     return person.participant_kind === "member"
@@ -144,6 +368,7 @@ export function KioskPage() {
   }
 
   async function selectPerson(person: Person, suppliedPin?: string) {
+    if (sessionExpired) return;
     if ((person.requires_pin || config.use_pin) && suppliedPin === undefined) {
       setPending(person);
       return;
@@ -159,6 +384,10 @@ export function KioskPage() {
       setActions(response.allowed_actions || []);
       setPending(null);
     } catch (caught) {
+      if (isMissingCredentialsError(caught)) {
+        markSessionExpired();
+        return;
+      }
       setMessage(formatError(caught, t("common.error")));
     } finally {
       setBusy(false);
@@ -166,6 +395,7 @@ export function KioskPage() {
   }
 
   async function identify() {
+    if (sessionExpired) return;
     setBusy(true);
     setMessage("");
     try {
@@ -178,6 +408,10 @@ export function KioskPage() {
       setParticipant(response.participant);
       setActions(response.allowed_actions || []);
     } catch (caught) {
+      if (isMissingCredentialsError(caught)) {
+        markSessionExpired();
+        return;
+      }
       setMessage(formatError(caught, t("common.error")));
     } finally {
       setBusy(false);
@@ -185,8 +419,9 @@ export function KioskPage() {
   }
 
   async function perform(action: ActionType) {
-    if (!participant) return;
+    if (sessionExpired || !participant || performLock.current) return;
     primeConfirmationAudio({ enabled: config.confirmation.sound_enabled !== false });
+    performLock.current = true;
     setBusy(true);
     setPendingAction(action);
     setMessage("");
@@ -207,14 +442,20 @@ export function KioskPage() {
       const delay = response.confirmation?.return_delay_seconds;
       if (typeof delay === "number") timer.current = setTimeout(reset, Math.max(0, delay) * 1000);
     } catch (caught) {
+      if (isMissingCredentialsError(caught)) {
+        markSessionExpired();
+        return;
+      }
       setMessage(formatError(caught, t("common.error")));
     } finally {
+      performLock.current = false;
       setPendingAction(null);
       setBusy(false);
     }
   }
 
   async function openClass(section: KioskClass) {
+    if (sessionExpired) return;
     setSelectedClass(section);
     setMessage("");
     if (!config.require_class_pin) await loadClass(section);
@@ -225,12 +466,17 @@ export function KioskPage() {
       const result = await api.get<{ people: Person[] }>(`${endpoints.kiosk(groupId)}classes/${section.id}/people/`);
       setData((old) => ({ ...old, people: result.people || [] }));
     } catch (caught) {
+      if (isMissingCredentialsError(caught)) {
+        markSessionExpired();
+        return;
+      }
       setMessage(formatError(caught, t("common.error")));
     }
   }
 
   async function verifyClass() {
-    if (!selectedClass) return;
+    if (sessionExpired || !selectedClass) return;
+    setClassPinBusy(true);
     setBusy(true);
     setMessage("");
     try {
@@ -238,34 +484,70 @@ export function KioskPage() {
       await loadClass(selectedClass);
       setClassPin("");
     } catch (caught) {
+      if (isMissingCredentialsError(caught)) {
+        markSessionExpired();
+        return;
+      }
       setMessage(formatError(caught, t("common.error")));
     } finally {
+      setClassPinBusy(false);
       setBusy(false);
     }
   }
 
   async function exit() {
+    const recoveringFromExpiry = sessionExpired;
     setBusy(true);
     setExitError("");
     try {
+      const workspaceKey =
+        authState.session?.workspace?.id
+        ?? auth.getState().session?.workspace?.id
+        ?? undefined;
+      const scopedToken = await loadKioskExitTokenPersistent(groupId, { workspaceKey });
       const response = await api.post<{
         kiosk_locked?: boolean;
         kiosk_group_id?: number | null;
         kiosk_available?: boolean;
-      }>(endpoints.kioskExit(), { exit_code: exitCode });
-      // Stop any in-flight / future load() from POSTing enter again.
+      }>(endpoints.kioskExit(), {
+        group_id: Number(groupId),
+        exit_code: exitCode.trim(),
+        ...(scopedToken ? { kiosk_exit_token: scopedToken } : {}),
+      });
+      clearKioskExitToken(groupId, { workspaceKey });
+      clearDesktopKioskActive(groupId);
+      clearDesktopKioskSessionExpired();
       exiting.current = true;
       requestSequence.current += 1;
       beginDesktopKioskExitGuard();
+      setSessionExpired(false);
+      setExitOpen(false);
+      setExitCode("");
+
+      if (recoveringFromExpiry) {
+        clearAllKioskExitTokens();
+        flushSync(() => {
+          // Auth is already anonymous; keep listeners consistent.
+        });
+        navigate("/sign-in", { replace: true });
+        return;
+      }
+
       flushSync(() => {
         auth.applyKioskUnlock(response);
       });
       navigate("/", { replace: true });
-      // Refresh after leaving /kiosk so a stale locked snapshot cannot bounce us back.
       void auth.refreshWorkspace().catch(() => {});
     } catch (caught) {
       exiting.current = false;
-      setExitError(formatError(caught, t("common.error")));
+      if (isMissingCredentialsError(caught) && recoveringFromExpiry) {
+        setExitError(
+          t("kiosk.sessionExpired.exitBlocked")
+          || "Session expired. Exit PIN cannot be verified until an administrator signs in again on this device.",
+        );
+      } else {
+        setExitError(formatError(caught, t("common.error")));
+      }
     } finally {
       setBusy(false);
     }
@@ -287,16 +569,23 @@ export function KioskPage() {
 
   const operationalBody = (
     <div className={`kiosk-body${config.kiosk_mode === "input" && !config.structured ? " kiosk-body-input" : ""}`}>
-      {config.welcome_text && !participant && !success ? <p className="kiosk-welcome">{config.welcome_text}</p> : null}
+      {sessionExpired && !exitOpen ? (
+        <div className="kiosk-session-expired" role="alert">
+          <h2 className="kiosk-session-expired-title">{t("kiosk.sessionExpired.title") || "Session expired"}</h2>
+          <p className="kiosk-session-expired-body">{t("kiosk.sessionExpired.body") || "An administrator needs to sign in again."}</p>
+          <button type="button" className="btn-primary kiosk-submit" onClick={() => setExitOpen(true)}>{t("kiosk.exit")}</button>
+        </div>
+      ) : null}
+      {config.welcome_text && !participant && !success && !sessionExpired ? <p className="kiosk-welcome">{config.welcome_text}</p> : null}
       {message ? <div className="kiosk-inline-error" role="alert"><strong>{message}</strong></div> : null}
-      {success ? (
+      {sessionExpired ? null : success ? (
         <DesktopKioskConfirmation family={flowFamily} message={success} accent={flowAccent} />
       ) : participant && pendingAction ? (
         <DesktopKioskProcessing family={flowFamily} name={kioskParticipantDisplayName(participant.name, t("kiosk.participantFallback"))} accent={flowAccent} />
       ) : participant ? (
         <div className="kiosk-flow kiosk-flow--action">
           <div className="kiosk-participant-summary">
-            <ParticipantAvatar person={participant} compact />
+            <ParticipantAvatar person={participant} compact cacheNamespace={mediaNamespace} />
             <div className="kiosk-participant-summary-text"><strong className="kiosk-participant-summary-name">{kioskParticipantDisplayName(participant.name, t("kiosk.participantFallback"))}</strong></div>
           </div>
           <div className="kiosk-actions">
@@ -306,7 +595,6 @@ export function KioskPage() {
         </div>
       ) : config.structured && !selectedClass ? (
         classes.length ? <div className="kiosk-people-grid">{classes.map((section) => {
-          // Browser passes section.name through; empty name omits the title (not participantFallback).
           const className = section.name == null || section.name === "" ? "" : String(section.name);
           return (
           <button type="button" className="kiosk-person-card" key={section.id} onClick={() => void openClass(section)}>
@@ -329,7 +617,7 @@ export function KioskPage() {
         <>
           <div className="kiosk-people-grid">{people.map((person) => (
             <button type="button" className="kiosk-person-card" key={`${person.participant_kind}-${person.membership_id || person.group_only_participant_id}`} onClick={() => void selectPerson(person)}>
-              <ParticipantAvatar person={person} />
+              <ParticipantAvatar person={person} cacheNamespace={mediaNamespace} />
               <span className="kiosk-person-content">
                 {config.card_display.show_name ? <strong className="kiosk-person-name">{kioskParticipantDisplayName(person.name, t("kiosk.participantFallback"))}</strong> : null}
                 {config.card_display.show_participant_code && person.participant_code ? <span className="kiosk-person-code kiosk-person-sub">{person.participant_code}</span> : null}
@@ -351,35 +639,40 @@ export function KioskPage() {
     </div>
   );
 
-  const helperStep: KioskHelperStep = success
-    ? "success"
-    : pendingAction
-      ? "processing"
-      : pending
-        ? "pin"
-        : participant
-          ? "confirm"
-          : config.structured && !selectedClass
-            ? "classes"
-            : config.structured && config.require_class_pin && !people.length
-              ? "class_pin"
-              : "start";
+  const helperStep: KioskHelperStep = sessionExpired
+    ? "start"
+    : success
+      ? "success"
+      : pendingAction
+        ? "processing"
+        : pending
+          ? "pin"
+          : participant
+            ? "confirm"
+            : config.structured && !selectedClass
+              ? "classes"
+              : config.structured && config.require_class_pin && !people.length
+                ? "class_pin"
+                : "start";
   const helperKey = kioskCardHelperKey({ mode: config.kiosk_mode, structured: config.structured, step: helperStep, participantCount: people.length });
   const helperText = helperKey ? t(helperKey) : "";
+  const exitHint = sessionExpired
+    ? (t("kiosk.sessionExpired.exitHint") || "Enter the kiosk exit code. Workspace access stays locked until this code is verified.")
+    : (locale === "ja" ? "このグループのキオスク終了コードを入力して、このアプリのロックを解除してください。" : "Enter this Group's kiosk exit code to unlock this app.");
 
   return <>
-    <DesktopKioskRenderer design={design} kioskMode={config.kiosk_mode} helperText={helperText} exitLabel={t("kiosk.exit")} onExit={() => setExitOpen(true)}>
+    <DesktopKioskRenderer design={design} kioskMode={config.kiosk_mode} helperText={helperText} exitLabel={t("kiosk.exit")} onExit={() => setExitOpen(true)} cacheNamespace={mediaNamespace}>
       {operationalBody}
     </DesktopKioskRenderer>
-    {pending ? <DesktopKioskPinDialog title={kioskParticipantDisplayName(pending.name, t("kiosk.participantFallback"))} label={t("kiosk.pin")} code={pin} error={message} busy={busy} cancelLabel={t("common.cancel")} confirmLabel={t("kiosk.verify")} onCodeChange={setPin} onCancel={() => { setPending(null); setPin(""); setMessage(""); }} onConfirm={() => void selectPerson(pending, pin)} /> : null}
-    {exitOpen ? <DesktopKioskExitDialog code={exitCode} error={exitError} busy={busy} onCodeChange={setExitCode} onCancel={() => { setExitOpen(false); setExitCode(""); setExitError(""); }} onConfirm={() => void exit()} labels={{ title: t("kiosk.exit"), hint: locale === "ja" ? "このグループのキオスク終了コードを入力して、このアプリのロックを解除してください。" : "Enter this Group's kiosk exit code to unlock this app.", code: t("kiosk.exitCode"), show: t("auth.showPassword"), hide: t("auth.hidePassword"), cancel: t("common.cancel"), exit: t("kiosk.exit"), verifying: t("common.loading") }} /> : null}
+    {pending && !sessionExpired ? <DesktopKioskPinDialog title={kioskParticipantDisplayName(pending.name, t("kiosk.participantFallback"))} label={t("kiosk.pin")} code={pin} error={message} busy={busy} cancelLabel={t("common.cancel")} confirmLabel={t("kiosk.verify")} onCodeChange={setPin} onCancel={() => { setPending(null); setPin(""); setMessage(""); }} onConfirm={() => void selectPerson(pending, pin)} /> : null}
+    {exitOpen ? <DesktopKioskExitDialog code={exitCode} error={exitError} busy={busy} onCodeChange={setExitCode} onCancel={() => { setExitOpen(false); setExitCode(""); setExitError(""); }} onConfirm={() => void exit()} labels={{ title: t("kiosk.exit"), hint: exitHint, code: t("kiosk.exitCode"), show: t("auth.showPassword"), hide: t("auth.hidePassword"), cancel: t("common.cancel"), exit: t("kiosk.exit"), verifying: t("common.loading") }} /> : null}
   </>;
 }
 
-function ParticipantAvatar({ person, compact = false }: { person: Person; compact?: boolean }) {
+function ParticipantAvatar({ person, compact = false, cacheNamespace }: { person: Person; compact?: boolean; cacheNamespace?: string }) {
   return <span className={`kiosk-person-avatar${compact ? " kiosk-person-avatar--compact" : ""}${person.photo_url ? " kiosk-person-avatar--photo" : " kiosk-person-avatar--fallback"}`} aria-hidden="true">
     <span className="kiosk-person-initials">{initials(person.name)}</span>
-    {person.photo_url ? <AuthenticatedImage alt="" src={person.photo_url} /> : null}
+    {person.photo_url ? <AuthenticatedImage alt="" src={person.photo_url} cacheNamespace={cacheNamespace} /> : null}
   </span>;
 }
 

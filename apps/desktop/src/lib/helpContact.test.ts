@@ -32,7 +32,7 @@ test("Contact tab appears to the right of System status", () => {
 });
 
 test("existing Help tabs remain wired", () => {
-  for (const view of ["guided", "resources", "faq", "status", "contact"]) {
+  for (const view of ["discover", "guided", "resources", "faq", "status", "contact"]) {
     assert.match(helpPage, new RegExp(`value: "${view}"`));
   }
   assert.match(helpPage, /DesktopGuidedHelp/);

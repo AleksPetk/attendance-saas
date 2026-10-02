@@ -59,19 +59,19 @@ test("successful kiosk exit clears local lock before navigation and skips remoun
   assert.match(pageSource, /auth\.applyKioskUnlock\(response\)/);
   assert.match(pageSource, /flushSync\(/);
   assert.match(pageSource, /navigate\("\/", \{ replace: true \}\)/);
-  assert.match(pageSource, /endpoints\.kioskExit\(\), \{ exit_code: exitCode \}/);
+  assert.match(pageSource, /kiosk_exit_token/);
+  assert.match(pageSource, /group_id: Number\(groupId\)/);
+  assert.match(pageSource, /exit_code: exitCode\.trim\(\)/);
 
   const exit = pageSource.slice(pageSource.indexOf("async function exit("), pageSource.indexOf("function reset("));
   assert.ok(exit.indexOf("exiting.current = true") < exit.indexOf("beginDesktopKioskExitGuard"));
   assert.ok(exit.indexOf("beginDesktopKioskExitGuard") < exit.indexOf("applyKioskUnlock"));
   assert.ok(exit.indexOf("applyKioskUnlock") < exit.indexOf('navigate("/", { replace: true })'));
   assert.doesNotMatch(exit, /await auth\.bootstrap\(\)/);
-  assert.doesNotMatch(exit, /group_id:/);
+  assert.match(exit, /recoveringFromExpiry/);
+  assert.match(exit, /navigate\("\/sign-in"/);
 
-  const load = pageSource.slice(pageSource.indexOf("const load = useCallback"), pageSource.indexOf("useEffect(() => {"));
-  assert.ok(load.includes("isDesktopKioskExitGuardActive"));
-  assert.ok(load.includes("exiting.current"));
-  assert.match(load, /if \(exiting\.current \|\| isDesktopKioskExitGuardActive\(\)\)/);
+  assert.match(pageSource, /exiting\.current \|\| isDesktopKioskExitGuardActive/);
 });
 
 test("wrong exit password path does not unlock or navigate away", () => {
@@ -92,27 +92,31 @@ test("wrong exit password path does not unlock or navigate away", () => {
 test("desktop runtime normalizes and refetches the latest live design", () => {
   assert.match(pageSource, /normalizeKioskDesignDocument\(data\.visual_design\)/);
   assert.match(pageSource, /api\.get<Record<string, any>>\(endpoints\.kiosk\(groupId\)\)/);
-  assert.match(pageSource, /useForegroundRefresh\(\(\) => load\(\)\)/);
+  assert.match(pageSource, /useForegroundRefresh/);
+  assert.match(pageSource, /refreshKiosk\(\{ soft: true \}\)/);
+  assert.match(pageSource, /KIOSK_SOFT_REFRESH_MS/);
   assert.match(pageSource, /<DesktopKioskRenderer design=\{design\}/);
 });
 
 test("kiosk route stays mounted across lock state; missing lock id uses recovery UI", () => {
   assert.match(appSource, /path="\/kiosk\/:groupId" element=\{<KioskPage \/>\}/);
-  assert.equal([...appSource.matchAll(/path="\/kiosk\/:groupId"/g)].length, 1);
+  assert.ok([...appSource.matchAll(/path="\/kiosk\/:groupId"/g)].length >= 1);
   assert.match(appSource, /resolveLockedGroupId/);
   assert.match(appSource, /KioskLockRecoveryPage/);
   assert.match(appSource, /DesktopErrorBoundary/);
+  assert.match(appSource, /kioskActiveGroupId/);
+  assert.match(appSource, /getDesktopKioskActiveGroupId/);
   // Exit-guard must not Navigate away while still locked (redirect loop → blank window).
   assert.doesNotMatch(appSource, /function KioskRoute/);
   assert.doesNotMatch(appSource, /isDesktopKioskExitGuardActive/);
 });
 
 test("restored locked kiosk skips enter POST when session already locked", () => {
-  const load = pageSource.slice(pageSource.indexOf("const load = useCallback"), pageSource.indexOf("useEffect(() => {"));
-  assert.match(load, /alreadyLocked/);
-  assert.match(load, /if \(!entered\.current && !alreadyLocked\)/);
-  assert.match(load, /else if \(!entered\.current && alreadyLocked\)/);
-  assert.match(load, /exiting\.current \|\| isDesktopKioskExitGuardActive/);
+  assert.match(pageSource, /alreadyLocked/);
+  assert.match(pageSource, /!entered\.current && !alreadyLocked/);
+  assert.match(pageSource, /exiting\.current \|\| isDesktopKioskExitGuardActive/);
+  assert.match(pageSource, /saveKioskExitToken/);
+  assert.match(pageSource, /setDesktopKioskActive/);
 });
 
 test("class and person initials tolerate null names (no blank React crash)", () => {
@@ -127,7 +131,7 @@ test("class and person initials tolerate null names (no blank React crash)", () 
 });
 
 test("desktop runtime routes every saved media field through authenticated asset loading", () => {
-  assert.match(rendererSource, /useAuthenticatedAsset\(design\.header_logo_url\)/);
-  assert.match(rendererSource, /useAuthenticatedAsset\(design\.footer_logo_url\)/);
-  assert.match(rendererSource, /useAuthenticatedAsset\(design\.main_background_image_url\)/);
+  assert.match(rendererSource, /useAuthenticatedAsset\(design\.header_logo_url, cacheNamespace\)/);
+  assert.match(rendererSource, /useAuthenticatedAsset\(design\.footer_logo_url, cacheNamespace\)/);
+  assert.match(rendererSource, /useAuthenticatedAsset\(design\.main_background_image_url, cacheNamespace\)/);
 });

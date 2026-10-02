@@ -61,9 +61,22 @@ function inline(text: string, onDocument?: (slug: string) => void) {
     else {
       const link = /^\[([^\]]+)\]\(([^)]+)\)$/.exec(value);
       const href = link?.[2] || "";
-      if (/^\/[a-z0-9-]+$/i.test(href) && onDocument) {
+      const slug =
+        onDocument &&
+        (/^\/[a-z0-9-]+$/i.test(href)
+          ? href.slice(1)
+          : (() => {
+              try {
+                const url = href.startsWith("/") ? new URL(href, "https://checkstation.app") : new URL(href);
+                const last = url.pathname.split("/").filter(Boolean).at(-1) || "";
+                return /^(terms-of-use|privacy-policy)$/.test(last) ? last : null;
+              } catch {
+                return null;
+              }
+            })());
+      if (slug && onDocument) {
         output.push(
-          <button className="markdown-link" type="button" key={index} onClick={() => onDocument(href.slice(1))}>
+          <button className="markdown-link" type="button" key={index} onClick={() => onDocument(slug)}>
             {link?.[1]}
           </button>,
         );

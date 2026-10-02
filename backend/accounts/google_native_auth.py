@@ -28,7 +28,7 @@ from accounts.google_oauth_client import (
     GoogleOAuthClientError,
     verify_google_native_id_token,
 )
-from accounts.google_oauth_settings import google_native_ios_is_configured
+from accounts.google_oauth_settings import google_native_is_configured
 from accounts.google_oauth_state import (
     INTENT_LINK,
     INTENT_LOGIN,
@@ -304,7 +304,7 @@ def complete_google_native_authentication(
     intent: str,
     legal_acknowledgement: bool = False,
 ) -> Response:
-    if not google_native_ios_is_configured():
+    if not google_native_is_configured():
         return _error_response(
             GoogleOAuthResultCode.OAUTH_NOT_CONFIGURED,
             detail="Google sign-in is not available.",

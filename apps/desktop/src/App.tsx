@@ -1,5 +1,5 @@
 import { Navigate, Route, Routes } from "react-router-dom";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { canAccessStaffManagement, canManageStaffAccounts } from "@checkstation/domain";
 import { useApp } from "./lib/AppProvider";
 import { DesktopShell } from "./shell/DesktopShell";
@@ -23,6 +23,11 @@ import { EmailLinkPage } from "./pages/EmailLinkPage";
 import { KioskLockRecoveryPage } from "./pages/KioskLockRecoveryPage";
 import { DesktopGuidedHelpProvider } from "./tutorials/DesktopGuidedHelp";
 import { DesktopErrorBoundary } from "./components/DesktopErrorBoundary";
+import { useProductTour } from "./productTour/ProductTourHost";
+import {
+  getDesktopKioskActiveGroupId,
+  subscribeDesktopKioskActive,
+} from "./lib/kioskSessionLock";
 
 function StaffRoute() {
   const { authState } = useApp();
@@ -40,23 +45,42 @@ function resolveLockedGroupId(session: { kiosk_group_id?: number | null } | null
 
 export function App() {
   const { ready, authState, t, locale } = useApp();
+  const { prefsReady, prefs, open, mode } = useProductTour();
+  const [kioskActiveGroupId, setKioskActiveGroupId] = useState<string | null>(() => getDesktopKioskActiveGroupId());
+  useEffect(() => subscribeDesktopKioskActive(setKioskActiveGroupId), []);
+
+  // Hold splash/login until first-launch tour has opened when it is required.
+  const awaitingFirstTour =
+    authState.status === "anonymous" && !prefs.seen && !(open && mode === "first-launch") && !kioskActiveGroupId;
   useEffect(() => {
-    if (!ready || authState.status === "unknown") return;
-    // Signal after React has committed and route redirects have had a paint frame.
+    if (!ready || !prefsReady || authState.status === "unknown") return;
+    if (awaitingFirstTour) return;
     let nextFrame = 0;
     const frame = requestAnimationFrame(() => {
       nextFrame = requestAnimationFrame(() => window.checkstationDesktop?.startupReady?.());
     });
     return () => { cancelAnimationFrame(frame); cancelAnimationFrame(nextFrame); };
-  }, [ready, authState.status]);
+  }, [ready, prefsReady, authState.status, awaitingFirstTour]);
 
   const crashTitle = locale === "ja" ? "画面を表示できません" : "Something went wrong";
   const crashBody = locale === "ja"
     ? "予期しないエラーで画面が止まりました。再読み込みしてください。"
     : "An unexpected error stopped the screen. Reload to continue.";
 
-  if (!ready || authState.status === "unknown") {
+  if (!ready || !prefsReady || authState.status === "unknown" || awaitingFirstTour) {
     return <div style={{ padding: 24 }}>{t("common.loading")}</div>;
+  }
+
+  // Session expired while kiosk is active: keep kiosk locked (never drop to Sign-In).
+  if (authState.status === "anonymous" && kioskActiveGroupId) {
+    return (
+      <DesktopErrorBoundary fallbackTitle={crashTitle} fallbackBody={crashBody}>
+        <Routes>
+          <Route path="/kiosk/:groupId" element={<KioskPage />} />
+          <Route path="*" element={<Navigate to={`/kiosk/${kioskActiveGroupId}`} replace />} />
+        </Routes>
+      </DesktopErrorBoundary>
+    );
   }
 
   if (authState.status === "anonymous" || authState.status === "needs_2fa") {

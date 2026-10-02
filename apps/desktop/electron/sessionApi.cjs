@@ -6,6 +6,11 @@
 const { app, safeStorage } = require("electron");
 const fs = require("fs");
 const path = require("path");
+const {
+  createFileMediaCacheStore,
+  createMemoryMediaCacheStore,
+  loadCachedMedia,
+} = require("./kioskMediaCache.cjs");
 
 const SESSION_COOKIE = "checkstation_sessionid";
 const CSRF_COOKIE = "checkstation_csrftoken";
@@ -25,6 +30,7 @@ const SESSION_EXPIRY_EXEMPT_PREFIXES = [
   "/auth/owner-2fa/challenge/",
   "/auth/google/",
   "/auth/apple/",
+  "/auth/desktop-handoff/",
   "/contact/",
   "/billing/catalog/",
 ];
@@ -114,9 +120,23 @@ function createSessionApi(options = {}) {
   const cookies = new Map();
   let csrfEnsured = false;
   let hydrated = false;
+  const mediaCacheStore =
+    options.mediaCacheStore
+    || (options.mediaCacheRoot
+      ? createFileMediaCacheStore(options.mediaCacheRoot)
+      : typeof app?.getPath === "function"
+        ? createFileMediaCacheStore(app.getPath("userData"))
+        : createMemoryMediaCacheStore());
+  const fetchImpl = options.fetchImpl || fetch;
 
   function jarFilePath() {
-    return path.join(app.getPath("userData"), "checkstation-session.bin");
+    if (options.jarFilePath) return options.jarFilePath;
+    try {
+      if (typeof app?.getPath !== "function") return null;
+      return path.join(app.getPath("userData"), "checkstation-session.bin");
+    } catch {
+      return null;
+    }
   }
 
   function cookieHeader() {
@@ -175,10 +195,11 @@ function createSessionApi(options = {}) {
   }
 
   function persist() {
-    const payload = JSON.stringify([...cookies.values()]);
     const file = jarFilePath();
+    if (!file) return;
+    const payload = JSON.stringify([...cookies.values()]);
     try {
-      if (safeStorage.isEncryptionAvailable()) {
+      if (safeStorage?.isEncryptionAvailable?.()) {
         fs.writeFileSync(file, safeStorage.encryptString(payload));
       } else {
         // Fallback: still keep out of renderer; file is under Electron userData.
@@ -191,11 +212,11 @@ function createSessionApi(options = {}) {
 
   function loadPersisted() {
     const file = jarFilePath();
-    if (!fs.existsSync(file)) return;
+    if (!file || !fs.existsSync(file)) return;
     try {
       const buf = fs.readFileSync(file);
       let raw;
-      if (safeStorage.isEncryptionAvailable()) {
+      if (safeStorage?.isEncryptionAvailable?.()) {
         try {
           raw = safeStorage.decryptString(buf);
         } catch {
@@ -227,10 +248,18 @@ function createSessionApi(options = {}) {
     csrfEnsured = false;
     try {
       const file = jarFilePath();
-      if (fs.existsSync(file)) fs.unlinkSync(file);
+      if (file && fs.existsSync(file)) fs.unlinkSync(file);
     } catch {
       /* ignore */
     }
+  }
+
+  function clearMediaCache(workspaceKey) {
+    if (workspaceKey) {
+      mediaCacheStore.clearWorkspace(String(workspaceKey));
+      return;
+    }
+    mediaCacheStore.clearAll();
   }
 
   async function initSession() {
@@ -259,7 +288,7 @@ function createSessionApi(options = {}) {
     }
 
     const headers = {
-      Accept: "application/json",
+      Accept: req.responseType === "base64" ? "*/*" : "application/json",
       Origin: csrfOrigin,
       Referer: `${csrfOrigin}/`,
     };
@@ -294,6 +323,7 @@ function createSessionApi(options = {}) {
     try {
       url = resolveRequestUrl(apiBaseUrl, requestPath, csrfOrigin);
     } catch (err) {
+      clearTimeout(timer);
       return {
         ok: false,
         status: 0,
@@ -303,9 +333,43 @@ function createSessionApi(options = {}) {
       };
     }
 
+    // Authenticated media: conditional GET + private disk/memory cache.
+    if (req.responseType === "base64" && method === "GET") {
+      try {
+        const cached = await loadCachedMedia({
+          url,
+          workspaceKey: req.cacheNamespace || "unknown",
+          baseHeaders: headers,
+          fetchImpl,
+          store: mediaCacheStore,
+          signal: controller.signal,
+        });
+        clearTimeout(timer);
+        if (useCredentials) persist();
+        return {
+          ok: cached.ok,
+          status: cached.status,
+          data: cached.data,
+          path: requestPath,
+          method,
+          fromCache: Boolean(cached.fromCache),
+          cacheHit: cached.cacheHit || null,
+        };
+      } catch (err) {
+        clearTimeout(timer);
+        return {
+          ok: false,
+          status: 0,
+          data: { detail: err instanceof Error ? err.message : "Network request failed" },
+          path: requestPath,
+          method,
+        };
+      }
+    }
+
     let response;
     try {
-      response = await fetch(url, {
+      response = await fetchImpl(url, {
         method,
         headers,
         body,
@@ -328,13 +392,7 @@ function createSessionApi(options = {}) {
 
     let data = null;
     const contentType = response.headers.get("content-type") || "";
-    if (req.responseType === "base64" && response.ok) {
-      data = {
-        base64: Buffer.from(await response.arrayBuffer()).toString("base64"),
-        contentType,
-        contentDisposition: response.headers.get("content-disposition") || "",
-      };
-    } else if (response.status !== 204) {
+    if (response.status !== 204) {
       if (contentType.includes("application/json")) {
         try {
           data = await response.json();
@@ -373,9 +431,11 @@ function createSessionApi(options = {}) {
     apiBaseUrl,
     initSession,
     clearSession,
+    clearMediaCache,
     http,
     // test helpers
     _getCookie: getCookie,
+    _mediaCacheStore: mediaCacheStore,
     _SESSION_COOKIE: SESSION_COOKIE,
     _CSRF_COOKIE: CSRF_COOKIE,
     _isMissingCredentials: isMissingCredentials,

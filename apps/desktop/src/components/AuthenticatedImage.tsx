@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { loadDesktopApiAsset } from "../lib/AppProvider";
 
-export function useAuthenticatedAsset(src?: string | null) {
+export function useAuthenticatedAsset(src?: string | null, cacheNamespace?: string) {
   const [resolved, setResolved] = useState("");
 
   useEffect(() => {
@@ -13,7 +13,7 @@ export function useAuthenticatedAsset(src?: string | null) {
       setResolved(src);
       return () => { active = false; };
     }
-    void loadDesktopApiAsset(src).then((url) => {
+    void loadDesktopApiAsset(src, cacheNamespace).then((url) => {
       objectUrl = url.startsWith("blob:") ? url : "";
       if (active) setResolved(url);
     }).catch(() => undefined);
@@ -21,12 +21,22 @@ export function useAuthenticatedAsset(src?: string | null) {
       active = false;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [src]);
+  }, [src, cacheNamespace]);
 
   return resolved;
 }
 
-export function AuthenticatedImage({ src, alt = "", className }: { src?: string | null; alt?: string; className?: string }) {
-  const resolved = useAuthenticatedAsset(src);
+export function AuthenticatedImage({
+  src,
+  alt = "",
+  className,
+  cacheNamespace,
+}: {
+  src?: string | null;
+  alt?: string;
+  className?: string;
+  cacheNamespace?: string;
+}) {
+  const resolved = useAuthenticatedAsset(src, cacheNamespace);
   return resolved ? <img alt={alt} className={className} src={resolved} /> : null;
 }
