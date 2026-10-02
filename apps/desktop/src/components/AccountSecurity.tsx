@@ -73,7 +73,7 @@ const japanese: typeof english = {
   connected: "接続済み", notConnected: "未接続", connect: "接続", disconnect: "接続を解除",
   oauthGap: "デスクトップアプリでのGoogle・Apple接続はまだ利用できません。既存の接続はCheckStationアカウントから取得して表示しています。",
   oauthSensitive: "この操作にはプロバイダーによる再認証が必要です。安全なデスクトップGoogle・Apple再認証はまだ利用できません。",
-  passwordSummary: "パスワードを変更", twoFactorHint: "サインイン時に追加のセキュリティステップを設定します。",
+  passwordSummary: "パスワードを更新", twoFactorHint: "サインイン時に追加のセキュリティステップを設定します。",
   danger: "危険な操作", deleteAccount: "アカウントを削除", permanentlyDelete: "アカウントを完全に削除",
   deleteWarning: "CheckStation アカウント、このワークスペース、およびお客様が作成した運用データを完全に削除します。この操作は元に戻せません。",
   finalDeleteConfirmation: "この操作は元に戻せません。CheckStation アカウントとワークスペースを完全に削除しますか？",

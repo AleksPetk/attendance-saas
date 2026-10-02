@@ -6,6 +6,11 @@
  * MAS: real electron-builder `mas` target → App Store .pkg (requires Mac App
  * Distribution + Mac Installer Distribution + provisioning profile).
  * DIRECT: unsigned local dir packaging — never uses MAS identities.
+ *
+ * Release layout policy:
+ * - DIRECT keeps a single persistent artifact under release/direct/
+ * - MAS writes temporary artifacts under release/mas/ (clean locally after TestFlight upload)
+ * - Stale top-level release/mac-arm64 or mixed outputs are removed before packaging
  */
 const { spawnSync } = require("node:child_process");
 const fs = require("node:fs");
@@ -22,6 +27,7 @@ const {
 const distribution = normalizeDesktopDistribution(process.argv[2] || "direct");
 const info = getDesktopDistributionInfo({ distribution });
 const desktopRoot = path.resolve(__dirname, "..");
+const releaseRoot = path.join(desktopRoot, "release");
 
 const env = {
   ...process.env,
@@ -41,9 +47,54 @@ function run(command, args) {
   }
 }
 
+function rmrf(target) {
+  if (!fs.existsSync(target)) return;
+  fs.rmSync(target, { recursive: true, force: true });
+}
+
+/**
+ * DIRECT: wipe the entire release/ tree so only this build remains.
+ * MAS: clear prior MAS output only (do not delete a kept DIRECT artifact).
+ */
+function prepareReleaseOutput() {
+  fs.mkdirSync(releaseRoot, { recursive: true });
+  if (distribution === "direct") {
+    for (const entry of fs.readdirSync(releaseRoot)) {
+      rmrf(path.join(releaseRoot, entry));
+    }
+    console.log(`[checkstation-desktop] cleaned release/ for DIRECT-only output`);
+    return;
+  }
+  rmrf(path.join(releaseRoot, "mas"));
+  // Legacy/misconfigured electron-builder output (pre-distribution dirs).
+  rmrf(path.join(releaseRoot, "mac-arm64"));
+  const topBuilderDebug = path.join(releaseRoot, "builder-debug.yml");
+  if (fs.existsSync(topBuilderDebug)) fs.unlinkSync(topBuilderDebug);
+  console.log(`[checkstation-desktop] cleaned prior MAS/legacy release outputs`);
+}
+
+function listCheckStationApps(rootDir) {
+  const found = [];
+  if (!fs.existsSync(rootDir)) return found;
+  const stack = [rootDir];
+  while (stack.length) {
+    const current = stack.pop();
+    for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
+      const full = path.join(current, entry.name);
+      if (entry.isDirectory()) {
+        if (entry.name === "CheckStation.app") found.push(full);
+        else stack.push(full);
+      }
+    }
+  }
+  return found;
+}
+
 console.log(
   `[checkstation-desktop] building distribution=${info.distribution} bundleId=${info.bundleId} output=${info.releaseOutputDir}`,
 );
+
+prepareReleaseOutput();
 
 if (distribution === "mas") {
   const signing = resolveMasSigning();
@@ -104,6 +155,9 @@ if (distribution === "mas") {
   }
   console.log(`[checkstation-desktop] MAS pkg=${foundPkg || "(not found)"}`);
   console.log(`[checkstation-desktop] MAS app=${foundApp || "(not found)"}`);
+  console.log(
+    "[checkstation-desktop] MAS output is temporary — run `npm run clean:mas-release` after TestFlight upload",
+  );
 } else {
   run("npx", [
     "electron-builder",
@@ -112,6 +166,18 @@ if (distribution === "mas") {
     "--dir",
     "--mac",
   ]);
+
+  const apps = listCheckStationApps(releaseRoot);
+  if (apps.length !== 1) {
+    console.error(`[checkstation-desktop] expected exactly 1 CheckStation.app under release/, found ${apps.length}:`);
+    for (const app of apps) console.error(`  - ${app}`);
+    process.exit(1);
+  }
+  const expected = path.join(releaseRoot, "direct", "mac-arm64", "CheckStation.app");
+  if (path.resolve(apps[0]) !== path.resolve(expected)) {
+    console.error(`[checkstation-desktop] unexpected app path:\n  got ${apps[0]}\n  expected ${expected}`);
+    process.exit(1);
+  }
 }
 
 console.log(

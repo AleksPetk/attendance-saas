@@ -9,6 +9,7 @@
     "build:electron": "node scripts/build-electron-variant.cjs direct",
     "build:electron:direct": "node scripts/build-electron-variant.cjs direct",
     "build:electron:mas": "node scripts/build-electron-variant.cjs mas",
+    "clean:mas-release": "node scripts/clean-mas-release.cjs",
     "build:mac-apple-native": "node native/MacApple/build-native.cjs",
     "mas:signing:check": "node scripts/resolve-mas-signing.cjs",
     "mas:signing:verify": "node scripts/verify-mas-signing.cjs",
