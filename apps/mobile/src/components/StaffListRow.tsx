@@ -97,6 +97,7 @@ export function StaffListRow({
       ? isAdmin
         ? [
             { name: "edit", label: editLabel },
+            { name: "resetPassword", label: resetPasswordLabel },
             { name: "deactivate", label: deactivateLabel },
           ]
         : [
@@ -151,6 +152,7 @@ export function StaffListRow({
     if (active && isAdmin) {
       return (
         <View style={styles.actions}>
+          <ActionButton busy={busy} label={resetPasswordLabel} onPress={() => runAction(onResetPassword)} tone="warning" />
           <ActionButton busy={busy} label={deactivateLabel} onPress={() => runAction(onDeactivate)} tone="warning" />
         </View>
       );
