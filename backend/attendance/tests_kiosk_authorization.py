@@ -2,7 +2,6 @@
 Phase 3 regressions: Staff Group kiosk authorization + Structured Class PIN grants.
 """
 
-import base64
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
@@ -62,9 +61,6 @@ def login_staff(api, organization, username, password):
     return api
 
 
-def basic_auth_header(username, password):
-    token = base64.b64encode(f"{username}:{password}".encode()).decode()
-    return f"Basic {token}"
 
 
 class StaffGroupKioskAuthorizationTests(TestCase):
@@ -198,13 +194,10 @@ class StaffGroupKioskAuthorizationTests(TestCase):
         self.assertEqual(denied.status_code, status.HTTP_404_NOT_FOUND)
         self.assertEqual(ActionRecord.objects.count(), before)
 
-    def test_j_basic_auth_unassigned_group_denied(self):
-        client = APIClient()
-        client.credentials(
-            HTTP_AUTHORIZATION=basic_auth_header("scopedstaff", "staff-password"),
-            HTTP_X_WORKSPACE_ID=self.organization.workspace_id,
+    def test_j_staff_session_unassigned_group_denied(self):
+        client = login_staff(
+            APIClient(), self.organization, "scopedstaff", "staff-password"
         )
-        # Confirm Basic auth works for assigned Group start.
         ok = client.get(reverse("group-kiosk-start", kwargs={"group_pk": self.group_a.pk}))
         self.assertEqual(ok.status_code, status.HTTP_200_OK, ok.content)
 

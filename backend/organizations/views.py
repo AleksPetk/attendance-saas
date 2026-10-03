@@ -47,10 +47,13 @@ from organizations.authentication import WORKSPACE_STAFF_SESSION_AUTH_BACKEND
 from attendance.kiosk_lock import attach_kiosk_status
 from core.auth_rate_limits import (
     check_owner_login_allowed,
+    check_reauth_allowed,
     check_staff_login_allowed,
     clear_owner_login_failures,
+    clear_reauth_failures,
     clear_staff_login_failures,
     record_owner_login_failure,
+    record_reauth_failure,
     record_staff_login_failure,
 )
 from billing.builtin_trial import attach_builtin_trial
@@ -76,6 +79,7 @@ from organizations.permissions import (
 )
 from organizations.staff_deletion import (
     WorkspaceStaffPermanentDeletionError,
+    invalidate_staff_sessions,
     permanently_delete_workspace_staff_account,
 )
 from organizations.tutorials import (
@@ -568,13 +572,19 @@ class ReauthView(APIView):
         if customer_must_verify_email(actor):
             raise EmailNotVerified()
 
+        throttled = check_reauth_allowed(request, actor)
+        if throttled is not None:
+            return throttled
+
         try:
             ok = actor.check_password(password)  # WorkspaceStaffAccount or accounts.User compatible
         except Exception:
             ok = False
 
         if not ok:
+            record_reauth_failure(request, actor)
             return Response({"detail": "Password verification failed."}, status=403)
+        clear_reauth_failures(actor)
         return Response({"ok": True})
 
 
@@ -789,6 +799,9 @@ class WorkspaceStaffResetPasswordView(APIView):
 
         staff.set_password(new_password)
         staff.save(update_fields=["password", "updated_at"])
+        # Password change must end every live session for this staff/admin
+        # identity. The actor performing the reset keeps their own session.
+        invalidate_staff_sessions(staff.pk)
         return Response({"ok": True})
 
 

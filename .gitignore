@@ -124,3 +124,6 @@ backend/media/
 # Local iOS signing material (never commit)
 apps/mobile/.signing-local/
 
+# Local audit / inspector reports (not production source)
+grok_agent/
+

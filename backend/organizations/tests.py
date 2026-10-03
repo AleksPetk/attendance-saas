@@ -37,8 +37,33 @@ def create_user(email, *, password="secure-password", verified=True, **extra_fie
 
 
 def basic_auth_header(username, password):
+    """Build an HTTP Basic header for negative regression tests only."""
     token = base64.b64encode(f"{username}:{password}".encode()).decode()
     return f"Basic {token}"
+
+
+def login_owner_session(api, email="owner@example.com", password="secure-password"):
+    response = api.post(
+        "/api/auth/login/",
+        {"email": email, "password": password},
+        format="json",
+    )
+    assert response.status_code == status.HTTP_200_OK, response.content
+    return api
+
+
+def login_staff_session(api, organization, username, password):
+    response = api.post(
+        "/api/auth/staff-login/",
+        {
+            "workspace_id": organization.workspace_id,
+            "username": username,
+            "password": password,
+        },
+        format="json",
+    )
+    assert response.status_code == status.HTTP_200_OK, response.content
+    return api
 
 
 class OrganizationModelTests(TestCase):
@@ -357,9 +382,7 @@ class CurrentWorkspaceAPITests(TestCase):
         self.assertIsNone(response.get("WWW-Authenticate"))
 
     def test_paying_owner_receives_workspace_without_workspace_id(self):
-        self.client.credentials(
-            HTTP_AUTHORIZATION=basic_auth_header("owner@example.com", "secure-password")
-        )
+        login_owner_session(self.client)
         response = self.client.get(reverse("current-workspace"))
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -371,9 +394,11 @@ class CurrentWorkspaceAPITests(TestCase):
         self.assertNotIn("id", response.data)
 
     def test_workspace_staff_login_uses_workspace_id_username_and_password(self):
-        self.client.credentials(
-            HTTP_AUTHORIZATION=basic_auth_header("natsumi", "staff-password"),
-            HTTP_X_WORKSPACE_ID=self.organization.workspace_id,
+        login_staff_session(
+            self.client,
+            self.organization,
+            "natsumi",
+            "staff-password",
         )
         response = self.client.get(reverse("current-workspace"))
 
@@ -397,16 +422,20 @@ class CurrentWorkspaceAPITests(TestCase):
             email="natsumi.other@example.com",
         )
 
-        self.client.credentials(
-            HTTP_AUTHORIZATION=basic_auth_header("natsumi", "staff-password"),
-            HTTP_X_WORKSPACE_ID=self.organization.workspace_id,
+        first_client = login_staff_session(
+            APIClient(),
+            self.organization,
+            "natsumi",
+            "staff-password",
         )
-        first = self.client.get(reverse("current-workspace"))
-        self.client.credentials(
-            HTTP_AUTHORIZATION=basic_auth_header("natsumi", "other-password"),
-            HTTP_X_WORKSPACE_ID=other.workspace_id,
+        first = first_client.get(reverse("current-workspace"))
+        second_client = login_staff_session(
+            APIClient(),
+            other,
+            "natsumi",
+            "other-password",
         )
-        second = self.client.get(reverse("current-workspace"))
+        second = second_client.get(reverse("current-workspace"))
 
         self.assertEqual(first.data["workspace_id"], self.organization.workspace_id)
         self.assertEqual(first.data["role"], WorkspaceStaffRole.STAFF)
@@ -417,34 +446,44 @@ class CurrentWorkspaceAPITests(TestCase):
         other = Organization.objects.create_with_owner(
             owner=create_user("other-owner@example.com")
         )
-        self.client.credentials(
-            HTTP_AUTHORIZATION=basic_auth_header("natsumi", "staff-password"),
-            HTTP_X_WORKSPACE_ID=other.workspace_id,
+        response = self.client.post(
+            "/api/auth/staff-login/",
+            {
+                "workspace_id": other.workspace_id,
+                "username": "natsumi",
+                "password": "staff-password",
+            },
+            format="json",
         )
-        response = self.client.get(reverse("current-workspace"))
-
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_inactive_staff_cannot_load_workspace(self):
         self.staff.deactivate()
-        self.client.credentials(
-            HTTP_AUTHORIZATION=basic_auth_header("natsumi", "staff-password"),
-            HTTP_X_WORKSPACE_ID=self.organization.workspace_id,
+        response = self.client.post(
+            "/api/auth/staff-login/",
+            {
+                "workspace_id": self.organization.workspace_id,
+                "username": "natsumi",
+                "password": "staff-password",
+            },
+            format="json",
         )
-        response = self.client.get(reverse("current-workspace"))
-
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_raw_numeric_organization_id_is_not_accepted(self):
-        self.client.credentials(
-            HTTP_AUTHORIZATION=basic_auth_header("natsumi", "staff-password"),
-            HTTP_X_WORKSPACE_ID=str(self.organization.pk),
+        response = self.client.post(
+            "/api/auth/staff-login/",
+            {
+                "workspace_id": str(self.organization.pk),
+                "username": "natsumi",
+                "password": "staff-password",
+            },
+            format="json",
         )
-        response = self.client.get(reverse("current-workspace"))
-
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_legacy_organization_id_header_is_not_accepted(self):
+        # HTTP Basic + X-Organization-Id is no longer a supported auth path.
         self.client.credentials(
             HTTP_AUTHORIZATION=basic_auth_header("natsumi", "staff-password"),
             HTTP_X_ORGANIZATION_ID=str(self.organization.pk),
@@ -457,33 +496,58 @@ class CurrentWorkspaceAPITests(TestCase):
         )
 
     def test_staff_login_without_workspace_id_fails(self):
+        response = self.client.post(
+            "/api/auth/staff-login/",
+            {
+                "username": "natsumi",
+                "password": "staff-password",
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_wrong_staff_password_is_unauthorized(self):
+        response = self.client.post(
+            "/api/auth/staff-login/",
+            {
+                "workspace_id": self.organization.workspace_id,
+                "username": "natsumi",
+                "password": "wrong-password",
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_http_basic_no_longer_authenticates_owner(self):
         self.client.credentials(
-            HTTP_AUTHORIZATION=basic_auth_header("natsumi", "staff-password")
+            HTTP_AUTHORIZATION=basic_auth_header(
+                "owner@example.com", "secure-password"
+            )
         )
         response = self.client.get(reverse("current-workspace"))
-
         self.assertIn(
             response.status_code,
             (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN),
         )
+        self.assertIsNone(response.get("WWW-Authenticate"))
 
-    def test_wrong_staff_password_is_unauthorized(self):
+    def test_http_basic_no_longer_authenticates_staff(self):
         self.client.credentials(
-            HTTP_AUTHORIZATION=basic_auth_header("natsumi", "wrong-password"),
+            HTTP_AUTHORIZATION=basic_auth_header("natsumi", "staff-password"),
             HTTP_X_WORKSPACE_ID=self.organization.workspace_id,
         )
         response = self.client.get(reverse("current-workspace"))
-
-        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertIn(
+            response.status_code,
+            (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN),
+        )
 
     def test_platform_operator_without_workspace_is_identified(self):
         platform = User.objects.create_superuser(
             email="platform@example.com",
             password="secure-password",
         )
-        self.client.credentials(
-            HTTP_AUTHORIZATION=basic_auth_header("platform@example.com", "secure-password")
-        )
+        self.client.force_authenticate(user=platform)
         response = self.client.get(reverse("current-workspace"))
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)

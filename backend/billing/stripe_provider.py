@@ -144,7 +144,7 @@ class StripeProvider:
 
             start_at = billing_start_at
             if dj_timezone.is_naive(start_at):
-                start_at = dj_timezone.make_aware(start_at, dj_timezone.utc)
+                start_at = dj_timezone.make_aware(start_at, dt_timezone.utc)
             if start_at > datetime.now(tz=dt_timezone.utc):
                 params["subscription_data"]["trial_end"] = int(start_at.timestamp())
         request_options = {}
@@ -354,7 +354,7 @@ class StripeProvider:
 
         end = trial_end
         if dj_timezone.is_naive(end):
-            end = dj_timezone.make_aware(end, dj_timezone.utc)
+            end = dj_timezone.make_aware(end, dt_timezone.utc)
         trial_end_ts = int(end.timestamp())
         now_ts = int(time.time())
         if trial_end_ts <= now_ts:

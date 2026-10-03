@@ -1,4 +1,3 @@
-import base64
 import datetime
 import io
 
@@ -34,9 +33,6 @@ def create_user(email, *, password="secure-password", verified=True, **extra_fie
     return user
 
 
-def basic_auth_header(identity, password):
-    token = base64.b64encode(f"{identity}:{password}".encode()).decode()
-    return f"Basic {token}"
 
 
 SAMPLE_REPORT = {
@@ -194,13 +190,9 @@ class AttendanceReportExportApiTests(TestCase):
         self.other_org.plan = OrganizationPlan.PLUS
         self.other_org.save(update_fields=["plan"])
         self.client = APIClient()
-        self.client.credentials(
-            HTTP_AUTHORIZATION=basic_auth_header(self.owner.email, "secure-password")
-        )
+        self.client.force_authenticate(user=self.owner)
         self.other_client = APIClient()
-        self.other_client.credentials(
-            HTTP_AUTHORIZATION=basic_auth_header(self.other_owner.email, "secure-password")
-        )
+        self.other_client.force_authenticate(user=self.other_owner)
         self.group = Group.objects.create_group(organization=self.org, name="SELS Kids")
         self.member = Member.objects.create(
             organization=self.org,

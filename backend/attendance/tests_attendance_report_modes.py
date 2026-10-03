@@ -1,5 +1,3 @@
-import base64
-
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.utils import timezone
@@ -17,11 +15,6 @@ from organizations.models import (
 from organizations.staff_group_access import set_staff_group_access
 
 User = get_user_model()
-
-
-def auth_header(identity, password):
-    token = base64.b64encode(f"{identity}:{password}".encode()).decode()
-    return f"Basic {token}"
 
 
 class AttendanceReportModeTests(TestCase):
@@ -56,7 +49,7 @@ class AttendanceReportModeTests(TestCase):
             name="Guest",
         )
         self.client = APIClient()
-        self.client.credentials(HTTP_AUTHORIZATION=auth_header(self.owner.email, "secure-password"))
+        self.client.force_authenticate(user=self.owner)
         self._record(self.group_a, member=self.member, name="Jasmine")
         self._record(self.group_b, member=self.member, name="Jasmine")
         self._record(self.group_a, visitor=self.visitor, name="Guest")

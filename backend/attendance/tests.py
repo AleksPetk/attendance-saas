@@ -1,4 +1,3 @@
-import base64
 import datetime
 
 from django.contrib.auth import get_user_model
@@ -33,9 +32,6 @@ def create_user(email, *, password="secure-password", verified=True, **extra_fie
     return user
 
 
-def basic_auth_header(identity, password):
-    token = base64.b64encode(f"{identity}:{password}".encode()).decode()
-    return f"Basic {token}"
 
 
 def ready_kiosk_group(organization, **kwargs):
@@ -51,13 +47,9 @@ class GroupKioskSliceTests(TestCase):
         self.owner2 = create_user("owner2@example.com")
         self.org2 = Organization.objects.create_with_owner(owner=self.owner2)
         self.client1 = APIClient()
-        self.client1.credentials(
-            HTTP_AUTHORIZATION=basic_auth_header(self.owner1.email, "secure-password")
-        )
+        self.client1.force_authenticate(user=self.owner1)
         self.client2 = APIClient()
-        self.client2.credentials(
-            HTTP_AUTHORIZATION=basic_auth_header(self.owner2.email, "secure-password")
-        )
+        self.client2.force_authenticate(user=self.owner2)
 
     def test_list_mode_allowed_for_check_in_only(self):
         group = ready_kiosk_group(

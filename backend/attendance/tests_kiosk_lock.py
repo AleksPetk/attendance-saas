@@ -1,4 +1,3 @@
-import base64
 from pathlib import Path
 
 from django.conf import settings
@@ -38,9 +37,6 @@ def create_user(email, *, password="secure-password", verified=True, **extra_fie
     return user
 
 
-def basic_auth_header(identity, password):
-    token = base64.b64encode(f"{identity}:{password}".encode()).decode()
-    return f"Basic {token}"
 
 
 class GroupKioskLockTests(TestCase):
@@ -354,17 +350,19 @@ class GroupKioskLockTests(TestCase):
         other_members = self.other_session.get("/api/members/")
         self.assertEqual(other_members.status_code, 200)
 
-    def test_basic_auth_kiosk_start_does_not_lock_session(self):
+    def test_http_basic_cannot_start_kiosk(self):
+        """HTTP Basic is disabled; it must not authenticate kiosk APIs."""
+        import base64
+
         basic = APIClient()
-        basic.credentials(HTTP_AUTHORIZATION=basic_auth_header(self.owner.email, self.password))
+        token = base64.b64encode(
+            f"{self.owner.email}:{self.password}".encode()
+        ).decode()
+        basic.credentials(HTTP_AUTHORIZATION=f"Basic {token}")
         lock = basic.post(f"/api/groups/{self.group.pk}/kiosk/")
-        self.assertEqual(lock.status_code, 200)
-        self.assertFalse(lock.data.get("kiosk_locked"))
-        start = basic.get(f"/api/groups/{self.group.pk}/kiosk/")
-        self.assertEqual(start.status_code, 200)
-        self.assertFalse(start.data.get("kiosk_locked"))
+        self.assertIn(lock.status_code, (401, 403))
         members = basic.get("/api/members/")
-        self.assertEqual(members.status_code, 200)
+        self.assertIn(members.status_code, (401, 403))
 
     def test_unavailable_kiosk_keeps_lock_and_allows_exit(self):
         self._login(self.session, self.owner.email)
@@ -484,9 +482,7 @@ class GroupKioskIdentifyBehaviorTests(TestCase):
         self.owner = create_user("identify-owner@example.com")
         self.org = Organization.objects.create_with_owner(owner=self.owner)
         self.client = APIClient()
-        self.client.credentials(
-            HTTP_AUTHORIZATION=basic_auth_header(self.owner.email, "secure-password")
-        )
+        self.client.force_authenticate(user=self.owner)
         self.group = Group.objects.create_group(
             organization=self.org,
             name="Desk",

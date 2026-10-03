@@ -29,6 +29,10 @@ def _invalidate_staff_sessions(staff_id):
         session.delete()
 
 
+# Public alias for password-reset and other non-deletion call sites.
+invalidate_staff_sessions = _invalidate_staff_sessions
+
+
 def permanently_delete_workspace_staff_account(staff_account):
     """
     Irreversibly remove one inactive WorkspaceStaffAccount and private dependents.

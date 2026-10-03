@@ -5,7 +5,6 @@ Covers historical Class identity for reports/exports without changing
 Standard Group report behavior.
 """
 
-import base64
 import io
 
 from django.contrib.auth import get_user_model
@@ -43,9 +42,6 @@ def create_user(email, *, password="secure-password", verified=True, **extra_fie
     return user
 
 
-def basic_auth_header(identity, password):
-    token = base64.b64encode(f"{identity}:{password}".encode()).decode()
-    return f"Basic {token}"
 
 
 class StructuredAttendanceReportClassTests(TestCase):
@@ -56,13 +52,9 @@ class StructuredAttendanceReportClassTests(TestCase):
         self.other_org = Organization.objects.create_with_owner(owner=self.other_owner)
 
         self.client = APIClient()
-        self.client.credentials(
-            HTTP_AUTHORIZATION=basic_auth_header(self.owner.email, "secure-password")
-        )
+        self.client.force_authenticate(user=self.owner)
         self.other_client = APIClient()
-        self.other_client.credentials(
-            HTTP_AUTHORIZATION=basic_auth_header(self.other_owner.email, "secure-password")
-        )
+        self.other_client.force_authenticate(user=self.other_owner)
 
         self.structured = Group.objects.create_group(
             organization=self.org,

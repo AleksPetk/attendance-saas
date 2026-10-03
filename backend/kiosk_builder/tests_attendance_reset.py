@@ -1,6 +1,5 @@
 """Tests for Attendance Reset configuration and live kiosk state boundaries."""
 
-import base64
 from datetime import datetime, time, timedelta
 
 from django.contrib.auth import get_user_model
@@ -37,9 +36,6 @@ def create_user(email, *, password="secure-password", verified=True):
     return user
 
 
-def basic_auth(email, password="secure-password"):
-    token = base64.b64encode(f"{email}:{password}".encode()).decode()
-    return f"Basic {token}"
 
 
 class AttendanceResetBoundaryTests(TestCase):
@@ -307,7 +303,7 @@ class AttendanceResetNowAPITests(TestCase):
             status=GroupMembershipStatus.ACTIVE,
         )
         self.client = APIClient()
-        self.client.credentials(HTTP_AUTHORIZATION=basic_auth(self.owner.email, self.password))
+        self.client.force_authenticate(user=self.owner)
         ActionRecord.objects.create(
             organization=self.org,
             group=self.group,
@@ -348,7 +344,7 @@ class AttendanceResetNowAPITests(TestCase):
 
     def test_reset_now_blocked_cross_tenant(self):
         other_client = APIClient()
-        other_client.credentials(HTTP_AUTHORIZATION=basic_auth(self.other.email, self.password))
+        other_client.force_authenticate(user=self.other)
         response = other_client.post(f"/api/groups/{self.group.pk}/kiosk-settings/reset-now/")
         self.assertEqual(response.status_code, 404)
 
@@ -371,7 +367,7 @@ class AttendanceResetSettingsAPITests(TestCase):
         )
         configure_group_kiosk_for_launch(self.group)
         self.client = APIClient()
-        self.client.credentials(HTTP_AUTHORIZATION=basic_auth(self.owner.email, self.password))
+        self.client.force_authenticate(user=self.owner)
 
     def test_get_includes_reset_fields(self):
         response = self.client.get(f"/api/groups/{self.group.pk}/kiosk-settings/")

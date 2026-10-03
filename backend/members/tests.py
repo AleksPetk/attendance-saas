@@ -1,4 +1,3 @@
-import base64
 import datetime
 import io
 import tempfile
@@ -40,9 +39,6 @@ def create_user(email, *, password="secure-password", verified=True, **extra_fie
     return user
 
 
-def basic_auth_header(username, password):
-    token = base64.b64encode(f"{username}:{password}".encode()).decode()
-    return f"Basic {token}"
 
 
 def jpeg_photo(name="photo.jpg", color=(20, 80, 160)):
@@ -169,9 +165,7 @@ class MemberAPITests(TestCase):
         self.other_organization = Organization.objects.create_with_owner(
             owner=self.other_owner
         )
-        self.client.credentials(
-            HTTP_AUTHORIZATION=basic_auth_header("owner@example.com", "secure-password")
-        )
+        self.client.force_authenticate(user=self.owner)
 
     def test_create_name_only_member(self):
         response = self.client.post("/api/members/", {"name": "Natsumi"}, format="json")
@@ -405,11 +399,12 @@ class MemberAPITests(TestCase):
             role=WorkspaceStaffRole.ADMIN,
             email="natsumi.admin@example.com",
         )
-        staff_client = APIClient()
-        staff_client.credentials(
-            HTTP_AUTHORIZATION=basic_auth_header("natsumi", "staff-password"),
-            HTTP_X_WORKSPACE_ID=self.organization.workspace_id,
+        staff = WorkspaceStaffAccount.objects.get(
+            organization=self.organization,
+            username="natsumi",
         )
+        staff_client = APIClient()
+        staff_client.force_authenticate(user=staff)
         response = staff_client.get("/api/members/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
@@ -508,9 +503,7 @@ class MemberLifecycleAPITests(TestCase):
         self.other_organization = Organization.objects.create_with_owner(
             owner=self.other_owner
         )
-        self.client.credentials(
-            HTTP_AUTHORIZATION=basic_auth_header("owner@example.com", "secure-password")
-        )
+        self.client.force_authenticate(user=self.owner)
 
     def _create_member(self, **fields):
         payload = {"name": "Mama", **fields}
@@ -707,9 +700,7 @@ class MemberOperationalInactivityTests(TestCase):
         self.other_organization = Organization.objects.create_with_owner(
             owner=self.other_owner
         )
-        self.client.credentials(
-            HTTP_AUTHORIZATION=basic_auth_header("owner@example.com", "secure-password")
-        )
+        self.client.force_authenticate(user=self.owner)
         self.group = Group.objects.create_group(
             organization=self.organization,
             name="Staff",

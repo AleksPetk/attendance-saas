@@ -1,4 +1,3 @@
-import base64
 import datetime
 import io
 import tempfile
@@ -34,9 +33,6 @@ def create_user(email, *, password="secure-password", verified=True, **extra_fie
     return user
 
 
-def basic_auth_header(username, password):
-    token = base64.b64encode(f"{username}:{password}".encode()).decode()
-    return f"Basic {token}"
 
 
 def jpeg_photo(name="photo.jpg"):
@@ -136,9 +132,7 @@ class GroupAPITests(TestCase):
         self.other_organization = Organization.objects.create_with_owner(
             owner=self.other_owner
         )
-        self.client.credentials(
-            HTTP_AUTHORIZATION=basic_auth_header("owner@example.com", "secure-password")
-        )
+        self.client.force_authenticate(user=self.owner)
 
     def _create_group(self, **payload):
         body = {"name": "Staff", **payload}
@@ -332,9 +326,7 @@ class GroupMembershipAPITests(TestCase):
         self.other_organization = Organization.objects.create_with_owner(
             owner=self.other_owner
         )
-        self.client.credentials(
-            HTTP_AUTHORIZATION=basic_auth_header("owner@example.com", "secure-password")
-        )
+        self.client.force_authenticate(user=self.owner)
         self.group = Group.objects.create_group(
             organization=self.organization,
             name="Students",
@@ -498,9 +490,7 @@ class GroupMembershipAPITests(TestCase):
         )
 
         other_client = APIClient()
-        other_client.credentials(
-            HTTP_AUTHORIZATION=basic_auth_header("other@example.com", "secure-password")
-        )
+        other_client.force_authenticate(user=self.other_owner)
         other_group = Group.objects.create_group(
             organization=self.other_organization,
             name="Other Staff",
@@ -554,9 +544,7 @@ class GroupOnlyParticipantAPITests(TestCase):
         self.other_organization = Organization.objects.create_with_owner(
             owner=self.other_owner
         )
-        self.client.credentials(
-            HTTP_AUTHORIZATION=basic_auth_header("owner@example.com", "secure-password")
-        )
+        self.client.force_authenticate(user=self.owner)
         self.group = Group.objects.create_group(
             organization=self.organization,
             name="Summer Class",
@@ -593,9 +581,7 @@ class GroupOnlyParticipantAPITests(TestCase):
             format="json",
         )
         other_client = APIClient()
-        other_client.credentials(
-            HTTP_AUTHORIZATION=basic_auth_header("other@example.com", "secure-password")
-        )
+        other_client.force_authenticate(user=self.other_owner)
         listing = other_client.get(f"/api/groups/{self.group.pk}/participants/")
         detail = other_client.get(
             f"/api/groups/{self.group.pk}/participants/{created.data['id']}/"
@@ -674,9 +660,7 @@ class GroupLifecycleTests(TestCase):
         self.other_organization = Organization.objects.create_with_owner(
             owner=self.other_owner
         )
-        self.client.credentials(
-            HTTP_AUTHORIZATION=basic_auth_header("owner@example.com", "secure-password")
-        )
+        self.client.force_authenticate(user=self.owner)
         self.group = Group.objects.create_group(
             organization=self.organization,
             name="Teachers",

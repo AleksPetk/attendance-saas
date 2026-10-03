@@ -1,6 +1,5 @@
 """Tests for Card-mode kiosk identify/action flow."""
 
-import base64
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
@@ -35,10 +34,7 @@ class CardKioskFlowTests(TestCase):
         self.owner = create_user("card-kiosk-owner@example.com", password=self.password)
         self.org = Organization.objects.create_with_owner(owner=self.owner)
         self.client = APIClient()
-        token = base64.b64encode(
-            f"card-kiosk-owner@example.com:{self.password}".encode()
-        ).decode()
-        self.client.credentials(HTTP_AUTHORIZATION=f"Basic {token}")
+        self.client.force_authenticate(user=self.owner)
         self.group = Group.objects.create_group(
             organization=self.org,
             name="Card Flow",

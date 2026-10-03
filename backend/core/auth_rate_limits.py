@@ -372,3 +372,72 @@ def clear_kiosk_exit_failures(request, *, organization_id, group_id) -> None:
     ip = get_client_ip(request)
     scope = f"{organization_id}:{group_id}:{ip}"
     clear_failures("kiosk_exit", "scope", scope, security_sensitive=True)
+
+
+# --- Authenticated reauth (password confirmation) ---
+
+
+def reauth_limits():
+    return {
+        "ip_limit": int(getattr(settings, "REAUTH_IP_LIMIT", 20)),
+        "ip_window": int(getattr(settings, "REAUTH_IP_WINDOW", 900)),
+        "account_limit": int(getattr(settings, "REAUTH_ACCOUNT_LIMIT", 5)),
+        "account_window": int(getattr(settings, "REAUTH_ACCOUNT_WINDOW", 900)),
+    }
+
+
+def reauth_actor_key(actor) -> str:
+    """Stable per-identity key that cannot collide across owner vs staff PKs."""
+    if getattr(actor, "is_authenticated", False) is not True:
+        return "anonymous"
+    # WorkspaceStaffAccount is not accounts.User; prefer explicit staff marker.
+    if hasattr(actor, "organization_id") and hasattr(actor, "username"):
+        return f"staff:{actor.pk}"
+    return f"owner:{actor.pk}"
+
+
+def check_reauth_allowed(request, actor) -> Response | None:
+    limits = reauth_limits()
+    ip = get_client_ip(request)
+    account = reauth_actor_key(actor)
+    blocked = check_any_throttled(
+        [
+            ("reauth", "ip", ip, limits["ip_limit"]),
+            ("reauth", "account", account, limits["account_limit"]),
+        ],
+        security_sensitive=True,
+    )
+    if not blocked.allowed:
+        return throttled_response()
+    return None
+
+
+def record_reauth_failure(request, actor) -> RateLimitResult:
+    limits = reauth_limits()
+    ip = get_client_ip(request)
+    account = reauth_actor_key(actor)
+    record_failure(
+        "reauth",
+        "ip",
+        ip,
+        limit=limits["ip_limit"],
+        window_seconds=limits["ip_window"],
+        security_sensitive=True,
+    )
+    return record_failure(
+        "reauth",
+        "account",
+        account,
+        limit=limits["account_limit"],
+        window_seconds=limits["account_window"],
+        security_sensitive=True,
+    )
+
+
+def clear_reauth_failures(actor) -> None:
+    clear_failures(
+        "reauth",
+        "account",
+        reauth_actor_key(actor),
+        security_sensitive=True,
+    )

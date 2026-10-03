@@ -113,6 +113,11 @@ env = environ.Env(
     CLASS_PIN_VERIFY_WINDOW=(int, 60),
     KIOSK_EXIT_VERIFY_LIMIT=(int, 15),
     KIOSK_EXIT_VERIFY_WINDOW=(int, 60),
+    # Authenticated password re-check (kiosk exit / sensitive actions).
+    REAUTH_IP_LIMIT=(int, 20),
+    REAUTH_IP_WINDOW=(int, 900),
+    REAUTH_ACCOUNT_LIMIT=(int, 5),
+    REAUTH_ACCOUNT_WINDOW=(int, 900),
     GOOGLE_OAUTH_CLIENT_ID=(str, ""),
     GOOGLE_OAUTH_CLIENT_SECRET=(str, ""),
     GOOGLE_OAUTH_REDIRECT_URI=(str, ""),
@@ -292,6 +297,10 @@ CLASS_PIN_VERIFY_LIMIT = env.int("CLASS_PIN_VERIFY_LIMIT")
 CLASS_PIN_VERIFY_WINDOW = env.int("CLASS_PIN_VERIFY_WINDOW")
 KIOSK_EXIT_VERIFY_LIMIT = env.int("KIOSK_EXIT_VERIFY_LIMIT")
 KIOSK_EXIT_VERIFY_WINDOW = env.int("KIOSK_EXIT_VERIFY_WINDOW")
+REAUTH_IP_LIMIT = env.int("REAUTH_IP_LIMIT")
+REAUTH_IP_WINDOW = env.int("REAUTH_IP_WINDOW")
+REAUTH_ACCOUNT_LIMIT = env.int("REAUTH_ACCOUNT_LIMIT")
+REAUTH_ACCOUNT_WINDOW = env.int("REAUTH_ACCOUNT_WINDOW")
 
 # Credentialed CORS origins = workspace SPA only (cookies + Allow-Credentials).
 # Promo/Docs/Status belong in CORS_ANONYMOUS_ORIGINS (ACAO, never credentials).
@@ -340,11 +349,9 @@ REST_FRAMEWORK = {
         "rest_framework.parsers.MultiPartParser",
     ],
     "DEFAULT_AUTHENTICATION_CLASSES": [
-        # Session first: workspace SPA uses cookies. Basic authenticators below
-        # must not advertise WWW-Authenticate (Safari native login popup).
+        # Cookie/session only. HTTP Basic is intentionally not registered:
+        # it bypassed owner 2FA, login lockouts, and kiosk-lock session rules.
         "rest_framework.authentication.SessionAuthentication",
-        "organizations.authentication.WorkspaceStaffBasicAuthentication",
-        "organizations.authentication.BrowserSilentBasicAuthentication",
     ],
 }
 
