@@ -70,6 +70,9 @@
     "backToParticipants": "Back to participants",
     "classPinHint": "Enter class PIN",
     "backToClasses": "Back to classes",
+    "inactivity": {
+      "returning": "Returning to start in {{seconds}}s"
+    },
     "unavailable": {
       "title": "This kiosk is no longer available",
       "body": "The Group may have been archived or the kiosk turned off. Enter the kiosk exit code to unlock this browser session.",

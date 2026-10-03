@@ -27,6 +27,11 @@ import {
   resolveConfirmationVisualFamily,
 } from "./kiosk/kioskConfirmation.js";
 import {
+  createKioskInactivityTimer,
+  hasNonEmptyKioskInput,
+  shouldArmKioskInactivity,
+} from "./kiosk/kioskInactivityTimeout.js";
+import {
   KioskInlineError,
   KioskPersonAvatar,
   KioskPersonCardFields,
@@ -241,6 +246,9 @@ export default function GroupKioskScreen({ session, groupId, onUnlocked, onKiosk
   const pendingActionRef = useRef(null);
   const confirmationPresentationSequenceRef = useRef(0);
   const lastEffectsPresentationRef = useRef(null);
+  const inactivityTimerRef = useRef(null);
+  const resetInactivityRef = useRef(() => {});
+  const [inactivityRemaining, setInactivityRemaining] = useState(null);
 
   const usePin = Boolean(kiosk?.use_pin);
   const kioskMode = kiosk?.kiosk_mode;
@@ -257,6 +265,55 @@ export default function GroupKioskScreen({ session, groupId, onUnlocked, onKiosk
     setAutomaticNote("");
     setFormKey((value) => value + 1);
   }
+
+  resetInactivityRef.current = () => {
+    if (performingRef.current) return;
+    setError(null);
+    setConfirmation(null);
+    clearParticipantFields();
+    setStep("start");
+  };
+
+  const participantSensitive = step === "pin"
+    || step === "confirm"
+    || (step === "start" && kioskMode === "input" && hasNonEmptyKioskInput(inputValues));
+  const interactionBusy = identifying || performing || step === "processing";
+  const inactivityArmed = shouldArmKioskInactivity({
+    participantSensitive,
+    interactionBusy,
+    successVisible: step === "success",
+    exitOpen,
+    loading,
+  });
+
+  useEffect(() => {
+    const timer = createKioskInactivityTimer({
+      onTimeout: () => {
+        resetInactivityRef.current();
+      },
+      onRemaining: setInactivityRemaining,
+    });
+    inactivityTimerRef.current = timer;
+    return () => {
+      timer.dispose();
+      inactivityTimerRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    inactivityTimerRef.current?.setArmed(inactivityArmed);
+  }, [inactivityArmed]);
+
+  useEffect(() => {
+    if (!inactivityArmed) return undefined;
+    const note = () => inactivityTimerRef.current?.noteActivity();
+    window.addEventListener("pointerdown", note, true);
+    window.addEventListener("keydown", note, true);
+    return () => {
+      window.removeEventListener("pointerdown", note, true);
+      window.removeEventListener("keydown", note, true);
+    };
+  }, [inactivityArmed]);
 
   function clearClassSelection() {
     setSelectedClass(null);
@@ -726,8 +783,15 @@ export default function GroupKioskScreen({ session, groupId, onUnlocked, onKiosk
       />
     ) : null;
 
+  const inactivityCountdown = inactivityRemaining != null ? (
+    <p className="hint kiosk-inactivity-countdown" aria-live="polite">
+      {t("live.inactivity.returning", { seconds: inactivityRemaining })}
+    </p>
+  ) : null;
+
   const operationalBody = (
     <>
+      {inactivityCountdown}
       {unavailable ? (
         <div className="kiosk-body kiosk-body-input">
           <div className="kiosk-flow">

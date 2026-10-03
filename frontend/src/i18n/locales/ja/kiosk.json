@@ -70,6 +70,9 @@
     "backToParticipants": "参加者一覧に戻る",
     "classPinHint": "クラス PIN を入力",
     "backToClasses": "クラス一覧に戻る",
+    "inactivity": {
+      "returning": "{{seconds}}秒後に最初の画面に戻ります"
+    },
     "unavailable": {
       "title": "このキオスクは利用できなくなりました",
       "body": "グループがアーカイブされたか、キオスクがオフになっている可能性があります。キオスク終了コードを入力して、このブラウザセッションのロックを解除してください。",

@@ -18,6 +18,11 @@ import {
   shouldRunPeriodicRefresh,
 } from "../../src/lib/kioskLiveRefresh";
 import {
+  createKioskInactivityTimer,
+  hasNonEmptyKioskInput,
+  shouldArmKioskInactivity,
+} from "../../src/lib/kioskInactivityTimeout";
+import {
   clearAllKioskExitTokens,
   clearKioskExitToken,
   loadKioskExitToken,
@@ -184,6 +189,9 @@ export default function KioskScreen() {
     backgroundUrl?: string;
   }>({});
   const [resolvedParticipantPhoto, setResolvedParticipantPhoto] = useState<string | null>(null);
+  const inactivityTimerRef = useRef<ReturnType<typeof createKioskInactivityTimer> | null>(null);
+  const resetInactivityRef = useRef(() => {});
+  const [inactivityRemaining, setInactivityRemaining] = useState<number | null>(null);
 
   selectedClassRef.current = selectedClass;
   idleSnapshotRef.current = {
@@ -197,6 +205,25 @@ export default function KioskScreen() {
     sessionExpired,
     refreshInFlight: refreshInFlight.current,
   };
+
+  const inputProgress = hasNonEmptyKioskInput({
+    identifier,
+    pin,
+    secondValue,
+    cardPin,
+  });
+  const participantSensitive = Boolean(participant)
+    || Boolean(pendingPerson)
+    || (kioskConfig?.kiosk_mode === "input" && inputProgress && !successMessage);
+  const interactionBusy = busy || performLock.current;
+  const inactivityArmed = shouldArmKioskInactivity({
+    participantSensitive,
+    interactionBusy,
+    successVisible: Boolean(successMessage),
+    exitOpen: showExit,
+    sessionExpired,
+    loading,
+  });
 
   const markSessionExpired = useCallback(() => {
     setSessionExpired(true);
@@ -695,6 +722,29 @@ export default function KioskScreen() {
     setMessage("");
   }
 
+  resetInactivityRef.current = () => {
+    if (performLock.current || busy) return;
+    returnToKiosk();
+  };
+
+  useEffect(() => {
+    const timer = createKioskInactivityTimer({
+      onTimeout: () => {
+        resetInactivityRef.current();
+      },
+      onRemaining: setInactivityRemaining,
+    });
+    inactivityTimerRef.current = timer;
+    return () => {
+      timer.dispose();
+      inactivityTimerRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    inactivityTimerRef.current?.setArmed(inactivityArmed);
+  }, [inactivityArmed]);
+
   if (loading) {
     return (
       <View style={{ flex: 1, backgroundColor: bgColor, paddingTop: insets.top, paddingBottom: insets.bottom }}>
@@ -705,9 +755,27 @@ export default function KioskScreen() {
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: bgColor }}>
+    <View
+      style={{ flex: 1, backgroundColor: bgColor }}
+      onTouchStart={() => inactivityTimerRef.current?.noteActivity()}
+    >
       <StatusBar barStyle="light-content" hidden />
       <View style={phonePresentation ? styles.edgeToEdgeShell : { flex: 1, paddingTop: insets.top, paddingBottom: insets.bottom, paddingLeft: insets.left, paddingRight: insets.right }}>
+        {inactivityRemaining != null ? (
+          <Text
+            accessibilityLiveRegion="polite"
+            style={{
+              textAlign: "center",
+              color: mainTextColor,
+              opacity: 0.72,
+              fontSize: 13,
+              paddingHorizontal: 12,
+              paddingTop: 6,
+            }}
+          >
+            {t("kiosk.live.inactivity.returning", { seconds: inactivityRemaining })}
+          </Text>
+        ) : null}
         {showWebCardBrowse && visualDesign ? (
           <View style={{ flex: 1 }} testID="kiosk-live-web-shell">
             <KioskWebLivePreview

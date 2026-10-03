@@ -74,6 +74,8 @@ describe("translation files", () => {
     const ja = loadLocale("ja", "kiosk");
     assert.equal(en.live.identify.title, "Check in");
     assert.equal(ja.live.identify.title, "チェックイン");
+    assert.equal(en.live.inactivity.returning, "Returning to start in {{seconds}}s");
+    assert.equal(ja.live.inactivity.returning, "{{seconds}}秒後に最初の画面に戻ります");
     assert.equal(en.settings.title, "Kiosk Settings");
     assert.equal(ja.settings.title, "キオスク設定");
   });

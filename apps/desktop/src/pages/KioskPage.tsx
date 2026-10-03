@@ -25,6 +25,11 @@ import {
   shouldRefreshOnForeground,
   shouldRunPeriodicRefresh,
 } from "../lib/kioskLiveRefresh";
+import {
+  createKioskInactivityTimer,
+  hasNonEmptyKioskInput,
+  shouldArmKioskInactivity,
+} from "../lib/kioskInactivityTimeout";
 import { clearDesktopKioskActive, setDesktopKioskActive, markDesktopKioskSessionExpired, clearDesktopKioskSessionExpired, isDesktopKioskSessionExpired } from "../lib/kioskSessionLock";
 import { useForegroundRefresh } from "../lib/useForegroundRefresh";
 import { kioskCardHelperKey, type KioskHelperStep } from "../lib/kioskCardHelper";
@@ -104,6 +109,9 @@ export function KioskPage() {
   const [classPinBusy, setClassPinBusy] = useState(false);
   const [confirmationEffect, setConfirmationEffect] = useState<ConfirmationEffect | null>(null);
   const [sessionExpired, setSessionExpired] = useState(() => isDesktopKioskSessionExpired());
+  const inactivityTimerRef = useRef<ReturnType<typeof createKioskInactivityTimer> | null>(null);
+  const resetInactivityRef = useRef(() => {});
+  const [inactivityRemaining, setInactivityRemaining] = useState<number | null>(null);
 
   selectedClassRef.current = selectedClass;
   idleSnapshotRef.current = {
@@ -117,6 +125,49 @@ export function KioskPage() {
     sessionExpired,
     refreshInFlight: refreshInFlight.current,
   };
+
+  const inputProgress = hasNonEmptyKioskInput({ identifier, second, pin });
+  const participantSensitive = Boolean(participant)
+    || Boolean(pending)
+    || (inputProgress && !participant && !pending && !success);
+  const interactionBusy = busy || Boolean(pendingAction) || performLock.current;
+  const inactivityArmed = shouldArmKioskInactivity({
+    participantSensitive,
+    interactionBusy,
+    successVisible: Boolean(success),
+    exitOpen,
+    sessionExpired,
+    loading,
+  });
+
+  useEffect(() => {
+    const timer = createKioskInactivityTimer({
+      onTimeout: () => {
+        resetInactivityRef.current();
+      },
+      onRemaining: setInactivityRemaining,
+    });
+    inactivityTimerRef.current = timer;
+    return () => {
+      timer.dispose();
+      inactivityTimerRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    inactivityTimerRef.current?.setArmed(inactivityArmed);
+  }, [inactivityArmed]);
+
+  useEffect(() => {
+    if (!inactivityArmed) return undefined;
+    const note = () => inactivityTimerRef.current?.noteActivity();
+    window.addEventListener("pointerdown", note, true);
+    window.addEventListener("keydown", note, true);
+    return () => {
+      window.removeEventListener("pointerdown", note, true);
+      window.removeEventListener("keydown", note, true);
+    };
+  }, [inactivityArmed]);
 
   const markSessionExpired = useCallback(() => {
     markDesktopKioskSessionExpired();
@@ -565,10 +616,20 @@ export function KioskPage() {
     setPending(null);
   }
 
+  resetInactivityRef.current = () => {
+    if (performLock.current || busy || pendingAction) return;
+    reset();
+  };
+
   if (loading) return <div className="kiosk-loading"><Loading label={t("common.loading")} /></div>;
 
   const operationalBody = (
     <div className={`kiosk-body${config.kiosk_mode === "input" && !config.structured ? " kiosk-body-input" : ""}`}>
+      {inactivityRemaining != null ? (
+        <p className="hint kiosk-inactivity-countdown" aria-live="polite">
+          {t("kiosk.live.inactivity.returning", { seconds: inactivityRemaining })}
+        </p>
+      ) : null}
       {sessionExpired && !exitOpen ? (
         <div className="kiosk-session-expired" role="alert">
           <h2 className="kiosk-session-expired-title">{t("kiosk.sessionExpired.title") || "Session expired"}</h2>
