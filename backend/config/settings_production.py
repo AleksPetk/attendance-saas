@@ -98,6 +98,11 @@ if not REDIS_URL:
         "require a shared cache backend."
     )
 
+# Apple IAP: never skip JWS chain verification; trusted root must be present.
+from billing.apple_jws import validate_apple_iap_production_settings  # noqa: E402
+
+validate_apple_iap_production_settings()
+
 CACHES = {  # noqa: F405
     "default": {
         "BACKEND": "django_redis.cache.RedisCache",
