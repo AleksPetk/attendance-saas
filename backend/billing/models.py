@@ -226,6 +226,9 @@ class WorkspaceCheckoutAttempt(models.Model):
     idempotency_key = models.CharField(max_length=255, unique=True, editable=False)
     plan_key = models.CharField(max_length=20)
     interval = models.CharField(max_length=20)
+    # Checkout reuse identity: coupon/market must match or the attempt is replaced.
+    market = models.CharField(max_length=32, blank=True, default="")
+    coupon_id = models.CharField(max_length=255, blank=True, default="")
     status = models.CharField(
         max_length=20,
         choices=CheckoutAttemptStatus.choices,

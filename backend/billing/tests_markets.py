@@ -237,6 +237,56 @@ class MarketOperationTests(TestCase):
             self.assertEqual(row["price_id"], "price_jp_plus_monthly")
             self.assertEqual(row["coupon_id"], expected_coupon)
 
+    def test_jp_mode_change_does_not_reuse_wrong_coupon_checkout(self):
+        """Open normal checkout must not be resumed after switching to big mode."""
+        from billing.models import CheckoutAttemptStatus, WorkspaceCheckoutAttempt
+
+        self.org.billing_market_override = BillingMarketOverride.JP
+        self.org.save(update_fields=["billing_market_override", "updated_at"])
+        fake = get_fake_provider()
+
+        set_group_value(GROUP_NEW_BASIC, MODE_NORMAL)
+        normal = start_paid_checkout(
+            self.org, self.owner, plan_key="plus", interval="monthly"
+        )
+        self.assertEqual(fake.checkouts[normal.session_id]["coupon_id"], "jp_normal_pm")
+
+        set_group_value(GROUP_NEW_BASIC, MODE_BIG)
+        big = start_paid_checkout(
+            self.org, self.owner, plan_key="plus", interval="monthly"
+        )
+        self.assertNotEqual(normal.session_id, big.session_id)
+        self.assertEqual(fake.checkouts[big.session_id]["coupon_id"], "jp_big_pm")
+        self.assertTrue(fake.checkouts[normal.session_id].get("expired"))
+
+        set_group_value(GROUP_NEW_BASIC, MODE_NORMAL)
+        back = start_paid_checkout(
+            self.org, self.owner, plan_key="plus", interval="monthly"
+        )
+        self.assertNotEqual(big.session_id, back.session_id)
+        self.assertEqual(fake.checkouts[back.session_id]["coupon_id"], "jp_normal_pm")
+
+        open_attempt = WorkspaceCheckoutAttempt.objects.get(
+            organization=self.org, status=CheckoutAttemptStatus.OPEN
+        )
+        self.assertEqual(open_attempt.coupon_id, "jp_normal_pm")
+        self.assertEqual(open_attempt.market, MARKET_JP)
+
+    def test_jp_same_coupon_context_still_reuses_open_checkout(self):
+        self.org.billing_market_override = BillingMarketOverride.JP
+        self.org.save(update_fields=["billing_market_override", "updated_at"])
+        fake = get_fake_provider()
+        set_group_value(GROUP_NEW_BASIC, MODE_BIG)
+        first = start_paid_checkout(
+            self.org, self.owner, plan_key="plus", interval="monthly"
+        )
+        second = start_paid_checkout(
+            self.org, self.owner, plan_key="plus", interval="monthly"
+        )
+        self.assertEqual(first.session_id, second.session_id)
+        self.assertEqual(fake.checkouts[first.session_id]["coupon_id"], "jp_big_pm")
+        self.assertEqual(len(fake.checkouts), 1)
+
     def test_global_override_selects_global_price_and_coupon(self):
         self.org.billing_market_override = BillingMarketOverride.GLOBAL
         self.org.save(update_fields=["billing_market_override", "updated_at"])

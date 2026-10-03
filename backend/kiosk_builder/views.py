@@ -9,6 +9,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from core.images import (
+    MAX_UPLOAD_IMAGE_BYTES,
     optimize_kiosk_background,
     optimize_kiosk_logo,
 )
@@ -41,7 +42,7 @@ ALLOWED_IMAGE_CONTENT_TYPES = {
     "image/gif",
     "image/webp",
 }
-MAX_IMAGE_SIZE = 10 * 1024 * 1024  # 10 MB
+MAX_IMAGE_SIZE = MAX_UPLOAD_IMAGE_BYTES
 
 
 def _deny_locked_group(group):
@@ -138,21 +139,32 @@ class GroupKioskDesignView(APIView):
 
         if new_logo:
             _validate_image_file(new_logo, "header_logo")
-            optimized = optimize_kiosk_logo(new_logo, stem="logo")
+            try:
+                optimized = optimize_kiosk_logo(new_logo, stem="logo")
+            except DjangoValidationError as exc:
+                raise ValidationError({"header_logo": list(exc.messages)}) from exc
             design.header_logo = optimized
         elif remove_logo:
             design.header_logo = ""
 
         if new_footer_logo:
             _validate_image_file(new_footer_logo, "footer_logo")
-            optimized = optimize_kiosk_logo(new_footer_logo, stem="footer-logo")
+            try:
+                optimized = optimize_kiosk_logo(new_footer_logo, stem="footer-logo")
+            except DjangoValidationError as exc:
+                raise ValidationError({"footer_logo": list(exc.messages)}) from exc
             design.footer_logo = optimized
         elif remove_footer_logo:
             design.footer_logo = ""
 
         if new_bg:
             _validate_image_file(new_bg, "main_background_image")
-            optimized = optimize_kiosk_background(new_bg, stem="background")
+            try:
+                optimized = optimize_kiosk_background(new_bg, stem="background")
+            except DjangoValidationError as exc:
+                raise ValidationError(
+                    {"main_background_image": list(exc.messages)}
+                ) from exc
             design.main_background_image = optimized
         elif remove_bg:
             design.main_background_image = ""

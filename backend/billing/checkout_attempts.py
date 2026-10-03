@@ -41,6 +41,32 @@ def _idempotency_key_for(organization_id, attempt_id) -> str:
     return f"checkstation-checkout-{organization_id}-{attempt_id}"
 
 
+def _normalize_coupon_id(coupon_id) -> str:
+    return str(coupon_id or "").strip()
+
+
+def _normalize_market(market) -> str:
+    return str(market or "").strip().lower()
+
+
+def checkout_attempt_identity_matches(
+    attempt,
+    *,
+    plan,
+    interval,
+    market,
+    coupon_id,
+) -> bool:
+    """True when an existing attempt may be resumed for this checkout request."""
+    return (
+        attempt.plan_key == plan
+        and attempt.interval == interval
+        and _normalize_market(getattr(attempt, "market", "")) == _normalize_market(market)
+        and _normalize_coupon_id(getattr(attempt, "coupon_id", ""))
+        == _normalize_coupon_id(coupon_id)
+    )
+
+
 def _assert_checkout_eligible(billing) -> None:
     from billing.catalog import PAID_INTERVALS, PLAN_BUSINESS, PLAN_PLUS
 
@@ -83,7 +109,7 @@ def _mark_attempt(attempt, *, status, **fields):
 
 
 @transaction.atomic
-def claim_checkout_attempt(organization, *, plan, interval):
+def claim_checkout_attempt(organization, *, plan, interval, market="", coupon_id=""):
     """Short locked claim: reuse/create durable attempt; commit before Stripe."""
     _org, billing = lock_workspace_billing(organization)
     _assert_checkout_eligible(billing)
@@ -99,6 +125,8 @@ def claim_checkout_attempt(organization, *, plan, interval):
         idempotency_key=_idempotency_key_for(organization.pk, attempt_id),
         plan_key=plan,
         interval=interval,
+        market=_normalize_market(market),
+        coupon_id=_normalize_coupon_id(coupon_id),
         status=CheckoutAttemptStatus.PENDING,
         expires_at=now + DEFAULT_CHECKOUT_TTL,
     )
@@ -114,7 +142,9 @@ def claim_checkout_attempt(organization, *, plan, interval):
 
 
 @transaction.atomic
-def replace_active_attempt(organization, *, plan, interval, old_attempt):
+def replace_active_attempt(
+    organization, *, plan, interval, old_attempt, market="", coupon_id=""
+):
     """Mark old attempt replaced and create a new durable claim (short lock)."""
     _org, billing = lock_workspace_billing(organization)
     _assert_checkout_eligible(billing)
@@ -134,6 +164,8 @@ def replace_active_attempt(organization, *, plan, interval, old_attempt):
         idempotency_key=_idempotency_key_for(organization.pk, attempt_id),
         plan_key=plan,
         interval=interval,
+        market=_normalize_market(market),
+        coupon_id=_normalize_coupon_id(coupon_id),
         status=CheckoutAttemptStatus.PENDING,
         expires_at=now + DEFAULT_CHECKOUT_TTL,
     )
@@ -236,10 +268,22 @@ def create_or_resume_checkout_session(
 ) -> CheckoutSessionResult:
     """Full durable checkout flow (claim → Stripe → persist)."""
     provider = get_billing_provider()
-    attempt = claim_checkout_attempt(organization, plan=plan, interval=interval)
+    attempt = claim_checkout_attempt(
+        organization,
+        plan=plan,
+        interval=interval,
+        market=market,
+        coupon_id=coupon_id,
+    )
 
-    # Different plan than the active attempt: inspect / replace OPEN only.
-    if attempt.plan_key != plan or attempt.interval != interval:
+    # Different plan/interval/market/coupon: expire/replace rather than reuse.
+    if not checkout_attempt_identity_matches(
+        attempt,
+        plan=plan,
+        interval=interval,
+        market=market,
+        coupon_id=coupon_id,
+    ):
         return _handle_plan_change(
             organization,
             owner,
@@ -337,7 +381,11 @@ def _resume_or_create_same_plan(
                     if locked is not None and locked.status in ACTIVE_ATTEMPT_STATUSES:
                         _mark_attempt(locked, status=CheckoutAttemptStatus.EXPIRED)
                 attempt = claim_checkout_attempt(
-                    organization, plan=plan, interval=interval
+                    organization,
+                    plan=plan,
+                    interval=interval,
+                    market=market,
+                    coupon_id=coupon_id,
                 )
                 return _create_stripe_session_for_attempt(
                     organization,
@@ -444,7 +492,12 @@ def _handle_plan_change(
             pass
 
     new_attempt = replace_active_attempt(
-        organization, plan=plan, interval=interval, old_attempt=attempt
+        organization,
+        plan=plan,
+        interval=interval,
+        old_attempt=attempt,
+        market=market,
+        coupon_id=coupon_id,
     )
     return _create_stripe_session_for_attempt(
         organization,
