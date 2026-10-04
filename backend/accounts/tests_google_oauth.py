@@ -83,7 +83,9 @@ class GoogleOAuthStartViewTests(TestCase):
 
     def test_link_start_requires_authenticated_owner(self):
         response = self.client.get("/api/auth/google/start/?intent=link")
-        self.assertEqual(response.status_code, 401)
+        # Session-only auth: anonymous link intent is rejected (403), matching Apple.
+        self.assertEqual(response.status_code, 403)
+        self.assertNotEqual(response.status_code, 302)
 
     def test_link_start_binds_owner_user_id(self):
         owner, _organization = create_owner()

@@ -303,6 +303,10 @@ class BlockedWebhookTests(TestCase):
         get_fake_provider().reset()
         self.owner = create_user("blocked-hook@example.com")
         self.org = Organization.objects.create_with_owner(owner=self.owner)
+        # Paid cancel-at-period-end path requires a post-trial commercial workspace.
+        # Active built-in trial makes request_cancellation clear deferred selection
+        # instead of scheduling Stripe cancel_at_period_end.
+        simulate_migrated_existing_workspace(self.org)
 
     def test_webhook_does_not_unblock_organization(self):
         billing = seed_stripe_subscription(self.org, sub_id="sub_blocked_hook")

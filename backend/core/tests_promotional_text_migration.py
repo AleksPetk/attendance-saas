@@ -24,7 +24,12 @@ class PromotionalTextMarketMigrationTests(TransactionTestCase):
         self.apps = executor.loader.project_state(self.migrate_to).apps
 
     def tearDown(self):
-        MigrationExecutor(connection).migrate(self.migrate_to)
+        # Restore every app to the current leaf graph before TransactionTestCase
+        # flush. Leaving core at 0013 reintroduces platform advertising tables
+        # (removed in 0015) and breaks Postgres TRUNCATE FK ordering, which then
+        # pollutes later promotional singleton tests.
+        executor = MigrationExecutor(connection)
+        executor.migrate(executor.loader.graph.leaf_nodes())
         super().tearDown()
 
     def test_existing_shared_configuration_becomes_together_without_data_loss(self):

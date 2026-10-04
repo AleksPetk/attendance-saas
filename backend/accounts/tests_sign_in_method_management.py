@@ -309,7 +309,11 @@ class UnlinkProviderViewTests(TestCase):
     def test_anonymous_unlink_rejected(self):
         client = APIClient()
         response = client.post("/api/auth/google/unlink/", {"current_password": "secure-password"})
-        self.assertEqual(response.status_code, 401)
+        # Session-only auth: anonymous unlink is rejected (403), matching Apple.
+        self.assertEqual(response.status_code, 403)
+        self.assertTrue(
+            OwnerAuthProviderLink.objects.filter(pk=self.google_link.pk).exists()
+        )
 
     def test_unlink_with_2fa_requires_second_factor(self):
         enable_owner_2fa(self.owner)

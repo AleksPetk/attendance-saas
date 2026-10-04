@@ -38,7 +38,19 @@ def _style(key, label):
 
 class PromotionalTextCatalogTests(TestCase):
     def setUp(self):
-        PlatformPromotionalTextSettings.load()
+        settings_obj = PlatformPromotionalTextSettings.load()
+        # Singleton row may retain prior test values; reset to defaults.
+        settings_obj.mode = PromotionalTextMarketMode.TOGETHER
+        settings_obj.enabled = False
+        settings_obj.text = ""
+        settings_obj.text_style = "normal"
+        settings_obj.global_enabled = False
+        settings_obj.global_text = ""
+        settings_obj.global_text_style = "normal"
+        settings_obj.jp_enabled = False
+        settings_obj.jp_text = ""
+        settings_obj.jp_text_style = "normal"
+        settings_obj.save()
         PlatformPricingTemplateSettings.load()
         PlatformPromotionSettings.load()
         set_group_value(GROUP_NEW_BASIC, MODE_NORMAL)
