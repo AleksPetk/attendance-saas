@@ -34,6 +34,20 @@ jobs:
       DJANGO_SETTINGS_MODULE: config.settings
       PYTHONDONTWRITEBYTECODE: "1"
       PYTHONUNBUFFERED: "1"
+      # Deterministic fake Stripe Price IDs required by tests that call
+      # price_id_for() without @override_settings for every price mapping.
+      # Local developers usually get these from .env; CI has no .env.
+      BILLING_PROVIDER: fake
+      STRIPE_SECRET_KEY: sk_test_ci_not_a_secret
+      STRIPE_WEBHOOK_SECRET: whsec_ci_not_a_secret
+      STRIPE_PRICE_PLUS_MONTHLY: price_ci_plus_monthly
+      STRIPE_PRICE_PLUS_YEARLY: price_ci_plus_yearly
+      STRIPE_PRICE_BUSINESS_MONTHLY: price_ci_business_monthly
+      STRIPE_PRICE_BUSINESS_YEARLY: price_ci_business_yearly
+      STRIPE_PRICE_JP_PLUS_MONTHLY: price_ci_jp_plus_monthly
+      STRIPE_PRICE_JP_PLUS_YEARLY: price_ci_jp_plus_yearly
+      STRIPE_PRICE_JP_BUSINESS_MONTHLY: price_ci_jp_business_monthly
+      STRIPE_PRICE_JP_BUSINESS_YEARLY: price_ci_jp_business_yearly
 
     services:
       postgres:
