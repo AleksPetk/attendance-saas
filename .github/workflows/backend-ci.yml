@@ -1,0 +1,84 @@
+# Backend verification only. Uses the green local baseline:
+# manage.py test + check + makemigrations --check + migrate --check.
+name: Backend CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: backend-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: Backend tests and Django checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    defaults:
+      run:
+        working-directory: backend
+
+    env:
+      # CI-only dummy values. Not production secrets.
+      SECRET_KEY: django-insecure-checkstation-ci-only-not-for-production
+      DEBUG: "True"
+      ALLOWED_HOSTS: localhost,127.0.0.1
+      # Reachable from the runner (not Docker Compose hostname "db").
+      DATABASE_URL: postgres://attendance:attendance@127.0.0.1:5432/attendance
+      DJANGO_SETTINGS_MODULE: config.settings
+      PYTHONDONTWRITEBYTECODE: "1"
+      PYTHONUNBUFFERED: "1"
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: attendance
+          POSTGRES_USER: attendance
+          POSTGRES_PASSWORD: attendance
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U attendance -d attendance"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install backend dependencies
+        run: pip install -r requirements.txt
+
+      - name: Apply migrations on fresh Postgres
+        # Proves migration history applies to a clean database before
+        # migrate --check. Django's test runner later creates its own test DB.
+        run: python manage.py migrate --noinput
+
+      - name: Django system check
+        run: python manage.py check
+
+      - name: No pending model/migration drift
+        run: python manage.py makemigrations --check
+
+      - name: No unapplied migrations
+        run: python manage.py migrate --check
+
+      - name: Run full backend test suite
+        # manage.py test forces config.settings_test; DATABASE_URL above
+        # keeps Postgres on 127.0.0.1 (avoids the local "db" fallback).
+        run: python manage.py test --verbosity=1
