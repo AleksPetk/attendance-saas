@@ -31,11 +31,15 @@ coverage.xml
 *.egg-info/
 dist/
 build/
-# Exception for desktop MAS entitlement plists (also under Node section below).
+# Exception for desktop MAS entitlement plists + profile README (also under Node section).
 !apps/desktop/build/
 !apps/desktop/build/entitlements.mas.plist
 !apps/desktop/build/entitlements.mas.inherit.plist
 !apps/desktop/build/entitlements.mas.bridge.plist
+!apps/desktop/build/mac/
+!apps/desktop/build/mac/README.txt
+apps/desktop/build/mac/*
+!apps/desktop/build/mac/README.txt
 .tox/
 .nox/
 
@@ -58,12 +62,17 @@ docker-compose.*.local.yml
 node_modules/
 dist/
 build/
-# Desktop MAS entitlement plists live under apps/desktop/build/ and must be
-# committed — electron-builder and CI tests read them. Keep other build/ trees ignored.
+# Desktop MAS entitlement plists + profile-drop README live under apps/desktop/build/
+# and must be committed — electron-builder and CI tests read them.
+# Keep other build/ trees and local .provisionprofile files ignored.
 !apps/desktop/build/
 !apps/desktop/build/entitlements.mas.plist
 !apps/desktop/build/entitlements.mas.inherit.plist
 !apps/desktop/build/entitlements.mas.bridge.plist
+!apps/desktop/build/mac/
+!apps/desktop/build/mac/README.txt
+apps/desktop/build/mac/*
+!apps/desktop/build/mac/README.txt
 .next/
 out/
 .cache/

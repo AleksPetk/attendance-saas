@@ -82,8 +82,13 @@ test("MAS signing resolver targets team + bundle and explains blocker", () => {
   }
 });
 
-test("build/mac profile drop folder exists", () => {
-  assert.equal(existsSync(join(root, "build/mac/README.txt")), true);
+test("build/mac profile drop folder documents the provisioning drop path", () => {
+  // Committed README only — never require a local .provisionprofile in CI.
+  const readme = join(root, "build/mac/README.txt");
+  assert.equal(existsSync(readme), true);
+  const text = readFileSync(readme, "utf8");
+  assert.match(text, /AppStore_app\.checkstation\.client\.provisionprofile/);
+  assert.match(text, /472845AC29/);
 });
 
 test("Swift MacApple exposes products/purchase/restore/manage + appleSignIn", () => {

@@ -16,10 +16,8 @@ permissions:
   contents: read
 
 env:
-  # Harmless deterministic public IDs for client tests that read Vite/Expo config.
-  # Not production secrets. No Stripe/Apple/Google private keys.
-  VITE_API_BASE_URL: http://127.0.0.1:8000/api
-  VITE_WORKSPACE_ORIGIN: http://127.0.0.1:5173
+  # Marker only. Do NOT set VITE_API_BASE_URL to localhost here — frontend
+  # production Vite build refuses localhost API bases (same-origin /api is used).
   CI: "true"
 
 jobs:

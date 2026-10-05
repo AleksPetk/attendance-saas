@@ -6,11 +6,11 @@
  * local runs execute the same tests.
  *
  * Usage:
- *   node scripts/run-node-tests.mjs [--import-tsx] [--exclude name] <rootDir> <suffix> [...]
+ *   node scripts/run-node-tests.mjs [--import-tsx] [--require file] [--exclude name] <rootDir> <suffix> [...]
  *
  * Example:
  *   node ../../scripts/run-node-tests.mjs --import-tsx src .test.ts
- *   node ../../scripts/run-node-tests.mjs electron .test.cjs
+ *   node ../../scripts/run-node-tests.mjs --require ./electron/testElectronStub.cjs electron .test.cjs
  *   node ../scripts/run-node-tests.mjs --exclude technicalSeoBuild.test.js src .test.js
  */
 
@@ -49,11 +49,22 @@ function collectFiles(rootDir, suffix, out = []) {
 
 const args = process.argv.slice(2);
 const importTsx = args.includes("--import-tsx");
+const requirePaths = [];
 const excludeNames = [];
 const positional = [];
 for (let i = 0; i < args.length; i += 1) {
   const arg = args[i];
   if (arg === "--import-tsx") continue;
+  if (arg === "--require") {
+    const reqPath = args[i + 1];
+    if (!reqPath) {
+      console.error("run-node-tests: --require requires a module path");
+      process.exit(2);
+    }
+    requirePaths.push(resolve(process.cwd(), reqPath));
+    i += 1;
+    continue;
+  }
   if (arg === "--exclude") {
     const name = args[i + 1];
     if (!name) {
@@ -69,7 +80,7 @@ for (let i = 0; i < args.length; i += 1) {
 
 if (positional.length === 0 || positional.length % 2 !== 0) {
   console.error(
-    "Usage: node scripts/run-node-tests.mjs [--import-tsx] [--exclude name] <rootDir> <suffix> [...]",
+    "Usage: node scripts/run-node-tests.mjs [--import-tsx] [--require file] [--exclude name] <rootDir> <suffix> [...]",
   );
   process.exit(2);
 }
@@ -93,6 +104,9 @@ if (filtered.length === 0) {
 }
 
 const nodeArgs = [];
+for (const reqPath of requirePaths) {
+  nodeArgs.push("--require", reqPath);
+}
 if (importTsx) nodeArgs.push("--import", "tsx");
 nodeArgs.push("--test", ...filtered);
 
