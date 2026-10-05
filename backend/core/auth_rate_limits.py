@@ -374,6 +374,144 @@ def clear_kiosk_exit_failures(request, *, organization_id, group_id) -> None:
     clear_failures("kiosk_exit", "scope", scope, security_sensitive=True)
 
 
+# --- Kiosk participation PIN (card / input second-field) ---
+
+
+def participation_pin_limits():
+    return {
+        "participant_limit": int(
+            getattr(settings, "PARTICIPATION_PIN_VERIFY_LIMIT", 10)
+        ),
+        "window": int(getattr(settings, "PARTICIPATION_PIN_VERIFY_WINDOW", 60)),
+        "group_ip_limit": int(
+            getattr(settings, "PARTICIPATION_PIN_GROUP_IP_LIMIT", 40)
+        ),
+    }
+
+
+def _participation_pin_participant_key(
+    *,
+    organization_id,
+    group_id,
+    participant_kind: str,
+    participant_id,
+    ip: str,
+) -> str:
+    return (
+        f"{organization_id}:{group_id}:{participant_kind}:{participant_id}:{ip}"
+    )
+
+
+def _participation_pin_group_ip_key(*, organization_id, group_id, ip: str) -> str:
+    return f"{organization_id}:{group_id}:{ip}"
+
+
+def check_participation_pin_allowed(
+    request,
+    *,
+    organization_id,
+    group_id,
+    participant_kind: str,
+    participant_id,
+) -> bool:
+    limits = participation_pin_limits()
+    ip = get_client_ip(request)
+    participant = _participation_pin_participant_key(
+        organization_id=organization_id,
+        group_id=group_id,
+        participant_kind=participant_kind,
+        participant_id=participant_id,
+        ip=ip,
+    )
+    group_ip = _participation_pin_group_ip_key(
+        organization_id=organization_id,
+        group_id=group_id,
+        ip=ip,
+    )
+    blocked = check_any_throttled(
+        [
+            (
+                "participation_pin",
+                "participant",
+                participant,
+                limits["participant_limit"],
+            ),
+            (
+                "participation_pin",
+                "group_ip",
+                group_ip,
+                limits["group_ip_limit"],
+            ),
+        ],
+        security_sensitive=True,
+    )
+    return blocked.allowed
+
+
+def record_participation_pin_failure(
+    request,
+    *,
+    organization_id,
+    group_id,
+    participant_kind: str,
+    participant_id,
+) -> None:
+    limits = participation_pin_limits()
+    ip = get_client_ip(request)
+    participant = _participation_pin_participant_key(
+        organization_id=organization_id,
+        group_id=group_id,
+        participant_kind=participant_kind,
+        participant_id=participant_id,
+        ip=ip,
+    )
+    group_ip = _participation_pin_group_ip_key(
+        organization_id=organization_id,
+        group_id=group_id,
+        ip=ip,
+    )
+    record_failure(
+        "participation_pin",
+        "participant",
+        participant,
+        limit=limits["participant_limit"],
+        window_seconds=limits["window"],
+        security_sensitive=True,
+    )
+    record_failure(
+        "participation_pin",
+        "group_ip",
+        group_ip,
+        limit=limits["group_ip_limit"],
+        window_seconds=limits["window"],
+        security_sensitive=True,
+    )
+
+
+def clear_participation_pin_failures(
+    request,
+    *,
+    organization_id,
+    group_id,
+    participant_kind: str,
+    participant_id,
+) -> None:
+    ip = get_client_ip(request)
+    participant = _participation_pin_participant_key(
+        organization_id=organization_id,
+        group_id=group_id,
+        participant_kind=participant_kind,
+        participant_id=participant_id,
+        ip=ip,
+    )
+    clear_failures(
+        "participation_pin",
+        "participant",
+        participant,
+        security_sensitive=True,
+    )
+
+
 # --- Authenticated reauth (password confirmation) ---
 
 

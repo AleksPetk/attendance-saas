@@ -592,7 +592,53 @@ class GroupKioskIdentifyView(OwnedWorkspaceMixin, APIView):
             if class_denied is not None:
                 return class_denied
             pin = data.get("pin") or ""
-            if not self._verify_card_pin(
+            if settings_obj.use_pin:
+                from core.auth_rate_limits import (
+                    check_participation_pin_allowed,
+                    clear_participation_pin_failures,
+                    record_participation_pin_failure,
+                )
+
+                participant_id = obj.pk
+                if not check_participation_pin_allowed(
+                    request,
+                    organization_id=self.organization.pk,
+                    group_id=group.pk,
+                    participant_kind=participant_kind,
+                    participant_id=participant_id,
+                ):
+                    return Response(
+                        {
+                            "detail": "Too many attempts. Wait a moment and try again.",
+                            "code": "rate_limited",
+                        },
+                        status=status.HTTP_429_TOO_MANY_REQUESTS,
+                    )
+                if not self._verify_card_pin(
+                    settings_obj=settings_obj,
+                    participant_kind=participant_kind,
+                    obj=obj,
+                    pin=pin,
+                ):
+                    record_participation_pin_failure(
+                        request,
+                        organization_id=self.organization.pk,
+                        group_id=group.pk,
+                        participant_kind=participant_kind,
+                        participant_id=participant_id,
+                    )
+                    return Response(
+                        {"code": "invalid_pin", "detail": "PIN verification failed."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+                clear_participation_pin_failures(
+                    request,
+                    organization_id=self.organization.pk,
+                    group_id=group.pk,
+                    participant_kind=participant_kind,
+                    participant_id=participant_id,
+                )
+            elif not self._verify_card_pin(
                 settings_obj=settings_obj,
                 participant_kind=participant_kind,
                 obj=obj,
@@ -646,13 +692,42 @@ class GroupKioskIdentifyView(OwnedWorkspaceMixin, APIView):
             return class_denied
 
         if settings_obj.input_field_count == 2:
+            pin_second = settings_obj.input_second_field == KioskInputSecondField.PIN
+            if pin_second:
+                from core.auth_rate_limits import (
+                    check_participation_pin_allowed,
+                    clear_participation_pin_failures,
+                    record_participation_pin_failure,
+                )
+
+                if not check_participation_pin_allowed(
+                    request,
+                    organization_id=self.organization.pk,
+                    group_id=group.pk,
+                    participant_kind=kind,
+                    participant_id=obj.pk,
+                ):
+                    return Response(
+                        {
+                            "detail": "Too many attempts. Wait a moment and try again.",
+                            "code": "rate_limited",
+                        },
+                        status=status.HTTP_429_TOO_MANY_REQUESTS,
+                    )
             if not verify_second_field(
                 settings=settings_obj,
                 membership=obj if kind == "member" else None,
                 participant=obj if kind == "group_only_participant" else None,
                 data=data,
             ):
-                if settings_obj.input_second_field == KioskInputSecondField.PIN:
+                if pin_second:
+                    record_participation_pin_failure(
+                        request,
+                        organization_id=self.organization.pk,
+                        group_id=group.pk,
+                        participant_kind=kind,
+                        participant_id=obj.pk,
+                    )
                     return Response(
                         {"code": "invalid_pin", "detail": "PIN verification failed."},
                         status=status.HTTP_400_BAD_REQUEST,
@@ -660,6 +735,14 @@ class GroupKioskIdentifyView(OwnedWorkspaceMixin, APIView):
                 return Response(
                     {"code": "not_found", "detail": "Verification failed."},
                     status=status.HTTP_404_NOT_FOUND,
+                )
+            if pin_second:
+                clear_participation_pin_failures(
+                    request,
+                    organization_id=self.organization.pk,
+                    group_id=group.pk,
+                    participant_kind=kind,
+                    participant_id=obj.pk,
                 )
 
         payload = build_kiosk_identify_payload(
@@ -735,20 +818,61 @@ class GroupKioskPerformView(OwnedWorkspaceMixin, APIView):
 
         # Card mode: verify PIN when kiosk settings require it after card selection.
         # Input mode with PIN as second field is verified during identify.
+        # pin_verified on the service call is historical metadata only — never a
+        # trust signal; perform always re-checks when card use_pin is enabled.
         needs_pin = (
             settings_obj.mode == KioskType.CARD
             and settings_obj.use_pin
         )
         if needs_pin:
+            from core.auth_rate_limits import (
+                check_participation_pin_allowed,
+                clear_participation_pin_failures,
+                record_participation_pin_failure,
+            )
+
+            participant_id = (
+                membership.pk
+                if participant_kind == "member"
+                else group_only_participant.pk
+            )
+            if not check_participation_pin_allowed(
+                request,
+                organization_id=self.organization.pk,
+                group_id=group.pk,
+                participant_kind=participant_kind,
+                participant_id=participant_id,
+            ):
+                return Response(
+                    {
+                        "detail": "Too many attempts. Wait a moment and try again.",
+                        "code": "rate_limited",
+                    },
+                    status=status.HTTP_429_TOO_MANY_REQUESTS,
+                )
             if not pin:
                 raise ValidationError({"pin": "PIN is required for this kiosk."})
-            if participant_kind == "member" and not membership.check_effective_pin(pin):
+            pin_ok = False
+            if participant_kind == "member":
+                pin_ok = membership.check_effective_pin(pin)
+            elif participant_kind == "group_only_participant":
+                pin_ok = group_only_participant.check_pin(pin)
+            if not pin_ok:
+                record_participation_pin_failure(
+                    request,
+                    organization_id=self.organization.pk,
+                    group_id=group.pk,
+                    participant_kind=participant_kind,
+                    participant_id=participant_id,
+                )
                 raise ValidationError({"pin": "PIN verification failed."})
-            if (
-                participant_kind == "group_only_participant"
-                and not group_only_participant.check_pin(pin)
-            ):
-                raise ValidationError({"pin": "PIN verification failed."})
+            clear_participation_pin_failures(
+                request,
+                organization_id=self.organization.pk,
+                group_id=group.pk,
+                participant_kind=participant_kind,
+                participant_id=participant_id,
+            )
 
         # Snapshot identity for history.
         if participant_kind == "member":

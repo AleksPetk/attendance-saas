@@ -103,6 +103,9 @@ from billing.apple_jws import validate_apple_iap_production_settings  # noqa: E4
 
 validate_apple_iap_production_settings()
 
+# default: fail-open for ordinary caching (session helpers, media, etc.).
+# ratelimit: fail-closed — Redis errors must raise so security throttles
+# (login / PIN / recovery / reauth) never become unlimited during an outage.
 CACHES = {  # noqa: F405
     "default": {
         "BACKEND": "django_redis.cache.RedisCache",
@@ -111,7 +114,15 @@ CACHES = {  # noqa: F405
             "CLIENT_CLASS": "django_redis.client.DefaultClient",
             "IGNORE_EXCEPTIONS": True,
         },
-    }
+    },
+    "ratelimit": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": REDIS_URL,
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+            "IGNORE_EXCEPTIONS": False,
+        },
+    },
 }
 
 # Behind nginx/Caddy on localhost: set USE_X_FORWARDED_FOR=True and

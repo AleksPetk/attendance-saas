@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.utils import timezone
@@ -32,9 +33,11 @@ from organizations.staff_group_access import set_staff_group_access
 
 User = get_user_model()
 
-OWNER_EMAIL = "cursor@gmail.com"
+OWNER_EMAIL = "owner@plan-test.local"
+# Local/dev only. Command refuses to run when DEBUG=False.
 OWNER_PASSWORD = "cursor"
 INTERNAL_LABEL = "Plan downgrade test (Business max)"
+RESERVED_TEST_EMAIL_DOMAIN = "plan-test.local"
 
 MEMBER_COUNT = 300
 STANDARD_GROUP_COUNT = 30
@@ -71,12 +74,22 @@ class PlanTestWorkspaceSummary:
     staff_assignment_pattern: str
 
 
+def assert_plan_test_workspace_allowed():
+    """Refuse destructive/local test tooling outside DEBUG contexts."""
+    if not bool(getattr(settings, "DEBUG", False)):
+        raise RuntimeError(
+            "create_plan_test_workspace is refused when DEBUG=False. "
+            "This command is local/dev only and must not run in production."
+        )
+
+
 def find_existing_owner():
     email = User.objects.normalize_email(OWNER_EMAIL)
     return User.objects.filter(email=email).first()
 
 
 def destroy_existing_plan_test_workspace():
+    assert_plan_test_workspace_allowed()
     owner = find_existing_owner()
     if owner is None:
         return False
@@ -317,7 +330,7 @@ def _create_staff_accounts(organization, log):
         account = WorkspaceStaffAccount.objects.create_account(
             organization=organization,
             username=f"admin{index}",
-            email=f"admin{index}@cursor.test",
+            email=f"admin{index}@{RESERVED_TEST_EMAIL_DOMAIN}",
             password=OWNER_PASSWORD,
             role=WorkspaceStaffRole.ADMIN,
         )
@@ -437,6 +450,7 @@ def _verify_counts(organization) -> PlanTestWorkspaceSummary:
 
 @transaction.atomic
 def create_plan_test_workspace(*, log=print) -> PlanTestWorkspaceSummary:
+    assert_plan_test_workspace_allowed()
     if find_existing_owner() is not None:
         raise RuntimeError(
             f"Owner {OWNER_EMAIL} already exists. Re-run with --reset to rebuild."

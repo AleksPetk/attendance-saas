@@ -111,6 +111,9 @@ env = environ.Env(
     ACCOUNT_RECOVERY_EMAIL_WINDOW=(int, 3600),
     CLASS_PIN_VERIFY_LIMIT=(int, 20),
     CLASS_PIN_VERIFY_WINDOW=(int, 60),
+    PARTICIPATION_PIN_VERIFY_LIMIT=(int, 10),
+    PARTICIPATION_PIN_VERIFY_WINDOW=(int, 60),
+    PARTICIPATION_PIN_GROUP_IP_LIMIT=(int, 40),
     KIOSK_EXIT_VERIFY_LIMIT=(int, 15),
     KIOSK_EXIT_VERIFY_WINDOW=(int, 60),
     # Authenticated password re-check (kiosk exit / sensitive actions).
@@ -263,11 +266,17 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # Local development uses in-process LocMemCache. Production switches to Redis
 # in config.settings_production (REDIS_URL required).
+# Shared LocMem LOCATION keeps `cache.clear()` resetting rate-limit counters
+# in tests; production uses a dedicated Redis alias with IGNORE_EXCEPTIONS=False.
 CACHES = {
     "default": {
         "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
         "LOCATION": "checkstation-dev",
-    }
+    },
+    "ratelimit": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        "LOCATION": "checkstation-dev",
+    },
 }
 
 REDIS_URL = env("REDIS_URL", default="")
@@ -295,6 +304,9 @@ ACCOUNT_RECOVERY_EMAIL_LIMIT = env.int("ACCOUNT_RECOVERY_EMAIL_LIMIT")
 ACCOUNT_RECOVERY_EMAIL_WINDOW = env.int("ACCOUNT_RECOVERY_EMAIL_WINDOW")
 CLASS_PIN_VERIFY_LIMIT = env.int("CLASS_PIN_VERIFY_LIMIT")
 CLASS_PIN_VERIFY_WINDOW = env.int("CLASS_PIN_VERIFY_WINDOW")
+PARTICIPATION_PIN_VERIFY_LIMIT = env.int("PARTICIPATION_PIN_VERIFY_LIMIT")
+PARTICIPATION_PIN_VERIFY_WINDOW = env.int("PARTICIPATION_PIN_VERIFY_WINDOW")
+PARTICIPATION_PIN_GROUP_IP_LIMIT = env.int("PARTICIPATION_PIN_GROUP_IP_LIMIT")
 KIOSK_EXIT_VERIFY_LIMIT = env.int("KIOSK_EXIT_VERIFY_LIMIT")
 KIOSK_EXIT_VERIFY_WINDOW = env.int("KIOSK_EXIT_VERIFY_WINDOW")
 REAUTH_IP_LIMIT = env.int("REAUTH_IP_LIMIT")

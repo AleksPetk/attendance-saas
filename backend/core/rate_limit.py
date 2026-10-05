@@ -2,6 +2,13 @@
 
 Uses Django's cache framework (LocMem in dev, Redis in production).
 
+Cache alias:
+- Prefer the dedicated ``ratelimit`` alias when configured. Production sets
+  that alias with django-redis ``IGNORE_EXCEPTIONS=False`` so Redis outages
+  raise into the fail-closed path below instead of silently returning misses
+  (which would disable throttles).
+- Ordinary ``default`` cache may remain fail-open for non-security caching.
+
 Failure modes:
 - security_sensitive=True (auth, PIN, recovery, SMTP test, etc.): fail *closed*.
   Cache/backend errors are treated as "throttled" so protections never become
@@ -22,7 +29,7 @@ import logging
 from dataclasses import dataclass
 
 from django.conf import settings
-from django.core.cache import cache
+from django.core.cache import caches
 
 logger = logging.getLogger("core.rate_limit")
 
@@ -35,6 +42,14 @@ class RateLimitBackendError(Exception):
 class RateLimitResult:
     allowed: bool
     retry_after: int = 0
+
+
+def get_rate_limit_cache():
+    """Return the cache backend used for security rate limits."""
+    caches_cfg = getattr(settings, "CACHES", {}) or {}
+    if "ratelimit" in caches_cfg:
+        return caches["ratelimit"]
+    return caches["default"]
 
 
 def _secret_bytes() -> bytes:
@@ -73,7 +88,7 @@ def _log_cache_failure(operation: str, key: str, *, security_sensitive: bool) ->
 
 def _cache_get(key: str, default=0, *, security_sensitive: bool = False) -> int:
     try:
-        value = cache.get(key, default)
+        value = get_rate_limit_cache().get(key, default)
         return int(value) if value is not None else default
     except Exception:
         _log_cache_failure("get", key, security_sensitive=security_sensitive)
@@ -86,7 +101,7 @@ def _cache_set(
     key: str, value: int, *, timeout: int, security_sensitive: bool = False
 ) -> bool:
     try:
-        cache.set(key, value, timeout=timeout)
+        get_rate_limit_cache().set(key, value, timeout=timeout)
         return True
     except Exception:
         _log_cache_failure("set", key, security_sensitive=security_sensitive)
@@ -97,7 +112,7 @@ def _cache_set(
 
 def _cache_delete(key: str, *, security_sensitive: bool = False) -> None:
     try:
-        cache.delete(key)
+        get_rate_limit_cache().delete(key)
     except Exception:
         # Clearing counters is best-effort. Failure must not unlock abuse, and
         # must not surface backend details to callers.

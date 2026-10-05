@@ -254,3 +254,23 @@ class ProductionRedisConfigTests(TestCase):
         self.assertNotEqual(result.returncode, 0)
         combined = f"{result.stderr}\n{result.stdout}"
         self.assertIn("REDIS_URL", combined)
+
+    def test_production_settings_source_uses_fail_closed_ratelimit_alias(self):
+        """Source-level guard: security limiter cache must not IGNORE_EXCEPTIONS."""
+        source = (
+            Path(__file__).resolve().parents[1]
+            / "config"
+            / "settings_production.py"
+        ).read_text(encoding="utf-8")
+        self.assertIn('"ratelimit"', source)
+        caches_start = source.index("CACHES = {")
+        caches_block = source[caches_start : caches_start + 900]
+        self.assertIn('"ratelimit"', caches_block)
+        # Dedicated security alias must raise on Redis errors.
+        ratelimit_start = caches_block.index('"ratelimit"')
+        ratelimit_block = caches_block[ratelimit_start:]
+        self.assertIn('"IGNORE_EXCEPTIONS": False', ratelimit_block)
+        # Ordinary default cache may remain fail-open.
+        default_start = caches_block.index('"default"')
+        default_block = caches_block[default_start:ratelimit_start]
+        self.assertIn('"IGNORE_EXCEPTIONS": True', default_block)

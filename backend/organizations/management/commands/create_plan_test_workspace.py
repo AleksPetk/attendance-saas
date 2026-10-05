@@ -1,10 +1,12 @@
 """Create a local Business max-capacity workspace for plan-downgrade testing."""
 
+from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 
 from organizations.plan_test_workspace import (
     OWNER_EMAIL,
     OWNER_PASSWORD,
+    assert_plan_test_workspace_allowed,
     create_plan_test_workspace,
     destroy_existing_plan_test_workspace,
     find_existing_owner,
@@ -14,7 +16,8 @@ from organizations.plan_test_workspace import (
 class Command(BaseCommand):
     help = (
         "Create (or rebuild) a local-only Business max-capacity customer "
-        "workspace for manual plan downgrade testing. Owner: cursor@gmail.com."
+        f"workspace for manual plan downgrade testing. Owner: {OWNER_EMAIL}. "
+        "Refused when DEBUG=False."
     )
 
     def add_arguments(self, parser):
@@ -22,17 +25,43 @@ class Command(BaseCommand):
             "--reset",
             action="store_true",
             help=(
-                "Permanently delete the existing cursor@gmail.com workspace "
-                "and rebuild it from scratch."
+                f"Permanently delete the existing {OWNER_EMAIL} workspace "
+                "and rebuild it from scratch. Requires --confirm-destroy."
+            ),
+        )
+        parser.add_argument(
+            "--confirm-destroy",
+            action="store_true",
+            help=(
+                "Required acknowledgement for --reset. Without this flag, "
+                "destructive rebuild is refused."
             ),
         )
 
     def handle(self, *args, **options):
+        try:
+            assert_plan_test_workspace_allowed()
+        except RuntimeError as exc:
+            raise CommandError(str(exc)) from exc
+
+        if not settings.DEBUG:
+            # Belt-and-suspenders; assert already covers this.
+            raise CommandError(
+                "create_plan_test_workspace is refused when DEBUG=False."
+            )
+
+        if options["reset"] and not options["confirm_destroy"]:
+            raise CommandError(
+                "Refusing --reset without --confirm-destroy. "
+                "This permanently deletes the matching plan-test owner/workspace."
+            )
+
         existing = find_existing_owner()
         if existing is not None and not options["reset"]:
             raise CommandError(
                 f"Owner {OWNER_EMAIL} already exists "
-                f"(workspace attached). Re-run with --reset to rebuild safely."
+                f"(workspace attached). Re-run with --reset --confirm-destroy "
+                "to rebuild safely."
             )
 
         if options["reset"]:
@@ -61,7 +90,7 @@ class Command(BaseCommand):
         self.stdout.write(f"Owner email: {summary.owner_email}")
         self.stdout.write(f"Owner password: {OWNER_PASSWORD}")
         self.stdout.write(
-            "Admins: admin1–admin5 / emails adminN@cursor.test / "
+            "Admins: admin1–admin5 / emails adminN@plan-test.local / "
             f"password {OWNER_PASSWORD}"
         )
         self.stdout.write(
@@ -90,7 +119,8 @@ class Command(BaseCommand):
         self.stdout.write("")
         self.stdout.write(
             "Rebuild later: "
-            "python manage.py create_plan_test_workspace --reset"
+            "python manage.py create_plan_test_workspace "
+            "--reset --confirm-destroy"
         )
         self.stdout.write(
             "Leave plan=Business. Downgrade manually via platform admin."

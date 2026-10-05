@@ -1,6 +1,6 @@
 """Auth and recovery abuse rate-limit tests (Phase 5)."""
 
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
@@ -414,7 +414,9 @@ class AuthRateLimitFailClosedTests(TestCase):
             password="secure-password",
         )
         _verify_owner(user)
-        with patch("core.rate_limit.cache.get", side_effect=RuntimeError("redis down")):
+        failing = MagicMock()
+        failing.get.side_effect = RuntimeError("redis down")
+        with patch("core.rate_limit.get_rate_limit_cache", return_value=failing):
             response = self.api.post(
                 "/api/auth/login/",
                 {"email": user.email, "password": "secure-password"},
@@ -438,7 +440,9 @@ class AuthRateLimitFailClosedTests(TestCase):
             password="staff-password",
             role=WorkspaceStaffRole.STAFF,
         )
-        with patch("core.rate_limit.cache.get", side_effect=RuntimeError("redis down")):
+        failing = MagicMock()
+        failing.get.side_effect = RuntimeError("redis down")
+        with patch("core.rate_limit.get_rate_limit_cache", return_value=failing):
             response = self.api.post(
                 "/api/auth/staff-login/",
                 {
@@ -457,7 +461,9 @@ class AuthRateLimitFailClosedTests(TestCase):
             password="secure-password",
         )
         user.mark_email_verified()
-        with patch("core.rate_limit.cache.get", side_effect=RuntimeError("redis down")):
+        failing = MagicMock()
+        failing.get.side_effect = RuntimeError("redis down")
+        with patch("core.rate_limit.get_rate_limit_cache", return_value=failing):
             with patch("accounts.services.send_password_reset_email") as send_mail:
                 response = self.api.post(
                     "/api/auth/forgot-password/",
@@ -480,7 +486,9 @@ class AuthRateLimitFailClosedTests(TestCase):
         user.backup_email = "backup-fc@example.com"
         user.backup_email_verified_at = timezone.now()
         user.save(update_fields=["backup_email", "backup_email_verified_at"])
-        with patch("core.rate_limit.cache.get", side_effect=RuntimeError("redis down")):
+        failing = MagicMock()
+        failing.get.side_effect = RuntimeError("redis down")
+        with patch("core.rate_limit.get_rate_limit_cache", return_value=failing):
             with patch("accounts.emails.send_account_recovery_email") as send_mail:
                 response = self.api.post(
                     "/api/auth/recover-account/",
@@ -492,7 +500,9 @@ class AuthRateLimitFailClosedTests(TestCase):
         send_mail.assert_not_called()
 
     def test_verification_resend_fails_closed_when_cache_unavailable(self):
-        with patch("core.rate_limit.cache.get", side_effect=RuntimeError("redis down")):
+        failing = MagicMock()
+        failing.get.side_effect = RuntimeError("redis down")
+        with patch("core.rate_limit.get_rate_limit_cache", return_value=failing):
             with patch("accounts.services.send_verification_email_for_user") as send_mail:
                 response = self.api.post(
                     "/api/auth/resend-verification/",
@@ -569,7 +579,9 @@ class ClassPinFailClosedTests(TestCase):
         )
 
     def test_class_pin_fails_closed_when_cache_unavailable(self):
-        with patch("core.rate_limit.cache.get", side_effect=RuntimeError("redis down")):
+        failing = MagicMock()
+        failing.get.side_effect = RuntimeError("redis down")
+        with patch("core.rate_limit.get_rate_limit_cache", return_value=failing):
             response = self.client.post(
                 self.verify_url, {"pin": "9999"}, format="json"
             )
@@ -619,7 +631,9 @@ class KioskExitFailClosedTests(TestCase):
         self.assertEqual(lock.status_code, 200)
 
     def test_kiosk_exit_fails_closed_when_cache_unavailable(self):
-        with patch("core.rate_limit.cache.get", side_effect=RuntimeError("redis down")):
+        failing = MagicMock()
+        failing.get.side_effect = RuntimeError("redis down")
+        with patch("core.rate_limit.get_rate_limit_cache", return_value=failing):
             response = self.client.post(
                 "/api/kiosk/exit/",
                 {"exit_code": "anything"},
