@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { AppState, type AppStateStatus, Pressable, ScrollView, StatusBar, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
+import { AppState, BackHandler, Platform, type AppStateStatus, Pressable, ScrollView, StatusBar, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
@@ -28,6 +28,7 @@ import {
   loadKioskExitToken,
   saveKioskExitToken,
 } from "../../src/lib/kioskExitCredential";
+import { resolveKioskAndroidBack } from "../../src/lib/kioskAndroidBack";
 import { kioskPreviewGridColumns, kioskSafeInsetsForViewport, kioskViewportProfile, phoneKioskPresentation } from "../../src/lib/kioskEditorLayout";
 import { KioskWebLivePreview } from "../../src/lib/kioskWebPreview/KioskWebPreview";
 import { kioskOverlayColor, normalizeKioskDesignDocument, type KioskDesignDocument } from "../../src/lib/kioskVisualDesign";
@@ -192,6 +193,27 @@ export default function KioskScreen() {
   const inactivityTimerRef = useRef<ReturnType<typeof createKioskInactivityTimer> | null>(null);
   const resetInactivityRef = useRef(() => {});
   const [inactivityRemaining, setInactivityRemaining] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (Platform.OS !== "android") return;
+    const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      const action = resolveKioskAndroidBack({
+        exitOpen: showExit,
+        sessionExpired,
+      });
+      if (action === "open_exit") {
+        setShowExit(true);
+        return true;
+      }
+      if (action === "close_exit") {
+        setShowExit(false);
+        setExitCode("");
+        return true;
+      }
+      return true; // ignore — keep overlay
+    });
+    return () => sub.remove();
+  }, [showExit, sessionExpired]);
 
   selectedClassRef.current = selectedClass;
   idleSnapshotRef.current = {

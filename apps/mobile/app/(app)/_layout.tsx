@@ -2,13 +2,27 @@ import { View } from "react-native";
 import { Redirect, Stack } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApp } from "../../src/lib/AppProvider";
+import {
+  kioskLockRedirectHref,
+  shouldRedirectAppRoutesWhileKioskLocked,
+} from "../../src/lib/kioskAndroidBack";
 import { MobileGuidedHelp } from "../../src/tutorials/MobileGuidedHelp";
 import { colors } from "../../src/theme/tokens";
 
 export default function AppGroupLayout() {
   const { authState, t } = useApp();
   const insets = useSafeAreaInsets();
-  if (authState.status !== "authenticated" && authState.status !== "kiosk_locked") return <Redirect href="/(auth)/sign-in" />;
+  if (authState.status !== "authenticated" && authState.status !== "kiosk_locked") {
+    return <Redirect href="/(auth)/sign-in" />;
+  }
+  if (
+    shouldRedirectAppRoutesWhileKioskLocked(
+      authState.status,
+      authState.session?.kiosk_group_id,
+    )
+  ) {
+    return <Redirect href={kioskLockRedirectHref(authState.session!.kiosk_group_id!)} />;
+  }
   const sceneStyle = { backgroundColor: colors.bg, paddingBottom: insets.bottom, paddingLeft: insets.left, paddingRight: insets.right };
   return (
     <View style={{ flex: 1 }}>
