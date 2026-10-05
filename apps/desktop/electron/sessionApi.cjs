@@ -112,10 +112,14 @@ function isMissingCredentials(status, data) {
   );
 }
 
+const SESSION_JAR_FILE_NAME = "checkstation-session.bin";
+
 function createSessionApi(options = {}) {
   const apiBaseUrl = normalizeApiBase(options.apiBaseUrl || defaultApiBaseUrl());
   const csrfOrigin = csrfOriginFromApiBase(apiBaseUrl);
   const requestTimeoutMs = options.requestTimeoutMs || 30_000;
+  const storage = options.safeStorage || safeStorage;
+  const io = options.fs || fs;
   /** @type {Map<string, {name:string,value:string,expires:number|null}>} */
   const cookies = new Map();
   let csrfEnsured = false;
@@ -133,9 +137,17 @@ function createSessionApi(options = {}) {
     if (options.jarFilePath) return options.jarFilePath;
     try {
       if (typeof app?.getPath !== "function") return null;
-      return path.join(app.getPath("userData"), "checkstation-session.bin");
+      return path.join(app.getPath("userData"), SESSION_JAR_FILE_NAME);
     } catch {
       return null;
+    }
+  }
+
+  function encryptionAvailable() {
+    try {
+      return Boolean(storage?.isEncryptionAvailable?.());
+    } catch {
+      return false;
     }
   }
 
@@ -197,14 +209,12 @@ function createSessionApi(options = {}) {
   function persist() {
     const file = jarFilePath();
     if (!file) return;
+    // Memory-only when OS encryption is unavailable — never write plaintext.
+    if (!encryptionAvailable()) return;
     const payload = JSON.stringify([...cookies.values()]);
     try {
-      if (safeStorage?.isEncryptionAvailable?.()) {
-        fs.writeFileSync(file, safeStorage.encryptString(payload));
-      } else {
-        // Fallback: still keep out of renderer; file is under Electron userData.
-        fs.writeFileSync(file, Buffer.from(payload, "utf8"));
-      }
+      io.mkdirSync(path.dirname(file), { recursive: true });
+      io.writeFileSync(file, storage.encryptString(payload));
     } catch {
       /* ignore persist failures */
     }
@@ -212,21 +222,27 @@ function createSessionApi(options = {}) {
 
   function loadPersisted() {
     const file = jarFilePath();
-    if (!file || !fs.existsSync(file)) return;
-    try {
-      const buf = fs.readFileSync(file);
-      let raw;
-      if (safeStorage?.isEncryptionAvailable?.()) {
-        try {
-          raw = safeStorage.decryptString(buf);
-        } catch {
-          raw = buf.toString("utf8");
-        }
-      } else {
-        raw = buf.toString("utf8");
+    if (!file || !io.existsSync(file)) return;
+    if (!encryptionAvailable()) {
+      try {
+        io.unlinkSync(file);
+      } catch {
+        /* ignore */
       }
+      return;
+    }
+    try {
+      const buf = io.readFileSync(file);
+      const raw = storage.decryptString(buf);
       const list = JSON.parse(raw);
-      if (!Array.isArray(list)) return;
+      if (!Array.isArray(list)) {
+        try {
+          io.unlinkSync(file);
+        } catch {
+          /* ignore */
+        }
+        return;
+      }
       const now = Date.now();
       cookies.clear();
       for (const c of list) {
@@ -239,7 +255,11 @@ function createSessionApi(options = {}) {
         });
       }
     } catch {
-      /* ignore corrupt jar */
+      try {
+        io.unlinkSync(file);
+      } catch {
+        /* ignore */
+      }
     }
   }
 
@@ -248,7 +268,7 @@ function createSessionApi(options = {}) {
     csrfEnsured = false;
     try {
       const file = jarFilePath();
-      if (file && fs.existsSync(file)) fs.unlinkSync(file);
+      if (file && io.existsSync(file)) io.unlinkSync(file);
     } catch {
       /* ignore */
     }
@@ -435,6 +455,11 @@ function createSessionApi(options = {}) {
     http,
     // test helpers
     _getCookie: getCookie,
+    _setCookie: setCookie,
+    _persist: persist,
+    _loadPersisted: loadPersisted,
+    _encryptionAvailable: encryptionAvailable,
+    _jarFilePath: jarFilePath,
     _mediaCacheStore: mediaCacheStore,
     _SESSION_COOKIE: SESSION_COOKIE,
     _CSRF_COOKIE: CSRF_COOKIE,
@@ -443,4 +468,10 @@ function createSessionApi(options = {}) {
   };
 }
 
-module.exports = { createSessionApi, defaultApiBaseUrl, csrfOriginFromApiBase, resolveRequestUrl };
+module.exports = {
+  createSessionApi,
+  defaultApiBaseUrl,
+  csrfOriginFromApiBase,
+  resolveRequestUrl,
+  SESSION_JAR_FILE_NAME,
+};
