@@ -61,7 +61,9 @@ build/
 # Desktop MAS entitlement plists live under apps/desktop/build/ and must be
 # committed — electron-builder and CI tests read them. Keep other build/ trees ignored.
 !apps/desktop/build/
-!apps/desktop/build/**
+!apps/desktop/build/entitlements.mas.plist
+!apps/desktop/build/entitlements.mas.inherit.plist
+!apps/desktop/build/entitlements.mas.bridge.plist
 .next/
 out/
 .cache/

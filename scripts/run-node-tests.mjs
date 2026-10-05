@@ -6,15 +6,16 @@
  * local runs execute the same tests.
  *
  * Usage:
- *   node scripts/run-node-tests.mjs [--import-tsx] <rootDir> <suffix> [<rootDir> <suffix> ...]
+ *   node scripts/run-node-tests.mjs [--import-tsx] [--exclude name] <rootDir> <suffix> [...]
  *
  * Example:
  *   node ../../scripts/run-node-tests.mjs --import-tsx src .test.ts
  *   node ../../scripts/run-node-tests.mjs electron .test.cjs
+ *   node ../scripts/run-node-tests.mjs --exclude technicalSeoBuild.test.js src .test.js
  */
 
 import { readdirSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { basename, join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import process from "node:process";
 
@@ -48,32 +49,52 @@ function collectFiles(rootDir, suffix, out = []) {
 
 const args = process.argv.slice(2);
 const importTsx = args.includes("--import-tsx");
-const pairs = args.filter((a) => a !== "--import-tsx");
+const excludeNames = [];
+const positional = [];
+for (let i = 0; i < args.length; i += 1) {
+  const arg = args[i];
+  if (arg === "--import-tsx") continue;
+  if (arg === "--exclude") {
+    const name = args[i + 1];
+    if (!name) {
+      console.error("run-node-tests: --exclude requires a basename");
+      process.exit(2);
+    }
+    excludeNames.push(name);
+    i += 1;
+    continue;
+  }
+  positional.push(arg);
+}
 
-if (pairs.length === 0 || pairs.length % 2 !== 0) {
+if (positional.length === 0 || positional.length % 2 !== 0) {
   console.error(
-    "Usage: node scripts/run-node-tests.mjs [--import-tsx] <rootDir> <suffix> [...]",
+    "Usage: node scripts/run-node-tests.mjs [--import-tsx] [--exclude name] <rootDir> <suffix> [...]",
   );
   process.exit(2);
 }
 
 const files = [];
-for (let i = 0; i < pairs.length; i += 2) {
-  const rootDir = resolve(process.cwd(), pairs[i]);
-  const suffix = pairs[i + 1];
+for (let i = 0; i < positional.length; i += 2) {
+  const rootDir = resolve(process.cwd(), positional[i]);
+  const suffix = positional[i + 1];
   collectFiles(rootDir, suffix, files);
 }
 
-files.sort();
+const filtered = excludeNames.length === 0
+  ? files
+  : files.filter((f) => !excludeNames.includes(basename(f)));
 
-if (files.length === 0) {
+filtered.sort();
+
+if (filtered.length === 0) {
   console.error("run-node-tests: no test files found");
   process.exit(1);
 }
 
 const nodeArgs = [];
 if (importTsx) nodeArgs.push("--import", "tsx");
-nodeArgs.push("--test", ...files);
+nodeArgs.push("--test", ...filtered);
 
 const result = spawnSync(process.execPath, nodeArgs, {
   cwd: process.cwd(),

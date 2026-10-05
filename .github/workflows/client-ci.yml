@@ -31,10 +31,11 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Set up Node.js 20
+      - name: Set up Node.js 24
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          # Repo engines allow >=20. Local and Actions use Node 24 LTS line.
+          node-version: "24"
           cache: npm
           cache-dependency-path: package-lock.json
 
@@ -58,21 +59,24 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Set up Node.js 20
+      - name: Set up Node.js 24
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install frontend dependencies
         run: npm ci
 
-      - name: Frontend tests (all discovered .test.js files)
+      - name: Frontend unit tests (excludes post-build SEO checks)
         run: npm test
 
       - name: Frontend production build
         run: npm run build
+
+      - name: Frontend post-build SEO tests
+        run: npm run test:postbuild
 
   mobile:
     name: Mobile tests and typecheck
@@ -82,10 +86,10 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Set up Node.js 20
+      - name: Set up Node.js 24
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24"
           cache: npm
           cache-dependency-path: package-lock.json
 
@@ -106,15 +110,22 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Set up Node.js 20
+      - name: Set up Node.js 24
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24"
           cache: npm
-          cache-dependency-path: package-lock.json
+          cache-dependency-path: |
+            package-lock.json
+            frontend/package-lock.json
 
       - name: Install workspace dependencies
         run: npm ci
+
+      # Desktop planPreview tests import frontend modules that resolve i18next
+      # from frontend/node_modules (frontend is not an npm workspace package).
+      - name: Install frontend dependencies for shared module imports
+        run: npm ci --prefix frontend
 
       - name: Desktop typecheck
         run: npm run typecheck:desktop
