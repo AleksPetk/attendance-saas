@@ -17,7 +17,12 @@
     "desktop": "npm run dev -w @checkstation/desktop",
     "desktop:build": "npm run build -w @checkstation/desktop",
     "typecheck": "npm run typecheck -w @checkstation/api -w @checkstation/auth -w @checkstation/domain -w @checkstation/i18n -w @checkstation/config -w @checkstation/mobile -w @checkstation/desktop",
+    "typecheck:packages": "npm run typecheck -w @checkstation/api -w @checkstation/auth -w @checkstation/domain -w @checkstation/i18n -w @checkstation/config",
     "test:packages": "npm run test -w @checkstation/api -w @checkstation/auth -w @checkstation/domain -w @checkstation/i18n",
+    "test:mobile": "npm run test -w @checkstation/mobile",
+    "test:desktop": "npm run test -w @checkstation/desktop",
+    "typecheck:mobile": "npm run typecheck -w @checkstation/mobile",
+    "typecheck:desktop": "npm run typecheck -w @checkstation/desktop",
     "lint:apps": "npm run lint -w @checkstation/mobile -w @checkstation/desktop --if-present"
   },
   "engines": {

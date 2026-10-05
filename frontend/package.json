@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "vite build && node scripts/generate-seo-pages.mjs",
     "preview": "vite preview",
+    "test": "node ../scripts/run-node-tests.mjs src .test.js",
     "test:history-csv": "node --test src/history/*.test.js",
     "test:kiosk-settings": "node --test src/kiosk/kioskSettingsForm.test.js src/kiosk/kioskConfirmation.test.js src/kiosk/unifiedVisualFlow.test.js src/kiosk/kioskActionFlow.test.js src/kiosk/kioskFlowStages.test.js src/kioskTutorials.test.js",
     "test:group-editor": "node --test src/groupEditorForm.test.js",

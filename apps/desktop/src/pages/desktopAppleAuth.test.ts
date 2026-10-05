@@ -32,7 +32,8 @@ test("MAS Apple uses native ASAuthorization → completeAppleNative", () => {
   const preload = readFileSync(join(root, "electron/preload.cjs"), "utf8");
   const main = readFileSync(join(root, "electron/main.cjs"), "utf8");
   const native = readFileSync(join(root, "electron/appleNativeAuth.cjs"), "utf8");
-  const bridge = readFileSync(join(root, "native/MacBridge/Sources/main.swift"), "utf8");
+  // Option A: in-process MacApple native module (committed), not MacBridge.app.
+  const bridge = readFileSync(join(root, "native/MacApple/Sources/BridgeCore.swift"), "utf8");
 
   assert.match(buttons, /requestAppleNativeSignIn/);
   assert.match(buttons, /completeAppleNative/);

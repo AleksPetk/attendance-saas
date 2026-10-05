@@ -31,6 +31,11 @@ coverage.xml
 *.egg-info/
 dist/
 build/
+# Exception for desktop MAS entitlement plists (also under Node section below).
+!apps/desktop/build/
+!apps/desktop/build/entitlements.mas.plist
+!apps/desktop/build/entitlements.mas.inherit.plist
+!apps/desktop/build/entitlements.mas.bridge.plist
 .tox/
 .nox/
 
@@ -53,6 +58,10 @@ docker-compose.*.local.yml
 node_modules/
 dist/
 build/
+# Desktop MAS entitlement plists live under apps/desktop/build/ and must be
+# committed — electron-builder and CI tests read them. Keep other build/ trees ignored.
+!apps/desktop/build/
+!apps/desktop/build/**
 .next/
 out/
 .cache/

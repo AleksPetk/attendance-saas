@@ -9,7 +9,7 @@
     "android": "expo start --android",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "expo lint --quiet || true",
-    "test": "node --import tsx --test src/**/*.test.ts",
+    "test": "node ../../scripts/run-node-tests.mjs --import-tsx src .test.ts",
     "eas:build:development": "eas build --profile development --platform ios",
     "eas:build:preview": "eas build --profile preview --platform ios",
     "eas:build:production": "eas build --profile production --platform ios",

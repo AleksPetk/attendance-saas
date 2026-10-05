@@ -10,7 +10,7 @@
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "node --import tsx --test src/**/*.test.ts"
+    "test": "node ../../scripts/run-node-tests.mjs --import-tsx src .test.ts"
   },
   "devDependencies": {
     "tsx": "^4.19.3",

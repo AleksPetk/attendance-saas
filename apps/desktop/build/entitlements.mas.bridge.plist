@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<!--
+  Entitlements for CheckStationMacBridge helper process.
+  Must include the same com.apple.application-identifier as the Mac App Store
+  provisioning profile (required for ITMS-90886 / TestFlight eligibility).
+-->
+<dict>
+  <key>com.apple.application-identifier</key>
+  <string>472845AC29.app.checkstation.client</string>
+  <key>com.apple.developer.team-identifier</key>
+  <string>472845AC29</string>
+  <key>com.apple.security.app-sandbox</key>
+  <true/>
+  <key>com.apple.security.network.client</key>
+  <true/>
+  <key>com.apple.developer.applesignin</key>
+  <array>
+    <string>Default</string>
+  </array>
+</dict>
+</plist>

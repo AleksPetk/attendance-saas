@@ -1,0 +1,126 @@
+# Client / JavaScript verification only.
+# Runs packages, frontend, mobile, and desktop tests + typechecks.
+# Does not build/sign native apps or deploy.
+name: Client CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: client-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # Harmless deterministic public IDs for client tests that read Vite/Expo config.
+  # Not production secrets. No Stripe/Apple/Google private keys.
+  VITE_API_BASE_URL: http://127.0.0.1:8000/api
+  VITE_WORKSPACE_ORIGIN: http://127.0.0.1:5173
+  CI: "true"
+
+jobs:
+  packages:
+    name: Packages tests and typecheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install workspace dependencies
+        run: npm ci
+
+      - name: Package typecheck
+        run: npm run typecheck:packages
+
+      - name: Package tests
+        run: npm run test:packages
+
+  frontend:
+    name: Frontend tests and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Frontend tests (all discovered .test.js files)
+        run: npm test
+
+      - name: Frontend production build
+        run: npm run build
+
+  mobile:
+    name: Mobile tests and typecheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install workspace dependencies
+        run: npm ci
+
+      - name: Mobile typecheck
+        run: npm run typecheck:mobile
+
+      - name: Mobile tests
+        run: npm run test:mobile
+
+  desktop:
+    name: Desktop tests and typecheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install workspace dependencies
+        run: npm ci
+
+      - name: Desktop typecheck
+        run: npm run typecheck:desktop
+
+      - name: Desktop renderer + Electron tests
+        run: npm run test:desktop
+        env:
+          # Desktop distribution helpers read this; tests set their own overrides.
+          CHECKSTATION_DESKTOP_DISTRIBUTION: direct

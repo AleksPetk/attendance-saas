@@ -15,7 +15,7 @@
     "mas:signing:verify": "node scripts/verify-mas-signing.cjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "echo 'desktop lint placeholder'",
-    "test": "node --import tsx --test src/**/*.test.ts && node --test electron/**/*.test.cjs"
+    "test": "node ../../scripts/run-node-tests.mjs --import-tsx src .test.ts && node ../../scripts/run-node-tests.mjs electron .test.cjs"
   },
   "dependencies": {
     "@checkstation/api": "*",
