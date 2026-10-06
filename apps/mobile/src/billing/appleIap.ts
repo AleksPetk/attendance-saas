@@ -16,6 +16,7 @@ import {
   fetchProducts,
   finishTransaction,
   getAvailablePurchases,
+  getStorefront,
   initConnection,
   purchaseErrorListener,
   purchaseUpdatedListener,
@@ -24,7 +25,11 @@ import {
   type ProductSubscription,
   type Purchase,
 } from "expo-iap";
+// Native iOS management sheet — exported from the iOS module (not the cross-platform index).
+import { showManageSubscriptionsIOS } from "expo-iap/build/modules/ios";
 import { APPLE_PRODUCT_ID_LIST, type AppleProductId } from "./appleProducts";
+import { normalizeAppleStorefrontCountryCode } from "./applePlanCards";
+import { runAppleManageSubscriptions } from "./appleManageSubscriptions";
 
 export type AppleStoreProduct = {
   productId: AppleProductId;
@@ -274,6 +279,43 @@ export async function finishAppleTransaction(purchase: Purchase): Promise<void> 
   }
 }
 
-export async function openAppleManageSubscriptions(): Promise<void> {
-  await deepLinkToSubscriptions({});
+/**
+ * Read the App Store storefront country code (e.g. "JP", "US").
+ * Returns null when StoreKit cannot determine it — callers must not guess from locale.
+ */
+export async function loadAppleStorefrontCountryCode(): Promise<string | null> {
+  if (!appleIapSupported()) return null;
+  try {
+    await ensureAppleIapSession();
+    const raw = await getStorefront();
+    return normalizeAppleStorefrontCountryCode(raw);
+  } catch {
+    return null;
+  }
+}
+
+export type AppleManageSubscriptionsDeps = {
+  showManageSubscriptionsIOS?: () => Promise<unknown>;
+  deepLinkToSubscriptions?: (options: Record<string, never>) => Promise<void>;
+};
+
+export {
+  isUnsupportedAppleManageSubscriptionsError,
+} from "./appleManageSubscriptions";
+
+/**
+ * Open Apple's in-app subscription management sheet on iOS.
+ * Falls back to the App Store subscriptions deep link only when the native
+ * sheet API is unavailable / unsupported — not on arbitrary failures.
+ */
+export async function openAppleManageSubscriptions(
+  deps: AppleManageSubscriptionsDeps = {},
+): Promise<"native_sheet" | "deep_link"> {
+  if (!appleIapSupported()) {
+    throw new Error("Apple billing is only available on iOS.");
+  }
+  return runAppleManageSubscriptions({
+    showManageSubscriptionsIOS: deps.showManageSubscriptionsIOS || showManageSubscriptionsIOS,
+    deepLinkToSubscriptions: deps.deepLinkToSubscriptions || deepLinkToSubscriptions,
+  });
 }

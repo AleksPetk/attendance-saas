@@ -27,6 +27,7 @@ import {
   appleIapSupported,
   finishAppleTransaction,
   isUserCancelPurchaseError,
+  loadAppleStorefrontCountryCode,
   loadAppleSubscriptionProducts,
   openAppleManageSubscriptions,
   purchaseAppleSubscription,
@@ -64,6 +65,7 @@ export default function PlanScreen() {
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
   const [appleProducts, setAppleProducts] = useState<AppleStoreProduct[]>([]);
+  const [appleStorefrontCountryCode, setAppleStorefrontCountryCode] = useState<string | null>(null);
   const [appleLoading, setAppleLoading] = useState(false);
   const [appleBusy, setAppleBusy] = useState(false);
   const [appleStoreError, setAppleStoreError] = useState(false);
@@ -106,6 +108,7 @@ export default function PlanScreen() {
   useEffect(() => {
     if (!loadAppleProducts) {
       setAppleProducts([]);
+      setAppleStorefrontCountryCode(null);
       setAppleStoreError(false);
       setAppleLoading(false);
       return;
@@ -113,15 +116,20 @@ export default function PlanScreen() {
     let cancelled = false;
     setAppleLoading(true);
     setAppleStoreError(false);
-    void loadAppleSubscriptionProducts()
-      .then((products) => {
+    void Promise.all([
+      loadAppleSubscriptionProducts(),
+      loadAppleStorefrontCountryCode(),
+    ])
+      .then(([products, storefront]) => {
         if (cancelled) return;
         setAppleProducts(products);
+        setAppleStorefrontCountryCode(storefront);
         setAppleStoreError(products.length === 0);
       })
       .catch(() => {
         if (cancelled) return;
         setAppleProducts([]);
+        setAppleStorefrontCountryCode(null);
         setAppleStoreError(true);
       })
       .finally(() => {
@@ -373,7 +381,10 @@ export default function PlanScreen() {
                     note=""
                     onAction={onAction}
                     period={bt(periodKey)}
-                    price={appleDisplayPriceForCard(store, applePriceUnavailable)}
+                    price={appleDisplayPriceForCard(store, applePriceUnavailable, {
+                      productId: card.productId,
+                      storefrontCountryCode: appleStorefrontCountryCode,
+                    })}
                     recommendedBadge={false}
                     renews=""
                     title={card.title}

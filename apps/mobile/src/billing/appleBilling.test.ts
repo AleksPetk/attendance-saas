@@ -148,6 +148,181 @@ test("buildApplePlanCards enumerates all four App Store SKUs from catalog", asyn
   assert.equal(map.has(APPLE_PRODUCT_IDS.plusMonthly), false);
 });
 
+test("Japan storefront forces fixed yen card display even when StoreKit returns USD", async () => {
+  const {
+    resolveAppleCardDisplayPrice,
+    APPLE_JAPAN_CARD_DISPLAY_PRICES,
+    isJapanAppleStorefront,
+    normalizeAppleStorefrontCountryCode,
+  } = await import("./applePlanCards");
+
+  assert.equal(normalizeAppleStorefrontCountryCode("jp"), "JP");
+  assert.equal(normalizeAppleStorefrontCountryCode("JPN"), "JP");
+  assert.equal(isJapanAppleStorefront("JP"), true);
+  assert.equal(isJapanAppleStorefront("US"), false);
+
+  assert.equal(
+    resolveAppleCardDisplayPrice({
+      productId: APPLE_PRODUCT_IDS.plusMonthly,
+      storefrontCountryCode: "JP",
+      store: { productId: APPLE_PRODUCT_IDS.plusMonthly, displayPrice: "$9.99", title: "", description: "" },
+      unavailableLabel: "pending",
+    }),
+    "¥980",
+  );
+  assert.equal(
+    resolveAppleCardDisplayPrice({
+      productId: APPLE_PRODUCT_IDS.plusYearly,
+      storefrontCountryCode: "JP",
+      store: { productId: APPLE_PRODUCT_IDS.plusYearly, displayPrice: "$99.99", title: "", description: "" },
+      unavailableLabel: "pending",
+    }),
+    "¥9,800",
+  );
+  assert.equal(
+    resolveAppleCardDisplayPrice({
+      productId: APPLE_PRODUCT_IDS.businessMonthly,
+      storefrontCountryCode: "JP",
+      store: { productId: APPLE_PRODUCT_IDS.businessMonthly, displayPrice: "$14.99", title: "", description: "" },
+      unavailableLabel: "pending",
+    }),
+    "¥1,480",
+  );
+  assert.equal(
+    resolveAppleCardDisplayPrice({
+      productId: APPLE_PRODUCT_IDS.businessYearly,
+      storefrontCountryCode: "JP",
+      store: { productId: APPLE_PRODUCT_IDS.businessYearly, displayPrice: "$149.99", title: "", description: "" },
+      unavailableLabel: "pending",
+    }),
+    "¥14,800",
+  );
+  assert.deepEqual(APPLE_JAPAN_CARD_DISPLAY_PRICES, {
+    [APPLE_PRODUCT_IDS.plusMonthly]: "¥980",
+    [APPLE_PRODUCT_IDS.plusYearly]: "¥9,800",
+    [APPLE_PRODUCT_IDS.businessMonthly]: "¥1,480",
+    [APPLE_PRODUCT_IDS.businessYearly]: "¥14,800",
+  });
+});
+
+test("non-Japan and unknown storefronts keep StoreKit displayPrice", async () => {
+  const { resolveAppleCardDisplayPrice } = await import("./applePlanCards");
+  assert.equal(
+    resolveAppleCardDisplayPrice({
+      productId: APPLE_PRODUCT_IDS.plusMonthly,
+      storefrontCountryCode: "US",
+      store: { productId: APPLE_PRODUCT_IDS.plusMonthly, displayPrice: "$9.99", title: "", description: "" },
+      unavailableLabel: "pending",
+    }),
+    "$9.99",
+  );
+  assert.equal(
+    resolveAppleCardDisplayPrice({
+      productId: APPLE_PRODUCT_IDS.plusMonthly,
+      storefrontCountryCode: null,
+      store: { productId: APPLE_PRODUCT_IDS.plusMonthly, displayPrice: "$9.99", title: "", description: "" },
+      unavailableLabel: "pending",
+    }),
+    "$9.99",
+  );
+  assert.equal(
+    resolveAppleCardDisplayPrice({
+      productId: APPLE_PRODUCT_IDS.plusMonthly,
+      storefrontCountryCode: "",
+      store: undefined,
+      unavailableLabel: "pending",
+    }),
+    "pending",
+  );
+});
+
+test("plan.tsx wires storefront into card display and still purchases by productId", () => {
+  const page = read("apps/mobile/app/(app)/plan.tsx");
+  assert.match(page, /loadAppleStorefrontCountryCode/);
+  assert.match(page, /appleStorefrontCountryCode/);
+  assert.match(page, /storefrontCountryCode:\s*appleStorefrontCountryCode/);
+  assert.match(page, /purchaseAppleSubscription\(\{\s*productId,/);
+  assert.match(page, /onPurchase\(card\.productId\)/);
+});
+
+test("openAppleManageSubscriptions prefers native sheet and deep-links only when unsupported", async () => {
+  const iapSource = read("apps/mobile/src/billing/appleIap.ts");
+  assert.match(iapSource, /showManageSubscriptionsIOS/);
+  assert.match(iapSource, /runAppleManageSubscriptions/);
+  assert.match(iapSource, /native_sheet|deep_link/);
+
+  const {
+    isUnsupportedAppleManageSubscriptionsError,
+    runAppleManageSubscriptions,
+  } = await import("./appleManageSubscriptions");
+
+  assert.equal(isUnsupportedAppleManageSubscriptionsError({ code: "unsupported" }), true);
+  assert.equal(isUnsupportedAppleManageSubscriptionsError({ message: "not available" }), true);
+  assert.equal(isUnsupportedAppleManageSubscriptionsError({ code: "E_UNKNOWN", message: "boom" }), false);
+
+  let nativeCalls = 0;
+  let deepLinkCalls = 0;
+  const nativeResult = await runAppleManageSubscriptions({
+    showManageSubscriptionsIOS: async () => {
+      nativeCalls += 1;
+    },
+    deepLinkToSubscriptions: async () => {
+      deepLinkCalls += 1;
+    },
+  });
+  assert.equal(nativeResult, "native_sheet");
+  assert.equal(nativeCalls, 1);
+  assert.equal(deepLinkCalls, 0);
+
+  nativeCalls = 0;
+  deepLinkCalls = 0;
+  const fallbackResult = await runAppleManageSubscriptions({
+    showManageSubscriptionsIOS: async () => {
+      nativeCalls += 1;
+      throw Object.assign(new Error("not available"), { code: "unsupported" });
+    },
+    deepLinkToSubscriptions: async () => {
+      deepLinkCalls += 1;
+    },
+  });
+  assert.equal(fallbackResult, "deep_link");
+  assert.equal(nativeCalls, 1);
+  assert.equal(deepLinkCalls, 1);
+
+  deepLinkCalls = 0;
+  const missingNativeResult = await runAppleManageSubscriptions({
+    deepLinkToSubscriptions: async () => {
+      deepLinkCalls += 1;
+    },
+  });
+  assert.equal(missingNativeResult, "deep_link");
+  assert.equal(deepLinkCalls, 1);
+
+  await assert.rejects(
+    () => runAppleManageSubscriptions({
+      showManageSubscriptionsIOS: async () => {
+        throw Object.assign(new Error("network failed"), { code: "E_NETWORK" });
+      },
+      deepLinkToSubscriptions: async () => {
+        deepLinkCalls += 1;
+      },
+    }),
+    /network failed/,
+  );
+});
+
+test("MAS manage still uses App Store URL; mobile restore path unchanged", () => {
+  const desktopBridge = read("apps/desktop/native/MacApple/Sources/BridgeCore.swift");
+  const desktopTest = read("apps/desktop/src/pages/applePlanSwitching.test.ts");
+  const iap = read("apps/mobile/src/billing/appleIap.ts");
+  const page = read("apps/mobile/app/(app)/plan.tsx");
+  assert.match(desktopBridge, /https:\/\/apps\.apple\.com\/account\/subscriptions/);
+  assert.match(desktopTest, /Manage Subscription path unchanged/);
+  assert.match(iap, /expoIapRestorePurchases/);
+  assert.match(page, /restoreApplePurchases/);
+  assert.doesNotMatch(page, /showManageSubscriptionsIOS/);
+});
+
 test("Apple Plan screen gates Stripe promo off and never purchases during trial", () => {
   const page = read("apps/mobile/app/(app)/plan.tsx");
   assert.match(page, /appleDisplayPriceForCard/);
