@@ -147,3 +147,6 @@ apps/mobile/.signing-local/
 # Local audit / inspector reports (not production source)
 grok_agent/
 
+# Local Cursor prompt memo (append-only; never commit)
+cursor_prompt_memo.md
+
