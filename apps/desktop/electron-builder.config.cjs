@@ -41,13 +41,19 @@ const macAppleNativeDylib = path.join(
   "native/MacApple/build/libCheckStationMacApple.dylib",
 );
 
-const extraResources = [
-  {
-    from: ".env",
-    to: ".env",
-  },
-];
+const extraResources = [];
 if (distribution === "mas") {
+  const masPackagedEnv = path.join(__dirname, ".env.mas-packaged");
+  if (!fs.existsSync(masPackagedEnv)) {
+    throw new Error(
+      "MAS packaging requires .env.mas-packaged (run stage-mas-google-env via build:electron:mas). "
+      + "Set GOOGLE_DESKTOP_OAUTH_CLIENT_ID and GOOGLE_DESKTOP_OAUTH_CLIENT_SECRET in the release environment.",
+    );
+  }
+  extraResources.push({
+    from: ".env.mas-packaged",
+    to: ".env",
+  });
   // In-process native module only — never package CheckStationMacBridge.app.
   // Presence is required at build time (build-electron-variant / afterPack).
   if (fs.existsSync(macAppleNativeNode) && fs.existsSync(macAppleNativeDylib)) {
@@ -56,6 +62,13 @@ if (distribution === "mas") {
       { from: macAppleNativeDylib, to: "libCheckStationMacApple.dylib" },
     );
   }
+} else if (fs.existsSync(path.join(__dirname, ".env"))) {
+  // DIRECT may optionally ship a local .env for API base URL; Google Desktop
+  // credentials are not required (DIRECT uses web Google OAuth + handoff).
+  extraResources.push({
+    from: ".env",
+    to: ".env",
+  });
 }
 
 let masSigning = null;

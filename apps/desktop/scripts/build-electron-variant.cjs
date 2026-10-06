@@ -23,6 +23,10 @@ const {
   resolveMasSigning,
   printHumanBlocker,
 } = require("./resolve-mas-signing.cjs");
+const {
+  prepareMasGoogleReleaseEnv,
+  cleanupMasGooglePackagedEnv,
+} = require("./stage-mas-google-env.cjs");
 
 const distribution = normalizeDesktopDistribution(process.argv[2] || "direct");
 const info = getDesktopDistributionInfo({ distribution });
@@ -114,50 +118,62 @@ if (distribution === "mas") {
     `[checkstation-desktop] MAS version=${require("../package.json").version} buildVersion=${process.env.CHECKSTATION_MAS_BUILD_VERSION || "7"}`,
   );
 
+  try {
+    const staged = prepareMasGoogleReleaseEnv(desktopRoot, env);
+    console.log(`[checkstation-desktop] MAS Google OAuth staged → ${path.basename(staged)}`);
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exit(2);
+  }
+
   run("node", ["native/MacApple/build-native.cjs"]);
 }
 
 run("npx", ["vite", "build"]);
 
 if (distribution === "mas") {
-  // Real Mac App Store target (produces signed .app + .pkg). Do not use --dir.
-  run("npx", [
-    "electron-builder",
-    "--config",
-    "electron-builder.config.cjs",
-    "--mac",
-    "mas",
-  ]);
+  try {
+    // Real Mac App Store target (produces signed .app + .pkg). Do not use --dir.
+    run("npx", [
+      "electron-builder",
+      "--config",
+      "electron-builder.config.cjs",
+      "--mac",
+      "mas",
+    ]);
 
-  const pkgDir = path.join(desktopRoot, "release/mas");
-  function findFiles(rootDir, predicate) {
-    const out = [];
-    if (!fs.existsSync(rootDir)) return out;
-    const stack = [rootDir];
-    while (stack.length) {
-      const current = stack.pop();
-      for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
-        const full = path.join(current, entry.name);
-        if (predicate(entry.name, full)) out.push(full);
-        if (entry.isDirectory()) stack.push(full);
+    const pkgDir = path.join(desktopRoot, "release/mas");
+    function findFiles(rootDir, predicate) {
+      const out = [];
+      if (!fs.existsSync(rootDir)) return out;
+      const stack = [rootDir];
+      while (stack.length) {
+        const current = stack.pop();
+        for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
+          const full = path.join(current, entry.name);
+          if (predicate(entry.name, full)) out.push(full);
+          if (entry.isDirectory()) stack.push(full);
+        }
       }
+      return out;
     }
-    return out;
-  }
-  const foundPkg = findFiles(pkgDir, (name) => name.endsWith(".pkg"))[0];
-  const foundApp = findFiles(pkgDir, (name, full) => name === "CheckStation.app" && full.includes(`${path.sep}mas`))[0]
-    || findFiles(pkgDir, (name) => name === "CheckStation.app")[0];
+    const foundPkg = findFiles(pkgDir, (name) => name.endsWith(".pkg"))[0];
+    const foundApp = findFiles(pkgDir, (name, full) => name === "CheckStation.app" && full.includes(`${path.sep}mas`))[0]
+      || findFiles(pkgDir, (name) => name === "CheckStation.app")[0];
 
-  if (foundApp) {
-    run("node", ["scripts/verify-mas-signing.cjs", foundApp]);
-  } else {
-    console.warn("[checkstation-desktop] CheckStation.app not found for verify; looking under release/mas…");
+    if (foundApp) {
+      run("node", ["scripts/verify-mas-signing.cjs", foundApp]);
+    } else {
+      console.warn("[checkstation-desktop] CheckStation.app not found for verify; looking under release/mas…");
+    }
+    console.log(`[checkstation-desktop] MAS pkg=${foundPkg || "(not found)"}`);
+    console.log(`[checkstation-desktop] MAS app=${foundApp || "(not found)"}`);
+    console.log(
+      "[checkstation-desktop] MAS output is temporary — run `npm run clean:mas-release` after TestFlight upload",
+    );
+  } finally {
+    cleanupMasGooglePackagedEnv(desktopRoot);
   }
-  console.log(`[checkstation-desktop] MAS pkg=${foundPkg || "(not found)"}`);
-  console.log(`[checkstation-desktop] MAS app=${foundApp || "(not found)"}`);
-  console.log(
-    "[checkstation-desktop] MAS output is temporary — run `npm run clean:mas-release` after TestFlight upload",
-  );
 } else {
   run("npx", [
     "electron-builder",

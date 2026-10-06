@@ -1,6 +1,6 @@
 const { describe, it } = require("node:test");
 const assert = require("node:assert/strict");
-const { readFileSync } = require("node:fs");
+const { existsSync, readFileSync, unlinkSync, writeFileSync } = require("node:fs");
 const { join } = require("node:path");
 const path = require("node:path");
 const {
@@ -108,9 +108,27 @@ describe("electron-builder variant config", () => {
     // DIRECT stays unsigned; MAS must not hardcode identity: null in the MAS branch.
     assert.match(source, /identity: null/);
     assert.match(source, /distribution === "mas"/);
+    assert.match(source, /\.env\.mas-packaged/);
     assert.doesNotMatch(source, /CheckStation MAS/);
 
     const previous = process.env.CHECKSTATION_DESKTOP_DISTRIBUTION;
+    const stagedEnvPath = join(__dirname, "../.env.mas-packaged");
+    const hadStagedEnv = existsSync(stagedEnvPath);
+    let previousStagedBody = null;
+    if (hadStagedEnv) {
+      previousStagedBody = readFileSync(stagedEnvPath, "utf8");
+    } else {
+      writeFileSync(
+        stagedEnvPath,
+        [
+          "# test fixture — not a real secret",
+          "GOOGLE_DESKTOP_OAUTH_CLIENT_ID=test-id.apps.googleusercontent.com",
+          "GOOGLE_DESKTOP_OAUTH_CLIENT_SECRET=test-secret",
+          "",
+        ].join("\n"),
+        "utf8",
+      );
+    }
     process.env.CHECKSTATION_DESKTOP_DISTRIBUTION = "mas";
     try {
       delete require.cache[require.resolve("../electron-builder.config.cjs")];
@@ -132,12 +150,22 @@ describe("electron-builder variant config", () => {
         assert.ok(config.mac.provisioningProfile);
         assert.equal(config.mac.target[0].target, "mas");
         assert.notEqual(config.directories.output, "release/direct");
+        const extraFrom = (config.extraResources || []).map((row) => row && row.from);
+        assert.ok(extraFrom.includes(".env.mas-packaged"));
       } else {
-        assert.match(String(loadError && loadError.message), /MAS signing assets missing/);
+        assert.match(
+          String(loadError && loadError.message),
+          /MAS signing assets missing|MAS packaging requires \.env\.mas-packaged/,
+        );
       }
     } finally {
       if (previous == null) delete process.env.CHECKSTATION_DESKTOP_DISTRIBUTION;
       else process.env.CHECKSTATION_DESKTOP_DISTRIBUTION = previous;
+      if (!hadStagedEnv && existsSync(stagedEnvPath)) {
+        unlinkSync(stagedEnvPath);
+      } else if (hadStagedEnv && previousStagedBody != null) {
+        writeFileSync(stagedEnvPath, previousStagedBody, "utf8");
+      }
       delete require.cache[require.resolve("../electron-builder.config.cjs")];
       delete require.cache[require.resolve("./desktopDistribution.cjs")];
       delete require.cache[require.resolve("../scripts/resolve-mas-signing.cjs")];
