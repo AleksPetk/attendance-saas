@@ -60,6 +60,37 @@ export function isJapanAppleStorefront(storefrontCountryCode: unknown): boolean 
   return normalizeAppleStorefrontCountryCode(storefrontCountryCode) === "JP";
 }
 
+/**
+ * Normalize StoreKit product currency (ISO 4217). Card-display Japan signal only.
+ */
+export function normalizeAppleProductCurrency(value: unknown): string | null {
+  const raw = String(value || "").trim().toUpperCase();
+  if (!raw) return null;
+  if (raw === "¥" || raw === "￥" || raw === "YEN") return "JPY";
+  if (/^[A-Z]{3}$/.test(raw)) return raw;
+  return null;
+}
+
+export function isJapanAppleProductCurrency(currency: unknown): boolean {
+  return normalizeAppleProductCurrency(currency) === "JPY";
+}
+
+/**
+ * Credible Japan signals for forced card yen amounts (display only).
+ * Explicit JP storefront wins; StoreKit product currency JPY is a fallback
+ * when storefront is unknown. Device locale / UI language are never used.
+ */
+export function shouldUseJapanAppleCardDisplayPrices(input: {
+  storefrontCountryCode?: string | null;
+  store?: Pick<AppleStoreProduct, "currency"> | undefined;
+}): boolean {
+  if (isJapanAppleStorefront(input.storefrontCountryCode)) return true;
+  const storefront = normalizeAppleStorefrontCountryCode(input.storefrontCountryCode);
+  // Known non-Japan storefront must keep StoreKit displayPrice (no JPY override).
+  if (storefront && storefront !== "JP") return false;
+  return isJapanAppleProductCurrency(input.store?.currency);
+}
+
 export function japanAppleCardDisplayPrice(
   productId: AppleProductId | string | undefined,
 ): string | null {
@@ -107,14 +138,20 @@ export type AppleCardDisplayPriceInput = {
 
 /**
  * Resolve the price string shown on an Apple Plan card.
- * JP storefront → fixed Japan card amounts (even if StoreKit returned USD).
- * Other / unknown storefront → StoreKit displayPrice, else unavailable label.
+ * JP storefront or (unknown storefront + StoreKit currency JPY)
+ * → fixed Japan card amounts (even if StoreKit displayPrice is USD).
+ * Otherwise → StoreKit displayPrice, else unavailable label.
  */
 export function resolveAppleCardDisplayPrice(
   input: AppleCardDisplayPriceInput,
 ): string {
   const productId = input.productId || input.store?.productId;
-  if (isJapanAppleStorefront(input.storefrontCountryCode)) {
+  if (
+    shouldUseJapanAppleCardDisplayPrices({
+      storefrontCountryCode: input.storefrontCountryCode,
+      store: input.store,
+    })
+  ) {
     const japan = japanAppleCardDisplayPrice(productId);
     if (japan) return japan;
   }

@@ -34,12 +34,16 @@ import { runAppleManageSubscriptions } from "./appleManageSubscriptions";
 export type AppleStoreProduct = {
   productId: AppleProductId;
   displayPrice: string;
+  /** ISO 4217 from StoreKit when available (e.g. "JPY", "USD") — card display only. */
+  currency: string | null;
   title: string;
   description: string;
 };
 
 const PRODUCT_FETCH_ATTEMPTS = 3;
 const PRODUCT_FETCH_RETRY_MS = 450;
+const STOREFRONT_FETCH_ATTEMPTS = 3;
+const STOREFRONT_FETCH_RETRY_MS = 250;
 
 export function appleIapSupported(): boolean {
   return Platform.OS === "ios";
@@ -158,9 +162,15 @@ export function normalizeFetchedProducts(products: unknown): AppleStoreProduct[]
   for (const productId of APPLE_PRODUCT_ID_LIST) {
     const product = byId.get(productId);
     if (!product) continue;
+    const currencyRaw = String(
+      (product as { currency?: string | null }).currency
+        || (product as { currencyCodeIOS?: string | null }).currencyCodeIOS
+        || "",
+    ).trim().toUpperCase();
     ordered.push({
       productId,
       displayPrice: String(product.displayPrice || ""),
+      currency: currencyRaw || null,
       title: String(product.title || productId),
       description: String(product.description || ""),
     });
@@ -281,17 +291,30 @@ export async function finishAppleTransaction(purchase: Purchase): Promise<void> 
 
 /**
  * Read the App Store storefront country code (e.g. "JP", "US").
- * Returns null when StoreKit cannot determine it — callers must not guess from locale.
+ * Retries briefly when StoreKit returns empty / throws during cold start
+ * (observed on some iPad sessions). Returns null when still unknown —
+ * callers must not guess from device locale.
  */
 export async function loadAppleStorefrontCountryCode(): Promise<string | null> {
   if (!appleIapSupported()) return null;
   try {
     await ensureAppleIapSession();
-    const raw = await getStorefront();
-    return normalizeAppleStorefrontCountryCode(raw);
   } catch {
     return null;
   }
+  for (let attempt = 1; attempt <= STOREFRONT_FETCH_ATTEMPTS; attempt += 1) {
+    try {
+      const raw = await getStorefront();
+      const normalized = normalizeAppleStorefrontCountryCode(raw);
+      if (normalized) return normalized;
+    } catch {
+      // Retry transient StoreKit/OpenIAP failures; never invent a country.
+    }
+    if (attempt < STOREFRONT_FETCH_ATTEMPTS) {
+      await sleep(STOREFRONT_FETCH_RETRY_MS * attempt);
+    }
+  }
+  return null;
 }
 
 export type AppleManageSubscriptionsDeps = {

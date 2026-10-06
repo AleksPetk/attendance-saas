@@ -139,10 +139,10 @@ test("buildApplePlanCards enumerates all four App Store SKUs from catalog", asyn
   assert.equal(cards.length, 4);
   assert.deepEqual(cards.map((c) => c.productId), APPLE_PRODUCT_ID_LIST);
   assert.equal(cards[0].title, "Plus Monthly");
-  assert.equal(appleDisplayPriceForCard({ productId: APPLE_PRODUCT_IDS.plusMonthly, displayPrice: "¥1,200", title: "", description: "" }, "pending"), "¥1,200");
+  assert.equal(appleDisplayPriceForCard({ productId: APPLE_PRODUCT_IDS.plusMonthly, displayPrice: "¥1,200", currency: null, title: "", description: "" }, "pending"), "¥1,200");
   assert.equal(appleDisplayPriceForCard(undefined, "pending"), "pending");
   const map = appleStoreProductMap([
-    { productId: APPLE_PRODUCT_IDS.businessYearly, displayPrice: "$99", title: "B", description: "" },
+    { productId: APPLE_PRODUCT_IDS.businessYearly, displayPrice: "$99", currency: "USD", title: "B", description: "" },
   ]);
   assert.equal(map.get(APPLE_PRODUCT_IDS.businessYearly)?.displayPrice, "$99");
   assert.equal(map.has(APPLE_PRODUCT_IDS.plusMonthly), false);
@@ -165,7 +165,7 @@ test("Japan storefront forces fixed yen card display even when StoreKit returns 
     resolveAppleCardDisplayPrice({
       productId: APPLE_PRODUCT_IDS.plusMonthly,
       storefrontCountryCode: "JP",
-      store: { productId: APPLE_PRODUCT_IDS.plusMonthly, displayPrice: "$9.99", title: "", description: "" },
+      store: { productId: APPLE_PRODUCT_IDS.plusMonthly, displayPrice: "$9.99", currency: "USD", title: "", description: "" },
       unavailableLabel: "pending",
     }),
     "¥980",
@@ -174,7 +174,7 @@ test("Japan storefront forces fixed yen card display even when StoreKit returns 
     resolveAppleCardDisplayPrice({
       productId: APPLE_PRODUCT_IDS.plusYearly,
       storefrontCountryCode: "JP",
-      store: { productId: APPLE_PRODUCT_IDS.plusYearly, displayPrice: "$99.99", title: "", description: "" },
+      store: { productId: APPLE_PRODUCT_IDS.plusYearly, displayPrice: "$99.99", currency: "USD", title: "", description: "" },
       unavailableLabel: "pending",
     }),
     "¥9,800",
@@ -183,7 +183,7 @@ test("Japan storefront forces fixed yen card display even when StoreKit returns 
     resolveAppleCardDisplayPrice({
       productId: APPLE_PRODUCT_IDS.businessMonthly,
       storefrontCountryCode: "JP",
-      store: { productId: APPLE_PRODUCT_IDS.businessMonthly, displayPrice: "$14.99", title: "", description: "" },
+      store: { productId: APPLE_PRODUCT_IDS.businessMonthly, displayPrice: "$14.99", currency: "USD", title: "", description: "" },
       unavailableLabel: "pending",
     }),
     "¥1,480",
@@ -192,7 +192,7 @@ test("Japan storefront forces fixed yen card display even when StoreKit returns 
     resolveAppleCardDisplayPrice({
       productId: APPLE_PRODUCT_IDS.businessYearly,
       storefrontCountryCode: "JP",
-      store: { productId: APPLE_PRODUCT_IDS.businessYearly, displayPrice: "$149.99", title: "", description: "" },
+      store: { productId: APPLE_PRODUCT_IDS.businessYearly, displayPrice: "$149.99", currency: "USD", title: "", description: "" },
       unavailableLabel: "pending",
     }),
     "¥14,800",
@@ -205,13 +205,95 @@ test("Japan storefront forces fixed yen card display even when StoreKit returns 
   });
 });
 
+test("JP storefront with JPY StoreKit displayPrice still uses fixed card yen", async () => {
+  const { resolveAppleCardDisplayPrice } = await import("./applePlanCards");
+  assert.equal(
+    resolveAppleCardDisplayPrice({
+      productId: APPLE_PRODUCT_IDS.plusMonthly,
+      storefrontCountryCode: "JP",
+      store: { productId: APPLE_PRODUCT_IDS.plusMonthly, displayPrice: "¥1,200", currency: "JPY", title: "", description: "" },
+      unavailableLabel: "pending",
+    }),
+    "¥980",
+  );
+});
+
+test("unknown storefront + StoreKit currency JPY forces fixed JP card prices", async () => {
+  const { resolveAppleCardDisplayPrice, shouldUseJapanAppleCardDisplayPrices } = await import("./applePlanCards");
+  assert.equal(
+    shouldUseJapanAppleCardDisplayPrices({
+      storefrontCountryCode: null,
+      store: { currency: "JPY" },
+    }),
+    true,
+  );
+  assert.equal(
+    resolveAppleCardDisplayPrice({
+      productId: APPLE_PRODUCT_IDS.plusMonthly,
+      storefrontCountryCode: null,
+      store: { productId: APPLE_PRODUCT_IDS.plusMonthly, displayPrice: "$9.99", currency: "JPY", title: "", description: "" },
+      unavailableLabel: "pending",
+    }),
+    "¥980",
+  );
+  assert.equal(
+    resolveAppleCardDisplayPrice({
+      productId: APPLE_PRODUCT_IDS.businessYearly,
+      storefrontCountryCode: "",
+      store: { productId: APPLE_PRODUCT_IDS.businessYearly, displayPrice: "$149.99", currency: "jpy", title: "", description: "" },
+      unavailableLabel: "pending",
+    }),
+    "¥14,800",
+  );
+});
+
+test("unknown storefront + StoreKit currency USD keeps StoreKit displayPrice", async () => {
+  const { resolveAppleCardDisplayPrice, shouldUseJapanAppleCardDisplayPrices } = await import("./applePlanCards");
+  assert.equal(
+    shouldUseJapanAppleCardDisplayPrices({
+      storefrontCountryCode: null,
+      store: { currency: "USD" },
+    }),
+    false,
+  );
+  assert.equal(
+    resolveAppleCardDisplayPrice({
+      productId: APPLE_PRODUCT_IDS.plusMonthly,
+      storefrontCountryCode: null,
+      store: { productId: APPLE_PRODUCT_IDS.plusMonthly, displayPrice: "$9.99", currency: "USD", title: "", description: "" },
+      unavailableLabel: "pending",
+    }),
+    "$9.99",
+  );
+});
+
+test("US storefront keeps StoreKit USD even if product currency were JPY", async () => {
+  const { resolveAppleCardDisplayPrice, shouldUseJapanAppleCardDisplayPrices } = await import("./applePlanCards");
+  assert.equal(
+    shouldUseJapanAppleCardDisplayPrices({
+      storefrontCountryCode: "US",
+      store: { currency: "JPY" },
+    }),
+    false,
+  );
+  assert.equal(
+    resolveAppleCardDisplayPrice({
+      productId: APPLE_PRODUCT_IDS.plusMonthly,
+      storefrontCountryCode: "US",
+      store: { productId: APPLE_PRODUCT_IDS.plusMonthly, displayPrice: "$9.99", currency: "JPY", title: "", description: "" },
+      unavailableLabel: "pending",
+    }),
+    "$9.99",
+  );
+});
+
 test("non-Japan and unknown storefronts keep StoreKit displayPrice", async () => {
   const { resolveAppleCardDisplayPrice } = await import("./applePlanCards");
   assert.equal(
     resolveAppleCardDisplayPrice({
       productId: APPLE_PRODUCT_IDS.plusMonthly,
       storefrontCountryCode: "US",
-      store: { productId: APPLE_PRODUCT_IDS.plusMonthly, displayPrice: "$9.99", title: "", description: "" },
+      store: { productId: APPLE_PRODUCT_IDS.plusMonthly, displayPrice: "$9.99", currency: "USD", title: "", description: "" },
       unavailableLabel: "pending",
     }),
     "$9.99",
@@ -220,7 +302,7 @@ test("non-Japan and unknown storefronts keep StoreKit displayPrice", async () =>
     resolveAppleCardDisplayPrice({
       productId: APPLE_PRODUCT_IDS.plusMonthly,
       storefrontCountryCode: null,
-      store: { productId: APPLE_PRODUCT_IDS.plusMonthly, displayPrice: "$9.99", title: "", description: "" },
+      store: { productId: APPLE_PRODUCT_IDS.plusMonthly, displayPrice: "$9.99", currency: null, title: "", description: "" },
       unavailableLabel: "pending",
     }),
     "$9.99",
@@ -243,6 +325,14 @@ test("plan.tsx wires storefront into card display and still purchases by product
   assert.match(page, /storefrontCountryCode:\s*appleStorefrontCountryCode/);
   assert.match(page, /purchaseAppleSubscription\(\{\s*productId,/);
   assert.match(page, /onPurchase\(card\.productId\)/);
+});
+
+test("loadAppleStorefrontCountryCode retries empty storefront results", () => {
+  const iapSource = read("apps/mobile/src/billing/appleIap.ts");
+  assert.match(iapSource, /STOREFRONT_FETCH_ATTEMPTS/);
+  assert.match(iapSource, /normalizeFetchedProducts/);
+  assert.match(iapSource, /currencyCodeIOS/);
+  assert.match(iapSource, /currency:\s*currencyRaw/);
 });
 
 test("openAppleManageSubscriptions prefers native sheet and deep-links only when unsupported", async () => {
