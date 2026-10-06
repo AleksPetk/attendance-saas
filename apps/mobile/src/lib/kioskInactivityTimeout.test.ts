@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { afterEach, describe, it } from "node:test";
+import { fileURLToPath } from "node:url";
 import {
   createKioskInactivityTimer,
   hasNonEmptyKioskInput,
@@ -7,6 +10,11 @@ import {
   remainingInactivitySeconds,
   shouldArmKioskInactivity,
 } from "./kioskInactivityTimeout";
+
+const mobileKioskRouteSrc = readFileSync(
+  join(dirname(fileURLToPath(import.meta.url)), "../../app/kiosk/[groupId].tsx"),
+  "utf8",
+);
 
 const baseArm = {
   participantSensitive: true,
@@ -77,6 +85,22 @@ describe("kiosk inactivity policy", () => {
     assert.equal(remainingInactivitySeconds({ lastActivityAt: 0, now: 0 }), 30);
     assert.equal(remainingInactivitySeconds({ lastActivityAt: 0, now: 29_001 }), 1);
     assert.equal(remainingInactivitySeconds({ lastActivityAt: 0, now: 30_000 }), 0);
+  });
+
+  it("arms class_pin screen and notes participant text activity", () => {
+    assert.match(mobileKioskRouteSrc, /const onClassPinScreen = Boolean\(/);
+    assert.match(
+      mobileKioskRouteSrc,
+      /participantSensitive = Boolean\(participant\)[\s\S]*\|\| onClassPinScreen/,
+    );
+    assert.match(mobileKioskRouteSrc, /function noteParticipantText/);
+    assert.match(mobileKioskRouteSrc, /onChangeText=\{noteParticipantText\(setCardPin\)\}/);
+    assert.match(mobileKioskRouteSrc, /onChangeText=\{noteParticipantText\(setClassPin\)\}/);
+    assert.match(mobileKioskRouteSrc, /onChangeText=\{noteParticipantText\(setIdentifier\)\}/);
+    assert.match(mobileKioskRouteSrc, /onChangeText=\{noteParticipantText\(setPin\)\}/);
+    assert.match(mobileKioskRouteSrc, /onChangeText=\{setExitCode\}/);
+    assert.doesNotMatch(mobileKioskRouteSrc, /noteParticipantText\(setExitCode\)/);
+    assert.match(mobileKioskRouteSrc, /function returnToKiosk\(\)[\s\S]*setClassPin\(""\)/);
   });
 });
 

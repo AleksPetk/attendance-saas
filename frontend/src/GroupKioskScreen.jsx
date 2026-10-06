@@ -271,11 +271,18 @@ export default function GroupKioskScreen({ session, groupId, onUnlocked, onKiosk
     setError(null);
     setConfirmation(null);
     clearParticipantFields();
-    setStep("start");
+    setClassPin("");
+    // Class PIN keeps the selected Class; other steps return to their start grid.
+    if (step === "class_pin") {
+      setStep("class_pin");
+      return;
+    }
+    setStep(isStructured && !selectedClass ? "classes" : "start");
   };
 
   const participantSensitive = step === "pin"
     || step === "confirm"
+    || step === "class_pin"
     || (step === "start" && kioskMode === "input" && hasNonEmptyKioskInput(inputValues));
   const interactionBusy = identifying || performing || step === "processing";
   const inactivityArmed = shouldArmKioskInactivity({
@@ -356,7 +363,11 @@ export default function GroupKioskScreen({ session, groupId, onUnlocked, onKiosk
         setUnavailable(true);
         setKiosk(null);
         setVisualDesign(null);
+        setError(null);
       } else {
+        setUnavailable(false);
+        setKiosk(null);
+        setVisualDesign(null);
         setError(kioskErrorCopy(err) || { title: t("errors.loadFailed") });
       }
     } finally {
@@ -789,6 +800,24 @@ export default function GroupKioskScreen({ session, groupId, onUnlocked, onKiosk
     </p>
   ) : null;
 
+  const loadFailurePanel = !unavailable && !kiosk && error ? (
+    <div className="kiosk-body kiosk-body-input">
+      <div className="kiosk-flow" data-testid="kiosk-load-failure">
+        <h2>{error.title || t("errors.loadFailed")}</h2>
+        {error.hint ? <p className="hint">{error.hint}</p> : null}
+        <button
+          type="button"
+          className="btn-primary kiosk-submit"
+          onClick={() => {
+            void load();
+          }}
+        >
+          {t("live.retry")}
+        </button>
+      </div>
+    </div>
+  ) : null;
+
   const operationalBody = (
     <>
       {inactivityCountdown}
@@ -823,7 +852,9 @@ export default function GroupKioskScreen({ session, groupId, onUnlocked, onKiosk
         </div>
       ) : null}
 
-      {!unavailable && step === "processing" ? (
+      {loadFailurePanel}
+
+      {!unavailable && kiosk && step === "processing" ? (
         <div
           className={`kiosk-body${
             kioskMode === "input" && !isStructured ? " kiosk-body-input" : ""
@@ -833,7 +864,7 @@ export default function GroupKioskScreen({ session, groupId, onUnlocked, onKiosk
         </div>
       ) : null}
 
-      {(kioskMode === "card" || isStructured) && !unavailable && step !== "processing" ? (
+      {(kioskMode === "card" || isStructured) && !unavailable && kiosk && step !== "processing" ? (
         <div className="kiosk-body">
           {useVisualRenderer && welcomeText && (step === "start" || step === "classes") ? (
             <p className="kiosk-welcome">{welcomeText}</p>
@@ -910,6 +941,7 @@ export default function GroupKioskScreen({ session, groupId, onUnlocked, onKiosk
                   <p className="hint kiosk-hint">{t("live.participants.chooseStructured")}</p>
                 ) : null
               ) : null}
+              <KioskInlineError error={error} />
               <div className="kiosk-people-grid">
                 {people.map((p) => (
                   <button
@@ -967,7 +999,7 @@ export default function GroupKioskScreen({ session, groupId, onUnlocked, onKiosk
         </div>
       ) : null}
 
-      {kioskMode === "input" && !isStructured && !unavailable && step !== "processing" ? (
+      {kioskMode === "input" && !isStructured && !unavailable && kiosk && step !== "processing" ? (
         <div className="kiosk-body kiosk-body-input">
           {useVisualRenderer && welcomeText && step === "start" ? (
             <p className="kiosk-welcome">{welcomeText}</p>

@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { afterEach, describe, it } from "node:test";
+import { fileURLToPath } from "node:url";
 import {
   createKioskInactivityTimer,
   hasNonEmptyKioskInput,
@@ -7,6 +10,11 @@ import {
   remainingInactivitySeconds,
   shouldArmKioskInactivity,
 } from "./kioskInactivityTimeout";
+
+const desktopKioskPageSrc = readFileSync(
+  join(dirname(fileURLToPath(import.meta.url)), "../pages/KioskPage.tsx"),
+  "utf8",
+);
 
 const baseArm = {
   participantSensitive: true,
@@ -77,6 +85,18 @@ describe("kiosk inactivity policy", () => {
     assert.equal(remainingInactivitySeconds({ lastActivityAt: 0, now: 0 }), 30);
     assert.equal(remainingInactivitySeconds({ lastActivityAt: 0, now: 29_001 }), 1);
     assert.equal(remainingInactivitySeconds({ lastActivityAt: 0, now: 30_000 }), 0);
+  });
+
+  it("arms class_pin screen and keeps exit PIN disarmed", () => {
+    assert.match(desktopKioskPageSrc, /const onClassPinScreen = Boolean\(/);
+    assert.match(
+      desktopKioskPageSrc,
+      /participantSensitive = Boolean\(participant\)[\s\S]*\|\| onClassPinScreen/,
+    );
+    assert.match(desktopKioskPageSrc, /addEventListener\("pointerdown", note/);
+    assert.match(desktopKioskPageSrc, /addEventListener\("keydown", note/);
+    assert.match(desktopKioskPageSrc, /function reset\(\)[\s\S]*setClassPin\(""\)/);
+    assert.equal(shouldArmKioskInactivity({ ...baseArm, exitOpen: true }), false);
   });
 });
 

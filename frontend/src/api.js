@@ -116,7 +116,26 @@ function maybeNotifySessionExpired(path, error, credentialMode) {
   window.dispatchEvent(new CustomEvent(SESSION_EXPIRED_EVENT));
 }
 
-async function request(path, { method = "GET", json, formData, cache, credentials = "include" } = {}) {
+/** Align with packages/api / native kiosk clients. Applied only to kiosk-critical calls. */
+export const KIOSK_REQUEST_TIMEOUT_MS = 30_000;
+
+export class ApiTimeoutError extends Error {
+  constructor(message = "Request timed out") {
+    super(message);
+    this.name = "ApiTimeoutError";
+    this.code = "timeout";
+    this.data = { code: "timeout" };
+  }
+}
+
+async function request(path, {
+  method = "GET",
+  json,
+  formData,
+  cache,
+  credentials = "include",
+  timeoutMs,
+} = {}) {
   const headers = {};
   const m = method.toUpperCase();
   const credentialMode = credentials === "omit" ? "omit" : "include";
@@ -137,13 +156,38 @@ async function request(path, { method = "GET", json, formData, cache, credential
     }
   }
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    method: m,
-    headers,
-    body,
-    credentials: credentialMode,
-    ...(cache ? { cache } : {}),
-  });
+  const useTimeout = typeof timeoutMs === "number" && timeoutMs > 0;
+  const controller = useTimeout ? new AbortController() : null;
+  let timer = null;
+  if (controller) {
+    timer = setTimeout(() => controller.abort(), timeoutMs);
+  }
+
+  let response;
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      method: m,
+      headers,
+      body,
+      credentials: credentialMode,
+      ...(cache ? { cache } : {}),
+      ...(controller ? { signal: controller.signal } : {}),
+    });
+  } catch (err) {
+    if (
+      useTimeout
+      && (
+        err?.name === "AbortError"
+        || controller?.signal?.aborted
+      )
+    ) {
+      throw new ApiTimeoutError();
+    }
+    throw err;
+  } finally {
+    if (timer != null) clearTimeout(timer);
+  }
+
   if (response.status === 204) {
     return { ok: true, status: 204, data: null };
   }
@@ -154,6 +198,8 @@ async function request(path, { method = "GET", json, formData, cache, credential
   }
   return { ok: true, status: response.status, data: await response.json() };
 }
+
+const kioskRequestOptions = { timeoutMs: KIOSK_REQUEST_TIMEOUT_MS };
 
 function filenameFromContentDisposition(headerValue) {
   if (!headerValue) return "";
@@ -395,13 +441,15 @@ export const api = {
     request(`/api/groups/${groupId}/classes/${classId}/permanently-delete/`, {
       method: "POST",
     }),
-  getGroupKioskStart: (_auth, groupId) => request(`/api/groups/${groupId}/kiosk/`),
+  getGroupKioskStart: (_auth, groupId) =>
+    request(`/api/groups/${groupId}/kiosk/`, kioskRequestOptions),
   getGroupKioskClassPeople: (_auth, groupId, classId) =>
-    request(`/api/groups/${groupId}/kiosk/classes/${classId}/people/`),
+    request(`/api/groups/${groupId}/kiosk/classes/${classId}/people/`, kioskRequestOptions),
   verifyGroupKioskClassPin: (_auth, groupId, classId, json) =>
     request(`/api/groups/${groupId}/kiosk/classes/${classId}/verify-pin/`, {
       method: "POST",
       json,
+      ...kioskRequestOptions,
     }),
   getGroupKioskSettings: (_auth, groupId) => request(`/api/groups/${groupId}/kiosk-settings/`),
   updateGroupKioskSettings: (_auth, groupId, json) =>
@@ -413,11 +461,19 @@ export const api = {
     request(`/api/groups/${groupId}/kiosk-design/`, { method: "PUT", formData }),
   listKioskPresets: (_auth) => request("/api/kiosk-presets/"),
   enterKiosk: (_auth, groupId) =>
-    request(`/api/groups/${groupId}/kiosk/`, { method: "POST" }),
+    request(`/api/groups/${groupId}/kiosk/`, { method: "POST", ...kioskRequestOptions }),
   identifyKiosk: (_auth, groupId, payload) =>
-    request(`/api/groups/${groupId}/kiosk/identify/`, { method: "POST", json: payload }),
+    request(`/api/groups/${groupId}/kiosk/identify/`, {
+      method: "POST",
+      json: payload,
+      ...kioskRequestOptions,
+    }),
   performKioskAction: (_auth, groupId, payload) =>
-    request(`/api/groups/${groupId}/kiosk/perform/`, { method: "POST", json: payload }),
+    request(`/api/groups/${groupId}/kiosk/perform/`, {
+      method: "POST",
+      json: payload,
+      ...kioskRequestOptions,
+    }),
   listHistory: (_auth, params = "") => request(`/api/history/${params}`),
   listHistoryReportGroups: (_auth) => request("/api/history/report-groups/"),
   getAttendanceReportOptions: (_auth, params = "") =>

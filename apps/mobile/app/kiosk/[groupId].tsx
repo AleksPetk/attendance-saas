@@ -234,9 +234,23 @@ export default function KioskScreen() {
     secondValue,
     cardPin,
   });
+  const onClassPinScreen = Boolean(
+    kioskConfig?.structured
+    && selectedClass
+    && kioskConfig.require_class_pin
+    && !classReady,
+  );
   const participantSensitive = Boolean(participant)
     || Boolean(pendingPerson)
+    || onClassPinScreen
     || (kioskConfig?.kiosk_mode === "input" && inputProgress && !successMessage);
+
+  function noteParticipantText(setter: (value: string) => void) {
+    return (value: string) => {
+      inactivityTimerRef.current?.noteActivity();
+      setter(value);
+    };
+  }
   const interactionBusy = busy || performLock.current;
   const inactivityArmed = shouldArmKioskInactivity({
     participantSensitive,
@@ -740,6 +754,8 @@ export default function KioskScreen() {
     setIdentifier("");
     setPin("");
     setCardPin("");
+    setClassPin("");
+    setClassPinError("");
     setSuccessMessage("");
     setMessage("");
   }
@@ -1015,7 +1031,7 @@ export default function KioskScreen() {
               ) : null}
 
               <Text style={{ color: colors.danger }}>{classPinError}</Text>
-              {pendingPerson ? <View style={styles.inputSection}><Text style={styles.sectionTitle}>{pendingPerson.name}</Text><TextInput accessibilityLabel={t("kiosk.pin")} secureTextEntry style={styles.input} value={cardPin} onChangeText={setCardPin} /><Pressable disabled={busy || !cardPin} onPress={() => void selectPerson(pendingPerson, cardPin)} style={styles.actionButton}><Text>{t("kiosk.verify")}</Text></Pressable><Pressable disabled={busy} onPress={() => setPendingPerson(null)}><Text>{t("common.cancel")}</Text></Pressable></View> : null}
+              {pendingPerson ? <View style={styles.inputSection}><Text style={styles.sectionTitle}>{pendingPerson.name}</Text><TextInput accessibilityLabel={t("kiosk.pin")} secureTextEntry style={styles.input} value={cardPin} onChangeText={noteParticipantText(setCardPin)} /><Pressable disabled={busy || !cardPin} onPress={() => void selectPerson(pendingPerson, cardPin)} style={styles.actionButton}><Text>{t("kiosk.verify")}</Text></Pressable><Pressable disabled={busy} onPress={() => setPendingPerson(null)}><Text>{t("common.cancel")}</Text></Pressable></View> : null}
               {kioskConfig?.structured && !selectedClass && classes.length > 0 ? (
                 <View style={[styles.classGrid, { gap: classGridGap }]}>
                   <Text style={[styles.sectionTitle, styles.classGridTitle, { color: mainTextColor }]}>
@@ -1047,7 +1063,7 @@ export default function KioskScreen() {
                     <TextInput
                       style={[styles.input, inputAppearance, { color: mainTextColor, borderColor: colors.border }]}
                       value={classPin}
-                      onChangeText={setClassPin}
+                      onChangeText={noteParticipantText(setClassPin)}
                       secureTextEntry
                       placeholder="PIN"
                       placeholderTextColor={colors.placeholder}
@@ -1081,17 +1097,17 @@ export default function KioskScreen() {
                     <TextInput
                       style={[styles.input, inputAppearance, { color: mainTextColor, borderColor: colors.border }]}
                       value={identifier}
-                      onChangeText={setIdentifier}
+                      onChangeText={noteParticipantText(setIdentifier)}
                       autoCapitalize="characters"
                       placeholder={kioskConfig?.participant_code_label || t("kiosk.code") || "Code"}
                       placeholderTextColor={colors.placeholder}
                     />
-                    {kioskConfig?.input_fields.some((field) => field === "name" || field === "email") ? <TextInput style={[styles.input, inputAppearance]} accessibilityLabel={t(kioskConfig.input_fields.includes("email") ? "auth.email" : "members.name")} placeholder={t(kioskConfig.input_fields.includes("email") ? "auth.email" : "members.name")} keyboardType={kioskConfig.input_fields.includes("email") ? "email-address" : "default"} autoCapitalize="none" value={secondValue} onChangeText={setSecondValue} /> : null}
+                    {kioskConfig?.input_fields.some((field) => field === "name" || field === "email") ? <TextInput style={[styles.input, inputAppearance]} accessibilityLabel={t(kioskConfig.input_fields.includes("email") ? "auth.email" : "members.name")} placeholder={t(kioskConfig.input_fields.includes("email") ? "auth.email" : "members.name")} keyboardType={kioskConfig.input_fields.includes("email") ? "email-address" : "default"} autoCapitalize="none" value={secondValue} onChangeText={noteParticipantText(setSecondValue)} /> : null}
                     {kioskConfig?.input_fields.includes("pin") ? (
                       <TextInput
                         style={[styles.input, inputAppearance, { color: mainTextColor, borderColor: colors.border }]}
                         value={pin}
-                        onChangeText={setPin}
+                        onChangeText={noteParticipantText(setPin)}
                         secureTextEntry
                         placeholder="PIN"
                         placeholderTextColor={colors.placeholder}

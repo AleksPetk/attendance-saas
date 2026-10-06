@@ -38,7 +38,7 @@ test("B: Choose Action content is not rendered while pending", () => {
   );
   assert.match(
     groupKioskSrc,
-    /!unavailable && step === "processing"[\s\S]*processingPanel\(\)/,
+    /!unavailable && kiosk && step === "processing"[\s\S]*processingPanel\(\)/,
   );
   // Processing is a dedicated top-level branch, not nested inside confirm panel.
   assert.doesNotMatch(

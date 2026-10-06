@@ -127,8 +127,21 @@ export function KioskPage() {
   };
 
   const inputProgress = hasNonEmptyKioskInput({ identifier, second, pin });
+  const requireClassPinEarly = Boolean(
+    ((data.kiosk_settings || data.kiosk || {}) as Partial<KioskConfig>).require_class_pin,
+  );
+  const peopleCountEarly = Array.isArray(data.people) ? data.people.length : 0;
+  const onClassPinScreen = Boolean(
+    selectedClass
+    && requireClassPinEarly
+    && peopleCountEarly === 0
+    && !participant
+    && !pending
+    && !success,
+  );
   const participantSensitive = Boolean(participant)
     || Boolean(pending)
+    || onClassPinScreen
     || (inputProgress && !participant && !pending && !success);
   const interactionBusy = busy || Boolean(pendingAction) || performLock.current;
   const inactivityArmed = shouldArmKioskInactivity({
@@ -610,6 +623,7 @@ export function KioskPage() {
     setIdentifier("");
     setSecond("");
     setPin("");
+    setClassPin("");
     setSuccess("");
     setConfirmationEffect(null);
     setMessage("");

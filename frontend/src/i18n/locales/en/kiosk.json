@@ -40,7 +40,13 @@
     "ambiguous": "More than one participant matches. Please check the details.",
     "openClassFailed": "Could not open this Class.",
     "missingClassId": "Missing Class id.",
-    "incorrectPin": "Incorrect PIN. Try again."
+    "incorrectPin": "Incorrect PIN. Try again.",
+    "setupIncompleteTitle": "This kiosk is not ready yet",
+    "setupIncompleteHint": "Finish Group setup, then try again.",
+    "timeoutTitle": "The request took too long",
+    "timeoutHint": "Check the connection and try again.",
+    "offlineTitle": "Could not reach the server",
+    "offlineHint": "Check the connection and try again."
   },
   "status": {
     "checkedIn": "Status: checked in",
@@ -70,6 +76,7 @@
     "backToParticipants": "Back to participants",
     "classPinHint": "Enter class PIN",
     "backToClasses": "Back to classes",
+    "retry": "Retry",
     "inactivity": {
       "returning": "Returning to start in {{seconds}}s"
     },

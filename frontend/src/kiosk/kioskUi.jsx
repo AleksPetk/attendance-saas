@@ -22,8 +22,20 @@ export function actionLabel(action) {
 }
 
 export function kioskErrorCopy(error) {
-  const code = error?.data?.code;
+  const code = error?.data?.code || error?.code;
   const pinErrors = error?.data?.pin;
+  if (code === "timeout" || error?.name === "ApiTimeoutError") {
+    return {
+      title: i18n.t("kiosk:errors.timeoutTitle"),
+      hint: i18n.t("kiosk:errors.timeoutHint"),
+    };
+  }
+  if (code === "group_setup_incomplete") {
+    return {
+      title: i18n.t("kiosk:errors.setupIncompleteTitle"),
+      hint: i18n.t("kiosk:errors.setupIncompleteHint"),
+    };
+  }
   if (code === "invalid_pin" || pinErrors) {
     return { title: i18n.t("kiosk:errors.invalidPin") };
   }
@@ -36,6 +48,19 @@ export function kioskErrorCopy(error) {
   if (code === "ambiguous") {
     return {
       title: i18n.t("kiosk:errors.ambiguous"),
+    };
+  }
+  // Browser network failures (offline / DNS) have no HTTP status.
+  if (
+    error
+    && error.status == null
+    && error.name !== "ApiTimeoutError"
+    && typeof error.message === "string"
+    && /failed to fetch|networkerror|load failed|network request failed/i.test(error.message)
+  ) {
+    return {
+      title: i18n.t("kiosk:errors.offlineTitle"),
+      hint: i18n.t("kiosk:errors.offlineHint"),
     };
   }
   const detail = errorMessage(error);

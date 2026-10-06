@@ -40,7 +40,13 @@
     "ambiguous": "複数の参加者が一致しました。入力内容を確認してください。",
     "openClassFailed": "このクラスを開けませんでした。",
     "missingClassId": "クラス ID がありません。",
-    "incorrectPin": "PIN が正しくありません。もう一度お試しください。"
+    "incorrectPin": "PIN が正しくありません。もう一度お試しください。",
+    "setupIncompleteTitle": "このキオスクはまだ準備できていません",
+    "setupIncompleteHint": "グループの設定を完了してから、もう一度お試しください。",
+    "timeoutTitle": "リクエストがタイムアウトしました",
+    "timeoutHint": "接続を確認して、もう一度お試しください。",
+    "offlineTitle": "サーバーに接続できませんでした",
+    "offlineHint": "接続を確認して、もう一度お試しください。"
   },
   "status": {
     "checkedIn": "状態: チェックイン済み",
@@ -70,6 +76,7 @@
     "backToParticipants": "参加者一覧に戻る",
     "classPinHint": "クラス PIN を入力",
     "backToClasses": "クラス一覧に戻る",
+    "retry": "再試行",
     "inactivity": {
       "returning": "{{seconds}}秒後に最初の画面に戻ります"
     },
