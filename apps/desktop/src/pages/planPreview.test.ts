@@ -57,6 +57,30 @@ test("DIRECT Plan page keeps Stripe checkout/portal; MAS branch uses Apple verif
   assert.match(source, /if \(!appleIapEnabled \|\| busy\) return;/);
 });
 
+test("DIRECT shows Apple-managed billing notice only for purchase_source apple", () => {
+  const source = readFileSync(join(here, "PlanPage.tsx"), "utf8");
+  const i18n = readFileSync(
+    join(here, "../../../../packages/i18n/src/index.ts"),
+    "utf8",
+  );
+  assert.match(source, /directAppleManaged = stripeEnabled && billing\.purchase_source === "apple"/);
+  assert.match(source, /t\("plan\.appleManagedBillingNote"\)/);
+  assert.match(
+    i18n,
+    /"plan\.appleManagedBillingNote": "This workspace is billed through Apple\. Manage renewals in Apple subscriptions\."/,
+  );
+  assert.match(
+    i18n,
+    /"plan\.appleManagedBillingNote": "このワークスペースは Apple 経由で請求されています。更新は Apple のサブスクリプションで管理してください。"/,
+  );
+  // Provider label path unchanged
+  assert.match(source, /billingProviderApple/);
+  assert.match(source, /purchase_source_display/);
+  // StoreKit manage/restore remain behind appleIapEnabled (MAS only)
+  assert.match(source, /if \(!appleIapEnabled \|\| busy\) return;/);
+  assert.match(source, /appleIapEnabled && \(appleShop \|\| appleIsManaged\)/);
+});
+
 test("MAS never surfaces Stripe promo helpers as visible purchase price source", () => {
   assert.equal(shouldShowStripePromoOnMas({}), false);
   assert.equal(storeKitDisplayPriceOnly({ displayPrice: "¥1,200", price: 9.99 }), "¥1,200");

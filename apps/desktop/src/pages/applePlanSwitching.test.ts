@@ -184,7 +184,8 @@ test("PlanPage MAS Apple grid uses buildApplePlanCards / APPLE SKUs, not Stripe 
   // Current product: no purchase button
   assert.match(planPage, /appleIapEnabled && current \? null/);
   // Must not drive Apple options from Stripe upgrade builder when IAP active
-  assert.match(planPage, /const visibleUpgrades = appleIapEnabled\s*\?\s*appleOptions\s*:\s*upgrades/);
+  assert.match(planPage, /const visibleUpgrades = appleIapEnabled/);
+  assert.match(planPage, /directAppleManaged \? \[\] : upgrades/);
 });
 
 test("Manage Subscription path unchanged (App Store account URL via bridge)", () => {
@@ -202,4 +203,19 @@ test("Restore Purchases path unchanged", () => {
   assert.match(planPage, /restoreStoreKitPurchases/);
   assert.match(planPage, /plan\.appleRestore/);
   assert.match(planPage, /setBusy\("apple-restore"\)/);
+});
+
+test("DIRECT Apple-managed notice: visible for Apple-owned Plus/Business, absent for Stripe/Basic", () => {
+  assert.match(planPage, /directAppleManaged = stripeEnabled && billing\.purchase_source === "apple"/);
+  assert.match(planPage, /plan\.appleManagedBillingNote/);
+  assert.match(planPage, /\{directAppleManaged \? \(/);
+  // Stripe checkout/promo and portal are not the management path for Apple-owned
+  assert.match(planPage, /showStripePromo = stripeEnabled && !shouldShowStripePromoOnMas\(billing\) && !directAppleManaged/);
+  assert.match(planPage, /!directAppleManaged && billing\.actions\?\.can_open_portal/);
+  // DIRECT never shows StoreKit Manage/Restore outside MAS appleIapEnabled branch
+  assert.match(planPage, /appleIapEnabled && \(appleShop \|\| appleIsManaged\)/);
+  assert.doesNotMatch(
+    planPage,
+    /directAppleManaged[\s\S]{0,200}openAppleManageSubscriptions/,
+  );
 });

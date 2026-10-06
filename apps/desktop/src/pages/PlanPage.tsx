@@ -533,10 +533,15 @@ export function PlanPage() {
   const promo = catalogPromotion(billing.catalog);
   const scheduled = scheduledChangeSummary(billing);
   const date = (value: string) => formatDateTime(value, locale);
-  const canPortal = Boolean(stripeEnabled && billing.actions?.can_open_portal);
-  const canCancel = Boolean(stripeEnabled && billing.actions?.can_cancel && !billing.cancel_at_period_end);
-  const canResume = Boolean(stripeEnabled && billing.actions?.can_resume_subscription);
-  const showStripePromo = stripeEnabled && !shouldShowStripePromoOnMas(billing);
+  const directAppleManaged = stripeEnabled && billing.purchase_source === "apple";
+  const canPortal = Boolean(stripeEnabled && !directAppleManaged && billing.actions?.can_open_portal);
+  const canCancel = Boolean(
+    stripeEnabled && !directAppleManaged && billing.actions?.can_cancel && !billing.cancel_at_period_end,
+  );
+  const canResume = Boolean(
+    stripeEnabled && !directAppleManaged && billing.actions?.can_resume_subscription,
+  );
+  const showStripePromo = stripeEnabled && !shouldShowStripePromoOnMas(billing) && !directAppleManaged;
   const appleBlocked = appleIapEnabled ? appleBlockedByOtherProvider(billing) : null;
   const appleTrialSelect = appleIapEnabled && appleTrialFutureSelectionMode(billing);
   const appleShop = appleIapEnabled && (applePurchaseEligible(billing) || appleTrialSelect);
@@ -559,8 +564,8 @@ export function PlanPage() {
     : [];
   const visibleUpgrades = appleIapEnabled
     ? appleOptions
-    : upgrades;
-  const visibleDowngrades = appleIapEnabled ? [] : downgrades;
+    : (directAppleManaged ? [] : upgrades);
+  const visibleDowngrades = appleIapEnabled || directAppleManaged ? [] : downgrades;
   const currentAppleStorePrice = appleIsManaged && billing.subscribed_plan?.key && billing.interval
     ? storePriceFor(String(billing.subscribed_plan.key), String(billing.interval))
     : "";
@@ -757,6 +762,9 @@ export function PlanPage() {
               />
             ) : null}
           </dl>
+          {directAppleManaged ? (
+            <Alert tone="info">{t("plan.appleManagedBillingNote")}</Alert>
+          ) : null}
           {scheduled ? (
             <Alert tone="info">
               {scheduled.lead}
