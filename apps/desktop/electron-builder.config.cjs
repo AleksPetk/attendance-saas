@@ -143,6 +143,8 @@ module.exports = {
           extendInfo: {
             ElectronTeamID: TEAM_ID,
             ITSAppUsesNonExemptEncryption: false,
+            CFBundleDevelopmentRegion: "en",
+            CFBundleLocalizations: ["en", "ja"],
           },
         }
       : {
