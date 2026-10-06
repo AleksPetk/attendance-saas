@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Redirect } from "expo-router";
+import { Redirect, useFocusEffect } from "expo-router";
 import { Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { endpoints } from "@checkstation/api";
 import { canViewBilling } from "@checkstation/domain";
@@ -27,8 +27,8 @@ import {
   appleIapSupported,
   finishAppleTransaction,
   isUserCancelPurchaseError,
+  loadAppleStoreCatalogForPlan,
   loadAppleStorefrontCountryCode,
-  loadAppleSubscriptionProducts,
   openAppleManageSubscriptions,
   purchaseAppleSubscription,
   restoreApplePurchases,
@@ -46,6 +46,7 @@ import {
   applePurchaseEligible,
   appleTrialFutureSelectionMode,
   futurePaidMatchesAppleProduct,
+  isActiveApplePaidEntitlement,
   shouldLoadAppleStoreProducts,
   shouldShowStripePromoOnMobile,
   userFacingAppleBillingError,
@@ -66,6 +67,7 @@ export default function PlanScreen() {
   const [info, setInfo] = useState("");
   const [appleProducts, setAppleProducts] = useState<AppleStoreProduct[]>([]);
   const [appleStorefrontCountryCode, setAppleStorefrontCountryCode] = useState<string | null>(null);
+  const [appleStorefrontPending, setAppleStorefrontPending] = useState(false);
   const [appleLoading, setAppleLoading] = useState(false);
   const [appleBusy, setAppleBusy] = useState(false);
   const [appleStoreError, setAppleStoreError] = useState(false);
@@ -109,27 +111,29 @@ export default function PlanScreen() {
     if (!loadAppleProducts) {
       setAppleProducts([]);
       setAppleStorefrontCountryCode(null);
+      setAppleStorefrontPending(false);
       setAppleStoreError(false);
       setAppleLoading(false);
       return;
     }
     let cancelled = false;
     setAppleLoading(true);
+    setAppleStorefrontPending(true);
     setAppleStoreError(false);
-    void Promise.all([
-      loadAppleSubscriptionProducts(),
-      loadAppleStorefrontCountryCode(),
-    ])
-      .then(([products, storefront]) => {
+    // Products first (warms StoreKit), then storefront — avoids iPad null-storefront USD lock-in.
+    void loadAppleStoreCatalogForPlan()
+      .then(({ products, storefrontCountryCode }) => {
         if (cancelled) return;
         setAppleProducts(products);
-        setAppleStorefrontCountryCode(storefront);
+        setAppleStorefrontCountryCode(storefrontCountryCode);
+        setAppleStorefrontPending(false);
         setAppleStoreError(products.length === 0);
       })
       .catch(() => {
         if (cancelled) return;
         setAppleProducts([]);
         setAppleStorefrontCountryCode(null);
+        setAppleStorefrontPending(false);
         setAppleStoreError(true);
       })
       .finally(() => {
@@ -137,6 +141,17 @@ export default function PlanScreen() {
       });
     return () => { cancelled = true; };
   }, [loadAppleProducts, billing?.purchase_source, billing?.builtin_trial?.active, appleStoreEpoch]);
+
+  // If storefront was still null after initial load, retry once when Plan is focused again.
+  useFocusEffect(useCallback(() => {
+    if (!loadAppleProducts || appleStorefrontPending || appleStorefrontCountryCode) return;
+    let cancelled = false;
+    void loadAppleStorefrontCountryCode().then((storefront) => {
+      if (cancelled || !storefront) return;
+      setAppleStorefrontCountryCode(storefront);
+    });
+    return () => { cancelled = true; };
+  }, [loadAppleProducts, appleStorefrontCountryCode, appleStorefrontPending]));
 
   const verifyWithBackend = useCallback(async (signedTransaction: string) => {
     const snapshot = await api.post<Snapshot>(endpoints.billingAppleVerify(), {
@@ -154,6 +169,7 @@ export default function PlanScreen() {
     setAppleBusy(true);
     setError("");
     setInfo("");
+    let purchaseToFinish: Awaited<ReturnType<typeof purchaseAppleSubscription>>["purchase"] | null = null;
     try {
       const fresh = await api.get<Snapshot>(endpoints.billing());
       setBilling(fresh);
@@ -169,14 +185,23 @@ export default function PlanScreen() {
         productId,
         appAccountToken: String(fresh.apple_app_account_token || billing.apple_app_account_token),
       });
-      await verifyWithBackend(signedTransaction);
-      await finishAppleTransaction(purchase);
+      purchaseToFinish = purchase;
+      const snapshot = await verifyWithBackend(signedTransaction);
+      if (!isActiveApplePaidEntitlement(snapshot)) {
+        setError(t("plan.appleActivationFailed"));
+        await load(true);
+        return;
+      }
       setInfo(t("plan.applePurchaseSuccess"));
       await load(true);
     } catch (caught) {
       if (isUserCancelPurchaseError(caught)) return;
-      setError(userFacingAppleBillingError(caught, t("common.error")));
+      setError(userFacingAppleBillingError(caught, t("plan.appleActivationFailed")));
+      await load(true);
     } finally {
+      if (purchaseToFinish) {
+        await finishAppleTransaction(purchaseToFinish);
+      }
       setAppleBusy(false);
     }
   }, [api, billing, load, t, verifyWithBackend]);
@@ -230,14 +255,25 @@ export default function PlanScreen() {
         setInfo(t("plan.appleRestoreNone"));
         return;
       }
+      let activated = false;
       for (const item of restored) {
-        await verifyWithBackend(item.signedTransaction);
-        await finishAppleTransaction(item.purchase);
+        try {
+          const snapshot = await verifyWithBackend(item.signedTransaction);
+          if (isActiveApplePaidEntitlement(snapshot)) activated = true;
+        } catch {
+          // Continue other transactions; activation failure is reported after the loop.
+        } finally {
+          await finishAppleTransaction(item.purchase);
+        }
       }
-      setInfo(t("plan.appleRestoreSuccess"));
       await load(true);
+      if (activated) {
+        setInfo(t("plan.appleRestoreSuccess"));
+      } else {
+        setError(t("plan.appleActivationFailed"));
+      }
     } catch (caught) {
-      setError(userFacingAppleBillingError(caught, t("common.error")));
+      setError(userFacingAppleBillingError(caught, t("plan.appleActivationFailed")));
     } finally {
       setAppleBusy(false);
     }
@@ -384,6 +420,7 @@ export default function PlanScreen() {
                     price={appleDisplayPriceForCard(store, applePriceUnavailable, {
                       productId: card.productId,
                       storefrontCountryCode: appleStorefrontCountryCode,
+                      storefrontPending: appleStorefrontPending || appleLoading,
                     })}
                     recommendedBadge={false}
                     renews=""

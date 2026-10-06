@@ -25,6 +25,8 @@ from billing.apple_verify import (
     AppleVerificationError,
     verify_and_activate_apple_subscription,
 )
+from billing.catalog import PLAN_BUSINESS, PLAN_PLUS
+from billing.models import BillingStatus, PurchaseSource
 from billing.operations import (
     apply_upgrade_to_business,
     clear_future_paid_intent,
@@ -42,10 +44,27 @@ from billing.operations import (
 from billing.prices import stripe_api_configured
 from billing.provider import get_billing_provider
 from billing.state import build_billing_state
+from billing.services import get_workspace_billing
 from billing.webhooks import process_provider_event
 from organizations.permissions import IsWorkspaceOwner, get_owned_organization
 
 logger = logging.getLogger("billing")
+
+
+def _apple_paid_entitlement_is_active(organization) -> bool:
+    """True when owner verify resulted in a live Apple Plus/Business entitlement."""
+    billing = get_workspace_billing(organization)
+    if billing is None:
+        return False
+    if billing.purchase_source != PurchaseSource.APPLE:
+        return False
+    if billing.status not in {
+        BillingStatus.ACTIVE,
+        BillingStatus.TRIALING,
+        BillingStatus.PAST_DUE,
+    }:
+        return False
+    return billing.subscribed_plan in {PLAN_PLUS, PLAN_BUSINESS}
 
 
 def _error_response(exc, status=400):
@@ -413,6 +432,16 @@ class AppleBillingVerifyView(APIView):
             return _error_response(exc)
         except BillingStateError as exc:
             return _error_response(exc)
+        # Owner purchase/restore path: HTTP 200 only when entitlement is actually active.
+        # Shared apply_apple_entitlement still finalizes expired txns for ASN — this gate
+        # is verify-endpoint only so clients cannot treat expired JWS as purchase success.
+        if not _apple_paid_entitlement_is_active(organization):
+            return _error_response(
+                AppleVerificationError(
+                    "This Apple purchase did not activate a paid subscription.",
+                    code="apple_entitlement_inactive",
+                )
+            )
         return Response(build_billing_state(organization))
 
 

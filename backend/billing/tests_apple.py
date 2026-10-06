@@ -334,6 +334,57 @@ class AppleBillingTests(TestCase):
         self.assertTrue(response.data["can_manage_apple"])
         self.assertTrue(response.data["apple_app_account_token"])
 
+    def test_verify_endpoint_expired_transaction_not_success(self):
+        claims = _txn(
+            product_id=PRODUCT_PLUS_MONTHLY,
+            original_transaction_id="api-expired",
+            expires_in_days=-2,
+        )
+        response = self.client.post(
+            reverse("billing-apple-verify"),
+            {"signed_transaction": _fake_jws(claims)},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data["code"], "apple_entitlement_inactive")
+        billing = get_workspace_billing(self.org)
+        self.assertNotEqual(billing.purchase_source, PurchaseSource.APPLE)
+        self.assertNotEqual(billing.status, BillingStatus.ACTIVE)
+
+    def test_verify_endpoint_revoked_transaction_not_success(self):
+        claims = _txn(
+            product_id=PRODUCT_PLUS_MONTHLY,
+            original_transaction_id="api-revoked",
+            revoked=True,
+        )
+        response = self.client.post(
+            reverse("billing-apple-verify"),
+            {"signed_transaction": _fake_jws(claims)},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data["code"], "apple_entitlement_inactive")
+
+    def test_apply_expired_still_finalizes_for_shared_path(self):
+        """ASN/shared apply_apple_entitlement must still process expiry without endpoint gate."""
+        now = timezone.now()
+        self._activate(PRODUCT_PLUS_MONTHLY, original_transaction_id="asn-expire")
+        expired = _txn(
+            product_id=PRODUCT_PLUS_MONTHLY,
+            original_transaction_id="asn-expire",
+            transaction_id="asn-expire-2",
+            expires_in_days=-1,
+        )
+        billing = apply_apple_entitlement(
+            self.org,
+            normalized=parse_verified_transaction_claims(expired),
+            now=now,
+        )
+        self.assertEqual(billing.status, BillingStatus.CANCELED)
+        self.assertEqual(billing.purchase_source, PurchaseSource.NONE)
+        self.org.refresh_from_db()
+        self.assertEqual(self.org.plan, OrganizationPlan.BASIC)
+
     def test_verify_endpoint_stripe_block(self):
         now = timezone.now()
         activate_paid_subscription(

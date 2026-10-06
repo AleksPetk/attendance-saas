@@ -48,6 +48,28 @@ export function futurePaidMatchesAppleProduct(
   return future.key === plan && future.interval === interval;
 }
 
+/**
+ * Authoritative Apple paid entitlement (not "StoreKit returned a transaction").
+ * Used to gate purchase/restore success banners.
+ */
+export function isActiveApplePaidEntitlement(
+  billing: BillingSnapshot | null | undefined,
+): boolean {
+  if (!billing || billing.purchase_source !== "apple") return false;
+  const status = String(billing.status || "").toLowerCase();
+  if (status !== "active" && status !== "trialing" && status !== "past_due") {
+    return false;
+  }
+  const subscribed = String(billing.subscribed_plan?.key || "").toLowerCase();
+  const effective = String(billing.effective_plan?.key || "").toLowerCase();
+  return (
+    subscribed === "plus"
+    || subscribed === "business"
+    || effective === "plus"
+    || effective === "business"
+  );
+}
+
 export function userFacingAppleBillingError(error: unknown, fallback: string): string {
   if (!error || typeof error !== "object") return fallback;
   const code = String((error as { code?: string }).code || "");
@@ -61,6 +83,8 @@ export function userFacingAppleBillingError(error: unknown, fallback: string): s
     apple_jws_invalid: "Apple could not verify this purchase. Please try again.",
     apple_bundle_mismatch: "Apple could not verify this purchase. Please try again.",
     apple_app_account_token_mismatch: "This Apple purchase does not match this workspace.",
+    apple_entitlement_inactive:
+      "The purchase could not be activated. Please try again or restore purchases.",
     builtin_trial_required: "That plan choice is only available during the included Business trial.",
   };
   if (map[code]) return map[code];

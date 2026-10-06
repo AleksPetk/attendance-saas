@@ -61,34 +61,13 @@ export function isJapanAppleStorefront(storefrontCountryCode: unknown): boolean 
 }
 
 /**
- * Normalize StoreKit product currency (ISO 4217). Card-display Japan signal only.
- */
-export function normalizeAppleProductCurrency(value: unknown): string | null {
-  const raw = String(value || "").trim().toUpperCase();
-  if (!raw) return null;
-  if (raw === "¥" || raw === "￥" || raw === "YEN") return "JPY";
-  if (/^[A-Z]{3}$/.test(raw)) return raw;
-  return null;
-}
-
-export function isJapanAppleProductCurrency(currency: unknown): boolean {
-  return normalizeAppleProductCurrency(currency) === "JPY";
-}
-
-/**
- * Credible Japan signals for forced card yen amounts (display only).
- * Explicit JP storefront wins; StoreKit product currency JPY is a fallback
- * when storefront is unknown. Device locale / UI language are never used.
+ * Forced Japan card yen amounts use Apple storefront country only.
+ * Device locale / UI language / product currency are never used as the Japan signal.
  */
 export function shouldUseJapanAppleCardDisplayPrices(input: {
   storefrontCountryCode?: string | null;
-  store?: Pick<AppleStoreProduct, "currency"> | undefined;
 }): boolean {
-  if (isJapanAppleStorefront(input.storefrontCountryCode)) return true;
-  const storefront = normalizeAppleStorefrontCountryCode(input.storefrontCountryCode);
-  // Known non-Japan storefront must keep StoreKit displayPrice (no JPY override).
-  if (storefront && storefront !== "JP") return false;
-  return isJapanAppleProductCurrency(input.store?.currency);
+  return isJapanAppleStorefront(input.storefrontCountryCode);
 }
 
 export function japanAppleCardDisplayPrice(
@@ -132,24 +111,28 @@ export function appleStoreProductMap(
 export type AppleCardDisplayPriceInput = {
   productId?: AppleProductId | string;
   storefrontCountryCode?: string | null;
+  /** True while storefront is still being resolved — do not lock USD as final. */
+  storefrontPending?: boolean;
   store?: AppleStoreProduct | undefined;
   unavailableLabel: string;
 };
 
 /**
  * Resolve the price string shown on an Apple Plan card.
- * JP storefront or (unknown storefront + StoreKit currency JPY)
- * → fixed Japan card amounts (even if StoreKit displayPrice is USD).
- * Otherwise → StoreKit displayPrice, else unavailable label.
+ * JP/JPN storefront → fixed Japan card amounts (even if StoreKit displayPrice is USD).
+ * Known non-JP / resolved-unknown → StoreKit displayPrice, else unavailable label.
+ * While storefrontPending → unavailable label (avoid stale USD before JP resolves).
  */
 export function resolveAppleCardDisplayPrice(
   input: AppleCardDisplayPriceInput,
 ): string {
+  if (input.storefrontPending) {
+    return input.unavailableLabel;
+  }
   const productId = input.productId || input.store?.productId;
   if (
     shouldUseJapanAppleCardDisplayPrices({
       storefrontCountryCode: input.storefrontCountryCode,
-      store: input.store,
     })
   ) {
     const japan = japanAppleCardDisplayPrice(productId);
@@ -165,6 +148,7 @@ export function appleDisplayPriceForCard(
   options?: {
     productId?: AppleProductId | string;
     storefrontCountryCode?: string | null;
+    storefrontPending?: boolean;
   },
 ): string {
   return resolveAppleCardDisplayPrice({
@@ -172,5 +156,6 @@ export function appleDisplayPriceForCard(
     unavailableLabel,
     productId: options?.productId || store?.productId,
     storefrontCountryCode: options?.storefrontCountryCode,
+    storefrontPending: options?.storefrontPending,
   });
 }

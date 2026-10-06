@@ -42,8 +42,9 @@ export type AppleStoreProduct = {
 
 const PRODUCT_FETCH_ATTEMPTS = 3;
 const PRODUCT_FETCH_RETRY_MS = 450;
-const STOREFRONT_FETCH_ATTEMPTS = 3;
-const STOREFRONT_FETCH_RETRY_MS = 250;
+/** Bounded retries after product load warms StoreKit (iPad Storefront.current lag). */
+const STOREFRONT_FETCH_ATTEMPTS = 8;
+const STOREFRONT_FETCH_RETRY_MS = 300;
 
 export function appleIapSupported(): boolean {
   return Platform.OS === "ios";
@@ -291,7 +292,7 @@ export async function finishAppleTransaction(purchase: Purchase): Promise<void> 
 
 /**
  * Read the App Store storefront country code (e.g. "JP", "US").
- * Retries briefly when StoreKit returns empty / throws during cold start
+ * Retries when StoreKit returns empty / throws during cold start
  * (observed on some iPad sessions). Returns null when still unknown —
  * callers must not guess from device locale.
  */
@@ -315,6 +316,19 @@ export async function loadAppleStorefrontCountryCode(): Promise<string | null> {
     }
   }
   return null;
+}
+
+/**
+ * Plan catalog load: products first (warms StoreKit), then storefront.
+ * Avoids parallel storefront races that leave cards stuck on USD while checkout is JPY.
+ */
+export async function loadAppleStoreCatalogForPlan(): Promise<{
+  products: AppleStoreProduct[];
+  storefrontCountryCode: string | null;
+}> {
+  const products = await loadAppleSubscriptionProducts();
+  const storefrontCountryCode = await loadAppleStorefrontCountryCode();
+  return { products, storefrontCountryCode };
 }
 
 export type AppleManageSubscriptionsDeps = {

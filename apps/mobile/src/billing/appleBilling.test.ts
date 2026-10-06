@@ -218,14 +218,11 @@ test("JP storefront with JPY StoreKit displayPrice still uses fixed card yen", a
   );
 });
 
-test("unknown storefront + StoreKit currency JPY forces fixed JP card prices", async () => {
+test("unknown storefront does not force Japan prices from product currency", async () => {
   const { resolveAppleCardDisplayPrice, shouldUseJapanAppleCardDisplayPrices } = await import("./applePlanCards");
   assert.equal(
-    shouldUseJapanAppleCardDisplayPrices({
-      storefrontCountryCode: null,
-      store: { currency: "JPY" },
-    }),
-    true,
+    shouldUseJapanAppleCardDisplayPrices({ storefrontCountryCode: null }),
+    false,
   );
   assert.equal(
     resolveAppleCardDisplayPrice({
@@ -234,26 +231,38 @@ test("unknown storefront + StoreKit currency JPY forces fixed JP card prices", a
       store: { productId: APPLE_PRODUCT_IDS.plusMonthly, displayPrice: "$9.99", currency: "JPY", title: "", description: "" },
       unavailableLabel: "pending",
     }),
-    "¥980",
-  );
-  assert.equal(
-    resolveAppleCardDisplayPrice({
-      productId: APPLE_PRODUCT_IDS.businessYearly,
-      storefrontCountryCode: "",
-      store: { productId: APPLE_PRODUCT_IDS.businessYearly, displayPrice: "$149.99", currency: "jpy", title: "", description: "" },
-      unavailableLabel: "pending",
-    }),
-    "¥14,800",
+    "$9.99",
   );
 });
 
-test("unknown storefront + StoreKit currency USD keeps StoreKit displayPrice", async () => {
+test("storefrontPending keeps unavailable label instead of locking USD", async () => {
+  const { resolveAppleCardDisplayPrice } = await import("./applePlanCards");
+  assert.equal(
+    resolveAppleCardDisplayPrice({
+      productId: APPLE_PRODUCT_IDS.plusMonthly,
+      storefrontCountryCode: null,
+      storefrontPending: true,
+      store: { productId: APPLE_PRODUCT_IDS.plusMonthly, displayPrice: "$9.99", currency: "USD", title: "", description: "" },
+      unavailableLabel: "pending",
+    }),
+    "pending",
+  );
+  assert.equal(
+    resolveAppleCardDisplayPrice({
+      productId: APPLE_PRODUCT_IDS.plusMonthly,
+      storefrontCountryCode: "JP",
+      storefrontPending: false,
+      store: { productId: APPLE_PRODUCT_IDS.plusMonthly, displayPrice: "$9.99", currency: "USD", title: "", description: "" },
+      unavailableLabel: "pending",
+    }),
+    "¥980",
+  );
+});
+
+test("unknown storefront + StoreKit currency USD keeps StoreKit displayPrice after resolve", async () => {
   const { resolveAppleCardDisplayPrice, shouldUseJapanAppleCardDisplayPrices } = await import("./applePlanCards");
   assert.equal(
-    shouldUseJapanAppleCardDisplayPrices({
-      storefrontCountryCode: null,
-      store: { currency: "USD" },
-    }),
+    shouldUseJapanAppleCardDisplayPrices({ storefrontCountryCode: null }),
     false,
   );
   assert.equal(
@@ -267,20 +276,17 @@ test("unknown storefront + StoreKit currency USD keeps StoreKit displayPrice", a
   );
 });
 
-test("US storefront keeps StoreKit USD even if product currency were JPY", async () => {
+test("US storefront keeps StoreKit USD", async () => {
   const { resolveAppleCardDisplayPrice, shouldUseJapanAppleCardDisplayPrices } = await import("./applePlanCards");
   assert.equal(
-    shouldUseJapanAppleCardDisplayPrices({
-      storefrontCountryCode: "US",
-      store: { currency: "JPY" },
-    }),
+    shouldUseJapanAppleCardDisplayPrices({ storefrontCountryCode: "US" }),
     false,
   );
   assert.equal(
     resolveAppleCardDisplayPrice({
       productId: APPLE_PRODUCT_IDS.plusMonthly,
       storefrontCountryCode: "US",
-      store: { productId: APPLE_PRODUCT_IDS.plusMonthly, displayPrice: "$9.99", currency: "JPY", title: "", description: "" },
+      store: { productId: APPLE_PRODUCT_IDS.plusMonthly, displayPrice: "$9.99", currency: "USD", title: "", description: "" },
       unavailableLabel: "pending",
     }),
     "$9.99",
@@ -318,21 +324,72 @@ test("non-Japan and unknown storefronts keep StoreKit displayPrice", async () =>
   );
 });
 
-test("plan.tsx wires storefront into card display and still purchases by productId", () => {
+test("plan.tsx loads products before storefront and gates purchase success on entitlement", () => {
   const page = read("apps/mobile/app/(app)/plan.tsx");
+  assert.match(page, /loadAppleStoreCatalogForPlan/);
   assert.match(page, /loadAppleStorefrontCountryCode/);
-  assert.match(page, /appleStorefrontCountryCode/);
+  assert.match(page, /useFocusEffect/);
+  assert.match(page, /appleStorefrontPending/);
+  assert.match(page, /storefrontPending:/);
+  assert.match(page, /isActiveApplePaidEntitlement/);
+  assert.match(page, /plan\.appleActivationFailed/);
   assert.match(page, /storefrontCountryCode:\s*appleStorefrontCountryCode/);
   assert.match(page, /purchaseAppleSubscription\(\{\s*productId,/);
   assert.match(page, /onPurchase\(card\.productId\)/);
+  assert.doesNotMatch(page, /Promise\.all\(\[\s*loadAppleSubscriptionProducts/);
 });
 
-test("loadAppleStorefrontCountryCode retries empty storefront results", () => {
+test("loadAppleStoreCatalogForPlan is sequential products-then-storefront", () => {
   const iapSource = read("apps/mobile/src/billing/appleIap.ts");
-  assert.match(iapSource, /STOREFRONT_FETCH_ATTEMPTS/);
-  assert.match(iapSource, /normalizeFetchedProducts/);
+  assert.match(iapSource, /STOREFRONT_FETCH_ATTEMPTS\s*=\s*8/);
+  assert.match(iapSource, /loadAppleStoreCatalogForPlan/);
+  assert.match(iapSource, /const products = await loadAppleSubscriptionProducts\(\);/);
+  assert.match(iapSource, /const storefrontCountryCode = await loadAppleStorefrontCountryCode\(\);/);
   assert.match(iapSource, /currencyCodeIOS/);
-  assert.match(iapSource, /currency:\s*currencyRaw/);
+});
+
+test("isActiveApplePaidEntitlement gates success banners", async () => {
+  const { isActiveApplePaidEntitlement, userFacingAppleBillingError } = await import("./applePlanUi");
+  assert.equal(
+    isActiveApplePaidEntitlement({
+      purchase_source: "apple",
+      status: "active",
+      subscribed_plan: { key: "plus" },
+      effective_plan: { key: "plus" },
+    }),
+    true,
+  );
+  assert.equal(
+    isActiveApplePaidEntitlement({
+      purchase_source: "apple",
+      status: "active",
+      subscribed_plan: { key: "business" },
+      effective_plan: { key: "business" },
+    }),
+    true,
+  );
+  assert.equal(
+    isActiveApplePaidEntitlement({
+      purchase_source: "none",
+      status: "canceled",
+      subscribed_plan: { key: null },
+      effective_plan: { key: "basic" },
+    }),
+    false,
+  );
+  assert.equal(
+    isActiveApplePaidEntitlement({
+      purchase_source: "apple",
+      status: "canceled",
+      subscribed_plan: { key: "plus" },
+      effective_plan: { key: "basic" },
+    }),
+    false,
+  );
+  assert.match(
+    userFacingAppleBillingError({ code: "apple_entitlement_inactive" }, "fallback"),
+    /could not be activated/i,
+  );
 });
 
 test("openAppleManageSubscriptions prefers native sheet and deep-links only when unsupported", async () => {
@@ -426,7 +483,7 @@ test("Apple Plan screen gates Stripe promo off and never purchases during trial"
   assert.match(page, /billingAppleVerify/);
   assert.match(page, /openAppleManageSubscriptions/);
   assert.match(page, /restoreApplePurchases/);
-  assert.match(page, /loadAppleSubscriptionProducts/);
+  assert.match(page, /loadAppleStoreCatalogForPlan/);
   assert.match(page, /const onSelectFuture = useCallback\(async \(productId: AppleProductId\) => \{[\s\S]*?billingFuturePlan\(\)/);
   assert.match(page, /if \(appleTrialFutureSelectionMode\(fresh\)\)/);
   assert.match(page, /purchaseAppleSubscription/);
