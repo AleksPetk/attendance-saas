@@ -1,10 +1,15 @@
 import { Redirect } from "expo-router";
 import { useApp } from "../src/lib/AppProvider";
 import { LoadingState, Screen } from "../src/components/ui";
+import { useProductTour } from "../src/productTour/ProductTourHost";
 
 export default function Index() {
   const { ready, authState, t } = useApp();
-  if (!ready || authState.status === "unknown") {
+  const { prefsReady, prefs, open, mode } = useProductTour();
+  const awaitingFirstTour =
+    prefsReady && !prefs.seen && authState.status === "anonymous" && !(open && mode === "first-launch");
+
+  if (!ready || !prefsReady || authState.status === "unknown" || awaitingFirstTour) {
     return (
       <Screen>
         <LoadingState label={t("common.loading")} />

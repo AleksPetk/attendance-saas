@@ -7,10 +7,14 @@ import { requestNativeAppleCredential, isNativeAppleAuthAvailable } from "../../
 import { requestNativeGoogleCredential, isNativeGoogleAuthAvailable } from "../../src/lib/googleNativeAuth";
 import { signInErrorMessage } from "../../src/lib/authErrors";
 import { useApp } from "../../src/lib/AppProvider";
+import { productTourUi } from "../../../desktop/src/productTour/productTourContent";
+import { useProductTour } from "../../src/productTour/ProductTourHost";
 import { colors, space, type } from "../../src/theme/tokens";
 
 export default function SignInScreen() {
-  const { auth, authState, t } = useApp();
+  const { auth, authState, locale, t } = useApp();
+  const { openReplay } = useProductTour();
+  const tourUi = productTourUi(locale);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [passwordVisible, setPasswordVisible] = useState(false);
@@ -247,6 +251,10 @@ export default function SignInScreen() {
           />
           <Button label={t("auth.staffSignIn")} onPress={() => router.push("/(auth)/staff-sign-in")} variant="secondary" />
           <Button label={t("auth.createAccount")} onPress={() => router.push("/(auth)/register")} variant="secondary" />
+          <TextLink
+            label={tourUi.whatIsCheckStation}
+            onPress={() => openReplay("replay-auth")}
+          />
         </View>
       )}
     </AuthScreen>

@@ -8,6 +8,8 @@ import { fetchContentDocuments, type ContentDocumentSummary } from "../../src/fe
 import { guides } from "../../src/tutorials/guides";
 import { requestGuide } from "../../src/tutorials/MobileGuidedHelp";
 import { useApp } from "../../src/lib/AppProvider";
+import { productTourUi } from "../../../desktop/src/productTour/productTourContent";
+import { useProductTour } from "../../src/productTour/ProductTourHost";
 import { colors, layout, radii, space, touch, type } from "../../src/theme/tokens";
 
 function DocumentRow({ document, onPress }: { document: ContentDocumentSummary; onPress: () => void }) {
@@ -34,6 +36,8 @@ function ContactRow({ title, description, onPress }: { title: string; descriptio
 
 export default function HelpScreen() {
   const { api, locale, t } = useApp(); const router = useRouter();
+  const { openReplay } = useProductTour();
+  const tourUi = productTourUi(locale);
   const [documents, setDocuments] = useState<ContentDocumentSummary[]>([]); const [loading, setLoading] = useState(true); const [refreshing, setRefreshing] = useState(false); const [error, setError] = useState("");
   const load = useCallback(async (refresh = false) => { refresh ? setRefreshing(true) : setLoading(true); setError(""); try { const result = await fetchContentDocuments(api, locale); setDocuments(result.documents || []); } catch { setError(t("help.contentError")); } finally { setLoading(false); setRefreshing(false); } }, [api, locale, t]);
   useEffect(() => { void load(); }, [load]);
@@ -46,6 +50,19 @@ export default function HelpScreen() {
   const openContact = () => router.push("/(app)/help/contact");
   return <Screen style={styles.screen}><ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void load(true)} tintColor={colors.blue} />}>
     <PageHeader title={t("help.title")} description={t("help.hubDescription")} />
+    <SectionCard title={tourUi.discoverCheckStation} description={tourUi.discoverLead}>
+      <Pressable
+        accessibilityRole="button"
+        onPress={() => openReplay("replay-help")}
+        style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+        testID="help-product-tour-entry"
+      >
+        <View style={styles.rowCopy}>
+          <Text style={styles.rowTitle}>{tourUi.discoverAction}</Text>
+        </View>
+        <Text style={styles.replay}>{t("help.replay")}</Text>
+      </Pressable>
+    </SectionCard>
     <SectionCard title={t("help.guided")} description={t("help.guidedHint")}>
       {guides.map((guide) => {
         const index = locale === "ja" ? 1 : 0;
