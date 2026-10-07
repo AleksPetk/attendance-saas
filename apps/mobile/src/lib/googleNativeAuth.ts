@@ -18,10 +18,13 @@ export type GoogleNativeSignInOutcome =
 type GoogleSignInModule = {
   GoogleSignin: {
     configure: (options: {
-      iosClientId: string;
+      iosClientId?: string;
       webClientId: string;
       offlineAccess?: boolean;
     }) => void;
+    hasPlayServices: (options?: {
+      showPlayServicesUpdateDialog?: boolean;
+    }) => Promise<boolean>;
     signIn: () => Promise<
       | { type: "success"; data: { idToken: string | null } }
       | { type: "cancelled"; data: null }
@@ -74,37 +77,92 @@ export function getGoogleIosUrlScheme(): string {
   return String(extra?.googleIosUrlScheme || "").trim();
 }
 
+function isSupportedNativeGooglePlatform(): boolean {
+  return Platform.OS === "ios" || Platform.OS === "android";
+}
+
 /**
- * True when both the iOS client ID (app identity) and Web client ID
- * (ID-token audience / serverClientID) are present.
+ * Platform-aware Google native config check.
+ *
+ * iOS requires both the iOS client ID (app identity) and Web client ID
+ * (ID-token audience / serverClientID).
+ * Android requires only the Web client ID — package + Play SHA-1 identify
+ * the app in Google Cloud; the Android OAuth client ID is not configured here.
  */
 export function isGoogleNativeConfigured(): boolean {
-  return looksLikeGoogleClientId(getGoogleIosClientId()) && looksLikeGoogleClientId(getGoogleWebClientId());
+  const webOk = looksLikeGoogleClientId(getGoogleWebClientId());
+  if (Platform.OS === "ios") {
+    return looksLikeGoogleClientId(getGoogleIosClientId()) && webOk;
+  }
+  if (Platform.OS === "android") {
+    return webOk;
+  }
+  return false;
 }
 
-export async function isNativeGoogleAuthAvailable(): Promise<boolean> {
-  if (Platform.OS !== "ios") return false;
-  if (!isGoogleNativeConfigured()) return false;
-  return loadGoogleModule() != null;
-}
-
-function ensureConfigured(mod: GoogleSignInModule): boolean {
-  const iosClientId = getGoogleIosClientId();
-  const webClientId = getGoogleWebClientId();
-  if (!isGoogleNativeConfigured()) return false;
-  const key = `${iosClientId}|${webClientId}`;
-  if (configuredKey === key) return true;
+async function androidPlayServicesUsable(
+  mod: GoogleSignInModule,
+  showUpdateDialog: boolean,
+): Promise<boolean> {
   try {
-    mod.GoogleSignin.configure({
-      iosClientId,
-      webClientId,
-      offlineAccess: false,
+    return await mod.GoogleSignin.hasPlayServices({
+      showPlayServicesUpdateDialog: showUpdateDialog,
     });
-    configuredKey = key;
-    return true;
   } catch {
     return false;
   }
+}
+
+export async function isNativeGoogleAuthAvailable(): Promise<boolean> {
+  if (!isSupportedNativeGooglePlatform()) return false;
+  if (!isGoogleNativeConfigured()) return false;
+  const mod = loadGoogleModule();
+  if (!mod) return false;
+  if (Platform.OS === "android") {
+    return androidPlayServicesUsable(mod, false);
+  }
+  return true;
+}
+
+function ensureConfigured(mod: GoogleSignInModule): boolean {
+  if (!isGoogleNativeConfigured()) return false;
+  const webClientId = getGoogleWebClientId();
+
+  if (Platform.OS === "ios") {
+    const iosClientId = getGoogleIosClientId();
+    const key = `ios|${iosClientId}|${webClientId}`;
+    if (configuredKey === key) return true;
+    try {
+      mod.GoogleSignin.configure({
+        iosClientId,
+        webClientId,
+        offlineAccess: false,
+      });
+      configuredKey = key;
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  if (Platform.OS === "android") {
+    const key = `android|${webClientId}`;
+    if (configuredKey === key) return true;
+    try {
+      // webClientId sets ID-token audience to the existing Web OAuth client.
+      // Android OAuth client ID is not passed — Play package/SHA identify the app.
+      mod.GoogleSignin.configure({
+        webClientId,
+        offlineAccess: false,
+      });
+      configuredKey = key;
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  return false;
 }
 
 function isCancelError(mod: GoogleSignInModule, error: unknown): boolean {
@@ -116,6 +174,16 @@ function isCancelError(mod: GoogleSignInModule, error: unknown): boolean {
   return code === "SIGN_IN_CANCELLED" || code === "-5" || code === "12501";
 }
 
+function isPlayServicesError(mod: GoogleSignInModule, error: unknown): boolean {
+  const playCode = mod.statusCodes.PLAY_SERVICES_NOT_AVAILABLE;
+  if (playCode && mod.isErrorWithCode?.(error) && error.code === playCode) {
+    return true;
+  }
+  if (!error || typeof error !== "object") return false;
+  const code = (error as { code?: string }).code;
+  return code === "PLAY_SERVICES_NOT_AVAILABLE" || code === "2";
+}
+
 /**
  * Present native Google Sign-In and return an ID token for
  * POST /api/auth/google/native/.
@@ -123,9 +191,11 @@ function isCancelError(mod: GoogleSignInModule, error: unknown): boolean {
  * Uses the system Google Sign-In sheet — not browser OAuth redirects.
  * Does not generate or send an unbound nonce. Original Google Sign-In does not
  * bind a custom nonce to signIn(); AppAuth may embed an opaque value we cannot match.
+ *
+ * Supported on iOS and Android. ID-token audience is always the Web OAuth client.
  */
 export async function requestNativeGoogleCredential(): Promise<GoogleNativeSignInOutcome> {
-  if (Platform.OS !== "ios") {
+  if (!isSupportedNativeGooglePlatform()) {
     return { kind: "unavailable" };
   }
   if (!isGoogleNativeConfigured()) {
@@ -138,6 +208,25 @@ export async function requestNativeGoogleCredential(): Promise<GoogleNativeSignI
   }
   if (!ensureConfigured(mod)) {
     return { kind: "misconfigured" };
+  }
+
+  if (Platform.OS === "android") {
+    try {
+      const playOk = await mod.GoogleSignin.hasPlayServices({
+        showPlayServicesUpdateDialog: true,
+      });
+      if (!playOk) {
+        return { kind: "unavailable" };
+      }
+    } catch (error) {
+      if (isPlayServicesError(mod, error)) {
+        return { kind: "unavailable" };
+      }
+      return {
+        kind: "error",
+        message: error instanceof Error ? error.message : "Google Play Services unavailable",
+      };
+    }
   }
 
   try {
@@ -167,6 +256,9 @@ export async function requestNativeGoogleCredential(): Promise<GoogleNativeSignI
   } catch (error) {
     if (isCancelError(mod, error)) {
       return { kind: "cancelled" };
+    }
+    if (Platform.OS === "android" && isPlayServicesError(mod, error)) {
+      return { kind: "unavailable" };
     }
     return {
       kind: "error",

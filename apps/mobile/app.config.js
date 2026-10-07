@@ -1,9 +1,11 @@
 /**
  * Expo config for CheckStation Mobile.
  *
- * Native Google Sign-In (iOS):
- * - iosClientId + URL scheme identify the iOS app
- * - webClientId (existing Browser Web OAuth client) becomes ID-token audience
+ * Native Google Sign-In (iOS + Android):
+ * - iOS: iosClientId + URL scheme identify the iOS app
+ * - Android: package + Play App Signing SHA-1 identify the app in Google Cloud
+ *   (Android OAuth client ID is not injected into runtime config)
+ * - Both: webClientId (Browser Web OAuth client) is the ID-token audience
  *
  * These values are public OAuth client IDs, not secrets.
  * Browser Google OAuth continues to use the same Web client on the backend.

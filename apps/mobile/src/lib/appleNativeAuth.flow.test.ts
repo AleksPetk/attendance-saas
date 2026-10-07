@@ -63,7 +63,9 @@ test("native Google helper configures iosClientId and webClientId without custom
   assert.match(googleAuth, /type === "cancelled"/);
   assert.match(googleAuth, /kind: "cancelled"/);
   assert.match(googleAuth, /SIGN_IN_CANCELLED/);
-  assert.match(googleAuth, /Platform\.OS !== "ios"/);
+  assert.match(googleAuth, /Platform\.OS === "ios"/);
+  assert.match(googleAuth, /Platform\.OS === "android"/);
+  assert.match(googleAuth, /hasPlayServices/);
   assert.doesNotMatch(googleAuth, /createGoogleRawNonce/);
   assert.doesNotMatch(googleAuth, /expo-crypto/);
   assert.doesNotMatch(googleAuth, /nonce:/);
