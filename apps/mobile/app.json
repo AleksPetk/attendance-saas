@@ -47,7 +47,8 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#071426"
       },
-      "package": "app.checkstation.mobile"
+      "package": "app.checkstation.mobile",
+      "versionCode": 1
     },
     "web": {
       "bundler": "metro",
