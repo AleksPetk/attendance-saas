@@ -26,6 +26,13 @@
         "buildType": "apk"
       }
     },
+    "play-internal-android": {
+      "extends": "preview",
+      "distribution": "store",
+      "android": {
+        "buildType": "app-bundle"
+      }
+    },
     "production": {
       "distribution": "store",
       "autoIncrement": true,

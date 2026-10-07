@@ -48,7 +48,7 @@
         "backgroundColor": "#FFFFFF"
       },
       "package": "app.checkstation.mobile",
-      "versionCode": 3
+      "versionCode": 4
     },
     "web": {
       "bundler": "metro",
