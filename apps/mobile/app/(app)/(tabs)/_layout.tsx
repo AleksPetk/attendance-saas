@@ -1,12 +1,17 @@
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { Redirect, Tabs } from "expo-router";
-import { StyleSheet, View, type ColorValue } from "react-native";
+import { Platform, StyleSheet, View, type ColorValue } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { canViewGlobalMembers } from "@checkstation/domain";
 import { LoadingState, Screen } from "../../../src/components/ui";
 import { useApp } from "../../../src/lib/AppProvider";
 import { colors, shadows } from "../../../src/theme/tokens";
+
+/** Default React Navigation tab content height before safe-area padding. */
+const TAB_BAR_CONTENT_HEIGHT = 49;
+/** Extra top pad used by CheckStation tab chrome (icons + active indicator). */
+const TAB_BAR_TOP_PAD = 7;
 
 type TabIconName = keyof typeof Ionicons.glyphMap;
 
@@ -35,7 +40,21 @@ export default function AppTabsLayout() {
         tabBarInactiveTintColor: colors.textMuted,
         tabBarLabelStyle: { fontSize: 12, fontWeight: "600", letterSpacing: 0.1 },
         tabBarPosition: "bottom",
-        tabBarStyle: { backgroundColor: colors.surfaceSubtle, borderTopColor: colors.infoBorder, paddingTop: 7, ...shadows.sm },
+        tabBarStyle: {
+          backgroundColor: colors.surfaceSubtle,
+          borderTopColor: colors.infoBorder,
+          paddingTop: TAB_BAR_TOP_PAD,
+          ...shadows.sm,
+          // Android is edge-to-edge with a transparent system nav bar. Restore tab content
+          // height after paddingTop so icons/labels sit above insets.bottom (gesture or 3-button).
+          // iOS keeps the previous style object (no height/paddingBottom override).
+          ...(Platform.OS === "android"
+            ? {
+                height: TAB_BAR_CONTENT_HEIGHT + TAB_BAR_TOP_PAD + insets.bottom,
+                paddingBottom: insets.bottom,
+              }
+            : null),
+        },
       }}
     >
       <Tabs.Screen name="home" options={{ title: t("nav.home"), tabBarIcon: tabIcon("home-outline", "home") }} />

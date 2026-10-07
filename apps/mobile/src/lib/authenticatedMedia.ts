@@ -2,6 +2,14 @@ import type { ApiClient } from "@checkstation/api";
 import { loadAuthenticatedMediaCached } from "./kioskMediaCache";
 
 /**
+ * Android RN `Image` commonly ignores Cookie headers on protected `/media/` URLs.
+ * iOS applies them. Prefer fetch→data URI on Android; keep Image+Cookie on iOS.
+ */
+export function shouldLoadProtectedMediaViaFetch(platform: string): boolean {
+  return platform === "android";
+}
+
+/**
  * Resolve kiosk/member media paths the same way Desktop/browser do:
  * absolute http(s)/data stay as-is; root-relative /media/ joins the API host origin.
  */

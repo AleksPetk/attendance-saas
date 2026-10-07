@@ -1,6 +1,8 @@
-import { Image, StyleSheet, Text, View, type ImageStyle, type StyleProp } from "react-native";
+import { useEffect, useState } from "react";
+import { Image, Platform, StyleSheet, Text, View, type ImageStyle, type StyleProp } from "react-native";
 import { useApp } from "../lib/AppProvider";
-import { colors, radii, type } from "../theme/tokens";
+import { loadAuthenticatedMediaDataUri, shouldLoadProtectedMediaViaFetch } from "../lib/authenticatedMedia";
+import { colors, type } from "../theme/tokens";
 
 function initials(name: string): string {
   const parts = (name || "").trim().split(/\s+/).filter(Boolean);
@@ -9,31 +11,19 @@ function initials(name: string): string {
   return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
 }
 
-export function Avatar({
-  url,
+function AvatarFallback({
   name,
-  size = 44,
+  size,
+  borderRadius,
+  letterSize,
   fallbackBg,
 }: {
-  url?: string | null;
   name?: string;
-  size?: number;
+  size: number;
+  borderRadius: number;
+  letterSize: number;
   fallbackBg?: string;
 }) {
-  const { api } = useApp();
-  const cookie = api.jar.cookieHeader();
-  const borderRadius = Math.round(size * 0.32);
-  const letterSize = size < 40 ? Math.round(size * 0.45) : Math.round(size * 0.4);
-
-  if (url) {
-    return (
-      <Image
-        source={{ uri: url, headers: cookie ? { Cookie: cookie } : undefined }}
-        style={{ width: size, height: size, borderRadius, backgroundColor: colors.surfaceSubtle }}
-      />
-    );
-  }
-
   return (
     <View
       style={{
@@ -52,11 +42,131 @@ export function Avatar({
   );
 }
 
+function useProtectedMediaUri(url?: string | null): { uri: string | null; failed: boolean; loading: boolean } {
+  const { api } = useApp();
+  const useFetch = shouldLoadProtectedMediaViaFetch(Platform.OS);
+  const immediateData = Boolean(url && url.startsWith("data:"));
+  const [dataUri, setDataUri] = useState<string | null>(immediateData ? url! : null);
+  const [failed, setFailed] = useState(false);
+  const [loading, setLoading] = useState(Boolean(url && useFetch && !immediateData));
+
+  useEffect(() => {
+    let cancelled = false;
+    setFailed(false);
+    if (!url) {
+      setDataUri(null);
+      setLoading(false);
+      return;
+    }
+    if (!useFetch || url.startsWith("data:")) {
+      setDataUri(url);
+      setLoading(false);
+      return;
+    }
+    setDataUri(null);
+    setLoading(true);
+    void (async () => {
+      try {
+        const loaded = await loadAuthenticatedMediaDataUri(api, url);
+        if (!cancelled) {
+          setDataUri(loaded);
+          setLoading(false);
+        }
+      } catch {
+        if (!cancelled) {
+          setFailed(true);
+          setLoading(false);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [api, url, useFetch]);
+
+  if (!url) return { uri: null, failed: false, loading: false };
+  if (useFetch) return { uri: failed ? null : dataUri, failed, loading };
+  return { uri: url, failed: false, loading: false };
+}
+
+export function Avatar({
+  url,
+  name,
+  size = 44,
+  fallbackBg,
+}: {
+  url?: string | null;
+  name?: string;
+  size?: number;
+  fallbackBg?: string;
+}) {
+  const { api } = useApp();
+  const cookie = api.jar.cookieHeader();
+  const borderRadius = Math.round(size * 0.32);
+  const letterSize = size < 40 ? Math.round(size * 0.45) : Math.round(size * 0.4);
+  const { uri, failed, loading } = useProtectedMediaUri(url);
+  const [imageFailed, setImageFailed] = useState(false);
+
+  useEffect(() => {
+    setImageFailed(false);
+  }, [url, uri]);
+
+  if (url && !failed && !imageFailed && uri) {
+    const useFetch = shouldLoadProtectedMediaViaFetch(Platform.OS);
+    return (
+      <Image
+        onError={() => setImageFailed(true)}
+        source={{
+          uri,
+          // iOS: Cookie on Image works. Android: uri is already a data: URI from fetch.
+          headers: useFetch || !cookie ? undefined : { Cookie: cookie },
+        }}
+        style={{ width: size, height: size, borderRadius, backgroundColor: colors.surfaceSubtle }}
+      />
+    );
+  }
+
+  // While Android fetch is in flight, keep the subtle placeholder (not initials) to avoid flicker.
+  if (url && loading) {
+    return (
+      <View
+        style={{
+          width: size,
+          height: size,
+          borderRadius,
+          backgroundColor: colors.surfaceSubtle,
+        }}
+      />
+    );
+  }
+
+  return (
+    <AvatarFallback
+      borderRadius={borderRadius}
+      fallbackBg={fallbackBg}
+      letterSize={letterSize}
+      name={name}
+      size={size}
+    />
+  );
+}
+
 export function AuthenticatedImage({ url, style, resizeMode = "contain" }: { url?: string | null; style?: StyleProp<ImageStyle>; resizeMode?: "contain" | "cover" }) {
   const { api } = useApp();
   const cookie = api.jar.cookieHeader();
-  if (!url) return null;
-  return <Image resizeMode={resizeMode} source={{ uri: url, headers: cookie ? { Cookie: cookie } : undefined }} style={style} />;
+  const { uri, failed, loading } = useProtectedMediaUri(url);
+  if (!url || failed || loading || !uri) return null;
+  const useFetch = shouldLoadProtectedMediaViaFetch(Platform.OS);
+  return (
+    <Image
+      resizeMode={resizeMode}
+      source={{
+        uri,
+        headers: useFetch || !cookie ? undefined : { Cookie: cookie },
+      }}
+      style={style}
+    />
+  );
 }
 
 export function AvatarRow({

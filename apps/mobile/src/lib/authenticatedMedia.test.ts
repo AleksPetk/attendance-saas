@@ -10,6 +10,7 @@ import {
   kioskPersonInitials,
   loadAuthenticatedMediaDataUri,
   resolveMobileMediaUrl,
+  shouldLoadProtectedMediaViaFetch,
 } from "./authenticatedMedia";
 import { buildKioskPersonAvatarHtml, buildKioskPreviewHtml, kioskPreviewGridOverrideCss } from "./kioskWebPreview/html";
 import { normalizeKioskVisualDesign } from "./kioskVisualDesign";
@@ -135,4 +136,10 @@ test("initials and tone helpers match Desktop naming rules", () => {
   assert.equal(kioskPersonInitials("Nami"), "N");
   assert.equal(typeof kioskAvatarToneStep("Michael Johnson"), "number");
   assert.ok(kioskAvatarToneStep("Michael Johnson") >= 0 && kioskAvatarToneStep("Michael Johnson") <= 4);
+});
+
+
+test("Android prefers fetch for protected media; iOS keeps Image Cookie path", () => {
+  assert.equal(shouldLoadProtectedMediaViaFetch("android"), true);
+  assert.equal(shouldLoadProtectedMediaViaFetch("ios"), false);
 });

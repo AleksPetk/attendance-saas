@@ -45,10 +45,10 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#071426"
+        "backgroundColor": "#FFFFFF"
       },
       "package": "app.checkstation.mobile",
-      "versionCode": 2
+      "versionCode": 3
     },
     "web": {
       "bundler": "metro",
