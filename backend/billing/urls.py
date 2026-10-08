@@ -16,6 +16,8 @@ from billing.views import (
     BillingScheduleChangeView,
     BillingUpgradePreviewView,
     BillingUpgradeView,
+    GoogleBillingVerifyView,
+    GooglePlayRtdnView,
     OwnerBillingView,
     StripeWebhookView,
 )
@@ -69,6 +71,21 @@ urlpatterns = [
         "billing/apple/notifications/",
         AppleServerNotificationView.as_view(),
         name="billing-apple-notifications-slash",
+    ),
+    path(
+        "billing/google/verify/",
+        GoogleBillingVerifyView.as_view(),
+        name="billing-google-verify",
+    ),
+    path(
+        "billing/google/notifications",
+        GooglePlayRtdnView.as_view(),
+        name="billing-google-notifications",
+    ),
+    path(
+        "billing/google/notifications/",
+        GooglePlayRtdnView.as_view(),
+        name="billing-google-notifications-slash",
     ),
     path(
         "billing/webhooks/stripe",

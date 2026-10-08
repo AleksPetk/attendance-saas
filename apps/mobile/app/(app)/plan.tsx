@@ -26,7 +26,7 @@ import {
 import {
   appleIapSupported,
   finishAppleTransaction,
-  isUserCancelPurchaseError,
+  isUserCancelPurchaseError as isUserCancelApplePurchaseError,
   loadAppleStoreCatalogForPlan,
   loadAppleStorefrontCountryCode,
   openAppleManageSubscriptions,
@@ -51,6 +51,28 @@ import {
   shouldShowStripePromoOnMobile,
   userFacingAppleBillingError,
 } from "../../src/billing/applePlanUi";
+import {
+  finishGoogleTransaction,
+  googleIapSupported,
+  googleSkuForManagedBilling,
+  isUserCancelPurchaseError as isUserCancelGooglePurchaseError,
+  loadGoogleStoreOffers,
+  openGoogleManageSubscriptions,
+  purchaseGoogleSubscription,
+  restoreGooglePurchases,
+  type GoogleStoreOffer,
+} from "../../src/billing/googleIap";
+import { GOOGLE_PLAN_OPTIONS, type GooglePlanOption } from "../../src/billing/googleProducts";
+import {
+  futurePaidMatchesGoogleOption,
+  googleBlockedByOtherProvider,
+  googleManaged,
+  googlePurchaseEligible,
+  googleTrialFutureSelectionMode,
+  isActiveGooglePaidEntitlement,
+  shouldLoadGoogleStoreProducts,
+  userFacingGoogleBillingError,
+} from "../../src/billing/googlePlanUi";
 import { colors, space, type } from "../../src/theme/tokens";
 
 type Snapshot = Record<string, any>;
@@ -72,10 +94,19 @@ export default function PlanScreen() {
   const [appleBusy, setAppleBusy] = useState(false);
   const [appleStoreError, setAppleStoreError] = useState(false);
   const [appleStoreEpoch, setAppleStoreEpoch] = useState(0);
+  const [googleOffers, setGoogleOffers] = useState<GoogleStoreOffer[]>([]);
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const [googleBusy, setGoogleBusy] = useState(false);
+  const [googleStoreError, setGoogleStoreError] = useState(false);
+  const [googleStoreEpoch, setGoogleStoreEpoch] = useState(0);
   const bt = useMemo(() => billingTranslator(locale === "ja" ? "ja" : "en"), [locale]);
 
   const reloadAppleStore = useCallback(() => {
     setAppleStoreEpoch((value) => value + 1);
+  }, []);
+
+  const reloadGoogleStore = useCallback(() => {
+    setGoogleStoreEpoch((value) => value + 1);
   }, []);
 
   const load = useCallback(async (refresh = false) => {
@@ -90,13 +121,14 @@ export default function PlanScreen() {
       setBilling(snapshot);
       setEntitlements(workspace.entitlements);
       if (refresh && appleIapSupported()) reloadAppleStore();
+      if (refresh && googleIapSupported()) reloadGoogleStore();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : t("common.error"));
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [allowed, api, reloadAppleStore, t]);
+  }, [allowed, api, reloadAppleStore, reloadGoogleStore, t]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -104,8 +136,18 @@ export default function PlanScreen() {
   const showAppleManage = appleIapSupported() && appleManaged(billing);
   const showAppleTrialSelect = appleIapSupported() && appleTrialFutureSelectionMode(billing);
   const loadAppleProducts = appleIapSupported() && shouldLoadAppleStoreProducts(billing);
-  const blockedProvider = appleIapSupported() ? appleBlockedByOtherProvider(billing) : null;
-  const showStripeCards = shouldShowStripePromoOnMobile(billing) && !showAppleShop && !showAppleManage && !showAppleTrialSelect;
+  const showGoogleShop = googleIapSupported() && googlePurchaseEligible(billing);
+  const showGoogleManage = googleIapSupported() && googleManaged(billing);
+  const showGoogleTrialSelect = googleIapSupported() && googleTrialFutureSelectionMode(billing);
+  const loadGoogleProducts = googleIapSupported() && shouldLoadGoogleStoreProducts(billing);
+  const blockedProvider = appleIapSupported()
+    ? appleBlockedByOtherProvider(billing)
+    : googleIapSupported()
+      ? googleBlockedByOtherProvider(billing)
+      : null;
+  const showStripeCards = shouldShowStripePromoOnMobile(billing)
+    && !showAppleShop && !showAppleManage && !showAppleTrialSelect
+    && !showGoogleShop && !showGoogleManage && !showGoogleTrialSelect;
 
   useEffect(() => {
     if (!loadAppleProducts) {
@@ -153,6 +195,38 @@ export default function PlanScreen() {
     return () => { cancelled = true; };
   }, [loadAppleProducts, appleStorefrontCountryCode, appleStorefrontPending]));
 
+  useEffect(() => {
+    if (!loadGoogleProducts) {
+      setGoogleOffers([]);
+      setGoogleStoreError(false);
+      setGoogleLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setGoogleLoading(true);
+    setGoogleStoreError(false);
+    void loadGoogleStoreOffers()
+      .then((offers) => {
+        if (cancelled) return;
+        setGoogleOffers(offers);
+        setGoogleStoreError(offers.length === 0);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setGoogleOffers([]);
+        setGoogleStoreError(true);
+      })
+      .finally(() => {
+        if (!cancelled) setGoogleLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [loadGoogleProducts, billing?.purchase_source, billing?.builtin_trial?.active, googleStoreEpoch]);
+
+  useFocusEffect(useCallback(() => {
+    if (!loadGoogleProducts) return;
+    reloadGoogleStore();
+  }, [loadGoogleProducts, reloadGoogleStore]));
+
   const verifyWithBackend = useCallback(async (signedTransaction: string) => {
     const snapshot = await api.post<Snapshot>(endpoints.billingAppleVerify(), {
       signed_transaction: signedTransaction,
@@ -195,7 +269,7 @@ export default function PlanScreen() {
       setInfo(t("plan.applePurchaseSuccess"));
       await load(true);
     } catch (caught) {
-      if (isUserCancelPurchaseError(caught)) return;
+      if (isUserCancelApplePurchaseError(caught)) return;
       setError(userFacingAppleBillingError(caught, t("plan.appleActivationFailed")));
       await load(true);
     } finally {
@@ -279,6 +353,122 @@ export default function PlanScreen() {
     }
   }, [load, reloadAppleStore, t, verifyWithBackend]);
 
+  const verifyGoogleWithBackend = useCallback(async (purchaseToken: string) => {
+    const snapshot = await api.post<Snapshot>(endpoints.billingGoogleVerify(), {
+      purchase_token: purchaseToken,
+    });
+    setBilling(snapshot);
+    return snapshot;
+  }, [api]);
+
+  const onGooglePurchase = useCallback(async (option: GooglePlanOption, offer: GoogleStoreOffer) => {
+    setGoogleBusy(true);
+    setError("");
+    setInfo("");
+    let purchaseToFinish: Awaited<ReturnType<typeof purchaseGoogleSubscription>>["purchase"] | null = null;
+    try {
+      const fresh = await api.get<Snapshot>(endpoints.billing());
+      setBilling(fresh);
+      if (googleTrialFutureSelectionMode(fresh)) {
+        setError(t("plan.googleTrialSelectHint"));
+        return;
+      }
+      if (!googlePurchaseEligible(fresh)) {
+        // Do not allow a second independent purchase while Google-owned (manage instead).
+        setError(userFacingGoogleBillingError({ code: "purchase_source_locked" }, t("common.error")));
+        return;
+      }
+      const { purchase, purchaseToken } = await purchaseGoogleSubscription({
+        productId: offer.productId,
+        basePlanId: offer.basePlanId,
+        offerToken: offer.offerToken,
+      });
+      purchaseToFinish = purchase;
+      const snapshot = await verifyGoogleWithBackend(purchaseToken);
+      if (!isActiveGooglePaidEntitlement(snapshot)) {
+        setError(t("plan.googleActivationFailed"));
+        await load(true);
+        return;
+      }
+      setInfo(t("plan.googlePurchaseSuccess"));
+      await load(true);
+    } catch (caught) {
+      if (isUserCancelGooglePurchaseError(caught)) return;
+      setError(userFacingGoogleBillingError(caught, t("plan.googleActivationFailed")));
+      await load(true);
+    } finally {
+      if (purchaseToFinish) {
+        try { await finishGoogleTransaction(purchaseToFinish); } catch { /* hygiene */ }
+      }
+      setGoogleBusy(false);
+    }
+  }, [api, load, t, verifyGoogleWithBackend]);
+
+  const onGoogleSelectFuture = useCallback(async (option: GooglePlanOption) => {
+    setGoogleBusy(true);
+    setError("");
+    setInfo("");
+    try {
+      const snapshot = await api.post<Snapshot>(endpoints.billingFuturePlan(), {
+        plan: option.plan,
+        interval: option.interval,
+      });
+      setBilling(snapshot);
+      setInfo(t("plan.googleTrialSelectSuccess"));
+    } catch (caught) {
+      setError(userFacingGoogleBillingError(caught, t("common.error")));
+    } finally {
+      setGoogleBusy(false);
+    }
+  }, [api, t]);
+
+  const onGoogleClearFuture = useCallback(async () => {
+    setGoogleBusy(true);
+    setError("");
+    setInfo("");
+    try {
+      const snapshot = await api.post<Snapshot>(endpoints.billingFuturePlanClear(), {});
+      setBilling(snapshot);
+      setInfo(t("plan.googleTrialClearSuccess"));
+    } catch (caught) {
+      setError(userFacingGoogleBillingError(caught, t("common.error")));
+    } finally {
+      setGoogleBusy(false);
+    }
+  }, [api, t]);
+
+  const onGoogleRestore = useCallback(async () => {
+    setGoogleBusy(true);
+    setError("");
+    setInfo("");
+    try {
+      const restored = await restoreGooglePurchases();
+      reloadGoogleStore();
+      if (!restored.length) {
+        setInfo(t("plan.googleRestoreNone"));
+        return;
+      }
+      let activated = false;
+      for (const item of restored) {
+        try {
+          const snapshot = await verifyGoogleWithBackend(item.purchaseToken);
+          if (isActiveGooglePaidEntitlement(snapshot)) activated = true;
+        } catch {
+          // Continue other tokens.
+        } finally {
+          try { await finishGoogleTransaction(item.purchase); } catch { /* hygiene */ }
+        }
+      }
+      await load(true);
+      if (activated) setInfo(t("plan.googleRestoreSuccess"));
+      else setError(t("plan.googleActivationFailed"));
+    } catch (caught) {
+      setError(userFacingGoogleBillingError(caught, t("plan.googleActivationFailed")));
+    } finally {
+      setGoogleBusy(false);
+    }
+  }, [load, reloadGoogleStore, t, verifyGoogleWithBackend]);
+
   const onManage = useCallback(async () => {
     setError("");
     try {
@@ -287,6 +477,15 @@ export default function PlanScreen() {
       setError(userFacingAppleBillingError(caught, t("common.error")));
     }
   }, [t]);
+
+  const onGoogleManage = useCallback(async () => {
+    setError("");
+    try {
+      await openGoogleManageSubscriptions(googleSkuForManagedBilling(billing));
+    } catch (caught) {
+      setError(userFacingGoogleBillingError(caught, t("common.error")));
+    }
+  }, [billing, t]);
 
   if (!allowed) return <Redirect href="/(app)/(tabs)/more" />;
   if (loading) return <Screen><LoadingState label={t("plan.loading")} /></Screen>;
@@ -301,10 +500,22 @@ export default function PlanScreen() {
   const summary = showStripeCards && promo?.active && promo.group === "new_basic" ? promotionSummary(billing.catalog, bt) : "";
   const date = (value?: string | null) => value ? formatDateTime(value, locale) : "";
   const showAppleSection = showAppleShop || showAppleManage || showAppleTrialSelect;
+  const showGoogleSection = showGoogleShop || showGoogleManage || showGoogleTrialSelect;
   const preferredFuture = billing.future_paid_plan;
   const appleCards = buildApplePlanCards(billing, bt);
   const appleStoreById = appleStoreProductMap(appleProducts);
   const applePriceUnavailable = t("plan.applePriceUnavailable");
+  const googlePriceUnavailable = t("plan.googlePriceUnavailable");
+  const googleOfferMap = new Map(
+    googleOffers.map((offer) => [`${offer.productId}:${offer.basePlanId}`, offer] as const),
+  );
+  const googleCards = GOOGLE_PLAN_OPTIONS.map((option) => {
+    const catalogName = billing.catalog?.plans?.[option.plan]?.display_name;
+    const planName = (catalogName && String(catalogName).trim())
+      || (option.plan === "business" ? "Business" : "Plus");
+    const intervalLabel = bt(`billing:interval.${option.interval}`);
+    return { ...option, title: `${planName} ${intervalLabel}` };
+  });
 
   return (
     <Screen style={styles.screen}>
@@ -358,12 +569,17 @@ export default function PlanScreen() {
 
         {blockedProvider === "stripe" ? (
           <SectionCard>
-            <Alert message={t("plan.appleManagedByCheckStation")} variant="info" />
+            <Alert message={googleIapSupported() ? t("plan.googleManagedByCheckStation") : t("plan.appleManagedByCheckStation")} variant="info" />
           </SectionCard>
         ) : null}
         {blockedProvider === "google" ? (
           <SectionCard>
             <Alert message={t("plan.appleManagedByGoogle")} variant="info" />
+          </SectionCard>
+        ) : null}
+        {blockedProvider === "apple" ? (
+          <SectionCard>
+            <Alert message={t("plan.googleManagedByApple")} variant="info" />
           </SectionCard>
         ) : null}
 
@@ -443,6 +659,88 @@ export default function PlanScreen() {
                     <Text style={styles.restoreText}>{t("plan.appleRestore")}</Text>
                   </Pressable>
                   {info ? <Text style={styles.restoreStatus}>{info}</Text> : null}
+                </View>
+              ) : null}
+            </View>
+          </SectionCard>
+        ) : null}
+
+        {showGoogleSection ? (
+          <SectionCard
+            title={showGoogleTrialSelect ? t("plan.googleTrialSelectTitle") : t("plan.googleSectionTitle")}
+            description={showGoogleTrialSelect ? t("plan.googleTrialSelectDescription") : t("plan.googleSectionDescription")}
+          >
+            {showGoogleTrialSelect ? <Alert message={t("plan.googleTrialSelectHint")} variant="info" /> : null}
+            {showGoogleManage ? <Alert message={t("plan.googleManagedBillingNote")} variant="info" /> : null}
+            {googleBusy ? <Text style={styles.summary}>{t("plan.googleWorking")}</Text> : null}
+            {googleLoading ? <Text style={styles.summary}>{t("plan.googleLoadingProducts")}</Text> : null}
+            {!googleLoading && googleStoreError ? <Alert message={t("plan.googleProductsUnavailable")} variant="info" /> : null}
+            <View style={[styles.grid, tablet && styles.gridTablet]}>
+              {googleCards.map((card) => {
+                const offer = googleOfferMap.get(`${card.productId}:${card.basePlanId}`);
+                const storeReady = Boolean(offer?.displayPrice && offer?.offerToken);
+                const current = Boolean(
+                  billing.subscribed_plan?.key === card.plan
+                  && billing.interval === card.interval
+                  && billing.purchase_source === "google",
+                );
+                const selectedFuture = futurePaidMatchesGoogleOption(billing, card.plan, card.interval);
+                const periodKey = card.interval === "yearly" ? "billing:currentPlan.perYear" : "billing:currentPlan.perMonth";
+                let actionLabel = "";
+                let onAction: (() => void) | undefined;
+                let actionDisabled = googleBusy || googleLoading;
+                if (showGoogleTrialSelect) {
+                  actionLabel = selectedFuture ? t("plan.googleTrialSelected") : t("plan.googleTrialSelect");
+                  actionDisabled = actionDisabled || selectedFuture;
+                  onAction = () => void onGoogleSelectFuture(card);
+                } else if (showGoogleShop) {
+                  actionLabel = t("plan.googleBuy");
+                  actionDisabled = actionDisabled || !storeReady;
+                  onAction = storeReady && offer ? () => void onGooglePurchase(card, offer) : undefined;
+                } else if (showGoogleManage) {
+                  // Phase 1: no in-app plan replacement — manage in Google Play.
+                  actionLabel = "";
+                  onAction = undefined;
+                  actionDisabled = true;
+                }
+                const badge = selectedFuture && !current
+                  ? bt("billing:trialSelection.selectedBadge")
+                  : current
+                    ? bt("billing:currentPlan.badge")
+                    : "";
+                return (
+                  <PlanOptionCard
+                    key={`${card.productId}:${card.basePlanId}`}
+                    actionDisabled={actionDisabled || !actionLabel}
+                    actionLabel={actionLabel}
+                    badge={badge}
+                    catalog={billing.catalog}
+                    flags={{ current, selectedFuture }}
+                    listPrice=""
+                    note=""
+                    onAction={onAction}
+                    period={bt(periodKey)}
+                    price={offer?.displayPrice || googlePriceUnavailable}
+                    recommendedBadge={false}
+                    renews=""
+                    title={card.title}
+                    wide={tablet}
+                  />
+                );
+              })}
+            </View>
+            <View style={styles.appleActions}>
+              {showGoogleTrialSelect && preferredFuture?.key ? (
+                <Button disabled={googleBusy} label={t("plan.googleTrialClear")} onPress={() => void onGoogleClearFuture()} variant="secondary" />
+              ) : null}
+              {showGoogleManage ? (
+                <Button disabled={googleBusy} label={t("plan.googleManage")} onPress={() => void onGoogleManage()} variant="secondary" />
+              ) : null}
+              {!showGoogleTrialSelect ? (
+                <View style={styles.restoreBlock}>
+                  <Pressable disabled={googleBusy} onPress={() => void onGoogleRestore()} style={styles.restoreLink}>
+                    <Text style={styles.restoreText}>{t("plan.googleRestore")}</Text>
+                  </Pressable>
                 </View>
               ) : null}
             </View>

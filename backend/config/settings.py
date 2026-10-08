@@ -145,6 +145,14 @@ env = environ.Env(
     APPLE_IAP_ROOT_CA_PEM=(str, ""),
     APPLE_IAP_HTTP_TIMEOUT_SECONDS=(int, 15),
     APPLE_IAP_SKIP_JWS_CHAIN_VERIFY=(bool, False),
+    # Google Play Billing (Android Publisher API). Never commit the SA JSON.
+    GOOGLE_PLAY_PACKAGE_NAME=(str, "app.checkstation.mobile"),
+    GOOGLE_PLAY_SERVICE_ACCOUNT_FILE=(str, ""),
+    GOOGLE_PLAY_HTTP_TIMEOUT_SECONDS=(int, 15),
+    # Pub/Sub push OIDC for RTDN. Audience must match the push endpoint URL.
+    GOOGLE_PLAY_RTDN_AUDIENCE=(str, ""),
+    GOOGLE_PLAY_RTDN_OIDC_SERVICE_ACCOUNT_EMAIL=(str, ""),
+    GOOGLE_PLAY_RTDN_SKIP_AUTH=(bool, False),
 )
 
 env_file = REPO_ROOT / ".env"
@@ -496,6 +504,20 @@ APPLE_IAP_ROOT_CA_PEM = env("APPLE_IAP_ROOT_CA_PEM", default="")
 APPLE_IAP_HTTP_TIMEOUT_SECONDS = env("APPLE_IAP_HTTP_TIMEOUT_SECONDS")
 # Tests only — never enable in production.
 APPLE_IAP_SKIP_JWS_CHAIN_VERIFY = env("APPLE_IAP_SKIP_JWS_CHAIN_VERIFY")
+
+# Google Play Billing (Android). Service-account JSON path only — never embed key material.
+GOOGLE_PLAY_PACKAGE_NAME = env(
+    "GOOGLE_PLAY_PACKAGE_NAME", default="app.checkstation.mobile"
+)
+GOOGLE_PLAY_SERVICE_ACCOUNT_FILE = env("GOOGLE_PLAY_SERVICE_ACCOUNT_FILE", default="")
+GOOGLE_PLAY_HTTP_TIMEOUT_SECONDS = env("GOOGLE_PLAY_HTTP_TIMEOUT_SECONDS")
+# Pub/Sub push OIDC for Real-time Developer Notifications.
+GOOGLE_PLAY_RTDN_AUDIENCE = env("GOOGLE_PLAY_RTDN_AUDIENCE", default="")
+GOOGLE_PLAY_RTDN_OIDC_SERVICE_ACCOUNT_EMAIL = env(
+    "GOOGLE_PLAY_RTDN_OIDC_SERVICE_ACCOUNT_EMAIL", default=""
+)
+# Tests only — never enable in production.
+GOOGLE_PLAY_RTDN_SKIP_AUTH = env("GOOGLE_PLAY_RTDN_SKIP_AUTH")
 
 # Stripe TEST-mode billing. Empty placeholders until credentials exist.
 # Never commit live keys. Permanent list prices stay in billing.catalog.

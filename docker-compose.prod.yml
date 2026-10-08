@@ -86,6 +86,8 @@ services:
     volumes:
       - checkstation_media_data:/app/media
       - checkstation_static_data:/app/staticfiles
+      # Google Play Billing SA JSON (host path outside the git tree). Read-only.
+      - ${GOOGLE_PLAY_SERVICE_ACCOUNT_HOST_PATH:-/opt/checkstation/secrets/google-play-billing.json}:/run/secrets/google-play-billing.json:ro
     networks:
       - checkstation
     # Host nginx will proxy to loopback only — never publish on 0.0.0.0.

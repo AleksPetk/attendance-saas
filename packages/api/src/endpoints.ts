@@ -44,6 +44,7 @@ export const endpoints = {
   billingFuturePlan: () => "/billing/future-plan/",
   billingFuturePlanClear: () => "/billing/future-plan/clear/",
   billingAppleVerify: () => "/billing/apple/verify/",
+  billingGoogleVerify: () => "/billing/google/verify/",
   members: () => "/members/",
   member: (id: number | string) => `/members/${id}/`,
   groups: () => "/groups/",

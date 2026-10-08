@@ -25,6 +25,16 @@ from billing.apple_verify import (
     AppleVerificationError,
     verify_and_activate_apple_subscription,
 )
+from billing.google_notifications import (
+    GoogleNotificationAuthError,
+    process_google_rtdn_envelope,
+    verify_pubsub_oidc_token,
+)
+from billing.google_verify import (
+    GoogleVerificationError,
+    google_paid_entitlement_is_active,
+    verify_and_activate_google_subscription,
+)
 from billing.catalog import PLAN_BUSINESS, PLAN_PLUS
 from billing.models import BillingStatus, PurchaseSource
 from billing.operations import (
@@ -445,6 +455,45 @@ class AppleBillingVerifyView(APIView):
         return Response(build_billing_state(organization))
 
 
+class GoogleBillingVerifyView(APIView):
+    """Verify a Google Play purchase token and bind it to the owner workspace."""
+
+    permission_classes = [IsAuthenticated, IsWorkspaceOwner]
+
+    def post(self, request):
+        organization = get_owned_organization(request.user)
+        purchase_token = (
+            request.data.get("purchase_token")
+            or request.data.get("purchaseToken")
+            or ""
+        )
+        if not str(purchase_token).strip():
+            return Response(
+                {
+                    "code": "google_purchase_token_missing",
+                    "detail": "purchase_token is required.",
+                },
+                status=400,
+            )
+        try:
+            verify_and_activate_google_subscription(
+                organization,
+                purchase_token=str(purchase_token).strip(),
+            )
+        except GoogleVerificationError as exc:
+            return _error_response(exc)
+        except BillingStateError as exc:
+            return _error_response(exc)
+        if not google_paid_entitlement_is_active(organization):
+            return _error_response(
+                GoogleVerificationError(
+                    "This Google Play purchase did not activate a paid subscription.",
+                    code="google_entitlement_inactive",
+                )
+            )
+        return Response(build_billing_state(organization))
+
+
 @method_decorator(csrf_exempt, name="dispatch")
 class AppleServerNotificationView(View):
     """App Store Server Notifications V2. JWS-verified. No session auth."""
@@ -477,5 +526,40 @@ class AppleServerNotificationView(View):
             return JsonResponse({"detail": str(exc), "code": code}, status=status)
         except Exception:
             logger.exception("Apple ASN V2 processing failed.")
+            return JsonResponse({"detail": "Notification processing failed."}, status=500)
+        return JsonResponse(result)
+
+
+@method_decorator(csrf_exempt, name="dispatch")
+class GooglePlayRtdnView(View):
+    """Google Play RTDN via authenticated Pub/Sub push. OIDC-verified."""
+
+    http_method_names = ["post"]
+
+    def post(self, request):
+        try:
+            verify_pubsub_oidc_token(request.META.get("HTTP_AUTHORIZATION", ""))
+        except GoogleNotificationAuthError as exc:
+            code = getattr(exc, "code", "google_rtdn_auth_invalid")
+            return JsonResponse({"detail": str(exc), "code": code}, status=401)
+        try:
+            body = request.body.decode("utf-8") if request.body else ""
+            import json
+
+            data = json.loads(body) if body else {}
+        except (UnicodeDecodeError, ValueError):
+            return JsonResponse({"detail": "Invalid JSON body."}, status=400)
+        if not isinstance(data, dict):
+            return JsonResponse(
+                {"detail": "Invalid Pub/Sub envelope.", "code": "google_rtdn_invalid"},
+                status=400,
+            )
+        try:
+            result = process_google_rtdn_envelope(data)
+        except BillingStateError as exc:
+            code = getattr(exc, "code", "billing_state_error")
+            return JsonResponse({"detail": str(exc), "code": code}, status=400)
+        except Exception:
+            logger.exception("Google RTDN processing failed.")
             return JsonResponse({"detail": "Notification processing failed."}, status=500)
         return JsonResponse(result)

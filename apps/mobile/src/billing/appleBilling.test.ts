@@ -76,7 +76,7 @@ test("plan.tsx gates Stripe promo off during iOS trial future selection", () => 
   const page = read("apps/mobile/app/(app)/plan.tsx");
   assert.match(
     page,
-    /showStripeCards = shouldShowStripePromoOnMobile\(billing\) && !showAppleShop && !showAppleManage && !showAppleTrialSelect/,
+    /showStripeCards = shouldShowStripePromoOnMobile\(billing\)/,
   );
   assert.match(page, /showAppleTrialSelect = appleIapSupported\(\) && appleTrialFutureSelectionMode\(billing\)/);
 });

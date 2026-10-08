@@ -130,6 +130,7 @@ def build_billing_state(organization):
             "can_start_google": False,
             "can_manage_stripe": False,
             "can_manage_apple": False,
+            "can_manage_google": False,
             "apple_app_account_token": None,
             "status": BillingStatus.NONE,
             "interval": None,
@@ -240,6 +241,7 @@ def build_billing_state(organization):
             "can_start_apple": source_flags["can_start_apple"],
             "can_start_google": source_flags["can_start_google"],
             "can_manage_stripe": source_flags["can_manage_stripe"],
+            "can_manage_google": source_flags["can_manage_google"],
             **_apple_token_payload(
                 organization=organization,
                 billing=billing,
@@ -379,6 +381,7 @@ def build_billing_state(organization):
         "can_start_apple": source_flags["can_start_apple"],
         "can_start_google": source_flags["can_start_google"],
         "can_manage_stripe": source_flags["can_manage_stripe"],
+        "can_manage_google": source_flags["can_manage_google"],
         **_apple_token_payload(
             organization=organization,
             billing=billing,

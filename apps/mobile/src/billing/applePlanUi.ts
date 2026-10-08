@@ -27,10 +27,11 @@ export function appleBlockedByOtherProvider(billing: BillingSnapshot | null | un
 }
 
 export function shouldShowStripePromoOnMobile(billing: BillingSnapshot | null | undefined): boolean {
-  // Apple purchase / manage / trial-select UI must never show Stripe promo pricing or headlines.
+  // Apple / Google native purchase / manage / trial-select UI must never show Stripe promo pricing.
   if (applePurchaseEligible(billing) || appleManaged(billing) || appleTrialFutureSelectionMode(billing)) {
     return false;
   }
+  if (billing?.purchase_source === "google") return false;
   return true;
 }
 
