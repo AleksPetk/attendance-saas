@@ -34,12 +34,15 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "app.checkstation.client",
-      "buildNumber": "42",
+      "buildNumber": "43",
       "usesAppleSignIn": true,
       "infoPlist": {
         "CFBundleDisplayName": "CheckStation",
         "ITSAppUsesNonExemptEncryption": false,
-        "CFBundleLocalizations": ["en", "ja"]
+        "CFBundleLocalizations": [
+          "en",
+          "ja"
+        ]
       }
     },
     "android": {
