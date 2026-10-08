@@ -72,7 +72,11 @@ export function isActiveGooglePaidEntitlement(
 
 export function userFacingGoogleBillingError(error: unknown, fallback: string): string {
   if (!error || typeof error !== "object") return fallback;
-  const code = String((error as { code?: string }).code || "");
+  const code = String(
+    (error as { code?: string }).code
+      || (error as { data?: { code?: string } }).data?.code
+      || "",
+  );
   const map: Record<string, string> = {
     purchase_source_locked: "This workspace already has a billing provider.",
     purchase_source_apple: "This workspace is managed by Apple.",
@@ -86,6 +90,8 @@ export function userFacingGoogleBillingError(error: unknown, fallback: string): 
     google_entitlement_inactive:
       "The purchase could not be activated. Please try again or restore purchases.",
     google_play_not_configured: "Google Play billing is temporarily unavailable.",
+    restore_activation_failed:
+      "The purchase could not be activated. Please try again or restore purchases.",
     builtin_trial_required:
       "That plan choice is only available during the included Business trial.",
   };

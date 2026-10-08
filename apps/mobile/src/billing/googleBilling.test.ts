@@ -309,10 +309,29 @@ describe("googlePlanUi", () => {
     );
   });
 
-  it("maps ownership errors", () => {
+  it("maps ownership errors including ApiError.data.code", () => {
     assert.match(
       userFacingGoogleBillingError({ code: "google_purchase_bound_elsewhere" }, "x"),
       /another workspace/,
     );
+    assert.match(
+      userFacingGoogleBillingError({ data: { code: "purchase_source_locked" } }, "x"),
+      /billing provider/,
+    );
+  });
+});
+
+describe("google Plan restore + refresh contracts", () => {
+  it("keeps Google verify restore path and silent VPS refresh after restore", () => {
+    const { readFileSync } = require("node:fs") as typeof import("node:fs");
+    const page = readFileSync(new URL("../../app/(app)/plan.tsx", import.meta.url), "utf8");
+    assert.match(page, /onGoogleRestore/);
+    assert.match(page, /restoreGooglePurchases/);
+    assert.match(page, /endpoints\.billingGoogleVerify/);
+    assert.match(page, /load\("silent"\)/);
+    assert.match(page, /plan\.googleRestoreSynchronized/);
+    assert.match(page, /summarizeRestoreAttempts/);
+    assert.match(page, /ActivityIndicator/);
+    assert.match(page, /purchase_source/);
   });
 });

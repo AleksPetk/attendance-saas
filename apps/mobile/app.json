@@ -34,7 +34,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "app.checkstation.client",
-      "buildNumber": "33",
+      "buildNumber": "42",
       "usesAppleSignIn": true,
       "infoPlist": {
         "CFBundleDisplayName": "CheckStation",
@@ -48,7 +48,7 @@
         "backgroundColor": "#FFFFFF"
       },
       "package": "app.checkstation.mobile",
-      "versionCode": 8
+      "versionCode": 9
     },
     "web": {
       "bundler": "metro",

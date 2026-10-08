@@ -124,10 +124,10 @@ test("Apple Plan cards always come from catalog, not StoreKit availability", () 
     page,
     /appleProductsUnavailable[\s\S]{0,200}<PlanPromoHeadline/,
   );
-  // Pull-to-refresh and restore must re-request StoreKit prices (not only billing API).
+  // Pull-to-refresh / silent billing refresh re-request StoreKit prices when the Apple UI needs them.
   assert.match(page, /appleStoreEpoch/);
   assert.match(page, /reloadAppleStore/);
-  assert.match(page, /if \(refresh && appleIapSupported\(\)\) reloadAppleStore\(\)/);
+  assert.match(page, /shouldLoadAppleStoreProducts\(snapshot\)/);
 });
 
 test("buildApplePlanCards enumerates all four App Store SKUs from catalog", async () => {

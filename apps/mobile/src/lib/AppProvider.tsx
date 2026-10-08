@@ -8,6 +8,7 @@ import { loadMobileConfig } from "./config";
 import { clearAllKioskMediaCache, clearKioskMediaCacheForWorkspace } from "./kioskMediaCache";
 import { clearAllKioskExitTokens } from "./kioskExitCredential";
 import { createSecureCookieJar } from "./secureCookieJar";
+import { useAppForegroundRefresh } from "./useAppForegroundRefresh";
 
 type AppContextValue = {
   api: ApiClient;
@@ -18,7 +19,10 @@ type AppContextValue = {
   t: (key: string, vars?: Record<string, string | number>) => string;
   ready: boolean;
   revision: number;
+  /** Refresh session/workspace and bump revision so Plan/local lists refetch. */
   refreshWorkspace: () => Promise<void>;
+  /** Refresh session/workspace entitlements without bumping revision (avoids Plan loops). */
+  syncWorkspace: () => Promise<void>;
 };
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -76,10 +80,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const t = useMemo(() => createTranslator(locale), [locale]);
+  const syncWorkspace = useMemo(() => async () => {
+    await auth.refreshWorkspace();
+  }, [auth]);
   const refreshWorkspace = useMemo(() => async () => {
     await auth.refreshWorkspace();
     setRevision((current) => current + 1);
   }, [auth]);
+
+  const authStatusRef = useRef(authState.status);
+  authStatusRef.current = authState.status;
+  // App resume: refresh authoritative workspace/session so plan entitlements stay current.
+  // Plan listens to `revision` and also refetches OwnerBillingView on its own focus/foreground.
+  useAppForegroundRefresh(() => {
+    if (authStatusRef.current !== "authenticated") return;
+    void refreshWorkspace();
+  }, { enabled: ready });
 
   const value: AppContextValue = {
     api,
@@ -91,6 +107,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     ready,
     revision,
     refreshWorkspace,
+    syncWorkspace,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

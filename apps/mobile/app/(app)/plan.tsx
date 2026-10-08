@@ -1,6 +1,15 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Redirect, useFocusEffect } from "expo-router";
-import { Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  ActivityIndicator,
+  Platform,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { endpoints } from "@checkstation/api";
 import { canViewBilling } from "@checkstation/domain";
 import { formatDateTime } from "@checkstation/i18n";
@@ -10,6 +19,13 @@ import { PlanOptionCard, PlanPromoHeadline } from "../../src/components/PlanPres
 import { CapacityMeter } from "../../src/components/CapacityMeter";
 import { useApp } from "../../src/lib/AppProvider";
 import { useFormFactor } from "../../src/lib/formFactor";
+import {
+  shouldRunBillingRefresh,
+  summarizeRestoreAttempts,
+  type BillingRefreshGate,
+  type RestoreAttemptResult,
+} from "../../src/lib/mobileBillingRefresh";
+import { useAppForegroundRefresh } from "../../src/lib/useAppForegroundRefresh";
 import {
   billingTranslator,
   buildDowngradePlanOptions,
@@ -78,7 +94,7 @@ import { colors, space, type } from "../../src/theme/tokens";
 type Snapshot = Record<string, any>;
 
 export default function PlanScreen() {
-  const { api, authState, locale, t } = useApp();
+  const { api, authState, locale, revision, syncWorkspace, t } = useApp();
   const { tablet } = useFormFactor();
   const allowed = canViewBilling(authState.session);
   const [billing, setBilling] = useState<Snapshot | null>(null);
@@ -87,6 +103,7 @@ export default function PlanScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
+  const [restoreFeedback, setRestoreFeedback] = useState<{ text: string; tone: "info" | "error" } | null>(null);
   const [appleProducts, setAppleProducts] = useState<AppleStoreProduct[]>([]);
   const [appleStorefrontCountryCode, setAppleStorefrontCountryCode] = useState<string | null>(null);
   const [appleStorefrontPending, setAppleStorefrontPending] = useState(false);
@@ -99,6 +116,9 @@ export default function PlanScreen() {
   const [googleBusy, setGoogleBusy] = useState(false);
   const [googleStoreError, setGoogleStoreError] = useState(false);
   const [googleStoreEpoch, setGoogleStoreEpoch] = useState(0);
+  const billingGateRef = useRef<BillingRefreshGate>({ inFlight: false, lastRefreshAt: null });
+  const billingRef = useRef<Snapshot | null>(null);
+  billingRef.current = billing;
   const bt = useMemo(() => billingTranslator(locale === "ja" ? "ja" : "en"), [locale]);
 
   const reloadAppleStore = useCallback(() => {
@@ -109,10 +129,28 @@ export default function PlanScreen() {
     setGoogleStoreEpoch((value) => value + 1);
   }, []);
 
-  const load = useCallback(async (refresh = false) => {
+  /**
+   * Authoritative VPS billing refresh.
+   * - pull: user RefreshControl (shows pull spinner)
+   * - silent: focus / foreground / revision / post-restore (no full-screen spinner)
+   * - initial: first paint when billing is still null
+   */
+  const load = useCallback(async (mode: boolean | "silent" = false) => {
     if (!allowed) return;
-    refresh ? setRefreshing(true) : setLoading(true);
-    setError("");
+    const pull = mode === true;
+    const silent = mode === "silent";
+    const gate = billingGateRef.current;
+    if (!shouldRunBillingRefresh({
+      now: Date.now(),
+      gate,
+      force: pull || (!silent && !billingRef.current),
+    })) {
+      return;
+    }
+    gate.inFlight = true;
+    if (pull) setRefreshing(true);
+    else if (!silent && !billingRef.current) setLoading(true);
+    if (!silent) setError("");
     try {
       const [snapshot, workspace] = await Promise.all([
         api.get<Snapshot>(endpoints.billing()),
@@ -120,17 +158,41 @@ export default function PlanScreen() {
       ]);
       setBilling(snapshot);
       setEntitlements(workspace.entitlements);
-      if (refresh && appleIapSupported()) reloadAppleStore();
-      if (refresh && googleIapSupported()) reloadGoogleStore();
+      // Align shared auth entitlements with VPS without bumping revision (avoids loops).
+      await syncWorkspace().catch(() => undefined);
+      const refreshStore = pull || silent;
+      if (refreshStore && appleIapSupported() && shouldLoadAppleStoreProducts(snapshot)) {
+        reloadAppleStore();
+      }
+      if (refreshStore && googleIapSupported() && shouldLoadGoogleStoreProducts(snapshot)) {
+        reloadGoogleStore();
+      }
+      gate.lastRefreshAt = Date.now();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : t("common.error"));
+      if (!silent) setError(caught instanceof Error ? caught.message : t("common.error"));
     } finally {
+      gate.inFlight = false;
       setLoading(false);
       setRefreshing(false);
     }
-  }, [allowed, api, reloadAppleStore, reloadGoogleStore, t]);
+  }, [allowed, api, reloadAppleStore, reloadGoogleStore, syncWorkspace, t]);
 
   useEffect(() => { void load(); }, [load]);
+
+  // More → Refresh bumps revision; refetch OwnerBillingView so provider/plan cannot stay stale.
+  useEffect(() => {
+    if (revision <= 0) return;
+    void load("silent");
+  }, [revision, load]);
+
+  useFocusEffect(useCallback(() => {
+    void load("silent");
+  }, [load]));
+
+  // Manage-subscription return and other background→active resumes while Plan is open.
+  useAppForegroundRefresh(() => {
+    void load("silent");
+  }, { enabled: allowed });
 
   const showAppleShop = appleIapSupported() && applePurchaseEligible(billing);
   const showAppleManage = appleIapSupported() && appleManaged(billing);
@@ -221,11 +283,6 @@ export default function PlanScreen() {
       });
     return () => { cancelled = true; };
   }, [loadGoogleProducts, billing?.purchase_source, billing?.builtin_trial?.active, googleStoreEpoch]);
-
-  useFocusEffect(useCallback(() => {
-    if (!loadGoogleProducts) return;
-    reloadGoogleStore();
-  }, [loadGoogleProducts, reloadGoogleStore]));
 
   const verifyWithBackend = useCallback(async (signedTransaction: string) => {
     const snapshot = await api.post<Snapshot>(endpoints.billingAppleVerify(), {
@@ -322,36 +379,50 @@ export default function PlanScreen() {
     setAppleBusy(true);
     setError("");
     setInfo("");
+    setRestoreFeedback({ text: t("plan.appleRestoreChecking"), tone: "info" });
     try {
       const restored = await restoreApplePurchases();
-      reloadAppleStore();
       if (!restored.length) {
-        setInfo(t("plan.appleRestoreNone"));
+        const none = t("plan.appleRestoreNone");
+        setInfo(none);
+        setRestoreFeedback({ text: none, tone: "info" });
         return;
       }
-      let activated = false;
+      const attempts: RestoreAttemptResult[] = [];
       for (const item of restored) {
         try {
           const snapshot = await verifyWithBackend(item.signedTransaction);
-          if (isActiveApplePaidEntitlement(snapshot)) activated = true;
-        } catch {
-          // Continue other transactions; activation failure is reported after the loop.
+          attempts.push({
+            kind: isActiveApplePaidEntitlement(snapshot) ? "activated" : "inactive",
+          });
+        } catch (caught) {
+          attempts.push({ kind: "error", error: caught });
         } finally {
           await finishAppleTransaction(item.purchase);
         }
       }
-      await load(true);
-      if (activated) {
-        setInfo(t("plan.appleRestoreSuccess"));
+      await load("silent");
+      const summary = summarizeRestoreAttempts(attempts);
+      if (summary.outcome === "success") {
+        const ok = t("plan.appleRestoreSynchronized");
+        setInfo(ok);
+        setRestoreFeedback({ text: ok, tone: "info" });
       } else {
-        setError(t("plan.appleActivationFailed"));
+        const message = userFacingAppleBillingError(
+          summary.error,
+          t("plan.appleActivationFailed"),
+        );
+        setError(message);
+        setRestoreFeedback({ text: message, tone: "error" });
       }
     } catch (caught) {
-      setError(userFacingAppleBillingError(caught, t("plan.appleActivationFailed")));
+      const message = userFacingAppleBillingError(caught, t("plan.appleActivationFailed"));
+      setError(message);
+      setRestoreFeedback({ text: message, tone: "error" });
     } finally {
       setAppleBusy(false);
     }
-  }, [load, reloadAppleStore, t, verifyWithBackend]);
+  }, [load, t, verifyWithBackend]);
 
   const verifyGoogleWithBackend = useCallback(async (purchaseToken: string) => {
     const snapshot = await api.post<Snapshot>(endpoints.billingGoogleVerify(), {
@@ -441,33 +512,51 @@ export default function PlanScreen() {
     setGoogleBusy(true);
     setError("");
     setInfo("");
+    setRestoreFeedback({ text: t("plan.googleRestoreChecking"), tone: "info" });
     try {
       const restored = await restoreGooglePurchases();
-      reloadGoogleStore();
       if (!restored.length) {
-        setInfo(t("plan.googleRestoreNone"));
+        const none = t("plan.googleRestoreNone");
+        setInfo(none);
+        setRestoreFeedback({ text: none, tone: "info" });
         return;
       }
-      let activated = false;
+      const attempts: RestoreAttemptResult[] = [];
       for (const item of restored) {
         try {
           const snapshot = await verifyGoogleWithBackend(item.purchaseToken);
-          if (isActiveGooglePaidEntitlement(snapshot)) activated = true;
-        } catch {
-          // Continue other tokens.
+          attempts.push({
+            kind: isActiveGooglePaidEntitlement(snapshot) ? "activated" : "inactive",
+          });
+        } catch (caught) {
+          attempts.push({ kind: "error", error: caught });
         } finally {
           try { await finishGoogleTransaction(item.purchase); } catch { /* hygiene */ }
         }
       }
-      await load(true);
-      if (activated) setInfo(t("plan.googleRestoreSuccess"));
-      else setError(t("plan.googleActivationFailed"));
+      // Silent VPS refresh — avoid RefreshControl / full-page jump after recovery.
+      await load("silent");
+      const summary = summarizeRestoreAttempts(attempts);
+      if (summary.outcome === "success") {
+        const ok = t("plan.googleRestoreSynchronized");
+        setInfo(ok);
+        setRestoreFeedback({ text: ok, tone: "info" });
+      } else {
+        const message = userFacingGoogleBillingError(
+          summary.error,
+          t("plan.googleActivationFailed"),
+        );
+        setError(message);
+        setRestoreFeedback({ text: message, tone: "error" });
+      }
     } catch (caught) {
-      setError(userFacingGoogleBillingError(caught, t("plan.googleActivationFailed")));
+      const message = userFacingGoogleBillingError(caught, t("plan.googleActivationFailed"));
+      setError(message);
+      setRestoreFeedback({ text: message, tone: "error" });
     } finally {
       setGoogleBusy(false);
     }
-  }, [load, reloadGoogleStore, t, verifyGoogleWithBackend]);
+  }, [load, t, verifyGoogleWithBackend]);
 
   const onManage = useCallback(async () => {
     setError("");
@@ -655,10 +744,24 @@ export default function PlanScreen() {
               ) : null}
               {!showAppleTrialSelect ? (
                 <View style={styles.restoreBlock}>
-                  <Pressable disabled={appleBusy} onPress={() => void onRestore()} style={styles.restoreLink}>
+                  <Pressable
+                    disabled={appleBusy}
+                    onPress={() => void onRestore()}
+                    style={[styles.restoreLink, appleBusy && styles.restoreLinkBusy]}
+                  >
+                    {appleBusy ? <ActivityIndicator color={colors.blue} size="small" /> : null}
                     <Text style={styles.restoreText}>{t("plan.appleRestore")}</Text>
                   </Pressable>
-                  {info ? <Text style={styles.restoreStatus}>{info}</Text> : null}
+                  {restoreFeedback ? (
+                    <Text
+                      style={[
+                        styles.restoreStatus,
+                        restoreFeedback.tone === "error" && styles.restoreStatusError,
+                      ]}
+                    >
+                      {restoreFeedback.text}
+                    </Text>
+                  ) : null}
                 </View>
               ) : null}
             </View>
@@ -738,9 +841,24 @@ export default function PlanScreen() {
               ) : null}
               {!showGoogleTrialSelect ? (
                 <View style={styles.restoreBlock}>
-                  <Pressable disabled={googleBusy} onPress={() => void onGoogleRestore()} style={styles.restoreLink}>
+                  <Pressable
+                    disabled={googleBusy}
+                    onPress={() => void onGoogleRestore()}
+                    style={[styles.restoreLink, googleBusy && styles.restoreLinkBusy]}
+                  >
+                    {googleBusy ? <ActivityIndicator color={colors.blue} size="small" /> : null}
                     <Text style={styles.restoreText}>{t("plan.googleRestore")}</Text>
                   </Pressable>
+                  {restoreFeedback ? (
+                    <Text
+                      style={[
+                        styles.restoreStatus,
+                        restoreFeedback.tone === "error" && styles.restoreStatusError,
+                      ]}
+                    >
+                      {restoreFeedback.text}
+                    </Text>
+                  ) : null}
                 </View>
               ) : null}
             </View>
@@ -819,7 +937,15 @@ const styles = StyleSheet.create({
   note: { ...type.caption, color: colors.textMuted },
   appleActions: { gap: space.md, marginTop: space.md },
   restoreBlock: { gap: space.xs },
-  restoreLink: { paddingVertical: space.sm },
+  restoreLink: {
+    paddingVertical: space.sm,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: space.sm,
+  },
+  restoreLinkBusy: { opacity: 0.7 },
   restoreText: { ...type.bodyStrong, color: colors.blue, textAlign: "center" },
   restoreStatus: { ...type.caption, color: colors.textSecondary, textAlign: "center" },
+  restoreStatusError: { color: colors.danger },
 });
