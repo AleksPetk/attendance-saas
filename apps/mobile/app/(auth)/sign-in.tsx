@@ -1,8 +1,13 @@
 import { useEffect, useRef, useState } from "react";
-import { Keyboard, StyleSheet, Text, TextInput, View } from "react-native";
+import { Keyboard, Platform, StyleSheet, Text, TextInput, View } from "react-native";
 import { Redirect, router } from "expo-router";
 import { AuthScreen } from "../../src/components/AuthScreen";
 import { Alert, Button, Field, OAuthProviderButtons, PasswordVisibilityButton, TextLink } from "../../src/components/ui";
+import {
+  appleBrowserFailureMessageKey,
+  isBrowserAppleAuthAvailable,
+  requestBrowserAppleCredential,
+} from "../../src/lib/appleBrowserAuth";
 import { requestNativeAppleCredential, isNativeAppleAuthAvailable } from "../../src/lib/appleNativeAuth";
 import { requestNativeGoogleCredential, isNativeGoogleAuthAvailable } from "../../src/lib/googleNativeAuth";
 import { signInErrorMessage } from "../../src/lib/authErrors";
@@ -12,7 +17,7 @@ import { useProductTour } from "../../src/productTour/ProductTourHost";
 import { colors, space, type } from "../../src/theme/tokens";
 
 export default function SignInScreen() {
-  const { auth, authState, locale, t } = useApp();
+  const { api, auth, authState, locale, t } = useApp();
   const { openReplay } = useProductTour();
   const tourUi = productTourUi(locale);
   const [email, setEmail] = useState("");
@@ -34,7 +39,7 @@ export default function SignInScreen() {
     let cancelled = false;
     void (async () => {
       const [appleOk, googleOk] = await Promise.all([
-        isNativeAppleAuthAvailable(),
+        Platform.OS === "android" ? Promise.resolve(isBrowserAppleAuthAvailable()) : isNativeAppleAuthAvailable(),
         isNativeGoogleAuthAvailable(),
       ]);
       if (!cancelled) {
@@ -84,6 +89,35 @@ export default function SignInScreen() {
     setAppleBusy(true);
     setError("");
     try {
+      if (Platform.OS === "android") {
+        const apple = await requestBrowserAppleCredential({
+          apiBaseUrl: api.apiBaseUrl,
+          intent: "login",
+        });
+        if (apple.kind === "cancelled") return;
+        if (apple.kind === "unavailable") {
+          setAppleAvailable(false);
+          setError(t("auth.appleUnavailable"));
+          return;
+        }
+        if (apple.kind === "failed") {
+          setError(t(appleBrowserFailureMessageKey(apple.resultCode)));
+          return;
+        }
+        if (apple.kind === "error") {
+          setError(t("auth.appleFailed"));
+          return;
+        }
+        const result = await auth.completeDesktopAuthHandoff({ handoff: apple.handoff });
+        if (result.kind === "two_factor_required") {
+          requestAnimationFrame(() => twoFactorRef.current?.focus());
+          return;
+        }
+        Keyboard.dismiss();
+        router.replace("/(app)/(tabs)/home");
+        return;
+      }
+
       const apple = await requestNativeAppleCredential();
       if (apple.kind === "cancelled") return;
       if (apple.kind === "unavailable") {

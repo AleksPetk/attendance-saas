@@ -47,6 +47,8 @@ class AppleOAuthPendingState:
     jti: str = ""
     # Optional Electron loopback URL (http://127.0.0.1:{port}/...) for DIRECT desktop.
     desktop_return_url: str = ""
+    # Optional Android deep link (exact checkstation://auth/apple-result) for mobile browser SIWA.
+    mobile_return_url: str = ""
 
 
 def _jti_cache_key(jti: str) -> str:
@@ -72,6 +74,7 @@ def create_apple_oauth_state(
     legal_acknowledgement: bool = False,
     owner_user_id: int | None = None,
     desktop_return_url: str = "",
+    mobile_return_url: str = "",
 ) -> AppleOAuthPendingState:
     if intent not in VALID_INTENTS:
         raise ValueError(f"Unsupported Apple OAuth intent: {intent}")
@@ -84,6 +87,7 @@ def create_apple_oauth_state(
     created_at = timezone.now().isoformat()
     session_key = request.session.session_key or ""
     desktop_return = str(desktop_return_url or "").strip()
+    mobile_return = str(mobile_return_url or "").strip()
     payload = {
         "v": 1,
         "nonce": nonce,
@@ -96,6 +100,8 @@ def create_apple_oauth_state(
         "iat": created_at,
         # Electron loopback for DIRECT desktop web Apple OAuth (empty for browser).
         "dru": desktop_return,
+        # Android deep-link return for mobile browser Apple OAuth (empty for web/desktop).
+        "mru": mobile_return,
     }
     signed_state = _sign_payload(payload)
 
@@ -109,6 +115,7 @@ def create_apple_oauth_state(
         owner_user_id=owner_user_id,
         jti=jti,
         desktop_return_url=desktop_return,
+        mobile_return_url=mobile_return,
     )
     # Best-effort same-browser mirror only. Callback must not require it.
     request.session[OWNER_APPLE_OAUTH_SESSION_KEY] = {
@@ -121,6 +128,7 @@ def create_apple_oauth_state(
         "owner_user_id": pending.owner_user_id,
         "jti": pending.jti,
         "desktop_return_url": pending.desktop_return_url,
+        "mobile_return_url": pending.mobile_return_url,
     }
     request.session.modified = True
     return pending
@@ -141,6 +149,7 @@ def load_apple_oauth_state(request) -> AppleOAuthPendingState | None:
             owner_user_id=raw.get("owner_user_id"),
             jti=str(raw.get("jti") or ""),
             desktop_return_url=str(raw.get("desktop_return_url") or ""),
+            mobile_return_url=str(raw.get("mobile_return_url") or ""),
         )
     except (KeyError, TypeError, ValueError):
         return None
@@ -217,4 +226,5 @@ def consume_apple_oauth_state(request, submitted_state: str) -> AppleOAuthPendin
         owner_user_id=owner_user_id,
         jti=jti,
         desktop_return_url=str(payload.get("dru") or ""),
+        mobile_return_url=str(payload.get("mru") or ""),
     )

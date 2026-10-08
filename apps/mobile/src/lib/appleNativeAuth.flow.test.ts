@@ -94,8 +94,10 @@ test("OAuthProviderButtons wires Google and Apple native presses", () => {
 
 test("Sign In uses login intent through AuthController for Apple and Google", () => {
   assert.match(signIn, /requestNativeAppleCredential/);
+  assert.match(signIn, /requestBrowserAppleCredential/);
   assert.match(signIn, /requestNativeGoogleCredential/);
   assert.match(signIn, /completeAppleNative/);
+  assert.match(signIn, /completeDesktopAuthHandoff/);
   assert.match(signIn, /completeGoogleNative/);
   assert.match(signIn, /intent:\s*"login"/);
   assert.match(signIn, /kind === "cancelled"/);
@@ -106,8 +108,10 @@ test("Sign In uses login intent through AuthController for Apple and Google", ()
 
 test("Create Account uses register intent and requires legal acknowledgement for Google and Apple", () => {
   assert.match(register, /requestNativeAppleCredential/);
+  assert.match(register, /requestBrowserAppleCredential/);
   assert.match(register, /requestNativeGoogleCredential/);
   assert.match(register, /completeAppleNative/);
+  assert.match(register, /completeDesktopAuthHandoff/);
   assert.match(register, /completeGoogleNative/);
   assert.match(register, /intent:\s*"register"/);
   assert.match(register, /legalAcknowledgement:\s*accepted/);

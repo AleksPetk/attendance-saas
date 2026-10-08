@@ -1,10 +1,15 @@
 import { useEffect, useRef, useState } from "react";
-import { Keyboard, StyleSheet, Switch, Text, TextInput, View } from "react-native";
+import { Keyboard, Platform, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 import { router } from "expo-router";
 import { ApiError, endpoints, fieldErrorsFromBody } from "@checkstation/api";
 import { AuthScreen } from "../../src/components/AuthScreen";
 import { LegalDocumentModal } from "../../src/components/LegalDocumentModal";
 import { Alert, Button, Field, OAuthProviderButtons, PasswordVisibilityButton, TextLink } from "../../src/components/ui";
+import {
+  appleBrowserFailureMessageKey,
+  isBrowserAppleAuthAvailable,
+  requestBrowserAppleCredential,
+} from "../../src/lib/appleBrowserAuth";
 import { requestNativeAppleCredential, isNativeAppleAuthAvailable } from "../../src/lib/appleNativeAuth";
 import { requestNativeGoogleCredential, isNativeGoogleAuthAvailable } from "../../src/lib/googleNativeAuth";
 import { signInErrorMessage } from "../../src/lib/authErrors";
@@ -34,7 +39,7 @@ export default function RegisterScreen() {
     let cancelled = false;
     void (async () => {
       const [appleOk, googleOk] = await Promise.all([
-        isNativeAppleAuthAvailable(),
+        Platform.OS === "android" ? Promise.resolve(isBrowserAppleAuthAvailable()) : isNativeAppleAuthAvailable(),
         isNativeGoogleAuthAvailable(),
       ]);
       if (!cancelled) {
@@ -75,6 +80,36 @@ export default function RegisterScreen() {
     setError("");
     setFieldErrors({});
     try {
+      if (Platform.OS === "android") {
+        const apple = await requestBrowserAppleCredential({
+          apiBaseUrl: api.apiBaseUrl,
+          intent: "register",
+          legalAcknowledgement: accepted,
+        });
+        if (apple.kind === "cancelled") return;
+        if (apple.kind === "unavailable") {
+          setAppleAvailable(false);
+          setError(t("auth.appleUnavailable"));
+          return;
+        }
+        if (apple.kind === "failed") {
+          setError(t(appleBrowserFailureMessageKey(apple.resultCode)));
+          return;
+        }
+        if (apple.kind === "error") {
+          setError(t("auth.appleFailed"));
+          return;
+        }
+        const result = await auth.completeDesktopAuthHandoff({ handoff: apple.handoff });
+        if (result.kind === "two_factor_required") {
+          router.replace("/(auth)/sign-in");
+          return;
+        }
+        Keyboard.dismiss();
+        router.replace("/(app)/(tabs)/home");
+        return;
+      }
+
       const apple = await requestNativeAppleCredential();
       if (apple.kind === "cancelled") return;
       if (apple.kind === "unavailable") {

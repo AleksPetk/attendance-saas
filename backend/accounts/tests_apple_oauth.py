@@ -950,3 +950,142 @@ class AppleOAuthFormPostHardeningTests(TestCase):
         )
         self.assertEqual(starter.get("/api/workspace/").status_code, 200)
         self.assertTrue(User.objects.filter(pk=owner.pk).exists())
+
+
+@override_settings(**APPLE_TEST_SETTINGS)
+class AppleOAuthMobileReturnTests(TestCase):
+    """Android browser SIWA: exact checkstation://auth/apple-result + handoff."""
+
+    def setUp(self):
+        self.client = Client()
+
+    def test_mobile_return_login_success_redirects_with_single_use_handoff(self):
+        owner, _org = create_owner(email="mobile-apple@example.com")
+        OwnerAuthProviderLink.objects.create(
+            user=owner,
+            provider=OwnerAuthProvider.APPLE,
+            provider_subject="apple-sub-mobile",
+            provider_email="mobile-apple@example.com",
+            provider_email_verified=True,
+        )
+        start = self.client.get(
+            "/api/auth/apple/start/?intent=login"
+            "&mobile_return_url=checkstation%3A%2F%2Fauth%2Fapple-result"
+        )
+        self.assertEqual(start.status_code, 302)
+        pending = load_apple_oauth_state(start.wsgi_request)
+        self.assertEqual(pending.mobile_return_url, "checkstation://auth/apple-result")
+        self.assertEqual(pending.desktop_return_url, "")
+
+        claims = apple_claims(sub="apple-sub-mobile", email="", nonce=pending.nonce)
+        with patch(
+            "accounts.apple_oauth.exchange_authorization_code",
+            return_value={"id_token": "fake-id-token"},
+        ), patch(
+            "accounts.apple_oauth.verify_apple_id_token",
+            return_value=claims,
+        ):
+            response = self.client.post(
+                "/api/auth/apple/callback/",
+                {"code": "auth-code", "state": pending.state},
+            )
+        self.assertEqual(response.status_code, 302)
+        location = response["Location"]
+        self.assertTrue(location.startswith("checkstation://auth/apple-result?"))
+        query = parse_qs(urlparse(location).query)
+        self.assertEqual(query["result"][0], AppleOAuthResultCode.SUCCESS)
+        handoff = query["handoff"][0]
+        self.assertTrue(handoff)
+
+        from accounts.desktop_auth_handoff import consume_desktop_auth_handoff
+
+        first = consume_desktop_auth_handoff(handoff)
+        self.assertIsNotNone(first)
+        self.assertEqual(first.user_id, owner.pk)
+        self.assertIsNone(consume_desktop_auth_handoff(handoff))
+
+    def test_mobile_return_register_success_creates_owner_and_handoff(self):
+        start = self.client.get(
+            "/api/auth/apple/start/?intent=register&legal_acknowledgement=true"
+            "&mobile_return_url=checkstation%3A%2F%2Fauth%2Fapple-result"
+        )
+        self.assertEqual(start.status_code, 302)
+        pending = load_apple_oauth_state(start.wsgi_request)
+        claims = apple_claims(
+            sub="apple-sub-mobile-reg",
+            email="mobile-reg@example.com",
+            nonce=pending.nonce,
+        )
+        with patch(
+            "accounts.apple_oauth.exchange_authorization_code",
+            return_value={"id_token": "fake-id-token"},
+        ), patch(
+            "accounts.apple_oauth.verify_apple_id_token",
+            return_value=claims,
+        ):
+            response = self.client.post(
+                "/api/auth/apple/callback/",
+                {"code": "auth-code", "state": pending.state},
+            )
+        self.assertEqual(response.status_code, 302)
+        location = response["Location"]
+        self.assertTrue(location.startswith("checkstation://auth/apple-result?"))
+        query = parse_qs(urlparse(location).query)
+        self.assertEqual(query["result"][0], AppleOAuthResultCode.SUCCESS)
+        self.assertTrue(query["handoff"][0])
+        self.assertTrue(
+            OwnerAuthProviderLink.objects.filter(
+                provider=OwnerAuthProvider.APPLE,
+                provider_subject="apple-sub-mobile-reg",
+            ).exists()
+        )
+
+    def test_mobile_return_rejects_non_exact_url(self):
+        response = self.client.get(
+            "/api/auth/apple/start/?intent=login"
+            "&mobile_return_url=checkstation%3A%2F%2Fauth%2Fother"
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["code"], "invalid_mobile_return_url")
+
+    def test_mobile_return_not_allowed_for_link_or_verify(self):
+        owner, _org = create_owner(email="mobile-link@example.com")
+        client = APIClient()
+        client.force_authenticate(user=owner)
+        for intent in ("link", "verify"):
+            response = client.get(
+                f"/api/auth/apple/start/?intent={intent}"
+                "&mobile_return_url=checkstation%3A%2F%2Fauth%2Fapple-result"
+            )
+            self.assertEqual(response.status_code, 400, intent)
+            self.assertEqual(response.json()["code"], AppleOAuthResultCode.INVALID_INTENT)
+
+    def test_mobile_and_desktop_return_cannot_combine(self):
+        response = self.client.get(
+            "/api/auth/apple/start/?intent=login"
+            "&mobile_return_url=checkstation%3A%2F%2Fauth%2Fapple-result"
+            "&desktop_return_url=http%3A%2F%2F127.0.0.1%3A12345%2Fapple-oauth-result"
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["code"], "invalid_return_url")
+
+    def test_signed_state_binds_mobile_return_url(self):
+        start = self.client.get(
+            "/api/auth/apple/start/?intent=login"
+            "&mobile_return_url=checkstation%3A%2F%2Fauth%2Fapple-result"
+        )
+        pending = load_apple_oauth_state(start.wsgi_request)
+        self.assertEqual(pending.mobile_return_url, "checkstation://auth/apple-result")
+        from django.core import signing
+        from accounts.apple_oauth_state import APPLE_OAUTH_STATE_SALT
+
+        payload = signing.loads(pending.state, salt=APPLE_OAUTH_STATE_SALT)
+        self.assertEqual(payload["mru"], "checkstation://auth/apple-result")
+        self.assertEqual(payload.get("dru") or "", "")
+
+    def test_web_start_without_mobile_return_unchanged(self):
+        response = self.client.get("/api/auth/apple/start/?intent=login")
+        self.assertEqual(response.status_code, 302)
+        pending = load_apple_oauth_state(response.wsgi_request)
+        self.assertEqual(pending.mobile_return_url, "")
+        self.assertEqual(pending.desktop_return_url, "")

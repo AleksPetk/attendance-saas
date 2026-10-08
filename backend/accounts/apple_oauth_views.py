@@ -27,6 +27,7 @@ from accounts.apple_oauth_state import (
     create_apple_oauth_state,
 )
 from core.desktop_return import DesktopReturnUrlError, require_safe_desktop_return_url
+from core.mobile_return import MobileReturnUrlError, require_allowed_mobile_apple_return_url
 
 logger = logging.getLogger("accounts.apple_oauth")
 User = get_user_model()
@@ -95,6 +96,7 @@ class AppleOAuthStartView(APIView):
         legal_acknowledgement = False
         owner_user_id = None
         desktop_return_url = ""
+        mobile_return_url = ""
 
         if intent == INTENT_REGISTER:
             legal_acknowledgement = _truthy_query_param(
@@ -117,6 +119,20 @@ class AppleOAuthStartView(APIView):
             or request.query_params.get("desktop_return")
             or ""
         )
+        raw_mobile_return = (
+            request.query_params.get("mobile_return_url")
+            or request.query_params.get("mobile_return")
+            or ""
+        )
+        if str(raw_desktop_return).strip() and str(raw_mobile_return).strip():
+            return Response(
+                {
+                    "detail": "Desktop and mobile return URLs cannot be combined.",
+                    "code": "invalid_return_url",
+                },
+                status=400,
+            )
+
         if str(raw_desktop_return).strip():
             if intent not in (INTENT_LOGIN, INTENT_REGISTER):
                 return Response(
@@ -133,6 +149,27 @@ class AppleOAuthStartView(APIView):
                     {
                         "detail": "Invalid desktop return URL.",
                         "code": "invalid_desktop_return_url",
+                    },
+                    status=400,
+                )
+
+        if str(raw_mobile_return).strip():
+            # Android browser SIWA: login/register only (not link/verify).
+            if intent not in (INTENT_LOGIN, INTENT_REGISTER):
+                return Response(
+                    {
+                        "detail": "Mobile return URL is only valid for login or register.",
+                        "code": AppleOAuthResultCode.INVALID_INTENT,
+                    },
+                    status=400,
+                )
+            try:
+                mobile_return_url = require_allowed_mobile_apple_return_url(raw_mobile_return)
+            except MobileReturnUrlError:
+                return Response(
+                    {
+                        "detail": "Invalid mobile return URL.",
+                        "code": "invalid_mobile_return_url",
                     },
                     status=400,
                 )
@@ -155,6 +192,7 @@ class AppleOAuthStartView(APIView):
             legal_acknowledgement=legal_acknowledgement,
             owner_user_id=owner_user_id,
             desktop_return_url=desktop_return_url,
+            mobile_return_url=mobile_return_url,
         )
         redirect_uri = apple_oauth_redirect_uri(request)
         authorization_url = build_apple_authorization_url(

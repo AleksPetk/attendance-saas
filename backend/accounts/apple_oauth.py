@@ -10,6 +10,12 @@ from django.db import IntegrityError, transaction
 from django.http import HttpResponseRedirect
 from django.utils import timezone
 
+
+class CheckStationDeepLinkRedirect(HttpResponseRedirect):
+    """HttpResponseRedirect that also allows the CheckStation Android deep-link scheme."""
+
+    allowed_schemes = ["http", "https", "ftp", "ftps", "checkstation"]
+
 from accounts.apple_oauth_client import (
     AppleOAuthClientError,
     exchange_authorization_code,
@@ -91,11 +97,16 @@ def redirect_apple_oauth_result(
     result_code: str,
     *,
     desktop_return_url: str = "",
+    mobile_return_url: str = "",
     handoff_user=None,
     handoff_outcome: str = "",
 ) -> HttpResponseRedirect:
+    # Mobile deep link and desktop loopback both use one-time handoff exchange.
+    # Prefer mobile when both are somehow present (start rejects that combination).
+    mobile = str(mobile_return_url or "").strip()
     desktop = str(desktop_return_url or "").strip()
-    if desktop:
+    return_url = mobile or desktop
+    if return_url:
         params = {"result": result_code}
         if (
             handoff_user is not None
@@ -111,7 +122,11 @@ def redirect_apple_oauth_result(
                 outcome=handoff_outcome,
                 provider="apple",
             )
-        return HttpResponseRedirect(append_desktop_return_query(desktop, params))
+        target = append_desktop_return_query(return_url, params)
+        # Django's HttpResponseRedirect rejects non-http(s) schemes by default.
+        if mobile:
+            return CheckStationDeepLinkRedirect(target)
+        return HttpResponseRedirect(target)
     return HttpResponseRedirect(apple_oauth_frontend_result_url(result_code))
 
 
@@ -123,32 +138,46 @@ def _desktop_return_from_request(request) -> str:
     return str(getattr(request, "_apple_desktop_return_url", "") or "").strip()
 
 
-def _finalize_owner_login(request, user) -> HttpResponseRedirect:
+def _mobile_return_from_request(request) -> str:
+    return str(getattr(request, "_apple_mobile_return_url", "") or "").strip()
+
+
+def _external_return_kwargs(request) -> dict:
+    mobile = _mobile_return_from_request(request)
+    if mobile:
+        return {"mobile_return_url": mobile}
     desktop = _desktop_return_from_request(request)
     if desktop:
-        # Do not establish a session on Apple's form_post request — Electron will
-        # exchange the handoff token on its own cookie jar.
+        return {"desktop_return_url": desktop}
+    return {}
+
+
+def _finalize_owner_login(request, user) -> HttpResponseRedirect:
+    ext = _external_return_kwargs(request)
+    if ext:
+        # Do not establish a session on Apple's form_post request — the desktop
+        # or Android client exchanges the handoff token on its own cookie jar.
         if customer_must_verify_email(user):
             return redirect_apple_oauth_result(
                 AppleOAuthResultCode.EMAIL_NOT_VERIFIED,
-                desktop_return_url=desktop,
+                **ext,
             )
         organization = get_active_owner_organization(user)
         if organization is None:
             return redirect_apple_oauth_result(
                 AppleOAuthResultCode.AUTHENTICATION_FAILED,
-                desktop_return_url=desktop,
+                **ext,
             )
         if has_confirmed_owner_totp(user):
             return redirect_apple_oauth_result(
                 AppleOAuthResultCode.TWO_FACTOR_REQUIRED,
-                desktop_return_url=desktop,
+                **ext,
                 handoff_user=user,
                 handoff_outcome=OUTCOME_TWO_FACTOR_REQUIRED,
             )
         return redirect_apple_oauth_result(
             AppleOAuthResultCode.SUCCESS,
-            desktop_return_url=desktop,
+            **ext,
             handoff_user=user,
             handoff_outcome=OUTCOME_AUTHENTICATED,
         )
@@ -256,7 +285,7 @@ def _register_new_apple_owner(identity: AppleIdentity, *, billing_market: str):
 
 
 def handle_apple_oauth_login(request, identity: AppleIdentity) -> HttpResponseRedirect:
-    desktop = _desktop_return_from_request(request)
+    ext = _external_return_kwargs(request)
     link = get_apple_provider_link(subject=identity.subject)
     if link is not None:
         return _login_existing_apple_link(request, link, identity)
@@ -264,11 +293,11 @@ def handle_apple_oauth_login(request, identity: AppleIdentity) -> HttpResponseRe
     if identity.email and email_ownership_established(identity.email):
         return redirect_apple_oauth_result(
             AppleOAuthResultCode.EXISTING_ACCOUNT_CONNECT_REQUIRED,
-            desktop_return_url=desktop,
+            **ext,
         )
     return redirect_apple_oauth_result(
         AppleOAuthResultCode.NO_ACCOUNT,
-        desktop_return_url=desktop,
+        **ext,
     )
 
 
@@ -278,24 +307,24 @@ def handle_apple_oauth_register(
     *,
     legal_acknowledgement: bool,
 ) -> HttpResponseRedirect:
-    desktop = _desktop_return_from_request(request)
+    ext = _external_return_kwargs(request)
     if not legal_acknowledgement:
         return redirect_apple_oauth_result(
             AppleOAuthResultCode.LEGAL_ACKNOWLEDGEMENT_REQUIRED,
-            desktop_return_url=desktop,
+            **ext,
         )
 
     validation_error = _validate_apple_identity_for_registration(identity)
     if validation_error is not None:
         return redirect_apple_oauth_result(
             validation_error,
-            desktop_return_url=desktop,
+            **ext,
         )
 
     if get_apple_provider_link(subject=identity.subject) is not None:
         return redirect_apple_oauth_result(
             AppleOAuthResultCode.APPLE_ALREADY_LINKED,
-            desktop_return_url=desktop,
+            **ext,
         )
 
     from billing.markets import lock_market_for_new_registration
@@ -307,7 +336,7 @@ def handle_apple_oauth_register(
         if email_ownership_established(identity.email, exclude_user=provisional):
             return redirect_apple_oauth_result(
                 AppleOAuthResultCode.EXISTING_ACCOUNT_CONNECT_REQUIRED,
-                desktop_return_url=desktop,
+                **ext,
             )
         try:
             user = claim_provisional_owner_with_oauth(
@@ -321,18 +350,18 @@ def handle_apple_oauth_register(
             if email_ownership_established(identity.email):
                 return redirect_apple_oauth_result(
                     AppleOAuthResultCode.EXISTING_ACCOUNT_CONNECT_REQUIRED,
-                    desktop_return_url=desktop,
+                    **ext,
                 )
             return redirect_apple_oauth_result(
                 AppleOAuthResultCode.AUTHENTICATION_FAILED,
-                desktop_return_url=desktop,
+                **ext,
             )
         return _finalize_owner_login(request, user)
 
     if email_ownership_established(identity.email):
         return redirect_apple_oauth_result(
             AppleOAuthResultCode.EXISTING_ACCOUNT_CONNECT_REQUIRED,
-            desktop_return_url=desktop,
+            **ext,
         )
 
     try:
@@ -360,11 +389,11 @@ def handle_apple_oauth_register(
         if email_ownership_established(identity.email):
             return redirect_apple_oauth_result(
                 AppleOAuthResultCode.EXISTING_ACCOUNT_CONNECT_REQUIRED,
-                desktop_return_url=desktop,
+                **ext,
             )
         return redirect_apple_oauth_result(
             AppleOAuthResultCode.AUTHENTICATION_FAILED,
-            desktop_return_url=desktop,
+            **ext,
         )
 
     return _finalize_owner_login(request, user)
@@ -491,9 +520,11 @@ def process_apple_oauth_callback(request, *, code: str | None, state: str | None
     except AppleOAuthStateError:
         return redirect_apple_oauth_result(AppleOAuthResultCode.INVALID_STATE)
 
-    # Bound for login/register desktop loopback redirects (browser SPA when empty).
+    # Bound for login/register desktop loopback or Android deep-link returns
+    # (empty → browser SPA frontend result URL).
     request._apple_desktop_return_url = str(pending.desktop_return_url or "").strip()
-    desktop = request._apple_desktop_return_url
+    request._apple_mobile_return_url = str(pending.mobile_return_url or "").strip()
+    ext = _external_return_kwargs(request)
 
     redirect_uri = apple_oauth_redirect_uri(request)
     try:
@@ -505,7 +536,7 @@ def process_apple_oauth_callback(request, *, code: str | None, state: str | None
     except AppleOAuthClientError:
         return redirect_apple_oauth_result(
             AppleOAuthResultCode.AUTHENTICATION_FAILED,
-            desktop_return_url=desktop,
+            **ext,
         )
 
     identity = parse_apple_identity(claims)
@@ -537,5 +568,5 @@ def process_apple_oauth_callback(request, *, code: str | None, state: str | None
         )
     return redirect_apple_oauth_result(
         AppleOAuthResultCode.INVALID_INTENT,
-        desktop_return_url=desktop,
+        **ext,
     )
