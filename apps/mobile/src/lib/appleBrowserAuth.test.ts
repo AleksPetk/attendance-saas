@@ -85,8 +85,8 @@ test("Android Google Sign-In remains enabled alongside Apple browser auth", () =
   assert.match(register, /requestNativeGoogleCredential/);
 });
 
-test("Play Internal versionCode is 7", () => {
-  assert.match(appJson, /"versionCode":\s*7/);
+test("Play Internal versionCode is 8", () => {
+  assert.match(appJson, /"versionCode":\s*8/);
   assert.match(appJson, /"package":\s*"app\.checkstation\.mobile"/);
   assert.match(appJson, /"scheme":\s*"checkstation"/);
 });

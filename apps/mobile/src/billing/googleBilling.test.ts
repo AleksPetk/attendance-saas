@@ -21,6 +21,40 @@ import {
 } from "./googlePlanUi";
 import { shouldShowStripePromoOnMobile } from "./applePlanUi";
 
+/** openiap-google 1.3.28 shape for a normal paid base plan. */
+function openiapBaseOffer(
+  basePlanId: "monthly" | "yearly",
+  overrides: Record<string, unknown> = {},
+) {
+  return {
+    basePlanIdAndroid: basePlanId,
+    id: basePlanId, // id = offerId ?: basePlanId
+    offerTokenAndroid: `token-${basePlanId}`,
+    displayPrice: basePlanId === "yearly" ? "¥9,800" : "¥980",
+    currency: "JPY",
+    type: "introductory", // openiap marks paid base plans as Introductory
+    ...overrides,
+  };
+}
+
+function plusProduct(offers: Array<Record<string, unknown>>) {
+  return {
+    id: GOOGLE_PRODUCT_IDS.plus,
+    title: "Plus",
+    subscriptionOffers: offers,
+    subscriptionOfferDetailsAndroid: [],
+  };
+}
+
+function businessProduct(offers: Array<Record<string, unknown>>) {
+  return {
+    id: GOOGLE_PRODUCT_IDS.business,
+    title: "Business",
+    subscriptionOffers: offers,
+    subscriptionOfferDetailsAndroid: [],
+  };
+}
+
 describe("googleProducts", () => {
   it("maps the four base plans", () => {
     assert.equal(GOOGLE_PLAN_OPTIONS.length, 4);
@@ -38,103 +72,202 @@ describe("googleProducts", () => {
   });
 });
 
-describe("normal base-plan offer selection", () => {
-  it("accepts empty offerId base-plan entries", () => {
+describe("normal base-plan offer selection (openiap 1.3.28 shape)", () => {
+  it("accepts normal monthly with id===basePlanId and type introductory", () => {
+    assert.equal(isNormalGoogleBasePlanOffer(openiapBaseOffer("monthly")), true);
+  });
+
+  it("accepts normal yearly with id===basePlanId and type introductory", () => {
+    assert.equal(isNormalGoogleBasePlanOffer(openiapBaseOffer("yearly")), true);
+  });
+
+  it("accepts empty id with matching basePlanId", () => {
     assert.equal(
       isNormalGoogleBasePlanOffer({
         basePlanIdAndroid: "monthly",
         id: "",
         offerTokenAndroid: "token-m",
-        type: "one-time",
+        displayPrice: "¥980",
+        type: "introductory",
       }),
       true,
     );
   });
 
-  it("rejects promotional offerId entries", () => {
+  it("rejects promotional id distinct from basePlanId", () => {
     assert.equal(
       isNormalGoogleBasePlanOffer({
         basePlanIdAndroid: "monthly",
-        id: "intro-offer",
+        id: "promo-offer-id",
         offerTokenAndroid: "token-promo",
-        type: "introductory",
+        displayPrice: "¥0",
+        type: "promotional",
       }),
       false,
     );
   });
 
-  it("selects normal monthly and ignores promo", () => {
-    const product = {
-      id: GOOGLE_PRODUCT_IDS.plus,
-      title: "Plus",
-      description: "",
-      type: "subs" as const,
-      platform: "android" as const,
-      displayPrice: "$9.99",
-      currency: "USD",
-      nameAndroid: "Plus",
-      subscriptionOfferDetailsAndroid: [],
-      subscriptionOffers: [
-        {
-          basePlanIdAndroid: "monthly",
-          id: "promo",
-          offerTokenAndroid: "promo-token",
-          displayPrice: "$0.99",
-          currency: "USD",
-          price: 0.99,
-          type: "introductory" as const,
-        },
-        {
-          basePlanIdAndroid: "monthly",
-          id: "",
-          offerTokenAndroid: "base-token",
-          displayPrice: "$9.99",
-          currency: "USD",
-          price: 9.99,
-          type: "one-time" as const,
-        },
-        {
-          basePlanIdAndroid: "yearly",
-          id: "",
-          offerTokenAndroid: "year-token",
-          displayPrice: "$99.99",
-          currency: "USD",
-          price: 99.99,
-          type: "one-time" as const,
-        },
-      ],
-    };
-    const monthly = selectNormalBasePlanOffer(product as any, "monthly");
+  it("rejects true playOfferId when present", () => {
+    assert.equal(
+      isNormalGoogleBasePlanOffer({
+        basePlanIdAndroid: "monthly",
+        id: "monthly",
+        playOfferId: "intro-7day",
+        offerTokenAndroid: "token-promo",
+        displayPrice: "¥0",
+      }),
+      false,
+    );
+  });
+
+  it("accepts playOfferId null/empty as normal base plan", () => {
+    assert.equal(
+      isNormalGoogleBasePlanOffer({
+        basePlanIdAndroid: "monthly",
+        id: "monthly",
+        playOfferId: null,
+        offerTokenAndroid: "token-m",
+        displayPrice: "¥980",
+        type: "promotional", // type alone must not reject when playOfferId is empty
+      }),
+      true,
+    );
+  });
+
+  it("type introductory alone must not cause rejection", () => {
+    assert.equal(
+      isNormalGoogleBasePlanOffer({
+        ...openiapBaseOffer("monthly"),
+        type: "introductory",
+      }),
+      true,
+    );
+  });
+
+  it("type promotional alone must not reject when id equals basePlanId", () => {
+    // openiap may mis-label; identity (id === basePlanId) is authoritative for base plans.
+    assert.equal(
+      isNormalGoogleBasePlanOffer({
+        ...openiapBaseOffer("monthly"),
+        type: "promotional",
+      }),
+      true,
+    );
+  });
+
+  it("rejects missing offerTokenAndroid", () => {
+    assert.equal(
+      isNormalGoogleBasePlanOffer({
+        ...openiapBaseOffer("monthly"),
+        offerTokenAndroid: "",
+      }),
+      false,
+    );
+  });
+
+  it("rejects missing basePlanId", () => {
+    assert.equal(
+      isNormalGoogleBasePlanOffer({
+        basePlanIdAndroid: "",
+        id: "",
+        offerTokenAndroid: "token",
+        displayPrice: "¥980",
+      }),
+      false,
+    );
+  });
+
+  it("rejects mismatched requested base plan", () => {
+    const product = plusProduct([openiapBaseOffer("monthly")]);
+    assert.equal(selectNormalBasePlanOffer(product, "yearly"), null);
+  });
+
+  it("rejects missing displayPrice at selection", () => {
+    const product = plusProduct([
+      openiapBaseOffer("monthly", { displayPrice: "" }),
+    ]);
+    assert.equal(selectNormalBasePlanOffer(product, "monthly"), null);
+  });
+
+  it("rejects unsupported basePlanId", () => {
+    const product = plusProduct([
+      openiapBaseOffer("monthly", { basePlanIdAndroid: "weekly", id: "weekly" }),
+    ]);
+    assert.equal(selectNormalBasePlanOffer(product as any, "monthly"), null);
+  });
+
+  it("selects Plus monthly", () => {
+    const product = plusProduct([
+      openiapBaseOffer("monthly", { displayPrice: "¥980", offerTokenAndroid: "plus-m" }),
+      openiapBaseOffer("yearly", { displayPrice: "¥9,800", offerTokenAndroid: "plus-y" }),
+    ]);
+    const selected = selectNormalBasePlanOffer(product, "monthly");
+    assert.equal(selected?.offerToken, "plus-m");
+    assert.equal(selected?.displayPrice, "¥980");
+  });
+
+  it("selects Plus yearly", () => {
+    const product = plusProduct([
+      openiapBaseOffer("monthly", { offerTokenAndroid: "plus-m" }),
+      openiapBaseOffer("yearly", { displayPrice: "¥9,800", offerTokenAndroid: "plus-y" }),
+    ]);
+    const selected = selectNormalBasePlanOffer(product, "yearly");
+    assert.equal(selected?.offerToken, "plus-y");
+    assert.equal(selected?.displayPrice, "¥9,800");
+  });
+
+  it("selects Business monthly", () => {
+    const product = businessProduct([
+      openiapBaseOffer("monthly", { displayPrice: "¥1,480", offerTokenAndroid: "biz-m" }),
+      openiapBaseOffer("yearly", { displayPrice: "¥14,800", offerTokenAndroid: "biz-y" }),
+    ]);
+    const selected = selectNormalBasePlanOffer(product, "monthly");
+    assert.equal(selected?.offerToken, "biz-m");
+    assert.equal(selected?.displayPrice, "¥1,480");
+  });
+
+  it("selects Business yearly", () => {
+    const product = businessProduct([
+      openiapBaseOffer("monthly", { offerTokenAndroid: "biz-m" }),
+      openiapBaseOffer("yearly", { displayPrice: "¥14,800", offerTokenAndroid: "biz-y" }),
+    ]);
+    const selected = selectNormalBasePlanOffer(product, "yearly");
+    assert.equal(selected?.offerToken, "biz-y");
+    assert.equal(selected?.displayPrice, "¥14,800");
+  });
+
+  it("selects normal base plan and ignores promo beside it", () => {
+    const product = plusProduct([
+      {
+        basePlanIdAndroid: "monthly",
+        id: "promo-intro",
+        offerTokenAndroid: "promo-token",
+        displayPrice: "¥0",
+        currency: "JPY",
+        type: "introductory",
+      },
+      openiapBaseOffer("monthly", { displayPrice: "¥980", offerTokenAndroid: "base-token" }),
+      openiapBaseOffer("yearly", { displayPrice: "¥9,800", offerTokenAndroid: "year-token" }),
+    ]);
+    const monthly = selectNormalBasePlanOffer(product, "monthly");
     assert.equal(monthly?.offerToken, "base-token");
-    assert.equal(monthly?.displayPrice, "$9.99");
-    const yearly = selectNormalBasePlanOffer(product as any, "yearly");
+    assert.equal(monthly?.displayPrice, "¥980");
+    const yearly = selectNormalBasePlanOffer(product, "yearly");
     assert.equal(yearly?.offerToken, "year-token");
   });
 
   it("disables purchase when only promotional offers exist", () => {
-    const product = {
-      id: GOOGLE_PRODUCT_IDS.plus,
-      title: "Plus",
-      description: "",
-      type: "subs" as const,
-      platform: "android" as const,
-      displayPrice: "$9.99",
-      currency: "USD",
-      nameAndroid: "Plus",
-      subscriptionOfferDetailsAndroid: [],
-      subscriptionOffers: [
-        {
-          basePlanIdAndroid: "monthly",
-          id: "promo",
-          offerTokenAndroid: "promo-token",
-          displayPrice: "$0.99",
-          currency: "USD",
-          price: 0.99,
-          type: "promotional" as const,
-        },
-      ],
-    };
-    assert.equal(selectNormalBasePlanOffer(product as any, "monthly"), null);
+    const product = plusProduct([
+      {
+        basePlanIdAndroid: "monthly",
+        id: "promo",
+        offerTokenAndroid: "promo-token",
+        displayPrice: "¥0",
+        currency: "JPY",
+        type: "promotional",
+      },
+    ]);
+    assert.equal(selectNormalBasePlanOffer(product, "monthly"), null);
   });
 });
 
@@ -162,14 +295,16 @@ describe("googlePlanUi", () => {
 
   it("hides Stripe promo for Google-owned billing", () => {
     assert.equal(shouldShowStripePromoOnMobile({ purchase_source: "google" }), false);
-    // Apple-eligible Basic also hides Stripe promo (native Apple shop owns the path).
     assert.equal(
       shouldShowStripePromoOnMobile({ purchase_source: "none", can_start_apple: true }),
       false,
     );
-    // Neither native shop flag: Stripe promo may show (web-style mobile fallback).
     assert.equal(
-      shouldShowStripePromoOnMobile({ purchase_source: "none", can_start_apple: false, can_start_google: false }),
+      shouldShowStripePromoOnMobile({
+        purchase_source: "none",
+        can_start_apple: false,
+        can_start_google: false,
+      }),
       true,
     );
   });

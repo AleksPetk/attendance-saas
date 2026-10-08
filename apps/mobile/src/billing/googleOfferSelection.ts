@@ -1,16 +1,29 @@
 /**
  * Pure Google Play base-plan offer selection (no React Native / expo-iap runtime).
- * Promotional Play offers (non-empty offerId / intro / promo types) are never selected.
+ *
+ * Promotional Play offers are never selected — only normal monthly/yearly base plans.
+ *
+ * expo-iap 3.4.13 / openiap-google 1.3.28 maps normal paid base plans as:
+ *   id = offerId ?: basePlanId   → id equals "monthly" / "yearly"
+ *   type = Introductory          → even for paid (non-zero) base plans
+ * So we MUST NOT treat non-empty id or type===introductory as promotional.
  */
 
 import type { GoogleBasePlanId } from "./googleProducts";
 
 export type GoogleOfferLike = {
   basePlanIdAndroid?: string | null;
+  /** OpenIAP SubscriptionOffer.id (= Play offerId, or basePlanId when offerId is null). */
   id?: string | null;
+  /**
+   * True Play Console offerId when available (legacy subscriptionOfferDetailsAndroid).
+   * Null/empty = normal base plan. Non-empty = promotional offer.
+   */
+  playOfferId?: string | null;
   offerTokenAndroid?: string | null;
   displayPrice?: string | null;
   currency?: string | null;
+  /** Unreliable for Android promo detection in openiap 1.3.28 — ignored for filtering. */
   type?: string | null;
 };
 
@@ -31,14 +44,32 @@ export type GoogleProductLike = {
   }> | null;
 };
 
-/** True when this offer is the normal base-plan purchase (no promotional offerId). */
+/**
+ * True when this offer is the normal auto-renewing base-plan purchase option.
+ *
+ * Normal:
+ * - playOfferId absent/null/empty (when provided), OR
+ * - id absent/null/empty, OR
+ * - id === basePlanIdAndroid (openiap fallback when Play offerId is null)
+ *
+ * Promotional (reject):
+ * - playOfferId non-empty, OR
+ * - id present AND id !== basePlanIdAndroid
+ *
+ * Do NOT use offer.type — openiap marks paid base plans as "introductory".
+ */
 export function isNormalGoogleBasePlanOffer(offer: GoogleOfferLike): boolean {
   const basePlanId = String(offer.basePlanIdAndroid || "").trim();
   if (!basePlanId) return false;
-  const offerId = String(offer.id || "").trim();
-  if (offerId) return false;
-  const offerType = String(offer.type || "").trim().toLowerCase();
-  if (offerType === "introductory" || offerType === "promotional") return false;
+
+  if ("playOfferId" in offer) {
+    const trueOfferId = String(offer.playOfferId ?? "").trim();
+    if (trueOfferId) return false;
+  } else {
+    const normalizedId = String(offer.id || "").trim();
+    if (normalizedId && normalizedId !== basePlanId) return false;
+  }
+
   return Boolean(String(offer.offerTokenAndroid || "").trim());
 }
 
@@ -49,13 +80,15 @@ export function offersFromGoogleProduct(product: GoogleProductLike): GoogleOffer
   if (!Array.isArray(legacy)) return [];
   return legacy.map((entry) => {
     const phase = entry.pricingPhases?.pricingPhaseList?.[0];
+    const playOfferId = entry.offerId ?? null;
     return {
       basePlanIdAndroid: entry.basePlanId || null,
-      id: entry.offerId || "",
+      // Preserve openiap-compatible id fallback for callers that only read `id`.
+      id: playOfferId || entry.basePlanId || "",
+      playOfferId,
       offerTokenAndroid: entry.offerToken || null,
       displayPrice: phase?.formattedPrice || "",
       currency: phase?.priceCurrencyCode || null,
-      type: "one-time",
     };
   });
 }
