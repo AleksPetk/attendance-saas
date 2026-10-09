@@ -89,6 +89,7 @@ import {
   shouldLoadGoogleStoreProducts,
   userFacingGoogleBillingError,
 } from "../../src/billing/googlePlanUi";
+import { shouldShowMobileCrossProviderBillingNotice } from "../../src/billing/mobilePlanProviderNotice";
 import { colors, space, type } from "../../src/theme/tokens";
 
 type Snapshot = Record<string, any>;
@@ -588,6 +589,11 @@ export default function PlanScreen() {
   const promo = billing.catalog?.promotion;
   const summary = showStripeCards && promo?.active && promo.group === "new_basic" ? promotionSummary(billing.catalog, bt) : "";
   const date = (value?: string | null) => value ? formatDateTime(value, locale) : "";
+  const mobilePlanPlatform = Platform.OS === "android" ? "android" as const : "ios" as const;
+  const showCrossProviderBillingNotice = shouldShowMobileCrossProviderBillingNotice(
+    billing,
+    mobilePlanPlatform,
+  );
   const showAppleSection = showAppleShop || showAppleManage || showAppleTrialSelect;
   const showGoogleSection = showGoogleShop || showGoogleManage || showGoogleTrialSelect;
   const preferredFuture = billing.future_paid_plan;
@@ -656,17 +662,17 @@ export default function PlanScreen() {
           {billing.cancel_at_period_end ? <Alert message={bt("billing:cancellation.scheduled")} variant="warning" /> : null}
         </SectionCard>
 
-        {blockedProvider === "stripe" ? (
+        {showCrossProviderBillingNotice && blockedProvider === "stripe" ? (
           <SectionCard>
             <Alert message={googleIapSupported() ? t("plan.googleManagedByCheckStation") : t("plan.appleManagedByCheckStation")} variant="info" />
           </SectionCard>
         ) : null}
-        {blockedProvider === "google" ? (
+        {showCrossProviderBillingNotice && blockedProvider === "google" ? (
           <SectionCard>
             <Alert message={t("plan.appleManagedByGoogle")} variant="info" />
           </SectionCard>
         ) : null}
-        {blockedProvider === "apple" ? (
+        {showCrossProviderBillingNotice && blockedProvider === "apple" ? (
           <SectionCard>
             <Alert message={t("plan.googleManagedByApple")} variant="info" />
           </SectionCard>
@@ -774,7 +780,9 @@ export default function PlanScreen() {
             description={showGoogleTrialSelect ? t("plan.googleTrialSelectDescription") : t("plan.googleSectionDescription")}
           >
             {showGoogleTrialSelect ? <Alert message={t("plan.googleTrialSelectHint")} variant="info" /> : null}
-            {showGoogleManage ? <Alert message={t("plan.googleManagedBillingNote")} variant="info" /> : null}
+            {showGoogleManage && showCrossProviderBillingNotice ? (
+              <Alert message={t("plan.googleManagedBillingNote")} variant="info" />
+            ) : null}
             {googleBusy ? <Text style={styles.summary}>{t("plan.googleWorking")}</Text> : null}
             {googleLoading ? <Text style={styles.summary}>{t("plan.googleLoadingProducts")}</Text> : null}
             {!googleLoading && googleStoreError ? <Alert message={t("plan.googleProductsUnavailable")} variant="info" /> : null}
@@ -880,7 +888,6 @@ export default function PlanScreen() {
         <SectionCard title={bt("billing:usage.title")} description={bt("billing:usage.description")}>
           {usage.length ? usage.map((row) => <CapacityMeter key={row.key} count={row.usage} label={row.label} limit={row.limit} remainingLabel={row.limitNote || row.display} />) : <Text style={styles.summary}>{bt("billing:usage.unavailable")}</Text>}
         </SectionCard>
-        {Platform.OS === "ios" ? <Text style={styles.note}>{t("plan.nativeBillingNote")}</Text> : <Text style={styles.note}>{t("plan.nativeBillingNote")}</Text>}
       </ScrollView>
     </Screen>
   );
@@ -934,7 +941,6 @@ const styles = StyleSheet.create({
   summary: { ...type.caption, color: colors.textSecondary, marginBottom: space.sm },
   grid: { gap: space.md },
   gridTablet: { flexDirection: "row", flexWrap: "wrap" },
-  note: { ...type.caption, color: colors.textMuted },
   appleActions: { gap: space.md, marginTop: space.md },
   restoreBlock: { gap: space.xs },
   restoreLink: {

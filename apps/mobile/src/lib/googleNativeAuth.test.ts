@@ -98,10 +98,10 @@ test("backend Google native payload path remains identity_token via existing Aut
   assert.doesNotMatch(googleCompleteBody, /server_auth_code/);
 });
 
-test("Play internal Android profile inherits Web OAuth client env; versionCode is 9", () => {
+test("Play internal Android profile inherits Web OAuth client env; versionCode is 10", () => {
   assert.match(easJson, /"play-internal-android"/);
   assert.match(easJson, /"extends":\s*"preview"/);
   assert.match(easJson, /EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID/);
   assert.match(appJson, /"package":\s*"app\.checkstation\.mobile"/);
-  assert.match(appJson, /"versionCode":\s*9/);
+  assert.match(appJson, /"versionCode":\s*10/);
 });
