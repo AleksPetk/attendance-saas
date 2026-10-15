@@ -687,3 +687,7 @@
 .desktop-plan-usage-item progress::-webkit-progress-value { background:linear-gradient(90deg,var(--primary,#2563eb),var(--cyan,#22d3ee)); border-radius:99px; }
 .desktop-plan-preview .account-promotional-text { margin:0 0 18px; font-weight:750; font-size:22px; overflow-wrap:anywhere; }
 @media(max-width:960px) { .desktop-plan-grid,.desktop-plan-usage { grid-template-columns:1fr; } }
+/* Info rows are conditional; an odd last row would leave the grid's grey background exposed. */
+.desktop-plan-preview .info-grid > .info-item:last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+}

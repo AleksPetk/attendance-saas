@@ -1,4 +1,4 @@
-const { app, BrowserWindow, shell, ipcMain, dialog, safeStorage } = require("electron");
+const { app, BrowserWindow, Menu, shell, ipcMain, dialog, safeStorage } = require("electron");
 const fs = require("fs");
 const path = require("path");
 
@@ -76,8 +76,14 @@ const isDev = !app.isPackaged;
 const sessionApi = createSessionApi();
 const desktopDistributionInfo = getDesktopDistributionInfo();
 
+/** MAS only: App Review requires a menu item that reopens the closed main window. */
+const masWindowMenuEnabled = process.platform === "darwin"
+  && desktopDistributionInfo.distribution === "mas";
+
 /** Existing main BrowserWindow — never create a second window for OAuth return. */
 let mainWindow = null;
+/** False while the main window is still hidden behind the startup splash. */
+let mainWindowRevealed = false;
 
 /** Pending Stripe/billing loopback servers keyed by prepare id. */
 const pendingBillingReturns = new Map();
@@ -139,12 +145,52 @@ function createWindow() {
   win.on("closed", () => {
     if (mainWindow === win) mainWindow = null;
   });
+  if (masWindowMenuEnabled) {
+    mainWindowRevealed = false;
+    win.once("show", () => {
+      if (mainWindow === win) mainWindowRevealed = true;
+    });
+  }
 
   win.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url);
     return { action: "deny" };
   });
 
+}
+
+/** MAS Window menu: focus or restore the main window, or recreate it after close. */
+function showMainWindow() {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    // Showing before startup.cjs reveals it would leave the splash window stuck open.
+    if (!mainWindowRevealed) return;
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
+    mainWindow.focus();
+    return;
+  }
+  createWindow();
+}
+
+function installMasApplicationMenu() {
+  Menu.setApplicationMenu(Menu.buildFromTemplate([
+    { role: "appMenu" },
+    { role: "fileMenu" },
+    { role: "editMenu" },
+    { role: "viewMenu" },
+    {
+      label: "Window",
+      role: "window",
+      submenu: [
+        { label: "Show CheckStation", click: () => showMainWindow() },
+        { type: "separator" },
+        { role: "minimize" },
+        { role: "zoom" },
+        { type: "separator" },
+        { role: "front" },
+      ],
+    },
+  ]));
 }
 
 app.whenReady().then(() => {
@@ -330,6 +376,7 @@ app.whenReady().then(() => {
     return { saved: true, path: result.filePath };
   });
 
+  if (masWindowMenuEnabled) installMasApplicationMenu();
   createWindow();
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
