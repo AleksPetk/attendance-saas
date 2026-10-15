@@ -174,7 +174,22 @@ function showMainWindow() {
 
 function installMasApplicationMenu() {
   Menu.setApplicationMenu(Menu.buildFromTemplate([
-    { role: "appMenu" },
+    {
+      // Role labels default to app.name ("@checkstation/desktop"); app.name also
+      // names the userData folder, so override the visible labels instead.
+      label: "CheckStation",
+      submenu: [
+        { role: "about", label: "About CheckStation" },
+        { type: "separator" },
+        { role: "services" },
+        { type: "separator" },
+        { role: "hide", label: "Hide CheckStation" },
+        { role: "hideOthers" },
+        { role: "unhide" },
+        { type: "separator" },
+        { role: "quit", label: "Quit CheckStation" },
+      ],
+    },
     { role: "fileMenu" },
     { role: "editMenu" },
     { role: "viewMenu" },

@@ -5,7 +5,7 @@ const test = require("node:test");
 
 const main = readFileSync(join(__dirname, "main.cjs"), "utf8");
 
-test("Window → Show CheckStation menu is installed only for macOS MAS", () => {
+test("CheckStation application and Window menus are installed only for macOS MAS", () => {
   assert.match(
     main,
     /const masWindowMenuEnabled = process\.platform === "darwin"\s*&& desktopDistributionInfo\.distribution === "mas";/,
@@ -16,7 +16,16 @@ test("Window → Show CheckStation menu is installed only for macOS MAS", () => 
   assert.match(main, /if \(masWindowMenuEnabled\) installMasApplicationMenu\(\);/);
   assert.match(main, /label: "Show CheckStation", click: \(\) => showMainWindow\(\)/);
   assert.match(main, /\{ role: "editMenu" \}/);
-  assert.match(main, /\{ role: "appMenu" \}/);
+  assert.doesNotMatch(main, /role: "appMenu"/);
+  assert.match(main, /label: "CheckStation",\s*submenu: \[/);
+  assert.match(main, /\{ role: "about", label: "About CheckStation" \}/);
+  assert.match(main, /\{ role: "services" \}/);
+  assert.match(main, /\{ role: "hide", label: "Hide CheckStation" \}/);
+  assert.match(main, /\{ role: "hideOthers" \}/);
+  assert.match(main, /\{ role: "unhide" \}/);
+  assert.match(main, /\{ role: "quit", label: "Quit CheckStation" \}/);
+  assert.doesNotMatch(main, /accelerator:/);
+  assert.doesNotMatch(main, /app\.setName\(|app\.name\s*=/);
 });
 
 test("DIRECT/Windows window lifecycle handlers are unchanged", () => {
